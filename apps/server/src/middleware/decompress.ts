@@ -1,34 +1,27 @@
-import { gunzip } from "node:zlib";
-import { Readable } from "node:stream";
-import { promisify } from "node:util";
+import { createGunzip } from "node:zlib";
 import fp from "fastify-plugin";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
-const gunzipAsync = promisify(gunzip);
+const MAX_COMPRESSED_SIZE = 1024 * 1024; // 1 MiB limit on compressed input
 
 export const decompressPlugin = fp(async function (app: FastifyInstance) {
   app.addHook(
     "preParsing",
-    async (request: FastifyRequest, _reply: FastifyReply, payload) => {
+    async (request: FastifyRequest, reply: FastifyReply, payload) => {
       if (request.headers["content-encoding"] !== "gzip") {
         return payload;
       }
 
-      // Collect the compressed payload into a buffer
-      const chunks: Buffer[] = [];
-      for await (const chunk of payload) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      const contentLength = Number(request.headers["content-length"]);
+      if (contentLength > MAX_COMPRESSED_SIZE) {
+        reply.code(413).send({ error: "Compressed payload too large" });
+        return;
       }
-      const compressed = Buffer.concat(chunks);
 
-      // Decompress
-      const decompressed = await gunzipAsync(compressed);
-
-      // Update headers so the JSON parser sees correct length
       delete request.headers["content-encoding"];
-      request.headers["content-length"] = String(decompressed.length);
+      delete request.headers["content-length"];
 
-      return Readable.from(decompressed);
+      return payload.pipe(createGunzip());
     }
   );
 });

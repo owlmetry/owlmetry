@@ -25,9 +25,10 @@ public enum Owl {
     public static func configure(
         endpoint: String,
         apiKey: String,
-        flushOnBackground: Bool = true
+        flushOnBackground: Bool = true,
+        compressionEnabled: Bool = true
     ) throws {
-        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground)
+        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled)
 
         let monitor = NetworkMonitor()
         let queue = OfflineQueue()

@@ -10,9 +10,8 @@ extension Data {
     func gzipped() throws -> Data {
         guard !isEmpty else { return self }
 
-        // Compress with zlib (raw deflate)
         let sourceSize = count
-        let destinationSize = sourceSize + sourceSize / 10 + 128 // generous buffer
+        let destinationSize = sourceSize + sourceSize / 10 + 128
         var destinationBuffer = [UInt8](repeating: 0, count: destinationSize)
 
         let compressedSize = withUnsafeBytes { sourcePtr in
@@ -31,21 +30,21 @@ extension Data {
         // Build gzip: header + deflate payload + trailer
         var result = Data(capacity: 10 + compressedSize + 8)
 
-        // 10-byte gzip header
+        // 10-byte gzip header (RFC 1952 §2.3)
         result.append(contentsOf: [
-            0x1F, 0x8B, // magic
-            0x08,       // method: deflate
-            0x00,       // flags
-            0x00, 0x00, 0x00, 0x00, // mtime
+            0x1F, 0x8B, // magic number
+            0x08,       // compression method: deflate
+            0x00,       // flags: none
+            0x00, 0x00, 0x00, 0x00, // modification time: not set
             0x00,       // extra flags
             0x03,       // OS: Unix
-        ] as [UInt8])
+        ])
 
-        // Compressed data
+        // Compressed data (raw deflate from COMPRESSION_ZLIB)
         result.append(contentsOf: destinationBuffer[0..<compressedSize])
 
         // 8-byte trailer: CRC32 + original size (both little-endian)
-        let crc = crc32(of: self)
+        let crc = gzipCRC32
         result.append(UInt8(crc & 0xFF))
         result.append(UInt8((crc >> 8) & 0xFF))
         result.append(UInt8((crc >> 16) & 0xFF))
@@ -60,9 +59,9 @@ extension Data {
         return result
     }
 
-    private func crc32(of data: Data) -> UInt32 {
+    private var gzipCRC32: UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
-        data.withUnsafeBytes { ptr in
+        withUnsafeBytes { ptr in
             let bytes = ptr.bindMemory(to: UInt8.self)
             for byte in bytes {
                 let index = Int((crc ^ UInt32(byte)) & 0xFF)
@@ -73,7 +72,6 @@ extension Data {
     }
 
     // Standard CRC-32 lookup table (polynomial 0xEDB88320)
-    // swiftlint:disable comma
     private static let crc32Table: [UInt32] = {
         (0..<256).map { i -> UInt32 in
             var c = UInt32(i)
@@ -83,5 +81,4 @@ extension Data {
             return c
         }
     }()
-    // swiftlint:enable comma
 }

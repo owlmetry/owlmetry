@@ -25,7 +25,7 @@ actor EventTransport {
     init(
         endpoint: URL,
         apiKey: String,
-        compressionEnabled: Bool = true,
+        compressionEnabled: Bool,
         offlineQueue: OfflineQueue,
         networkMonitor: NetworkMonitor,
         session: URLSession = .shared

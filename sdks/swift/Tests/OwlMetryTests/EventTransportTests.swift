@@ -71,6 +71,7 @@ final class EventTransportTests: XCTestCase {
         return EventTransport(
             endpoint: URL(string: "https://api.test.com")!,
             apiKey: "owl_client_test123",
+            compressionEnabled: true,
             offlineQueue: OfflineQueue(directory: tempDir),
             networkMonitor: NetworkMonitor(),
             session: session
