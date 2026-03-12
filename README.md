@@ -1,0 +1,201 @@
+# OwlMetry
+
+Self-hosted metrics tracking platform for mobile apps. Collect events, track funnels, and investigate issues — all on your own infrastructure.
+
+## Features
+
+- **Event ingestion** — batch ingest up to 100 events per request with deduplication
+- **Device tracking** — platform, OS version, app version, device model, locale, build number
+- **Funnel analytics** — define funnels retroactively from event data
+- **Auth model** — JWT for users, `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only)
+- **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
+
+## Architecture
+
+```
+packages/shared    Shared TypeScript types and constants
+packages/db        Drizzle ORM schema, migrations, seed
+apps/server        Fastify API server (port 4000)
+apps/web           Next.js dashboard (port 3000) — coming soon
+apps/cli           CLI tool — coming soon
+sdks/swift         Swift SDK — coming soon
+```
+
+## Requirements
+
+- Node.js >= 20
+- PostgreSQL >= 15
+- pnpm
+
+## Local Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Create database
+createdb owlmetry
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your DATABASE_URL, JWT_SECRET, etc.
+
+# Run migrations (creates tables + event partitions)
+pnpm db:migrate
+
+# Seed dev data (creates admin user, team, app, API keys)
+pnpm db:seed
+
+# Start the API server
+pnpm dev:server
+
+# Run tests (requires owlmetry_test database)
+createdb owlmetry_test
+pnpm test
+```
+
+## Server Installation (Ubuntu VPS)
+
+### 1. System dependencies
+
+```bash
+# Node.js 20+
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# pnpm
+corepack enable
+corepack prepare pnpm@latest --activate
+
+# PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+
+# pm2 (process manager)
+npm install -g pm2
+
+# nginx
+sudo apt install -y nginx
+```
+
+### 2. PostgreSQL setup
+
+```bash
+sudo -u postgres createuser --superuser $(whoami)
+createdb owlmetry
+```
+
+### 3. Application setup
+
+```bash
+git clone <your-repo-url> /opt/owlmetry
+cd /opt/owlmetry
+
+pnpm install
+pnpm build
+
+cp .env.example .env
+# Edit .env:
+#   DATABASE_URL=postgres://localhost:5432/owlmetry
+#   JWT_SECRET=<generate a random 64-char string>
+#   PORT=4000
+#   CORS_ORIGINS=https://your-domain.com
+
+pnpm db:migrate
+pnpm db:seed
+```
+
+### 4. pm2 process management
+
+Create `ecosystem.config.cjs` in the project root:
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: "owlmetry-api",
+      script: "apps/server/dist/index.js",
+      cwd: "/opt/owlmetry",
+      env: {
+        NODE_ENV: "production",
+      },
+    },
+  ],
+};
+```
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup  # follow the instructions to enable on boot
+```
+
+### 5. nginx reverse proxy
+
+```nginx
+# /etc/nginx/sites-available/owlmetry
+server {
+    listen 80;
+    server_name api.your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/owlmetry /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 6. SSL with Let's Encrypt
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d api.your-domain.com
+```
+
+### 7. Partition maintenance
+
+Event partitions are auto-created on server startup (current month + 2 months ahead). If you want a safety net, add a monthly cron:
+
+```bash
+crontab -e
+# Add: run migrations on the 1st of each month at midnight
+0 0 1 * * cd /opt/owlmetry && pnpm db:migrate >> /var/log/owlmetry-partitions.log 2>&1
+```
+
+## API Overview
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/health` | None | Health check |
+| `POST` | `/v1/auth/register` | None | Create user + team |
+| `POST` | `/v1/auth/login` | None | Get JWT token |
+| `POST` | `/v1/auth/keys` | JWT | Generate API key |
+| `POST` | `/v1/ingest` | Client key | Batch ingest events |
+| `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
+| `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
+| `GET` | `/v1/apps` | JWT | List apps |
+| `POST` | `/v1/apps` | JWT | Create app |
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgres://localhost:5432/owlmetry` | PostgreSQL connection string |
+| `JWT_SECRET` | `dev-secret-change-me` | Secret for signing JWTs |
+| `PORT` | `4000` | API server port |
+| `HOST` | `0.0.0.0` | API server bind address |
+| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
