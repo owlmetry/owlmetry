@@ -34,7 +34,7 @@ export async function appsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
 
-      if (auth.type === "api_key") {
+      if (auth.type !== "user") {
         return reply.code(403).send({ error: "Only users can create apps" });
       }
 

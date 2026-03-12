@@ -67,7 +67,7 @@ export async function projectsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
 
-      if (auth.type === "api_key") {
+      if (auth.type !== "user") {
         return reply
           .code(403)
           .send({ error: "Only users can create projects" });
@@ -87,34 +87,28 @@ export async function projectsRoutes(app: FastifyInstance) {
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
       }
 
-      // Check for duplicate slug within team
-      const [existing] = await app.db
-        .select({ id: projects.id })
-        .from(projects)
-        .where(
-          and(eq(projects.team_id, auth.team_id), eq(projects.slug, slug))
-        )
-        .limit(1);
+      try {
+        const [created] = await app.db
+          .insert(projects)
+          .values({
+            team_id: auth.team_id,
+            name,
+            slug,
+          })
+          .returning();
 
-      if (existing) {
-        return reply
-          .code(409)
-          .send({ error: "A project with this slug already exists in your team" });
+        return reply.code(201).send({
+          ...created,
+          created_at: created.created_at.toISOString(),
+        });
+      } catch (err: any) {
+        if (err.code === "23505") {
+          return reply
+            .code(409)
+            .send({ error: "A project with this slug already exists in your team" });
+        }
+        throw err;
       }
-
-      const [created] = await app.db
-        .insert(projects)
-        .values({
-          team_id: auth.team_id,
-          name,
-          slug,
-        })
-        .returning();
-
-      return reply.code(201).send({
-        ...created,
-        created_at: created.created_at.toISOString(),
-      });
     }
   );
 }

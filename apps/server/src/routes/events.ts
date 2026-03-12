@@ -31,22 +31,18 @@ export async function eventsRoutes(app: FastifyInstance) {
         MAX_PAGE_SIZE
       );
 
-      // Scope to team's apps
-      const teamApps = await app.db
-        .select({ id: apps.id })
-        .from(apps)
-        .where(eq(apps.team_id, auth.team_id));
-      const teamAppIds = teamApps.map((a) => a.id);
-
-      if (teamAppIds.length === 0) {
-        return { events: [], cursor: null, has_more: false };
-      }
-
       const conditions = [];
 
       if (app_id) {
         // Verify the requested app belongs to the team
-        if (!teamAppIds.includes(app_id)) {
+        const [appRow] = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(
+            and(eq(apps.id, app_id), eq(apps.team_id, auth.team_id))
+          )
+          .limit(1);
+        if (!appRow) {
           return { events: [], cursor: null, has_more: false };
         }
         conditions.push(eq(events.app_id, app_id));
@@ -64,6 +60,15 @@ export async function eventsRoutes(app: FastifyInstance) {
         }
         conditions.push(inArray(events.app_id, projectAppIds));
       } else {
+        // Scope to all team apps
+        const teamApps = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(eq(apps.team_id, auth.team_id));
+        const teamAppIds = teamApps.map((a) => a.id);
+        if (teamAppIds.length === 0) {
+          return { events: [], cursor: null, has_more: false };
+        }
         conditions.push(inArray(events.app_id, teamAppIds));
       }
 
