@@ -103,7 +103,12 @@ export async function ingestRoutes(app: FastifyInstance) {
           body: e.body,
           context: e.context || null,
           meta: trimMeta(e.meta),
-          device_info: e.device_info || null,
+          platform: e.platform || null,
+          os_version: e.os_version || null,
+          app_version: e.app_version || null,
+          device_model: e.device_model || null,
+          build_number: e.build_number || null,
+          locale: e.locale || null,
           timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
         });
       }

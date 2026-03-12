@@ -6,15 +6,7 @@ export type LogLevel =
   | "attention"
   | "tracking";
 
-export interface DeviceInfo {
-  model?: string;
-  os?: string;
-  osVersion?: string;
-  appVersion?: string;
-  buildNumber?: string;
-  locale?: string;
-  platform?: "ios" | "ipados" | "macos" | "android" | "web";
-}
+export type Platform = "ios" | "ipados" | "macos" | "android" | "web";
 
 export interface EventPayload {
   client_event_id?: string;
@@ -24,7 +16,12 @@ export interface EventPayload {
   body: string;
   context?: string;
   meta?: Record<string, string>;
-  device_info?: DeviceInfo;
+  platform?: Platform;
+  os_version?: string;
+  app_version?: string;
+  build_number?: string;
+  device_model?: string;
+  locale?: string;
   timestamp?: string; // ISO 8601
 }
 
@@ -37,7 +34,12 @@ export interface NormalizedEvent {
   body: string;
   context: string | null;
   meta: Record<string, string> | null;
-  device_info: DeviceInfo | null;
+  platform: Platform | null;
+  os_version: string | null;
+  app_version: string | null;
+  build_number: string | null;
+  device_model: string | null;
+  locale: string | null;
   timestamp: Date;
   received_at: Date;
   solved: boolean;

@@ -57,7 +57,12 @@ async function createPartitionedEventsTable(client: postgres.Sql) {
       body TEXT NOT NULL,
       context VARCHAR(255),
       meta JSONB,
-      device_info JSONB,
+      platform VARCHAR(20),
+      os_version VARCHAR(50),
+      app_version VARCHAR(50),
+      device_model VARCHAR(100),
+      build_number VARCHAR(50),
+      locale VARCHAR(20),
       "timestamp" TIMESTAMPTZ NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       solved BOOLEAN NOT NULL DEFAULT false

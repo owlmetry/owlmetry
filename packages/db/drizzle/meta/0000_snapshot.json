@@ -1,5 +1,5 @@
 {
-  "id": "aa08e5ca-1018-44e6-a2d2-b6db4ae20352",
+  "id": "c8317d7d-bdd9-4734-a89f-842ec8080054",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -285,9 +285,39 @@
           "primaryKey": false,
           "notNull": false
         },
-        "device_info": {
-          "name": "device_info",
-          "type": "jsonb",
+        "platform": {
+          "name": "platform",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "os_version": {
+          "name": "os_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "app_version": {
+          "name": "app_version",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_model": {
+          "name": "device_model",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_number": {
+          "name": "build_number",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "locale": {
+          "name": "locale",
+          "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false
         },

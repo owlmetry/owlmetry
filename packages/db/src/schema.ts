@@ -121,7 +121,12 @@ export const events = pgTable(
     body: text("body").notNull(),
     context: varchar("context", { length: 255 }),
     meta: jsonb("meta").$type<Record<string, string>>(),
-    device_info: jsonb("device_info"),
+    platform: varchar("platform", { length: 20 }),
+    os_version: varchar("os_version", { length: 50 }),
+    app_version: varchar("app_version", { length: 50 }),
+    device_model: varchar("device_model", { length: 100 }),
+    build_number: varchar("build_number", { length: 50 }),
+    locale: varchar("locale", { length: 20 }),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     received_at: timestamp("received_at", { withTimezone: true })
       .notNull()

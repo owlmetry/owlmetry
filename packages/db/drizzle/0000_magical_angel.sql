@@ -34,7 +34,12 @@ CREATE TABLE "events" (
 	"body" text NOT NULL,
 	"context" varchar(255),
 	"meta" jsonb,
-	"device_info" jsonb,
+	"platform" varchar(20),
+	"os_version" varchar(50),
+	"app_version" varchar(50),
+	"device_model" varchar(100),
+	"build_number" varchar(50),
+	"locale" varchar(20),
 	"timestamp" timestamp with time zone NOT NULL,
 	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"solved" boolean DEFAULT false NOT NULL
