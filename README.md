@@ -9,10 +9,14 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 ## Features
 
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; supports gzip-compressed payloads
+- **Projects & apps** — organize apps by product across platforms (e.g., "MyApp" project contains iOS + Android apps)
 - **Device tracking** — platform, OS version, app version, device model, locale, build number
+- **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
+- **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Funnel analytics** — define funnels retroactively from event data
 - **Auth model** — JWT for users, `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only)
 - **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
+- **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
 
 ## Architecture
 
@@ -47,7 +51,7 @@ cp .env.example .env
 # Run migrations (creates tables + event partitions)
 pnpm db:migrate
 
-# Seed dev data (creates admin user, team, app, API keys)
+# Seed dev data (creates admin user, team, project, app, API keys)
 pnpm db:seed
 
 # Start the API server
@@ -200,8 +204,12 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
+| `GET` | `/v1/projects` | JWT | List projects |
+| `GET` | `/v1/projects/:id` | JWT | Get project with apps |
+| `POST` | `/v1/projects` | JWT | Create project |
 | `GET` | `/v1/apps` | JWT | List apps |
-| `POST` | `/v1/apps` | JWT | Create app |
+| `POST` | `/v1/apps` | JWT | Create app (requires project_id) |
+| `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
 
 ## Environment Variables
 
