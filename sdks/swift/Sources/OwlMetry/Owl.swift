@@ -12,6 +12,7 @@ public enum Owl {
         var duplicateFilter: DuplicateFilter?
         var networkMonitor: NetworkMonitor?
         var offlineQueue: OfflineQueue?
+        var lifecycleObserver: LifecycleObserver?
         var defaultUserIdentifier: String?
         var anonymousId: String?
         var hasWarnedNotConfigured = false
@@ -21,8 +22,12 @@ public enum Owl {
 
     // MARK: - Setup
 
-    public static func configure(endpoint: String, apiKey: String) throws {
-        let config = try Configuration(endpoint: endpoint, apiKey: apiKey)
+    public static func configure(
+        endpoint: String,
+        apiKey: String,
+        flushOnBackground: Bool = true
+    ) throws {
+        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground)
 
         let monitor = NetworkMonitor()
         let queue = OfflineQueue()
@@ -38,24 +43,35 @@ public enum Owl {
         let anonId = IdentityManager.anonymousId()
         let userId = IdentityManager.savedUserId() ?? anonId
 
-        let oldTransport: EventTransport? = state.withLock { s in
-            let old = s.transport
+        let lifecycleObserver: LifecycleObserver?
+        if config.flushOnBackground {
+            lifecycleObserver = LifecycleObserver(transport: transport, offlineQueue: queue)
+        } else {
+            lifecycleObserver = nil
+        }
+
+        let (oldTransport, oldObserver): (EventTransport?, LifecycleObserver?) = state.withLock { s in
+            let old = (s.transport, s.lifecycleObserver)
             s.configuration = config
             s.deviceInfo = DeviceInfo.collect()
             s.networkMonitor = monitor
             s.offlineQueue = queue
             s.transport = transport
             s.duplicateFilter = filter
+            s.lifecycleObserver = lifecycleObserver
             s.anonymousId = anonId
             s.defaultUserIdentifier = userId
             s.hasWarnedNotConfigured = false
             return old
         }
 
-        // Flush old transport before replacing
+        // Stop old observer and flush old transport before replacing
+        oldObserver?.stop()
         if let oldTransport {
             Task { await oldTransport.shutdown() }
         }
+
+        lifecycleObserver?.start()
 
         Task {
             await transport.start()
@@ -210,7 +226,8 @@ public enum Owl {
     // MARK: - Lifecycle
 
     public static func shutdown() async {
-        let transport = state.withLock { $0.transport }
+        let (transport, observer) = state.withLock { ($0.transport, $0.lifecycleObserver) }
+        observer?.stop()
         await transport?.shutdown()
     }
 
@@ -221,11 +238,12 @@ public enum Owl {
     /// Persistent state (Keychain anonymous ID, UserDefaults) is NOT cleared,
     /// matching real app restart behavior.
     static func reset() async {
-        let oldTransport = state.withLock { s -> EventTransport? in
-            let t = s.transport
+        let (oldTransport, oldObserver) = state.withLock { s -> (EventTransport?, LifecycleObserver?) in
+            let old = (s.transport, s.lifecycleObserver)
             s = State()
-            return t
+            return old
         }
+        oldObserver?.stop()
         await oldTransport?.shutdown()
     }
 

@@ -88,7 +88,7 @@ actor EventTransport {
         }
     }
 
-    private func flushAll() async {
+    func flushAll() async {
         let offlineEvents = await offlineQueue.drain()
         if !offlineEvents.isEmpty {
             buffer.insert(contentsOf: offlineEvents, at: 0)
@@ -109,6 +109,13 @@ actor EventTransport {
                 await offlineQueue.enqueue(batch)
             }
         }
+    }
+
+    func persistBufferToDisk() async {
+        guard !buffer.isEmpty else { return }
+        await offlineQueue.enqueue(buffer)
+        buffer.removeAll()
+        await offlineQueue.persistNow()
     }
 
     func claimIdentity(anonymousId: String, userId: String) async {
