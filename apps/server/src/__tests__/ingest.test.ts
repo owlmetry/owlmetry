@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { gzipSync } from "node:zlib";
 import {
   buildApp,
   truncateAll,
@@ -201,5 +202,41 @@ describe("POST /v1/ingest", () => {
     const rateLimited = results.filter((r) => r.statusCode === 429);
     expect(rateLimited.length).toBeGreaterThan(0);
     expect(rateLimited[0].json().error).toMatch(/rate limit/i);
+  });
+
+  it("accepts gzip-compressed event payload", async () => {
+    const json = JSON.stringify({
+      events: [{ level: "info", body: "Compressed event" }],
+    });
+    const compressed = gzipSync(Buffer.from(json));
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_KEY}`,
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+      },
+      body: compressed,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+  });
+
+  it("rejects invalid gzip data", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_KEY}`,
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+      },
+      payload: Buffer.from("not valid gzip data"),
+    });
+
+    expect(res.statusCode).toBeGreaterThanOrEqual(400);
   });
 });

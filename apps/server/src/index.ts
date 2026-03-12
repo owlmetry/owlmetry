@@ -9,6 +9,7 @@ import { ingestRoutes } from "./routes/ingest.js";
 import { eventsRoutes } from "./routes/events.js";
 import { appsRoutes } from "./routes/apps.js";
 import { identityRoutes } from "./routes/identity.js";
+import { decompressPlugin } from "./middleware/decompress.js";
 
 const app = Fastify({ logger: true });
 
@@ -29,6 +30,7 @@ try {
 app.decorate("db", db);
 
 // Plugins
+await app.register(decompressPlugin);
 await app.register(cors, { origin: config.corsOrigins });
 await app.register(jwt, { secret: config.jwtSecret });
 

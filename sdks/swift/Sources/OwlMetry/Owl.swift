@@ -34,6 +34,7 @@ public enum Owl {
         let transport = EventTransport(
             endpoint: config.endpoint,
             apiKey: config.apiKey,
+            compressionEnabled: config.compressionEnabled,
             offlineQueue: queue,
             networkMonitor: monitor
         )

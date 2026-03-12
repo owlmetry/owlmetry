@@ -9,6 +9,7 @@ actor EventTransport {
     private let session: URLSession
     private let offlineQueue: OfflineQueue
     private let networkMonitor: NetworkMonitor
+    private let compressionEnabled: Bool
     private var flushTask: Task<Void, Never>?
     private let encoder = JSONEncoder()
 
@@ -17,12 +18,14 @@ actor EventTransport {
     private let flushInterval: UInt64 = 5_000_000_000 // 5 seconds
     private let maxRetries = 5
     private let maxBackoff: TimeInterval = 30
+    private let compressionThreshold = 512
 
     private static let logger = Logger(subsystem: Owl.logSubsystem, category: "transport")
 
     init(
         endpoint: URL,
         apiKey: String,
+        compressionEnabled: Bool = true,
         offlineQueue: OfflineQueue,
         networkMonitor: NetworkMonitor,
         session: URLSession = .shared
@@ -30,6 +33,7 @@ actor EventTransport {
         self.ingestURL = endpoint.appendingPathComponent("v1/ingest")
         self.claimURL = endpoint.appendingPathComponent("v1/identity/claim")
         self.apiKey = apiKey
+        self.compressionEnabled = compressionEnabled
         self.offlineQueue = offlineQueue
         self.networkMonitor = networkMonitor
         self.session = session
@@ -159,7 +163,15 @@ actor EventTransport {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.httpBody = body
+
+        if compressionEnabled, body.count >= compressionThreshold,
+           let compressed = try? body.gzipped() {
+            request.httpBody = compressed
+            request.setValue("gzip", forHTTPHeaderField: "Content-Encoding")
+        } else {
+            request.httpBody = body
+        }
+
         return request
     }
 

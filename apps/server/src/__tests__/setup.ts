@@ -13,6 +13,7 @@ import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
 import { identityRoutes } from "../routes/identity.js";
+import { decompressPlugin } from "../middleware/decompress.js";
 import bcrypt from "bcrypt";
 
 const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
@@ -84,6 +85,7 @@ export async function buildApp() {
   const db = createDb(TEST_DB_URL);
 
   app.decorate("db", db);
+  await app.register(decompressPlugin);
   await app.register(cors, { origin: true });
   await app.register(jwt, { secret: "test-secret" });
 
