@@ -1,6 +1,8 @@
 # OwlMetry
 
-Self-hosted metrics tracking platform for mobile apps. Collect events, track funnels, and investigate issues — all on your own infrastructure.
+Self-hosted observability for the agentic development era. Ship your app, collect real usage data, and feed it directly to your AI coding agent — so it can see what's actually happening in production and fix things autonomously.
+
+Most AI-assisted development is a one-way street: you vibe-code a feature, ship it, and hope for the best. OwlMetry closes the loop. It gives your agent eyes on real user behavior, crash patterns, and performance bottlenecks — turning "build and forget" into a continuous feedback cycle where your agent can make informed decisions based on what's actually happening in the wild.
 
 > **Warning:** This project is in active development and is not yet production-ready. APIs, schemas, and configuration may change without notice.
 
