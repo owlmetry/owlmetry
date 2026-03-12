@@ -200,11 +200,23 @@ export async function seedTestData() {
   return { userId: user.id, teamId: team.id, projectId: project.id, appId: app.id };
 }
 
-export async function getToken(app: FastifyInstance) {
+/**
+ * Logs in and returns the JWT token and the user's first team ID.
+ */
+export async function getTokenAndTeamId(app: FastifyInstance) {
   const res = await app.inject({
     method: "POST",
     url: "/v1/auth/login",
     payload: { email: TEST_USER.email, password: TEST_USER.password },
   });
-  return res.json().token;
+  const body = res.json();
+  return { token: body.token, teamId: body.teams[0].id };
+}
+
+/**
+ * Shorthand — returns just the JWT token.
+ */
+export async function getToken(app: FastifyInstance) {
+  const { token } = await getTokenAndTeamId(app);
+  return token;
 }

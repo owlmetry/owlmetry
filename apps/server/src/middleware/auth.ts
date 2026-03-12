@@ -10,6 +10,16 @@ declare module "fastify" {
   }
 }
 
+/** Returns all team IDs the authenticated context has access to. */
+export function getAuthTeamIds(auth: AuthContext): string[] {
+  return auth.type === "api_key" ? [auth.team_id] : auth.team_ids;
+}
+
+/** Checks if the authenticated context has access to a specific team. */
+export function hasTeamAccess(auth: AuthContext, teamId: string): boolean {
+  return getAuthTeamIds(auth).includes(teamId);
+}
+
 export async function requireAuth(
   request: FastifyRequest,
   reply: FastifyReply
@@ -63,15 +73,21 @@ export async function requireAuth(
     return;
   }
 
-  // JWT auth
+  // JWT auth — identity only, team memberships preloaded
   try {
     const payload = (await request.jwtVerify()) as UserJwtPayload;
+
+    const db = request.server.db;
+    const memberships = await db
+      .select({ team_id: teamMembers.team_id })
+      .from(teamMembers)
+      .where(eq(teamMembers.user_id, payload.sub));
+
     request.auth = {
       type: "user",
       user_id: payload.sub,
       email: payload.email,
-      team_id: payload.team_id,
-      role: payload.role,
+      team_ids: memberships.map((m) => m.team_id),
     } satisfies UserContext;
   } catch {
     return reply.code(401).send({ error: "Invalid or expired token" });

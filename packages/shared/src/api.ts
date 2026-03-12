@@ -14,9 +14,17 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface AuthTeamMembership {
+  id: string;
+  name: string;
+  slug: string;
+  role: "owner" | "admin" | "member";
+}
+
 export interface AuthResponse {
   token: string;
   user: Omit<User, "created_at"> & { created_at: string };
+  teams: AuthTeamMembership[];
 }
 
 // API Keys
@@ -24,6 +32,7 @@ export interface CreateApiKeyRequest {
   name: string;
   key_type: ApiKeyType;
   app_id?: string;
+  team_id?: string; // required for agent keys (no app_id to derive team from)
   expires_in_days?: number;
 }
 
@@ -37,6 +46,7 @@ export interface CreateApiKeyResponse {
 
 // Projects
 export interface CreateProjectRequest {
+  team_id: string;
   name: string;
   slug: string;
 }

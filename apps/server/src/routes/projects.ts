@@ -1,21 +1,22 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
 import type { CreateProjectRequest } from "@owlmetry/shared";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
-  // List projects for the team
+  // List projects for the authenticated user's teams
   app.get(
     "/projects",
     { preHandler: requireAuth },
     async (request, reply) => {
       const auth = request.auth;
+      const teamIds = getAuthTeamIds(auth);
 
       const rows = await app.db
         .select()
         .from(projects)
-        .where(eq(projects.team_id, auth.team_id));
+        .where(inArray(projects.team_id, teamIds));
 
       return {
         projects: rows.map((p) => ({
@@ -37,7 +38,12 @@ export async function projectsRoutes(app: FastifyInstance) {
       const [project] = await app.db
         .select()
         .from(projects)
-        .where(and(eq(projects.id, id), eq(projects.team_id, auth.team_id)))
+        .where(
+          and(
+            eq(projects.id, id),
+            inArray(projects.team_id, getAuthTeamIds(auth))
+          )
+        )
         .limit(1);
 
       if (!project) {
@@ -73,12 +79,12 @@ export async function projectsRoutes(app: FastifyInstance) {
           .send({ error: "Only users can create projects" });
       }
 
-      const { name, slug } = request.body;
+      const { team_id, name, slug } = request.body;
 
-      if (!name || !slug) {
+      if (!team_id || !name || !slug) {
         return reply
           .code(400)
-          .send({ error: "name and slug are required" });
+          .send({ error: "team_id, name, and slug are required" });
       }
 
       if (!/^[a-z0-9-]+$/.test(slug)) {
@@ -87,11 +93,15 @@ export async function projectsRoutes(app: FastifyInstance) {
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
       }
 
+      if (!hasTeamAccess(auth, team_id)) {
+        return reply.code(403).send({ error: "Not a member of this team" });
+      }
+
       try {
         const [created] = await app.db
           .insert(projects)
           .values({
-            team_id: auth.team_id,
+            team_id,
             name,
             slug,
           })

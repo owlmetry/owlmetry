@@ -9,7 +9,7 @@ import type {
   LoginRequest,
   CreateApiKeyRequest,
 } from "@owlmetry/shared";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, hasTeamAccess } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 
 function generateSlugFromName(name: string): string {
@@ -63,8 +63,6 @@ export async function authRoutes(app: FastifyInstance) {
       {
         sub: user.id,
         email: user.email,
-        team_id: team.id,
-        role: "owner",
       } satisfies UserJwtPayload,
       { expiresIn: "7d" }
     );
@@ -77,6 +75,14 @@ export async function authRoutes(app: FastifyInstance) {
         name: user.name,
         created_at: user.created_at.toISOString(),
       },
+      teams: [
+        {
+          id: team.id,
+          name: team.name,
+          slug: team.slug,
+          role: "owner" as const,
+        },
+      ],
     });
   });
 
@@ -103,14 +109,19 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    // Get user's team membership
-    const [membership] = await app.db
-      .select()
+    // Get all team memberships
+    const memberships = await app.db
+      .select({
+        team_id: teamMembers.team_id,
+        role: teamMembers.role,
+        team_name: teams.name,
+        team_slug: teams.slug,
+      })
       .from(teamMembers)
-      .where(eq(teamMembers.user_id, user.id))
-      .limit(1);
+      .innerJoin(teams, eq(teams.id, teamMembers.team_id))
+      .where(eq(teamMembers.user_id, user.id));
 
-    if (!membership) {
+    if (memberships.length === 0) {
       return reply.code(500).send({ error: "User has no team membership" });
     }
 
@@ -118,8 +129,6 @@ export async function authRoutes(app: FastifyInstance) {
       {
         sub: user.id,
         email: user.email,
-        team_id: membership.team_id,
-        role: membership.role,
       } satisfies UserJwtPayload,
       { expiresIn: "7d" }
     );
@@ -132,8 +141,46 @@ export async function authRoutes(app: FastifyInstance) {
         name: user.name,
         created_at: user.created_at.toISOString(),
       },
+      teams: memberships.map((m) => ({
+        id: m.team_id,
+        name: m.team_name,
+        slug: m.team_slug,
+        role: m.role,
+      })),
     };
   });
+
+  // List teams for authenticated user
+  app.get(
+    "/teams",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can list teams" });
+      }
+
+      const memberships = await app.db
+        .select({
+          team_id: teamMembers.team_id,
+          role: teamMembers.role,
+          team_name: teams.name,
+          team_slug: teams.slug,
+        })
+        .from(teamMembers)
+        .innerJoin(teams, eq(teams.id, teamMembers.team_id))
+        .where(eq(teamMembers.user_id, auth.user_id));
+
+      return {
+        teams: memberships.map((m) => ({
+          id: m.team_id,
+          name: m.team_name,
+          slug: m.team_slug,
+          role: m.role,
+        })),
+      };
+    }
+  );
 
   // Create API key
   app.post<{ Body: CreateApiKeyRequest }>(
@@ -145,7 +192,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can create API keys" });
       }
 
-      const { name, key_type, app_id, expires_in_days } = request.body;
+      const { name, key_type, app_id, team_id, expires_in_days } = request.body;
 
       if (!name || !key_type) {
         return reply.code(400).send({ error: "name and key_type required" });
@@ -160,7 +207,14 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Client keys require an app_id" });
       }
 
-      // Verify app belongs to team
+      // Agent keys without an app require a team_id
+      if (key_type === "agent" && !app_id && !team_id) {
+        return reply.code(400).send({ error: "Agent keys require a team_id or app_id" });
+      }
+
+      // Resolve team from app or body
+      let resolvedTeamId: string;
+
       if (app_id) {
         const [appRecord] = await app.db
           .select()
@@ -168,9 +222,15 @@ export async function authRoutes(app: FastifyInstance) {
           .where(eq(apps.id, app_id))
           .limit(1);
 
-        if (!appRecord || appRecord.team_id !== auth.team_id) {
+        if (!appRecord || !hasTeamAccess(auth, appRecord.team_id)) {
           return reply.code(404).send({ error: "App not found" });
         }
+        resolvedTeamId = appRecord.team_id;
+      } else {
+        if (!hasTeamAccess(auth, team_id!)) {
+          return reply.code(403).send({ error: "Not a member of this team" });
+        }
+        resolvedTeamId = team_id!;
       }
 
       const prefix = API_KEY_PREFIX[key_type];
@@ -188,7 +248,7 @@ export async function authRoutes(app: FastifyInstance) {
           key_prefix: fullKey.slice(0, 16),
           key_type,
           app_id: app_id || null,
-          team_id: auth.team_id,
+          team_id: resolvedTeamId,
           name,
           permissions,
           expires_at,

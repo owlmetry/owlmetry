@@ -1,6 +1,5 @@
 import type { Db } from "@owlmetry/db";
 import type { FastifyInstance } from "fastify";
-import type { TeamRole } from "@owlmetry/shared";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -11,8 +10,6 @@ declare module "fastify" {
 export interface UserJwtPayload {
   sub: string; // user id
   email: string;
-  team_id: string;
-  role: TeamRole;
 }
 
 export interface ApiKeyContext {
@@ -28,8 +25,7 @@ export interface UserContext {
   type: "user";
   user_id: string;
   email: string;
-  team_id: string;
-  role: TeamRole;
+  team_ids: string[];
 }
 
 export type AuthContext = ApiKeyContext | UserContext;

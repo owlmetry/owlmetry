@@ -14,7 +14,7 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Funnel analytics** — define funnels retroactively from event data
-- **Auth model** — JWT for users, `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only)
+- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only)
 - **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
 
@@ -199,14 +199,15 @@ MAX_DATABASE_SIZE_GB=10
 |--------|----------|------|-------------|
 | `GET` | `/health` | None | Health check |
 | `POST` | `/v1/auth/register` | None | Create user + team |
-| `POST` | `/v1/auth/login` | None | Get JWT token |
+| `POST` | `/v1/auth/login` | None | Get JWT token + teams list |
+| `GET` | `/v1/auth/teams` | JWT | List user's teams |
 | `POST` | `/v1/auth/keys` | JWT | Generate API key |
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
 | `GET` | `/v1/projects` | JWT | List projects |
 | `GET` | `/v1/projects/:id` | JWT | Get project with apps |
-| `POST` | `/v1/projects` | JWT | Create project |
+| `POST` | `/v1/projects` | JWT | Create project (requires team_id in body) |
 | `GET` | `/v1/apps` | JWT | List apps |
 | `POST` | `/v1/apps` | JWT | Create app (requires project_id) |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |

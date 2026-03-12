@@ -5,6 +5,7 @@ import {
   truncateAll,
   seedTestData,
   getToken,
+  getTokenAndTeamId,
   TEST_USER,
   TEST_CLIENT_KEY,
 } from "./setup.js";
@@ -42,6 +43,8 @@ describe("POST /v1/auth/register", () => {
     expect(body.token).toBeDefined();
     expect(body.user.email).toBe("new@owlmetry.dev");
     expect(body.user.name).toBe("New User");
+    expect(body.teams).toHaveLength(1);
+    expect(body.teams[0].role).toBe("owner");
   });
 
   it("rejects duplicate email", async () => {
@@ -71,7 +74,7 @@ describe("POST /v1/auth/register", () => {
 });
 
 describe("POST /v1/auth/login", () => {
-  it("returns valid JWT", async () => {
+  it("returns JWT and team list", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
@@ -85,6 +88,9 @@ describe("POST /v1/auth/login", () => {
     const body = res.json();
     expect(body.token).toBeDefined();
     expect(body.user.email).toBe(TEST_USER.email);
+    expect(body.teams).toHaveLength(1);
+    expect(body.teams[0].id).toBe(testData.teamId);
+    expect(body.teams[0].role).toBe("owner");
   });
 
   it("rejects wrong password", async () => {
@@ -114,6 +120,23 @@ describe("POST /v1/auth/login", () => {
   });
 });
 
+describe("GET /v1/auth/teams", () => {
+  it("lists teams for authenticated user", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/teams",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.teams).toHaveLength(1);
+    expect(body.teams[0].id).toBe(testData.teamId);
+    expect(body.teams[0].role).toBe("owner");
+  });
+});
+
 describe("POST /v1/auth/keys", () => {
   it("generates client API key scoped to app", async () => {
     const token = await getToken(app);
@@ -135,8 +158,8 @@ describe("POST /v1/auth/keys", () => {
     expect(body.api_key.permissions).toContain("events:write");
   });
 
-  it("generates agent API key", async () => {
-    const token = await getToken(app);
+  it("generates agent API key with team_id", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/auth/keys",
@@ -144,6 +167,7 @@ describe("POST /v1/auth/keys", () => {
       payload: {
         name: "My Agent Key",
         key_type: "agent",
+        team_id: teamId,
       },
     });
 
@@ -151,6 +175,22 @@ describe("POST /v1/auth/keys", () => {
     const body = res.json();
     expect(body.key).toMatch(/^owl_agent_/);
     expect(body.api_key.permissions).toContain("events:read");
+  });
+
+  it("rejects agent key without team_id or app_id", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Bad Agent Key",
+        key_type: "agent",
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/team_id/);
   });
 
   it("rejects client key without app_id", async () => {

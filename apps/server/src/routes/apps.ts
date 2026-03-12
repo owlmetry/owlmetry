@@ -1,22 +1,22 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { apps, projects } from "@owlmetry/db";
 import type { CreateAppRequest } from "@owlmetry/shared";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 
 export async function appsRoutes(app: FastifyInstance) {
-  // List apps
+  // List apps for the authenticated user's teams
   app.get(
     "/apps",
     { preHandler: requireAuth },
     async (request, reply) => {
       const auth = request.auth;
-      const team_id = auth.team_id;
+      const teamIds = getAuthTeamIds(auth);
 
       const rows = await app.db
         .select()
         .from(apps)
-        .where(eq(apps.team_id, team_id));
+        .where(inArray(apps.team_id, teamIds));
 
       return {
         apps: rows.map((a) => ({
@@ -27,7 +27,7 @@ export async function appsRoutes(app: FastifyInstance) {
     }
   );
 
-  // Create app
+  // Create app (team derived from project)
   app.post<{ Body: CreateAppRequest }>(
     "/apps",
     { preHandler: requireAuth },
@@ -48,26 +48,21 @@ export async function appsRoutes(app: FastifyInstance) {
           });
       }
 
-      // Verify the project belongs to the team
+      // Look up project and verify team membership
       const [project] = await app.db
-        .select({ id: projects.id })
+        .select({ id: projects.id, team_id: projects.team_id })
         .from(projects)
-        .where(
-          and(
-            eq(projects.id, project_id),
-            eq(projects.team_id, auth.team_id)
-          )
-        )
+        .where(eq(projects.id, project_id))
         .limit(1);
 
-      if (!project) {
+      if (!project || !hasTeamAccess(auth, project.team_id)) {
         return reply.code(404).send({ error: "Project not found" });
       }
 
       const [created] = await app.db
         .insert(apps)
         .values({
-          team_id: auth.team_id,
+          team_id: project.team_id,
           project_id,
           name,
           platform,

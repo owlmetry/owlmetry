@@ -3,7 +3,7 @@ import { and, eq, gte, lte, lt, desc, inArray } from "drizzle-orm";
 import { events, apps } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@owlmetry/shared";
 import type { EventsQueryParams } from "@owlmetry/shared";
-import { requirePermission } from "../middleware/auth.js";
+import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 
 export async function eventsRoutes(app: FastifyInstance) {
@@ -13,6 +13,7 @@ export async function eventsRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission("events:read"), rateLimit] },
     async (request, reply) => {
       const auth = request.auth;
+      const teamIds = getAuthTeamIds(auth);
 
       const {
         project_id,
@@ -34,12 +35,12 @@ export async function eventsRoutes(app: FastifyInstance) {
       const conditions = [];
 
       if (app_id) {
-        // Verify the requested app belongs to the team
+        // Verify the requested app belongs to one of the user's teams
         const [appRow] = await app.db
           .select({ id: apps.id })
           .from(apps)
           .where(
-            and(eq(apps.id, app_id), eq(apps.team_id, auth.team_id))
+            and(eq(apps.id, app_id), inArray(apps.team_id, teamIds))
           )
           .limit(1);
         if (!appRow) {
@@ -52,7 +53,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           .select({ id: apps.id })
           .from(apps)
           .where(
-            and(eq(apps.project_id, project_id), eq(apps.team_id, auth.team_id))
+            and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds))
           );
         const projectAppIds = projectApps.map((a) => a.id);
         if (projectAppIds.length === 0) {
@@ -60,11 +61,11 @@ export async function eventsRoutes(app: FastifyInstance) {
         }
         conditions.push(inArray(events.app_id, projectAppIds));
       } else {
-        // Scope to all team apps
+        // Scope to all apps the user has access to
         const teamApps = await app.db
           .select({ id: apps.id })
           .from(apps)
-          .where(eq(apps.team_id, auth.team_id));
+          .where(inArray(apps.team_id, teamIds));
         const teamAppIds = teamApps.map((a) => a.id);
         if (teamAppIds.length === 0) {
           return { events: [], cursor: null, has_more: false };
@@ -133,14 +134,14 @@ export async function eventsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Event not found" });
       }
 
-      // Verify event belongs to team's app
+      // Verify event belongs to an app the user has access to
       const [eventApp] = await app.db
         .select({ team_id: apps.team_id })
         .from(apps)
         .where(eq(apps.id, event.app_id))
         .limit(1);
 
-      if (!eventApp || eventApp.team_id !== auth.team_id) {
+      if (!eventApp || !hasTeamAccess(auth, eventApp.team_id)) {
         return reply.code(404).send({ error: "Event not found" });
       }
 
