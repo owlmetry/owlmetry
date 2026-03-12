@@ -57,6 +57,9 @@ importers:
       '@owlmetry/shared':
         specifier: workspace:*
         version: link:../shared
+      bcrypt:
+        specifier: ^5.1.1
+        version: 5.1.1
       drizzle-orm:
         specifier: ^0.39.0
         version: 0.39.3(postgres@3.4.8)
@@ -64,6 +67,9 @@ importers:
         specifier: ^3.4.0
         version: 3.4.8
     devDependencies:
+      '@types/bcrypt':
+        specifier: ^5.0.2
+        version: 5.0.2
       '@types/node':
         specifier: ^25.4.0
         version: 25.4.0

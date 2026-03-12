@@ -1,17 +1,13 @@
 import { createDb } from "./index.js";
 import { users, teams, teamMembers, apps, apiKeys } from "./schema.js";
 import { createHash, randomBytes } from "node:crypto";
+import bcrypt from "bcrypt";
 import "dotenv/config";
 
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
 
 function hashKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
-}
-
-function hashPassword(password: string): string {
-  // For seed only — server uses bcrypt
-  return createHash("sha256").update(password).digest("hex");
 }
 
 async function main() {
@@ -24,7 +20,7 @@ async function main() {
     .insert(users)
     .values({
       email: "admin@owlmetry.dev",
-      password_hash: hashPassword("admin123"),
+      password_hash: await bcrypt.hash("admin123", 12),
       name: "Admin",
     })
     .onConflictDoNothing()
