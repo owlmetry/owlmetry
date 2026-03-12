@@ -374,6 +374,48 @@ final class SDKIntegrationTests: XCTestCase {
         XCTAssertEqual(secondEvent?["user_identifier"] as? String, "user-session-2")
     }
 
+    // MARK: - Compression Tests
+
+    func testGzipCompressionDataIntegrity() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let context = "gzip_integrity_\(UUID().uuidString.prefix(8))"
+
+        // Send enough events with rich metadata to guarantee the batch
+        // exceeds the 512-byte compression threshold
+        for i in 0..<10 {
+            Owl.info(
+                "gzip_event_\(i)_padding_\(String(repeating: "x", count: 50))",
+                context: context,
+                meta: [
+                    "index": "\(i)",
+                    "tag": "compression-test",
+                    "payload": String(repeating: "y", count: 80),
+                ]
+            )
+        }
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let serverEvents = try await queryEvents(context: context)
+        XCTAssertEqual(serverEvents.count, 10, "All 10 events should survive gzip round-trip")
+
+        // Verify every event's data arrived intact
+        for i in 0..<10 {
+            let expected = "gzip_event_\(i)_padding_\(String(repeating: "x", count: 50))"
+            let match = serverEvents.first(where: {
+                ($0["meta"] as? [String: String])?["index"] == "\(i)"
+            })
+            XCTAssertNotNil(match, "Event with index \(i) should exist")
+            XCTAssertEqual(match?["body"] as? String, expected,
+                           "Event body should survive compression")
+            let meta = match?["meta"] as? [String: String] ?? [:]
+            XCTAssertEqual(meta["tag"], "compression-test")
+            XCTAssertEqual(meta["payload"], String(repeating: "y", count: 80))
+        }
+    }
+
     // MARK: - Restart & Persistence Tests
 
     func testOfflineQueuePersistenceAcrossRestart() async throws {
