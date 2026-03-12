@@ -9,13 +9,13 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testAllowsFirstOccurrence() async {
-        let event = LogEvent.stub(body: "hello")
+        let event = LogEvent.stub(message: "hello")
         let allowed = await filter.shouldAllow(event)
         XCTAssertTrue(allowed)
     }
 
     func testAllowsUpToMaxDuplicates() async {
-        let event = LogEvent.stub(body: "repeated")
+        let event = LogEvent.stub(message: "repeated")
         for i in 1...10 {
             let allowed = await filter.shouldAllow(event)
             XCTAssertTrue(allowed, "Event \(i) should be allowed")
@@ -23,7 +23,7 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testBlocksAfterMaxDuplicates() async {
-        let event = LogEvent.stub(body: "spam")
+        let event = LogEvent.stub(message: "spam")
         for _ in 1...10 {
             _ = await filter.shouldAllow(event)
         }
@@ -32,8 +32,8 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testDifferentEventsAreIndependent() async {
-        let eventA = LogEvent.stub(body: "message A")
-        let eventB = LogEvent.stub(body: "message B")
+        let eventA = LogEvent.stub(message: "message A")
+        let eventB = LogEvent.stub(message: "message B")
 
         for _ in 1...10 {
             _ = await filter.shouldAllow(eventA)
@@ -47,8 +47,8 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testDifferentContextCreatesDistinctKey() async {
-        let eventA = LogEvent.stub(body: "same", context: "screen_a")
-        let eventB = LogEvent.stub(body: "same", context: "screen_b")
+        let eventA = LogEvent.stub(message: "same", screenName: "screen_a")
+        let eventB = LogEvent.stub(message: "same", screenName: "screen_b")
 
         for _ in 1...10 {
             _ = await filter.shouldAllow(eventA)
@@ -59,8 +59,8 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testSystemMetaKeysExcludedFromKey() async {
-        let event1 = LogEvent.stub(body: "test", meta: ["_file": "A.swift", "_line": "1", "_function": "foo", "key": "val"])
-        let event2 = LogEvent.stub(body: "test", meta: ["_file": "B.swift", "_line": "99", "_function": "bar", "key": "val"])
+        let event1 = LogEvent.stub(message: "test", customAttributes: ["_file": "A.swift", "_line": "1", "_function": "foo", "key": "val"])
+        let event2 = LogEvent.stub(message: "test", customAttributes: ["_file": "B.swift", "_line": "99", "_function": "bar", "key": "val"])
 
         _ = await filter.shouldAllow(event1)
         let allowed = await filter.shouldAllow(event2)

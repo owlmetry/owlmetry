@@ -8,7 +8,7 @@ declare module "fastify" {
   }
 }
 
-export interface JwtPayload {
+export interface UserJwtPayload {
   sub: string; // user id
   email: string;
   team_id: string;

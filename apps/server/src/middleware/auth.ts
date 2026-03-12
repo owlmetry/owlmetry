@@ -1,8 +1,8 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { eq } from "drizzle-orm";
 import { apiKeys, teamMembers } from "@owlmetry/db";
-import { KEY_PREFIX, hashKey } from "@owlmetry/shared";
-import type { AuthContext, JwtPayload, ApiKeyContext, UserContext } from "../types.js";
+import { API_KEY_PREFIX, hashApiKey } from "@owlmetry/shared";
+import type { AuthContext, UserJwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -26,10 +26,10 @@ export async function requireAuth(
 
   // API key auth
   if (
-    token.startsWith(KEY_PREFIX.client) ||
-    token.startsWith(KEY_PREFIX.agent)
+    token.startsWith(API_KEY_PREFIX.client) ||
+    token.startsWith(API_KEY_PREFIX.agent)
   ) {
-    const hash = hashKey(token);
+    const hash = hashApiKey(token);
     const db = request.server.db;
     const [key] = await db
       .select()
@@ -65,7 +65,7 @@ export async function requireAuth(
 
   // JWT auth
   try {
-    const payload = (await request.jwtVerify()) as JwtPayload;
+    const payload = (await request.jwtVerify()) as UserJwtPayload;
     request.auth = {
       type: "user",
       user_id: payload.sub,

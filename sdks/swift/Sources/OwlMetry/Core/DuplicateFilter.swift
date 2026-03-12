@@ -47,15 +47,15 @@ actor DuplicateFilter {
     }
 
     private func compositeKey(for event: LogEvent) -> String {
-        var relevantMeta = ""
-        if let meta = event.meta {
-            let relevantKeys = meta.keys
+        var relevantAttributes = ""
+        if let attributes = event.customAttributes {
+            let relevantKeys = attributes.keys
                 .filter { !EventBuilder.systemMetaKeys.contains($0) }
                 .sorted()
             if !relevantKeys.isEmpty {
-                relevantMeta = relevantKeys.map { "\($0):\(meta[$0] ?? "")" }.joined(separator: "|")
+                relevantAttributes = relevantKeys.map { "\($0):\(attributes[$0] ?? "")" }.joined(separator: "|")
             }
         }
-        return "\(event.level.rawValue)|\(event.body)|\(event.context ?? "")|\(relevantMeta)"
+        return "\(event.level.rawValue)|\(event.message)|\(event.screenName ?? "")|\(relevantAttributes)"
     }
 }

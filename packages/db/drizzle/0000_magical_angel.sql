@@ -28,12 +28,12 @@ CREATE TABLE "events" (
 	"id" uuid DEFAULT gen_random_uuid(),
 	"app_id" uuid NOT NULL,
 	"client_event_id" varchar(255),
-	"user_identifier" varchar(255),
+	"user_id" varchar(255),
 	"level" "log_level" NOT NULL,
-	"source" text,
-	"body" text NOT NULL,
-	"context" varchar(255),
-	"meta" jsonb,
+	"source_module" text,
+	"message" text NOT NULL,
+	"screen_name" varchar(255),
+	"custom_attributes" jsonb,
 	"platform" varchar(20),
 	"os_version" varchar(50),
 	"app_version" varchar(50),
@@ -42,7 +42,7 @@ CREATE TABLE "events" (
 	"locale" varchar(20),
 	"timestamp" timestamp with time zone NOT NULL,
 	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"solved" boolean DEFAULT false NOT NULL
+	"is_resolved" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "funnel_definitions" (
@@ -56,9 +56,9 @@ CREATE TABLE "funnel_definitions" (
 CREATE TABLE "funnel_progress" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"funnel_id" uuid NOT NULL,
-	"user_identifier" varchar(255) NOT NULL,
-	"step_completed" text NOT NULL,
-	"step_event_id" uuid,
+	"user_id" varchar(255) NOT NULL,
+	"completed_step_name" text NOT NULL,
+	"triggering_event_id" uuid,
 	"completed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -97,9 +97,9 @@ CREATE INDEX "api_keys_team_id_idx" ON "api_keys" USING btree ("team_id");--> st
 CREATE INDEX "apps_team_id_idx" ON "apps" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "events_app_timestamp_idx" ON "events" USING btree ("app_id","timestamp");--> statement-breakpoint
 CREATE INDEX "events_app_level_timestamp_idx" ON "events" USING btree ("app_id","level","timestamp");--> statement-breakpoint
-CREATE INDEX "events_app_user_timestamp_idx" ON "events" USING btree ("app_id","user_identifier","timestamp");--> statement-breakpoint
-CREATE INDEX "events_app_context_timestamp_idx" ON "events" USING btree ("app_id","context","timestamp");--> statement-breakpoint
+CREATE INDEX "events_app_user_timestamp_idx" ON "events" USING btree ("app_id","user_id","timestamp");--> statement-breakpoint
+CREATE INDEX "events_app_screen_name_timestamp_idx" ON "events" USING btree ("app_id","screen_name","timestamp");--> statement-breakpoint
 CREATE INDEX "events_client_event_id_idx" ON "events" USING btree ("app_id","client_event_id");--> statement-breakpoint
 CREATE INDEX "funnel_definitions_app_id_idx" ON "funnel_definitions" USING btree ("app_id");--> statement-breakpoint
-CREATE INDEX "funnel_progress_funnel_user_idx" ON "funnel_progress" USING btree ("funnel_id","user_identifier");--> statement-breakpoint
+CREATE INDEX "funnel_progress_funnel_user_idx" ON "funnel_progress" USING btree ("funnel_id","user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_members_team_user_idx" ON "team_members" USING btree ("team_id","user_id");

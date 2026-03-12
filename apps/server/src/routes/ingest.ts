@@ -3,38 +3,38 @@ import { and, eq, inArray } from "drizzle-orm";
 import { events } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
-  MAX_META_VALUE_LENGTH,
+  MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
   LOG_LEVELS,
 } from "@owlmetry/shared";
-import type { IngestRequest, EventPayload } from "@owlmetry/shared";
+import type { IngestRequest, IngestEventPayload } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 
-function validateEvent(
-  e: EventPayload,
+function validateIngestEventPayload(
+  payload: IngestEventPayload,
   index: number
 ): string | null {
-  if (!e.body || typeof e.body !== "string") {
-    return `events[${index}]: body is required and must be a string`;
+  if (!payload.message || typeof payload.message !== "string") {
+    return `events[${index}]: message is required and must be a string`;
   }
-  if (!e.level || !LOG_LEVELS.includes(e.level as any)) {
+  if (!payload.level || !LOG_LEVELS.includes(payload.level as any)) {
     return `events[${index}]: level must be one of ${LOG_LEVELS.join(", ")}`;
   }
   return null;
 }
 
-function trimMeta(
-  meta: Record<string, string> | undefined
+function truncateCustomAttributeValues(
+  customAttributes: Record<string, string> | undefined
 ): Record<string, string> | null {
-  if (!meta) return null;
-  const trimmed: Record<string, string> = {};
-  for (const [k, v] of Object.entries(meta)) {
-    trimmed[k] =
-      typeof v === "string" && v.length > MAX_META_VALUE_LENGTH
-        ? v.slice(0, MAX_META_VALUE_LENGTH)
+  if (!customAttributes) return null;
+  const truncated: Record<string, string> = {};
+  for (const [k, v] of Object.entries(customAttributes)) {
+    truncated[k] =
+      typeof v === "string" && v.length > MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH
+        ? v.slice(0, MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH)
         : String(v);
   }
-  return trimmed;
+  return truncated;
 }
 
 export async function ingestRoutes(app: FastifyInstance) {
@@ -66,11 +66,11 @@ export async function ingestRoutes(app: FastifyInstance) {
       }
 
       const errors: Array<{ index: number; message: string }> = [];
-      const validated: Array<{ index: number; event: EventPayload }> = [];
+      const validated: Array<{ index: number; event: IngestEventPayload }> = [];
 
       for (let i = 0; i < payloads.length; i++) {
         const e = payloads[i];
-        const err = validateEvent(e, i);
+        const err = validateIngestEventPayload(e, i);
         if (err) {
           errors.push({ index: i, message: err });
           continue;
@@ -108,12 +108,12 @@ export async function ingestRoutes(app: FastifyInstance) {
         valid.push({
           app_id,
           client_event_id: e.client_event_id || null,
-          user_identifier: e.user_identifier || null,
+          user_id: e.user_id || null,
           level: e.level,
-          source: e.source || null,
-          body: e.body,
-          context: e.context || null,
-          meta: trimMeta(e.meta),
+          source_module: e.source_module || null,
+          message: e.message,
+          screen_name: e.screen_name || null,
+          custom_attributes: truncateCustomAttributeValues(e.custom_attributes),
           platform: e.platform || null,
           os_version: e.os_version || null,
           app_version: e.app_version || null,

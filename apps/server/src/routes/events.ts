@@ -18,7 +18,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         app_id,
         level,
         user,
-        context,
+        screen_name,
         since,
         until,
         cursor,
@@ -57,10 +57,10 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(eq(events.level, level as any));
       }
       if (user) {
-        conditions.push(eq(events.user_identifier, user));
+        conditions.push(eq(events.user_id, user));
       }
-      if (context) {
-        conditions.push(eq(events.context, context));
+      if (screen_name) {
+        conditions.push(eq(events.screen_name, screen_name));
       }
       if (since) {
         conditions.push(gte(events.timestamp, new Date(since)));

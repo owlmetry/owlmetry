@@ -3,7 +3,7 @@ CREATE TABLE "event_identity_claims" (
 	"app_id" uuid NOT NULL,
 	"anonymous_id" varchar(255) NOT NULL,
 	"user_id" varchar(255) NOT NULL,
-	"events_updated" integer DEFAULT 0 NOT NULL,
+	"events_reassigned_count" integer DEFAULT 0 NOT NULL,
 	"claimed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

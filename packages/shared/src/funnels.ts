@@ -1,7 +1,7 @@
 export interface FunnelStep {
   name: string;
-  event_body: string;
-  event_context?: string;
+  event_message: string;
+  event_screen_name?: string;
 }
 
 export interface FunnelDefinition {
@@ -17,7 +17,7 @@ export interface FunnelStepAnalytics {
   step_name: string;
   count: number;
   percentage: number;
-  drop_off: number;
+  drop_off_count: number;
 }
 
 export interface FunnelAnalytics {

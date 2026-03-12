@@ -1,14 +1,14 @@
-import { createDb } from "./index.js";
+import { createDatabaseConnection } from "./index.js";
 import { users, teams, teamMembers, apps, apiKeys } from "./schema.js";
 import { randomBytes } from "node:crypto";
-import { hashKey } from "@owlmetry/shared";
+import { hashApiKey } from "@owlmetry/shared";
 import bcrypt from "bcrypt";
 import "dotenv/config";
 
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
 
 async function main() {
-  const db = createDb(url);
+  const db = createDatabaseConnection(url);
 
   console.log("Seeding database...");
 
@@ -58,7 +58,7 @@ async function main() {
   // Create client API key
   const clientKey = `owl_client_${randomBytes(24).toString("hex")}`;
   await db.insert(apiKeys).values({
-    key_hash: hashKey(clientKey),
+    key_hash: hashApiKey(clientKey),
     key_prefix: clientKey.slice(0, 16),
     key_type: "client",
     app_id: app.id,
@@ -70,7 +70,7 @@ async function main() {
   // Create agent API key
   const agentKey = `owl_agent_${randomBytes(24).toString("hex")}`;
   await db.insert(apiKeys).values({
-    key_hash: hashKey(agentKey),
+    key_hash: hashApiKey(agentKey),
     key_prefix: agentKey.slice(0, 16),
     key_type: "agent",
     app_id: null,

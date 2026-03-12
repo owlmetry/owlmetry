@@ -13,7 +13,7 @@ public enum Owl {
         var networkMonitor: NetworkMonitor?
         var offlineQueue: OfflineQueue?
         var lifecycleObserver: LifecycleObserver?
-        var defaultUserIdentifier: String?
+        var defaultUserId: String?
         var anonymousId: String?
         var hasWarnedNotConfigured = false
     }
@@ -62,7 +62,7 @@ public enum Owl {
             s.duplicateFilter = filter
             s.lifecycleObserver = lifecycleObserver
             s.anonymousId = anonId
-            s.defaultUserIdentifier = userId
+            s.defaultUserId = userId
             s.hasWarnedNotConfigured = false
             return old
         }
@@ -91,7 +91,7 @@ public enum Owl {
 
         let (anonId, transport) = state.withLock { s -> (String?, EventTransport?) in
             let anonId = s.anonymousId
-            s.defaultUserIdentifier = identifier
+            s.defaultUserId = identifier
             return (anonId, s.transport)
         }
 
@@ -116,9 +116,9 @@ public enum Owl {
         state.withLock { s in
             if let freshId {
                 s.anonymousId = freshId
-                s.defaultUserIdentifier = freshId
+                s.defaultUserId = freshId
             } else {
-                s.defaultUserIdentifier = s.anonymousId
+                s.defaultUserId = s.anonymousId
             }
         }
     }
@@ -126,77 +126,77 @@ public enum Owl {
     // MARK: - Logging
 
     public static func info(
-        _ body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil,
+        _ message: String,
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .info, context: context, meta: meta,
+        log(message, level: .info, screenName: screenName, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
     public static func debug(
-        _ body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil,
+        _ message: String,
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .debug, context: context, meta: meta,
+        log(message, level: .debug, screenName: screenName, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
     public static func warn(
-        _ body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil,
+        _ message: String,
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .warn, context: context, meta: meta,
+        log(message, level: .warn, screenName: screenName, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
     public static func error(
-        _ body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil,
+        _ message: String,
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
         let connected = state.withLock { $0.networkMonitor?.isConnected == true }
-        var updatedMeta = meta ?? [:]
-        updatedMeta["_connection"] = connected ? "connected" : "disconnected"
-        log(body, level: .error, context: context, meta: updatedMeta,
+        var updatedAttributes = customAttributes ?? [:]
+        updatedAttributes["_connection"] = connected ? "connected" : "disconnected"
+        log(message, level: .error, screenName: screenName, customAttributes: updatedAttributes,
             file: file, function: function, line: line)
     }
 
     public static func attention(
-        _ body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil,
+        _ message: String,
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .attention, context: context, meta: meta,
+        log(message, level: .attention, screenName: screenName, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
     public static func tracking(
-        _ body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil,
+        _ message: String,
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .tracking, context: context, meta: meta,
+        log(message, level: .tracking, screenName: screenName, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
@@ -204,25 +204,25 @@ public enum Owl {
 
     public static func track(
         _ name: String,
-        meta: [String: String]? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(name, level: .tracking, context: nil, meta: meta,
+        log(name, level: .tracking, screenName: nil, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
     public static func trackOnce(
         _ name: String,
-        meta: [String: String]? = nil,
+        customAttributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
         guard !FunnelTracker.hasTrackedOnce(name) else { return }
         FunnelTracker.markTrackedOnce(name)
-        track(name, meta: meta, file: file, function: function, line: line)
+        track(name, customAttributes: customAttributes, file: file, function: function, line: line)
     }
 
     // MARK: - Lifecycle
@@ -257,10 +257,10 @@ public enum Owl {
     // MARK: - Internal
 
     private static func log(
-        _ body: String,
+        _ message: String,
         level: LogLevel,
-        context: String?,
-        meta: [String: String]?,
+        screenName: String?,
+        customAttributes: [String: String]?,
         file: String,
         function: String,
         line: Int
@@ -275,17 +275,17 @@ public enum Owl {
                 }
                 return nil
             }
-            return (deviceInfo, transport, filter, s.defaultUserIdentifier)
+            return (deviceInfo, transport, filter, s.defaultUserId)
         }
 
         guard let (deviceInfo, transport, duplicateFilter, defaultUser) = snapshot else { return }
 
         let event = EventBuilder.build(
-            body: body,
+            message: message,
             level: level,
-            context: context,
-            meta: meta,
-            userIdentifier: defaultUser,
+            screenName: screenName,
+            customAttributes: customAttributes,
+            userId: defaultUser,
             deviceInfo: deviceInfo,
             file: file,
             function: function,

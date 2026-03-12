@@ -14,7 +14,7 @@ async function main() {
   await migrate(db, { migrationsFolder: "./drizzle" });
 
   // Convert Drizzle's regular events table to partitioned
-  await setupPartitionedTable(client);
+  await convertEventsTableToPartitioned(client);
 
   // Create partitions for current month + next 2 months
   await ensurePartitions(client, 3);
@@ -23,7 +23,7 @@ async function main() {
   console.log("Migrations complete.");
 }
 
-async function setupPartitionedTable(client: postgres.Sql) {
+async function convertEventsTableToPartitioned(client: postgres.Sql) {
   const result = await client`
     SELECT relkind FROM pg_class WHERE relname = 'events'
   `;
@@ -43,12 +43,12 @@ async function setupPartitionedTable(client: postgres.Sql) {
       id UUID DEFAULT gen_random_uuid(),
       app_id UUID NOT NULL,
       client_event_id VARCHAR(255),
-      user_identifier VARCHAR(255),
+      user_id VARCHAR(255),
       level log_level NOT NULL,
-      source TEXT,
-      body TEXT NOT NULL,
-      context VARCHAR(255),
-      meta JSONB,
+      source_module TEXT,
+      message TEXT NOT NULL,
+      screen_name VARCHAR(255),
+      custom_attributes JSONB,
       platform VARCHAR(20),
       os_version VARCHAR(50),
       app_version VARCHAR(50),
@@ -57,7 +57,7 @@ async function setupPartitionedTable(client: postgres.Sql) {
       locale VARCHAR(20),
       "timestamp" TIMESTAMPTZ NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      solved BOOLEAN NOT NULL DEFAULT false
+      is_resolved BOOLEAN NOT NULL DEFAULT false
     ) PARTITION BY RANGE ("timestamp");
   `);
 }

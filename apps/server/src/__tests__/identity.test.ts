@@ -51,32 +51,32 @@ function queryEvents(params: Record<string, string> = {}) {
 }
 
 describe("POST /v1/identity/claim", () => {
-  it("claims anonymous events and updates user_identifier", async () => {
+  it("claims anonymous events and updates user_id", async () => {
     const anonId = "owl_anon_test-claim-001";
 
     // Ingest events with anonymous ID
     await ingest([
-      { level: "info", body: "claim event 1", user_identifier: anonId, context: "claim" },
-      { level: "info", body: "claim event 2", user_identifier: anonId, context: "claim" },
+      { level: "info", message: "claim event 1", user_id: anonId, screen_name: "claim" },
+      { level: "info", message: "claim event 2", user_id: anonId, screen_name: "claim" },
     ]);
 
     // Claim
     const res = await claim({ anonymous_id: anonId, user_id: "real-user-1" });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ claimed: true, events_updated: 2 });
+    expect(res.json()).toEqual({ claimed: true, events_reassigned_count: 2 });
 
     // Verify events were updated
     const eventsRes = await queryEvents({ user: "real-user-1" });
     const events = eventsRes.json().events;
     expect(events.length).toBe(2);
-    expect(events.every((e: any) => e.user_identifier === "real-user-1")).toBe(true);
+    expect(events.every((e: any) => e.user_id === "real-user-1")).toBe(true);
   });
 
   it("is idempotent — second claim returns success", async () => {
     const anonId = "owl_anon_test-idempotent";
 
     await ingest([
-      { level: "info", body: "idem event", user_identifier: anonId },
+      { level: "info", message: "idem event", user_id: anonId },
     ]);
 
     const first = await claim({ anonymous_id: anonId, user_id: "idem-user" });
@@ -109,7 +109,7 @@ describe("POST /v1/identity/claim", () => {
   it("rejects user_id with owl_anon_ prefix", async () => {
     const anonId = "owl_anon_test-reject-anon-user";
     await ingest([
-      { level: "info", body: "test", user_identifier: anonId },
+      { level: "info", message: "test", user_id: anonId },
     ]);
 
     const res = await claim({
@@ -142,13 +142,13 @@ describe("POST /v1/identity/claim", () => {
 
     // Ingest events under this app's client key
     await ingest([
-      { level: "info", body: "app-scoped event", user_identifier: anonId },
+      { level: "info", message: "app-scoped event", user_id: anonId },
     ]);
 
     // Claim should work
     const res = await claim({ anonymous_id: anonId, user_id: "scoped-user" });
     expect(res.statusCode).toBe(200);
-    expect(res.json().events_updated).toBe(1);
+    expect(res.json().events_reassigned_count).toBe(1);
   });
 
   it("does not update events belonging to a different anonymous_id", async () => {
@@ -156,20 +156,20 @@ describe("POST /v1/identity/claim", () => {
     const anonId2 = "owl_anon_user-b";
 
     await ingest([
-      { level: "info", body: "user A event", user_identifier: anonId1, context: "isolation" },
-      { level: "info", body: "user B event", user_identifier: anonId2, context: "isolation" },
+      { level: "info", message: "user A event", user_id: anonId1, screen_name: "isolation" },
+      { level: "info", message: "user B event", user_id: anonId2, screen_name: "isolation" },
     ]);
 
     // Claim only anonId1
     await claim({ anonymous_id: anonId1, user_id: "real-user-a" });
 
     // Verify user B's events are untouched
-    const eventsRes = await queryEvents({ context: "isolation" });
+    const eventsRes = await queryEvents({ screen_name: "isolation" });
     const events = eventsRes.json().events;
-    const userBEvent = events.find((e: any) => e.body === "user B event");
-    expect(userBEvent.user_identifier).toBe(anonId2);
+    const userBEvent = events.find((e: any) => e.message === "user B event");
+    expect(userBEvent.user_id).toBe(anonId2);
 
-    const userAEvent = events.find((e: any) => e.body === "user A event");
-    expect(userAEvent.user_identifier).toBe("real-user-a");
+    const userAEvent = events.find((e: any) => e.message === "user A event");
+    expect(userAEvent.user_id).toBe("real-user-a");
   });
 });

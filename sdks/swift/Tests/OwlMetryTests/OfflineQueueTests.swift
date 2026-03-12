@@ -15,16 +15,16 @@ final class OfflineQueueTests: XCTestCase {
 
     func testEnqueueAndDrain() async {
         let queue = OfflineQueue(directory: tempDir)
-        await queue.enqueue(LogEvent.stub(body: "test"))
+        await queue.enqueue(LogEvent.stub(message: "test"))
         let drained = await queue.drain()
 
         XCTAssertEqual(drained.count, 1)
-        XCTAssertEqual(drained.first?.body, "test")
+        XCTAssertEqual(drained.first?.message, "test")
     }
 
     func testDrainClearsQueue() async {
         let queue = OfflineQueue(directory: tempDir)
-        await queue.enqueue(LogEvent.stub(body: "a"))
+        await queue.enqueue(LogEvent.stub(message: "a"))
 
         _ = await queue.drain()
         let second = await queue.drain()
@@ -34,7 +34,7 @@ final class OfflineQueueTests: XCTestCase {
 
     func testBatchEnqueue() async {
         let queue = OfflineQueue(directory: tempDir)
-        let events = (0..<5).map { LogEvent.stub(body: "event_\($0)") }
+        let events = (0..<5).map { LogEvent.stub(message: "event_\($0)") }
 
         await queue.enqueue(events)
         let count = await queue.count
@@ -44,10 +44,10 @@ final class OfflineQueueTests: XCTestCase {
 
     func testPersistsToDisk() async {
         let queue1 = OfflineQueue(directory: tempDir)
-        await queue1.enqueue(LogEvent.stub(body: "persisted"))
+        await queue1.enqueue(LogEvent.stub(message: "persisted"))
 
         _ = await queue1.drain()
-        await queue1.enqueue(LogEvent.stub(body: "persisted"))
+        await queue1.enqueue(LogEvent.stub(message: "persisted"))
 
         // Wait for debounced disk write
         try? await Task.sleep(nanoseconds: 2_000_000_000)

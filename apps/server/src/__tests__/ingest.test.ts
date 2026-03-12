@@ -37,7 +37,7 @@ function ingest(events: any[], key = TEST_CLIENT_KEY) {
 describe("POST /v1/ingest", () => {
   it("accepts a single valid event", async () => {
     const res = await ingest([
-      { level: "info", body: "App launched" },
+      { level: "info", message: "App launched" },
     ]);
 
     expect(res.statusCode).toBe(200);
@@ -47,7 +47,7 @@ describe("POST /v1/ingest", () => {
   it("accepts a batch of 20 events", async () => {
     const events = Array.from({ length: 20 }, (_, i) => ({
       level: "info",
-      body: `Event ${i}`,
+      message: `Event ${i}`,
     }));
 
     const res = await ingest(events);
@@ -59,11 +59,11 @@ describe("POST /v1/ingest", () => {
     const res = await ingest([
       {
         level: "info",
-        body: "Full event",
-        user_identifier: "user-1",
-        source: "AppDelegate",
-        context: "launch",
-        meta: { key: "value" },
+        message: "Full event",
+        user_id: "user-1",
+        source_module: "AppDelegate",
+        screen_name: "launch",
+        custom_attributes: { key: "value" },
         platform: "ios",
         os_version: "18.2",
         app_version: "2.1.0",
@@ -80,7 +80,7 @@ describe("POST /v1/ingest", () => {
   it("rejects batch over 100 events", async () => {
     const events = Array.from({ length: 101 }, (_, i) => ({
       level: "info",
-      body: `Event ${i}`,
+      message: `Event ${i}`,
     }));
 
     const res = await ingest(events);
@@ -88,19 +88,19 @@ describe("POST /v1/ingest", () => {
     expect(res.json().error).toMatch(/100/);
   });
 
-  it("rejects events with missing body", async () => {
+  it("rejects events with missing message", async () => {
     const res = await ingest([{ level: "info" }]);
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
       accepted: 0,
       rejected: 1,
-      errors: [{ index: 0, message: expect.stringContaining("body") }],
+      errors: [{ index: 0, message: expect.stringContaining("message") }],
     });
   });
 
   it("rejects events with invalid level", async () => {
-    const res = await ingest([{ level: "critical", body: "test" }]);
+    const res = await ingest([{ level: "critical", message: "test" }]);
 
     expect(res.statusCode).toBe(200);
     expect(res.json().rejected).toBe(1);
@@ -108,9 +108,9 @@ describe("POST /v1/ingest", () => {
 
   it("accepts valid events and rejects invalid ones in same batch", async () => {
     const res = await ingest([
-      { level: "info", body: "Good event" },
-      { level: "info" }, // missing body
-      { level: "error", body: "Another good one" },
+      { level: "info", message: "Good event" },
+      { level: "info" }, // missing message
+      { level: "error", message: "Another good one" },
     ]);
 
     expect(res.statusCode).toBe(200);
@@ -121,24 +121,24 @@ describe("POST /v1/ingest", () => {
 
   it("deduplicates by client_event_id", async () => {
     await ingest([
-      { level: "info", body: "First", client_event_id: "evt-1" },
+      { level: "info", message: "First", client_event_id: "evt-1" },
     ]);
 
     const res = await ingest([
-      { level: "info", body: "Duplicate", client_event_id: "evt-1" },
+      { level: "info", message: "Duplicate", client_event_id: "evt-1" },
     ]);
 
     expect(res.statusCode).toBe(200);
     expect(res.json().accepted).toBe(0);
   });
 
-  it("trims metadata values over 200 chars", async () => {
+  it("trims custom attribute values over 200 chars", async () => {
     const longValue = "x".repeat(300);
     const res = await ingest([
       {
         level: "info",
-        body: "Trimmed meta",
-        meta: { key: longValue },
+        message: "Trimmed custom attributes",
+        custom_attributes: { key: longValue },
       },
     ]);
 
@@ -153,7 +153,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects agent key (no events:write permission)", async () => {
     const res = await ingest(
-      [{ level: "info", body: "test" }],
+      [{ level: "info", message: "test" }],
       TEST_AGENT_KEY
     );
 
@@ -162,7 +162,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects invalid API key", async () => {
     const res = await ingest(
-      [{ level: "info", body: "test" }],
+      [{ level: "info", message: "test" }],
       "owl_client_invalidkeyinvalidkeyinvalidkeyinvalidke"
     );
 
@@ -173,7 +173,7 @@ describe("POST /v1/ingest", () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/ingest",
-      payload: { events: [{ level: "info", body: "test" }] },
+      payload: { events: [{ level: "info", message: "test" }] },
     });
 
     expect(res.statusCode).toBe(401);
@@ -181,7 +181,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects expired API key", async () => {
     const res = await ingest(
-      [{ level: "info", body: "test" }],
+      [{ level: "info", message: "test" }],
       TEST_EXPIRED_KEY
     );
 
@@ -194,7 +194,7 @@ describe("POST /v1/ingest", () => {
     const promises = [];
     for (let i = 0; i < 105; i++) {
       promises.push(
-        ingest([{ level: "info", body: `Flood ${i}` }])
+        ingest([{ level: "info", message: `Flood ${i}` }])
       );
     }
     const results = await Promise.all(promises);
@@ -206,7 +206,7 @@ describe("POST /v1/ingest", () => {
 
   it("accepts gzip-compressed event payload", async () => {
     const json = JSON.stringify({
-      events: [{ level: "info", body: "Compressed event" }],
+      events: [{ level: "info", message: "Compressed event" }],
     });
     const compressed = gzipSync(Buffer.from(json));
 

@@ -3,16 +3,16 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "node:crypto";
 import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
-import { KEY_PREFIX, KEY_PERMISSIONS, hashKey } from "@owlmetry/shared";
+import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, hashApiKey } from "@owlmetry/shared";
 import type {
   RegisterRequest,
   LoginRequest,
   CreateApiKeyRequest,
 } from "@owlmetry/shared";
 import { requireAuth } from "../middleware/auth.js";
-import type { JwtPayload } from "../types.js";
+import type { UserJwtPayload } from "../types.js";
 
-function slugify(name: string): string {
+function generateSlugFromName(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -47,7 +47,7 @@ export async function authRoutes(app: FastifyInstance) {
       .returning();
 
     // Create default team
-    const slug = slugify(name) || "team";
+    const slug = generateSlugFromName(name) || "team";
     const [team] = await app.db
       .insert(teams)
       .values({ name: `${name}'s Team`, slug: `${slug}-${user.id.slice(0, 8)}` })
@@ -65,7 +65,7 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
         team_id: team.id,
         role: "owner",
-      } satisfies JwtPayload,
+      } satisfies UserJwtPayload,
       { expiresIn: "7d" }
     );
 
@@ -120,7 +120,7 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
         team_id: membership.team_id,
         role: membership.role,
-      } satisfies JwtPayload,
+      } satisfies UserJwtPayload,
       { expiresIn: "7d" }
     );
 
@@ -173,9 +173,9 @@ export async function authRoutes(app: FastifyInstance) {
         }
       }
 
-      const prefix = KEY_PREFIX[key_type];
+      const prefix = API_KEY_PREFIX[key_type];
       const fullKey = `${prefix}${randomBytes(24).toString("hex")}`;
-      const permissions = KEY_PERMISSIONS[key_type];
+      const permissions = DEFAULT_API_KEY_PERMISSIONS[key_type];
 
       const expires_at = expires_in_days
         ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000)
@@ -184,7 +184,7 @@ export async function authRoutes(app: FastifyInstance) {
       const [apiKey] = await app.db
         .insert(apiKeys)
         .values({
-          key_hash: hashKey(fullKey),
+          key_hash: hashApiKey(fullKey),
           key_prefix: fullKey.slice(0, 16),
           key_type,
           app_id: app_id || null,

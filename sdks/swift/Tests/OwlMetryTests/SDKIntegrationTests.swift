@@ -38,25 +38,25 @@ final class SDKIntegrationTests: XCTestCase {
     func testFullRoundTrip() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        Owl.info("SDK integration test - info", context: "roundtrip")
-        Owl.error("SDK integration test - error", context: "roundtrip", meta: ["source": "xcode"])
-        Owl.warn("SDK integration test - warn", context: "roundtrip")
+        Owl.info("SDK integration test - info", screenName: "roundtrip")
+        Owl.error("SDK integration test - error", screenName: "roundtrip", customAttributes: ["source_module": "xcode"])
+        Owl.warn("SDK integration test - warn", screenName: "roundtrip")
 
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "roundtrip")
+        let events = try await queryEvents(screenName: "roundtrip")
 
         XCTAssertGreaterThanOrEqual(events.count, 3, "Expected at least 3 events from SDK")
 
-        let bodies = events.map { $0["body"] as? String ?? "" }
-        XCTAssertTrue(bodies.contains("SDK integration test - info"))
-        XCTAssertTrue(bodies.contains("SDK integration test - error"))
-        XCTAssertTrue(bodies.contains("SDK integration test - warn"))
+        let messages = events.map { $0["message"] as? String ?? "" }
+        XCTAssertTrue(messages.contains("SDK integration test - info"))
+        XCTAssertTrue(messages.contains("SDK integration test - error"))
+        XCTAssertTrue(messages.contains("SDK integration test - warn"))
 
-        // All events should have a user_identifier (anonymous ID)
+        // All events should have a user_id (anonymous ID)
         for event in events {
-            let uid = event["user_identifier"] as? String
-            XCTAssertNotNil(uid, "Every event should have a user_identifier")
+            let uid = event["user_id"] as? String
+            XCTAssertNotNil(uid, "Every event should have a user_id")
             XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true, "Pre-login events should have anonymous ID")
         }
 
@@ -72,63 +72,63 @@ final class SDKIntegrationTests: XCTestCase {
     func testTrackingEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        Owl.track("onboarding.step_1", meta: ["slide": "intro"])
-        Owl.track("onboarding.step_2", meta: ["slide": "tutorial"])
+        Owl.track("onboarding.step_1", customAttributes: ["slide": "intro"])
+        Owl.track("onboarding.step_2", customAttributes: ["slide": "tutorial"])
 
         await Owl.shutdown()
 
         let events = try await queryEvents(level: "tracking")
 
-        let bodies = events.map { $0["body"] as? String ?? "" }
-        XCTAssertTrue(bodies.contains("onboarding.step_1"))
-        XCTAssertTrue(bodies.contains("onboarding.step_2"))
+        let messages = events.map { $0["message"] as? String ?? "" }
+        XCTAssertTrue(messages.contains("onboarding.step_1"))
+        XCTAssertTrue(messages.contains("onboarding.step_2"))
     }
 
     func testMetadataPreserved() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        Owl.info("meta test", context: "checkout", meta: ["item_count": "3", "currency": "USD"])
+        Owl.info("custom attributes test", screenName: "checkout", customAttributes: ["item_count": "3", "currency": "USD"])
 
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "checkout")
+        let events = try await queryEvents(screenName: "checkout")
 
-        guard let event = events.first(where: { ($0["body"] as? String) == "meta test" }) else {
+        guard let event = events.first(where: { ($0["message"] as? String) == "custom attributes test" }) else {
             XCTFail("Event not found")
             return
         }
 
-        let meta = event["meta"] as? [String: String] ?? [:]
-        XCTAssertEqual(meta["item_count"], "3")
-        XCTAssertEqual(meta["currency"], "USD")
+        let attributes = event["custom_attributes"] as? [String: String] ?? [:]
+        XCTAssertEqual(attributes["item_count"], "3")
+        XCTAssertEqual(attributes["currency"], "USD")
     }
 
     func testClientEventIdDedup() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        Owl.info("dedup test event", context: "dedup")
-        Owl.info("dedup test event", context: "dedup")
+        Owl.info("dedup test event", screenName: "dedup")
+        Owl.info("dedup test event", screenName: "dedup")
 
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "dedup")
+        let events = try await queryEvents(screenName: "dedup")
         XCTAssertGreaterThanOrEqual(events.count, 2)
     }
 
     // MARK: - Identity Tests
 
     func testAnonymousIdAutoAssigned() async throws {
-        // Events should always have a user_identifier even without calling setUser
+        // Events should always have a user_id even without calling setUser
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        Owl.info("anon id test", context: "anon_auto")
+        Owl.info("anon id test", screenName: "anon_auto")
 
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "anon_auto")
+        let events = try await queryEvents(screenName: "anon_auto")
         XCTAssertGreaterThanOrEqual(events.count, 1)
 
-        let uid = events.first?["user_identifier"] as? String
+        let uid = events.first?["user_id"] as? String
         XCTAssertNotNil(uid)
         XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true,
                        "Event should have auto-generated anonymous ID")
@@ -137,16 +137,16 @@ final class SDKIntegrationTests: XCTestCase {
     func testAnonymousIdConsistentAcrossEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        Owl.info("consistent anon 1", context: "anon_consistent")
-        Owl.info("consistent anon 2", context: "anon_consistent")
-        Owl.info("consistent anon 3", context: "anon_consistent")
+        Owl.info("consistent anon 1", screenName: "anon_consistent")
+        Owl.info("consistent anon 2", screenName: "anon_consistent")
+        Owl.info("consistent anon 3", screenName: "anon_consistent")
 
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "anon_consistent")
+        let events = try await queryEvents(screenName: "anon_consistent")
         XCTAssertGreaterThanOrEqual(events.count, 3)
 
-        let userIds = Set(events.compactMap { $0["user_identifier"] as? String })
+        let userIds = Set(events.compactMap { $0["user_id"] as? String })
         XCTAssertEqual(userIds.count, 1,
                        "All events in one session should have the same anonymous ID")
     }
@@ -155,7 +155,7 @@ final class SDKIntegrationTests: XCTestCase {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
         // Send event with anonymous ID
-        Owl.info("before login", context: "set_user")
+        Owl.info("before login", screenName: "set_user")
         await Owl.shutdown()
 
         // Set real user and send another event
@@ -165,32 +165,32 @@ final class SDKIntegrationTests: XCTestCase {
         // Small delay to let claim request fire
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        Owl.info("after login", context: "set_user")
+        Owl.info("after login", screenName: "set_user")
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "set_user")
+        let events = try await queryEvents(screenName: "set_user")
         XCTAssertGreaterThanOrEqual(events.count, 2)
 
         // The "after login" event should have the real user ID
-        let afterLogin = events.first(where: { ($0["body"] as? String) == "after login" })
-        XCTAssertEqual(afterLogin?["user_identifier"] as? String, "real-user-123")
+        let afterLogin = events.first(where: { ($0["message"] as? String) == "after login" })
+        XCTAssertEqual(afterLogin?["user_id"] as? String, "real-user-123")
     }
 
     func testIdentityClaimUpdatesAnonymousEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
         // Send events before login
-        Owl.info("pre-login event 1", context: "claim_test")
-        Owl.info("pre-login event 2", context: "claim_test")
-        Owl.warn("pre-login event 3", context: "claim_test")
+        Owl.info("pre-login event 1", screenName: "claim_test")
+        Owl.info("pre-login event 2", screenName: "claim_test")
+        Owl.warn("pre-login event 3", screenName: "claim_test")
 
         await Owl.shutdown()
 
         // Verify events have anonymous ID
-        let preClaimEvents = try await queryEvents(context: "claim_test")
+        let preClaimEvents = try await queryEvents(screenName: "claim_test")
         XCTAssertGreaterThanOrEqual(preClaimEvents.count, 3)
 
-        let anonId = preClaimEvents.first?["user_identifier"] as? String
+        let anonId = preClaimEvents.first?["user_id"] as? String
         XCTAssertNotNil(anonId)
         XCTAssertTrue(anonId?.hasPrefix(IdentityManager.anonymousIdPrefix) == true)
 
@@ -204,13 +204,13 @@ final class SDKIntegrationTests: XCTestCase {
         await Owl.shutdown()
 
         // Query events again — they should all now have the real user ID
-        let postClaimEvents = try await queryEvents(context: "claim_test")
+        let postClaimEvents = try await queryEvents(screenName: "claim_test")
         XCTAssertGreaterThanOrEqual(postClaimEvents.count, 3)
 
         for event in postClaimEvents {
-            let uid = event["user_identifier"] as? String
+            let uid = event["user_id"] as? String
             XCTAssertEqual(uid, "claimed-user-456",
-                           "Event '\(event["body"] as? String ?? "")' should have claimed user ID")
+                           "Event '\(event["message"] as? String ?? "")' should have claimed user ID")
         }
     }
 
@@ -219,27 +219,27 @@ final class SDKIntegrationTests: XCTestCase {
         let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
 
         let ingestPayload: [[String: Any]] = [
-            ["level": "info", "body": "direct claim test 1", "user_identifier": anonId, "context": "direct_claim"],
-            ["level": "info", "body": "direct claim test 2", "user_identifier": anonId, "context": "direct_claim"],
+            ["level": "info", "message": "direct claim test 1", "user_id": anonId, "screen_name": "direct_claim"],
+            ["level": "info", "message": "direct claim test 2", "user_id": anonId, "screen_name": "direct_claim"],
         ]
 
         try await ingestEvents(ingestPayload)
 
         // Verify events exist with anonymous ID
-        let preClaim = try await queryEvents(context: "direct_claim")
+        let preClaim = try await queryEvents(screenName: "direct_claim")
         XCTAssertEqual(preClaim.count, 2)
-        XCTAssertEqual(preClaim.first?["user_identifier"] as? String, anonId)
+        XCTAssertEqual(preClaim.first?["user_id"] as? String, anonId)
 
         // Call claim endpoint
         let claimResponse = try await claimIdentity(anonymousId: anonId, userId: "direct-claimed-user")
 
         XCTAssertTrue(claimResponse["claimed"] as? Bool == true)
-        XCTAssertEqual(claimResponse["events_updated"] as? Int, 2)
+        XCTAssertEqual(claimResponse["events_reassigned_count"] as? Int, 2)
 
         // Verify events are updated
-        let postClaim = try await queryEvents(context: "direct_claim")
+        let postClaim = try await queryEvents(screenName: "direct_claim")
         for event in postClaim {
-            XCTAssertEqual(event["user_identifier"] as? String, "direct-claimed-user")
+            XCTAssertEqual(event["user_id"] as? String, "direct-claimed-user")
         }
     }
 
@@ -247,13 +247,13 @@ final class SDKIntegrationTests: XCTestCase {
         let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
 
         try await ingestEvents([
-            ["level": "info", "body": "idempotent test", "user_identifier": anonId, "context": "idempotent_claim"],
+            ["level": "info", "message": "idempotent test", "user_id": anonId, "screen_name": "idempotent_claim"],
         ])
 
         // Claim once
         let first = try await claimIdentity(anonymousId: anonId, userId: "idempotent-user")
         XCTAssertTrue(first["claimed"] as? Bool == true)
-        XCTAssertEqual(first["events_updated"] as? Int, 1)
+        XCTAssertEqual(first["events_reassigned_count"] as? Int, 1)
 
         // Claim again — should succeed without error
         let second = try await claimIdentity(anonymousId: anonId, userId: "idempotent-user")
@@ -269,7 +269,7 @@ final class SDKIntegrationTests: XCTestCase {
     func testClaimRejectsAnonymousUserId() async throws {
         let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
         try await ingestEvents([
-            ["level": "info", "body": "test", "user_identifier": anonId, "context": "reject_anon_user"],
+            ["level": "info", "message": "test", "user_id": anonId, "screen_name": "reject_anon_user"],
         ])
 
         // Try to claim with another anonymous ID as the user_id
@@ -295,13 +295,13 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         Owl.clearUser()
 
-        Owl.info("after clear", context: "clear_user")
+        Owl.info("after clear", screenName: "clear_user")
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "clear_user")
+        let events = try await queryEvents(screenName: "clear_user")
         XCTAssertGreaterThanOrEqual(events.count, 1)
 
-        let uid = events.first?["user_identifier"] as? String
+        let uid = events.first?["user_id"] as? String
         XCTAssertNotNil(uid)
         XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true,
                        "After clearUser, events should use anonymous ID again")
@@ -311,21 +311,21 @@ final class SDKIntegrationTests: XCTestCase {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
         // Send an event to capture the original anonymous ID
-        Owl.info("before clear new", context: "clear_new_anon")
+        Owl.info("before clear new", screenName: "clear_new_anon")
         await Owl.shutdown()
 
-        let beforeEvents = try await queryEvents(context: "clear_new_anon")
-        let originalAnonId = beforeEvents.first?["user_identifier"] as? String
+        let beforeEvents = try await queryEvents(screenName: "clear_new_anon")
+        let originalAnonId = beforeEvents.first?["user_id"] as? String
 
         // Clear with new anonymous ID
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
         Owl.clearUser(newAnonymousId: true)
 
-        Owl.info("after clear new", context: "clear_new_anon2")
+        Owl.info("after clear new", screenName: "clear_new_anon2")
         await Owl.shutdown()
 
-        let afterEvents = try await queryEvents(context: "clear_new_anon2")
-        let newAnonId = afterEvents.first?["user_identifier"] as? String
+        let afterEvents = try await queryEvents(screenName: "clear_new_anon2")
+        let newAnonId = afterEvents.first?["user_id"] as? String
 
         XCTAssertNotNil(originalAnonId)
         XCTAssertNotNil(newAnonId)
@@ -348,7 +348,7 @@ final class SDKIntegrationTests: XCTestCase {
         Owl.clearUser(newAnonymousId: true)
 
         // Send an event between sessions (with the fresh anonymous ID)
-        Owl.info("between sessions", context: "relogin")
+        Owl.info("between sessions", screenName: "relogin")
         await Owl.shutdown()
 
         // Second user logs in
@@ -356,22 +356,22 @@ final class SDKIntegrationTests: XCTestCase {
         Owl.setUser("user-session-2")
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        Owl.info("second login", context: "relogin")
+        Owl.info("second login", screenName: "relogin")
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: "relogin")
+        let events = try await queryEvents(screenName: "relogin")
 
-        let betweenEvent = events.first(where: { ($0["body"] as? String) == "between sessions" })
-        let secondEvent = events.first(where: { ($0["body"] as? String) == "second login" })
+        let betweenEvent = events.first(where: { ($0["message"] as? String) == "between sessions" })
+        let secondEvent = events.first(where: { ($0["message"] as? String) == "second login" })
 
         XCTAssertNotNil(betweenEvent)
         XCTAssertNotNil(secondEvent)
 
         // Between sessions was claimed by user-session-2 (same anonymous ID)
-        XCTAssertEqual(betweenEvent?["user_identifier"] as? String, "user-session-2")
+        XCTAssertEqual(betweenEvent?["user_id"] as? String, "user-session-2")
 
         // Second login should have the new user ID
-        XCTAssertEqual(secondEvent?["user_identifier"] as? String, "user-session-2")
+        XCTAssertEqual(secondEvent?["user_id"] as? String, "user-session-2")
     }
 
     // MARK: - Compression Tests
@@ -379,15 +379,15 @@ final class SDKIntegrationTests: XCTestCase {
     func testGzipCompressionDataIntegrity() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        let context = "gzip_integrity_\(UUID().uuidString.prefix(8))"
+        let screenName = "gzip_integrity_\(UUID().uuidString.prefix(8))"
 
-        // Send enough events with rich metadata to guarantee the batch
+        // Send enough events with rich custom attributes to guarantee the batch
         // exceeds the 512-byte compression threshold
         for i in 0..<10 {
             Owl.info(
                 "gzip_event_\(i)_padding_\(String(repeating: "x", count: 50))",
-                context: context,
-                meta: [
+                screenName: screenName,
+                customAttributes: [
                     "index": "\(i)",
                     "tag": "compression-test",
                     "payload": String(repeating: "y", count: 80),
@@ -398,21 +398,21 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let serverEvents = try await queryEvents(context: context)
+        let serverEvents = try await queryEvents(screenName: screenName)
         XCTAssertEqual(serverEvents.count, 10, "All 10 events should survive gzip round-trip")
 
         // Verify every event's data arrived intact
         for i in 0..<10 {
             let expected = "gzip_event_\(i)_padding_\(String(repeating: "x", count: 50))"
             let match = serverEvents.first(where: {
-                ($0["meta"] as? [String: String])?["index"] == "\(i)"
+                ($0["custom_attributes"] as? [String: String])?["index"] == "\(i)"
             })
             XCTAssertNotNil(match, "Event with index \(i) should exist")
-            XCTAssertEqual(match?["body"] as? String, expected,
-                           "Event body should survive compression")
-            let meta = match?["meta"] as? [String: String] ?? [:]
-            XCTAssertEqual(meta["tag"], "compression-test")
-            XCTAssertEqual(meta["payload"], String(repeating: "y", count: 80))
+            XCTAssertEqual(match?["message"] as? String, expected,
+                           "Event message should survive compression")
+            let attributes = match?["custom_attributes"] as? [String: String] ?? [:]
+            XCTAssertEqual(attributes["tag"], "compression-test")
+            XCTAssertEqual(attributes["payload"], String(repeating: "y", count: 80))
         }
     }
 
@@ -423,18 +423,18 @@ final class SDKIntegrationTests: XCTestCase {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
         let queue = Owl._offlineQueue!
-        let context = "offline_persist_\(UUID().uuidString.prefix(8))"
+        let screenName = "offline_persist_\(UUID().uuidString.prefix(8))"
 
         // Manually enqueue events to the offline queue (simulates failed network send)
         let events = (0..<5).map { i in
             LogEvent(
                 clientEventId: UUID().uuidString,
-                userIdentifier: "offline-test-user",
+                userId: "offline-test-user",
                 level: .info,
-                source: "test",
-                body: "persisted_event_\(i)",
-                context: context,
-                meta: nil,
+                sourceModule: "test",
+                message: "persisted_event_\(i)",
+                screenName: screenName,
+                customAttributes: nil,
                 platform: .macos,
                 osVersion: "15.0",
                 appVersion: "1.0",
@@ -457,12 +457,12 @@ final class SDKIntegrationTests: XCTestCase {
         await Owl.shutdown()
 
         // Verify events made it to the server
-        let serverEvents = try await queryEvents(context: context)
+        let serverEvents = try await queryEvents(screenName: screenName)
         XCTAssertEqual(serverEvents.count, 5, "All 5 persisted events should have been flushed after restart")
 
-        let bodies = Set(serverEvents.map { $0["body"] as? String ?? "" })
+        let messages = Set(serverEvents.map { $0["message"] as? String ?? "" })
         for i in 0..<5 {
-            XCTAssertTrue(bodies.contains("persisted_event_\(i)"),
+            XCTAssertTrue(messages.contains("persisted_event_\(i)"),
                           "Event persisted_event_\(i) should have been flushed")
         }
     }
@@ -470,12 +470,12 @@ final class SDKIntegrationTests: XCTestCase {
     func testShutdownFlushesAllBufferedEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        let context = "shutdown_load_\(UUID().uuidString.prefix(8))"
+        let screenName = "shutdown_load_\(UUID().uuidString.prefix(8))"
         let eventCount = 50
 
         // Rapid-fire events
         for i in 0..<eventCount {
-            Owl.info("load_event_\(i)", context: context)
+            Owl.info("load_event_\(i)", screenName: screenName)
         }
 
         // Brief delay to let fire-and-forget Tasks enqueue events into the transport
@@ -484,7 +484,7 @@ final class SDKIntegrationTests: XCTestCase {
         // Shutdown should flush everything
         await Owl.shutdown()
 
-        let serverEvents = try await queryEvents(context: context)
+        let serverEvents = try await queryEvents(screenName: screenName)
         XCTAssertEqual(serverEvents.count, eventCount,
                        "All \(eventCount) events should be flushed on shutdown")
     }
@@ -494,17 +494,17 @@ final class SDKIntegrationTests: XCTestCase {
     func testDuplicateFilterLimitsIdenticalEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        let context = "dup_filter_\(UUID().uuidString.prefix(8))"
+        let screenName = "dup_filter_\(UUID().uuidString.prefix(8))"
 
         // Send 15 identical events — duplicate filter allows max 10 per 60s window
         for _ in 0..<15 {
-            Owl.tracking("dup_body", context: context)
+            Owl.tracking("dup_message", screenName: screenName)
         }
 
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let serverEvents = try await queryEvents(context: context)
+        let serverEvents = try await queryEvents(screenName: screenName)
         XCTAssertEqual(serverEvents.count, 10,
                        "Duplicate filter should cap identical events at 10 per window")
     }
@@ -514,25 +514,25 @@ final class SDKIntegrationTests: XCTestCase {
     func testEagerFlushAtBatchThreshold() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        let context = "eager_flush_\(UUID().uuidString.prefix(8))"
+        let screenName = "eager_flush_\(UUID().uuidString.prefix(8))"
 
         // Send 25 unique events (exceeds batchSize of 20)
         for i in 0..<25 {
-            Owl.info("eager_\(i)", context: context)
+            Owl.info("eager_\(i)", screenName: screenName)
         }
 
         // Wait for eager flush to fire (triggered when buffer >= 20)
         // but don't call shutdown yet
         try await Task.sleep(nanoseconds: 3_000_000_000)
 
-        let earlyEvents = try await queryEvents(context: context)
+        let earlyEvents = try await queryEvents(screenName: screenName)
         XCTAssertGreaterThanOrEqual(earlyEvents.count, 20,
                                     "At least 20 events should have been eagerly flushed")
 
         // Now shutdown to flush the remainder
         await Owl.shutdown()
 
-        let allEvents = try await queryEvents(context: context)
+        let allEvents = try await queryEvents(screenName: screenName)
         XCTAssertEqual(allEvents.count, 25,
                        "All 25 events should be present after shutdown")
     }
@@ -542,7 +542,7 @@ final class SDKIntegrationTests: XCTestCase {
     func testConcurrentEventTracking() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        let context = "concurrent_\(UUID().uuidString.prefix(8))"
+        let screenName = "concurrent_\(UUID().uuidString.prefix(8))"
         let tasksCount = 10
         let eventsPerTask = 5
 
@@ -551,7 +551,7 @@ final class SDKIntegrationTests: XCTestCase {
             for t in 0..<tasksCount {
                 group.addTask {
                     for e in 0..<eventsPerTask {
-                        Owl.info("concurrent_\(t)_\(e)", context: context)
+                        Owl.info("concurrent_\(t)_\(e)", screenName: screenName)
                     }
                 }
             }
@@ -560,7 +560,7 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let serverEvents = try await queryEvents(context: context)
+        let serverEvents = try await queryEvents(screenName: screenName)
         XCTAssertEqual(serverEvents.count, tasksCount * eventsPerTask,
                        "All \(tasksCount * eventsPerTask) concurrently tracked events should arrive")
     }
@@ -585,9 +585,9 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        // Query all tracking events and filter by body
+        // Query all tracking events and filter by message
         let events = try await queryEvents(level: "tracking")
-        let matchingEvents = events.filter { ($0["body"] as? String) == eventName }
+        let matchingEvents = events.filter { ($0["message"] as? String) == eventName }
         XCTAssertEqual(matchingEvents.count, 1,
                        "once() should only send the event once, even across SDK resets")
 
@@ -595,27 +595,27 @@ final class SDKIntegrationTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "owlmetry.once.\(eventName)")
     }
 
-    // MARK: - Meta Trimming Tests
+    // MARK: - Custom Attribute Trimming Tests
 
-    func testMetaTrimmingEndToEnd() async throws {
+    func testCustomAttributeTrimmingEndToEnd() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        let context = "meta_trim_\(UUID().uuidString.prefix(8))"
+        let screenName = "attr_trim_\(UUID().uuidString.prefix(8))"
         let longValue = String(repeating: "x", count: 300)
 
-        Owl.info("meta trim test", context: context, meta: ["long_value": longValue])
+        Owl.info("attribute trim test", screenName: screenName, customAttributes: ["long_value": longValue])
 
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let events = try await queryEvents(context: context)
-        guard let event = events.first(where: { ($0["body"] as? String) == "meta trim test" }) else {
+        let events = try await queryEvents(screenName: screenName)
+        guard let event = events.first(where: { ($0["message"] as? String) == "attribute trim test" }) else {
             XCTFail("Event not found")
             return
         }
 
-        let meta = event["meta"] as? [String: String] ?? [:]
-        let trimmedValue = meta["long_value"] ?? ""
+        let attributes = event["custom_attributes"] as? [String: String] ?? [:]
+        let trimmedValue = attributes["long_value"] ?? ""
 
         // SDK trims to 200 chars + " [TRIMMED 300]" (214 total),
         // then server slices to 200. Final result is 200 x's.
@@ -647,13 +647,13 @@ final class SDKIntegrationTests: XCTestCase {
 
     private func queryEvents(
         level: String? = nil,
-        context: String? = nil,
+        screenName: String? = nil,
         user: String? = nil
     ) async throws -> [[String: Any]] {
         var components = URLComponents(string: "\(Self.testEndpoint)/v1/events")!
         var queryItems: [URLQueryItem] = []
         if let level { queryItems.append(URLQueryItem(name: "level", value: level)) }
-        if let context { queryItems.append(URLQueryItem(name: "context", value: context)) }
+        if let screenName { queryItems.append(URLQueryItem(name: "screen_name", value: screenName)) }
         if let user { queryItems.append(URLQueryItem(name: "user", value: user)) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
 

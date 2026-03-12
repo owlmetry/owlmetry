@@ -11,7 +11,7 @@ const MAX_TOKENS = 100;
 const REFILL_RATE = 10; // tokens per second
 const REFILL_INTERVAL_MS = 1000;
 
-function getBucketKey(request: FastifyRequest): string {
+function getRateLimitBucketKey(request: FastifyRequest): string {
   if (request.auth) {
     return request.auth.type === "api_key"
       ? `key:${request.auth.key_id}`
@@ -24,7 +24,7 @@ export async function rateLimit(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const key = getBucketKey(request);
+  const key = getRateLimitBucketKey(request);
   const now = Date.now();
 
   let bucket = buckets.get(key);

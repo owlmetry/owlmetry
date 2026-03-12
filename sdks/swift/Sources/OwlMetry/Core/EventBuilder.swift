@@ -10,11 +10,11 @@ enum EventBuilder {
     }()
 
     static func build(
-        body: String,
+        message: String,
         level: LogLevel,
-        context: String?,
-        meta: [String: String]?,
-        userIdentifier: String?,
+        screenName: String?,
+        customAttributes: [String: String]?,
+        userId: String?,
         deviceInfo: DeviceInfo,
         file: String,
         function: String,
@@ -27,19 +27,19 @@ enum EventBuilder {
             fileName = file
         }
 
-        var mergedMeta = MetaTrimmer.trim(meta) ?? [:]
-        mergedMeta["_file"] = fileName
-        mergedMeta["_function"] = function
-        mergedMeta["_line"] = String(line)
+        var mergedAttributes = CustomAttributeTrimmer.trim(customAttributes) ?? [:]
+        mergedAttributes["_file"] = fileName
+        mergedAttributes["_function"] = function
+        mergedAttributes["_line"] = String(line)
 
         return LogEvent(
             clientEventId: UUID().uuidString,
-            userIdentifier: userIdentifier,
+            userId: userId,
             level: level,
-            source: "\(fileName):\(function):\(line)",
-            body: body,
-            context: context,
-            meta: mergedMeta.isEmpty ? nil : mergedMeta,
+            sourceModule: "\(fileName):\(function):\(line)",
+            message: message,
+            screenName: screenName,
+            customAttributes: mergedAttributes.isEmpty ? nil : mergedAttributes,
             platform: deviceInfo.platform,
             osVersion: deviceInfo.osVersion,
             appVersion: deviceInfo.appVersion,

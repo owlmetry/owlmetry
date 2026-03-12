@@ -2,12 +2,12 @@ import Foundation
 
 struct LogEvent: Codable, Sendable {
     let clientEventId: String
-    var userIdentifier: String?
+    var userId: String?
     let level: LogLevel
-    let source: String?
-    let body: String
-    let context: String?
-    let meta: [String: String]?
+    let sourceModule: String?
+    let message: String
+    let screenName: String?
+    let customAttributes: [String: String]?
     let platform: OwlPlatform
     let osVersion: String?
     let appVersion: String?
@@ -18,12 +18,12 @@ struct LogEvent: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case clientEventId = "client_event_id"
-        case userIdentifier = "user_identifier"
+        case userId = "user_id"
         case level
-        case source
-        case body
-        case context
-        case meta
+        case sourceModule = "source_module"
+        case message
+        case screenName = "screen_name"
+        case customAttributes = "custom_attributes"
         case platform
         case osVersion = "os_version"
         case appVersion = "app_version"

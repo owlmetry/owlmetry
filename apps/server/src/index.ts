@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
-import { createDb, ensurePartitions } from "@owlmetry/db";
+import { createDatabaseConnection, ensurePartitions } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
@@ -14,7 +14,7 @@ import { decompressPlugin } from "./middleware/decompress.js";
 const app = Fastify({ logger: true });
 
 // Database
-const db = createDb(config.databaseUrl);
+const db = createDatabaseConnection(config.databaseUrl);
 
 // Ensure event partitions exist (current month + next 2)
 try {

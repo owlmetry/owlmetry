@@ -1,4 +1,4 @@
-import type { NormalizedEvent, IngestRequest, IngestResponse } from "./events.js";
+import type { StoredEvent, IngestRequest, IngestResponse } from "./events.js";
 import type { App, User, Team, ApiKey, ApiKeyType } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 
@@ -47,7 +47,7 @@ export interface EventsQueryParams {
   app_id?: string;
   level?: string;
   user?: string;
-  context?: string;
+  screen_name?: string;
   since?: string;
   until?: string;
   cursor?: string;
@@ -55,7 +55,7 @@ export interface EventsQueryParams {
 }
 
 export interface EventsResponse {
-  events: NormalizedEvent[];
+  events: StoredEvent[];
   cursor: string | null;
   has_more: boolean;
 }
@@ -69,7 +69,7 @@ export interface CreateFunnelRequest {
 
 // Re-export for convenience
 export type {
-  NormalizedEvent,
+  StoredEvent,
   IngestRequest,
   IngestResponse,
   App,

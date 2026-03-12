@@ -116,12 +116,12 @@ export const events = pgTable(
     id: uuid("id").defaultRandom(),
     app_id: uuid("app_id").notNull(),
     client_event_id: varchar("client_event_id", { length: 255 }),
-    user_identifier: varchar("user_identifier", { length: 255 }),
+    user_id: varchar("user_id", { length: 255 }),
     level: logLevelEnum("level").notNull(),
-    source: text("source"),
-    body: text("body").notNull(),
-    context: varchar("context", { length: 255 }),
-    meta: jsonb("meta").$type<Record<string, string>>(),
+    source_module: text("source_module"),
+    message: text("message").notNull(),
+    screen_name: varchar("screen_name", { length: 255 }),
+    custom_attributes: jsonb("custom_attributes").$type<Record<string, string>>(),
     platform: varchar("platform", { length: 20 }),
     os_version: varchar("os_version", { length: 50 }),
     app_version: varchar("app_version", { length: 50 }),
@@ -132,7 +132,7 @@ export const events = pgTable(
     received_at: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    solved: boolean("solved").notNull().default(false),
+    is_resolved: boolean("is_resolved").notNull().default(false),
   },
   (table) => [
     index("events_app_timestamp_idx").on(table.app_id, table.timestamp),
@@ -143,12 +143,12 @@ export const events = pgTable(
     ),
     index("events_app_user_timestamp_idx").on(
       table.app_id,
-      table.user_identifier,
+      table.user_id,
       table.timestamp
     ),
-    index("events_app_context_timestamp_idx").on(
+    index("events_app_screen_name_timestamp_idx").on(
       table.app_id,
-      table.context,
+      table.screen_name,
       table.timestamp
     ),
     index("events_client_event_id_idx").on(table.app_id, table.client_event_id),
@@ -165,7 +165,7 @@ export const eventIdentityClaims = pgTable(
       .references(() => apps.id, { onDelete: "cascade" }),
     anonymous_id: varchar("anonymous_id", { length: 255 }).notNull(),
     user_id: varchar("user_id", { length: 255 }).notNull(),
-    events_updated: integer("events_updated").notNull().default(0),
+    events_reassigned_count: integer("events_reassigned_count").notNull().default(0),
     claimed_at: timestamp("claimed_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -189,7 +189,7 @@ export const funnelDefinitions = pgTable(
       .references(() => apps.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     steps: jsonb("steps")
-      .$type<Array<{ name: string; event_body: string; event_context?: string }>>()
+      .$type<Array<{ name: string; event_message: string; event_screen_name?: string }>>()
       .notNull(),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -206,9 +206,9 @@ export const funnelProgress = pgTable(
     funnel_id: uuid("funnel_id")
       .notNull()
       .references(() => funnelDefinitions.id, { onDelete: "cascade" }),
-    user_identifier: varchar("user_identifier", { length: 255 }).notNull(),
-    step_completed: text("step_completed").notNull(),
-    step_event_id: uuid("step_event_id"),
+    user_id: varchar("user_id", { length: 255 }).notNull(),
+    completed_step_name: text("completed_step_name").notNull(),
+    triggering_event_id: uuid("triggering_event_id"),
     completed_at: timestamp("completed_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -216,7 +216,7 @@ export const funnelProgress = pgTable(
   (table) => [
     index("funnel_progress_funnel_user_idx").on(
       table.funnel_id,
-      table.user_identifier
+      table.user_id
     ),
   ]
 );

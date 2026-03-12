@@ -14,11 +14,11 @@ export async function ensurePartitions(client: postgres.Sql, monthsAhead = 3) {
   const now = new Date();
   for (let i = 0; i < monthsAhead; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    await createMonthPartition(client, date);
+    await createMonthlyEventPartition(client, date);
   }
 }
 
-async function createMonthPartition(client: postgres.Sql, date: Date) {
+async function createMonthlyEventPartition(client: postgres.Sql, date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const partitionName = `events_${year}_${month}`;
@@ -43,9 +43,9 @@ async function createMonthPartition(client: postgres.Sql, date: Date) {
       CREATE INDEX IF NOT EXISTS ${partitionName}_app_level_ts_idx
         ON ${partitionName} (app_id, level, "timestamp");
       CREATE INDEX IF NOT EXISTS ${partitionName}_app_user_ts_idx
-        ON ${partitionName} (app_id, user_identifier, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_ctx_ts_idx
-        ON ${partitionName} (app_id, context, "timestamp");
+        ON ${partitionName} (app_id, user_id, "timestamp");
+      CREATE INDEX IF NOT EXISTS ${partitionName}_app_screen_name_ts_idx
+        ON ${partitionName} (app_id, screen_name, "timestamp");
       CREATE INDEX IF NOT EXISTS ${partitionName}_client_eid_idx
         ON ${partitionName} (app_id, client_event_id);
     `);

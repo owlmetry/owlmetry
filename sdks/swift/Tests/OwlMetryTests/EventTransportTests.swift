@@ -29,7 +29,7 @@ final class EventTransportTests: XCTestCase {
         }
 
         let transport = makeTransport()
-        await transport.enqueue(LogEvent.stub(body: "hello"))
+        await transport.enqueue(LogEvent.stub(message: "hello"))
         await transport.flush()
 
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -39,7 +39,7 @@ final class EventTransportTests: XCTestCase {
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             let events = json?["events"] as? [[String: Any]]
             XCTAssertEqual(events?.count, 1)
-            XCTAssertEqual(events?.first?["body"] as? String, "hello")
+            XCTAssertEqual(events?.first?["message"] as? String, "hello")
         }
     }
 
@@ -53,7 +53,7 @@ final class EventTransportTests: XCTestCase {
         }
 
         let transport = makeTransport()
-        await transport.enqueue(LogEvent.stub(body: "test"))
+        await transport.enqueue(LogEvent.stub(message: "test"))
         await transport.flush()
 
         try? await Task.sleep(nanoseconds: 500_000_000)

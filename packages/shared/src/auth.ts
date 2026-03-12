@@ -10,7 +10,7 @@ export type Permission =
   | "apps:write"
   | "keys:manage";
 
-export const KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
+export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
   client: ["events:write"],
   agent: ["events:read", "funnels:read"],
 };

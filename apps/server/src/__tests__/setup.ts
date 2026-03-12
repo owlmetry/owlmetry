@@ -6,8 +6,8 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
-import { createDb, ensurePartitions } from "@owlmetry/db";
-import { hashKey } from "@owlmetry/shared";
+import { createDatabaseConnection, ensurePartitions } from "@owlmetry/db";
+import { hashApiKey } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
@@ -54,12 +54,12 @@ export async function setupTestDb() {
         id UUID DEFAULT gen_random_uuid(),
         app_id UUID NOT NULL,
         client_event_id VARCHAR(255),
-        user_identifier VARCHAR(255),
+        user_id VARCHAR(255),
         level log_level NOT NULL,
-        source TEXT,
-        body TEXT NOT NULL,
-        context VARCHAR(255),
-        meta JSONB,
+        source_module TEXT,
+        message TEXT NOT NULL,
+        screen_name VARCHAR(255),
+        custom_attributes JSONB,
         platform VARCHAR(20),
         os_version VARCHAR(50),
         app_version VARCHAR(50),
@@ -68,7 +68,7 @@ export async function setupTestDb() {
         locale VARCHAR(20),
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        solved BOOLEAN NOT NULL DEFAULT false
+        is_resolved BOOLEAN NOT NULL DEFAULT false
       ) PARTITION BY RANGE ("timestamp");
     `);
   }
@@ -82,7 +82,7 @@ export async function setupTestDb() {
 
 export async function buildApp() {
   const app = Fastify({ logger: false });
-  const db = createDb(TEST_DB_URL);
+  const db = createDatabaseConnection(TEST_DB_URL);
 
   app.decorate("db", db);
   await app.register(decompressPlugin);
@@ -146,7 +146,7 @@ export async function seedTestData() {
   await client`
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
     VALUES (
-      ${hashKey(TEST_CLIENT_KEY)},
+      ${hashApiKey(TEST_CLIENT_KEY)},
       ${TEST_CLIENT_KEY.slice(0, 16)},
       'client',
       ${app.id},
@@ -160,7 +160,7 @@ export async function seedTestData() {
   await client`
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
     VALUES (
-      ${hashKey(TEST_AGENT_KEY)},
+      ${hashApiKey(TEST_AGENT_KEY)},
       ${TEST_AGENT_KEY.slice(0, 16)},
       'agent',
       ${null},
@@ -174,7 +174,7 @@ export async function seedTestData() {
   await client`
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, expires_at)
     VALUES (
-      ${hashKey(TEST_EXPIRED_KEY)},
+      ${hashApiKey(TEST_EXPIRED_KEY)},
       ${TEST_EXPIRED_KEY.slice(0, 16)},
       'client',
       ${app.id},

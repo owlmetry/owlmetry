@@ -46,8 +46,8 @@ function queryEvents(params: Record<string, string> = {}, key = TEST_AGENT_KEY) 
 describe("GET /v1/events", () => {
   it("returns ingested events", async () => {
     await ingestEvents([
-      { level: "info", body: "Event 1" },
-      { level: "error", body: "Event 2" },
+      { level: "info", message: "Event 1" },
+      { level: "error", message: "Event 2" },
     ]);
 
     const res = await queryEvents();
@@ -60,9 +60,9 @@ describe("GET /v1/events", () => {
 
   it("filters by level", async () => {
     await ingestEvents([
-      { level: "info", body: "Info event" },
-      { level: "error", body: "Error event" },
-      { level: "error", body: "Another error" },
+      { level: "info", message: "Info event" },
+      { level: "error", message: "Error event" },
+      { level: "error", message: "Another error" },
     ]);
 
     const res = await queryEvents({ level: "error" });
@@ -71,28 +71,28 @@ describe("GET /v1/events", () => {
     expect(body.events.every((e: any) => e.level === "error")).toBe(true);
   });
 
-  it("filters by user_identifier", async () => {
+  it("filters by user_id", async () => {
     await ingestEvents([
-      { level: "info", body: "User A", user_identifier: "user-a" },
-      { level: "info", body: "User B", user_identifier: "user-b" },
+      { level: "info", message: "User A", user_id: "user-a" },
+      { level: "info", message: "User B", user_id: "user-b" },
     ]);
 
     const res = await queryEvents({ user: "user-a" });
     const body = res.json();
     expect(body.events).toHaveLength(1);
-    expect(body.events[0].user_identifier).toBe("user-a");
+    expect(body.events[0].user_id).toBe("user-a");
   });
 
-  it("filters by context", async () => {
+  it("filters by screen_name", async () => {
     await ingestEvents([
-      { level: "info", body: "Test", context: "AppDelegate" },
-      { level: "info", body: "Test", context: "ViewController" },
+      { level: "info", message: "Test", screen_name: "AppDelegate" },
+      { level: "info", message: "Test", screen_name: "ViewController" },
     ]);
 
-    const res = await queryEvents({ context: "AppDelegate" });
+    const res = await queryEvents({ screen_name: "AppDelegate" });
     const body = res.json();
     expect(body.events).toHaveLength(1);
-    expect(body.events[0].context).toBe("AppDelegate");
+    expect(body.events[0].screen_name).toBe("AppDelegate");
   });
 
   it("filters by time range", async () => {
@@ -100,20 +100,20 @@ describe("GET /v1/events", () => {
     const recent = new Date().toISOString();
 
     await ingestEvents([
-      { level: "info", body: "Old event", timestamp: old },
-      { level: "info", body: "Recent event", timestamp: recent },
+      { level: "info", message: "Old event", timestamp: old },
+      { level: "info", message: "Recent event", timestamp: recent },
     ]);
 
     const res = await queryEvents({ since: "2026-03-10T00:00:00Z" });
     const body = res.json();
     expect(body.events).toHaveLength(1);
-    expect(body.events[0].body).toBe("Recent event");
+    expect(body.events[0].message).toBe("Recent event");
   });
 
   it("paginates with cursor", async () => {
     const events = Array.from({ length: 5 }, (_, i) => ({
       level: "info" as const,
-      body: `Event ${i}`,
+      message: `Event ${i}`,
       timestamp: new Date(Date.now() - i * 1000).toISOString(),
     }));
     await ingestEvents(events);
@@ -155,7 +155,7 @@ describe("GET /v1/events", () => {
   });
 
   it("works with JWT auth", async () => {
-    await ingestEvents([{ level: "info", body: "JWT test" }]);
+    await ingestEvents([{ level: "info", message: "JWT test" }]);
 
     const token = await getToken(app);
     const res = await queryEvents({}, token);
@@ -166,7 +166,7 @@ describe("GET /v1/events", () => {
 
 describe("GET /v1/events/:id", () => {
   it("returns a single event", async () => {
-    await ingestEvents([{ level: "info", body: "Find me" }]);
+    await ingestEvents([{ level: "info", message: "Find me" }]);
 
     const listRes = await queryEvents();
     const eventId = listRes.json().events[0].id;
@@ -178,7 +178,7 @@ describe("GET /v1/events/:id", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().body).toBe("Find me");
+    expect(res.json().message).toBe("Find me");
   });
 
   it("returns 404 for non-existent event", async () => {

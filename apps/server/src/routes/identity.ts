@@ -7,11 +7,11 @@ import {
   funnelProgress,
 } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
-import type { ClaimRequest, ClaimResponse } from "@owlmetry/shared";
+import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 
 export async function identityRoutes(app: FastifyInstance) {
-  app.post<{ Body: ClaimRequest }>(
+  app.post<{ Body: IdentityClaimRequest }>(
     "/identity/claim",
     { preHandler: [requirePermission("events:write")] },
     async (request, reply) => {
@@ -62,20 +62,20 @@ export async function identityRoutes(app: FastifyInstance) {
       if (existingClaim) {
         return {
           claimed: true,
-          events_updated: existingClaim.events_updated,
-        } satisfies ClaimResponse;
+          events_reassigned_count: existingClaim.events_reassigned_count,
+        } satisfies IdentityClaimResponse;
       }
 
       // Execute updates + claim insert in a transaction
-      const eventsUpdated = await app.db.transaction(async (tx) => {
+      const eventsReassignedCount = await app.db.transaction(async (tx) => {
         // Update events and get actual row count
         const updatedEvents = await tx
           .update(events)
-          .set({ user_identifier: user_id })
+          .set({ user_id: user_id })
           .where(
             and(
               eq(events.app_id, app_id),
-              eq(events.user_identifier, anonymous_id)
+              eq(events.user_id, anonymous_id)
             )
           )
           .returning({ id: events.id });
@@ -95,10 +95,10 @@ export async function identityRoutes(app: FastifyInstance) {
         if (funnelIds.length > 0) {
           await tx
             .update(funnelProgress)
-            .set({ user_identifier: user_id })
+            .set({ user_id: user_id })
             .where(
               and(
-                eq(funnelProgress.user_identifier, anonymous_id),
+                eq(funnelProgress.user_id, anonymous_id),
                 inArray(funnelProgress.funnel_id, funnelIds)
               )
             );
@@ -111,7 +111,7 @@ export async function identityRoutes(app: FastifyInstance) {
             app_id,
             anonymous_id,
             user_id,
-            events_updated: updatedEvents.length,
+            events_reassigned_count: updatedEvents.length,
           })
           .onConflictDoNothing({
             target: [
@@ -123,7 +123,7 @@ export async function identityRoutes(app: FastifyInstance) {
         return updatedEvents.length;
       });
 
-      if (eventsUpdated === 0) {
+      if (eventsReassignedCount === 0) {
         return reply
           .code(404)
           .send({ error: "No events found for this anonymous_id" });
@@ -131,8 +131,8 @@ export async function identityRoutes(app: FastifyInstance) {
 
       return {
         claimed: true,
-        events_updated: eventsUpdated,
-      } satisfies ClaimResponse;
+        events_reassigned_count: eventsReassignedCount,
+      } satisfies IdentityClaimResponse;
     }
   );
 }

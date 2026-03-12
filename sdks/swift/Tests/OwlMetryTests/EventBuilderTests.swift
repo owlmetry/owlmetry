@@ -13,21 +13,21 @@ final class EventBuilderTests: XCTestCase {
 
     func testBuildsEventWithAllFields() {
         let event = EventBuilder.build(
-            body: "hello",
+            message: "hello",
             level: .info,
-            context: "onboarding",
-            meta: ["key": "value"],
-            userIdentifier: "user123",
+            screenName: "onboarding",
+            customAttributes: ["key": "value"],
+            userId: "user123",
             deviceInfo: deviceInfo,
             file: "/path/to/MyFile.swift",
             function: "doStuff()",
             line: 42
         )
 
-        XCTAssertEqual(event.body, "hello")
+        XCTAssertEqual(event.message, "hello")
         XCTAssertEqual(event.level, .info)
-        XCTAssertEqual(event.context, "onboarding")
-        XCTAssertEqual(event.userIdentifier, "user123")
+        XCTAssertEqual(event.screenName, "onboarding")
+        XCTAssertEqual(event.userId, "user123")
         XCTAssertEqual(event.platform, .ios)
         XCTAssertEqual(event.osVersion, "17.0.0")
         XCTAssertEqual(event.appVersion, "1.0")
@@ -36,64 +36,64 @@ final class EventBuilderTests: XCTestCase {
         XCTAssertEqual(event.locale, "en_US")
     }
 
-    func testSourceFormattedFromFileFunctionLine() {
+    func testSourceModuleFormattedFromFileFunctionLine() {
         let event = EventBuilder.build(
-            body: "test",
+            message: "test",
             level: .debug,
-            context: nil,
-            meta: nil,
-            userIdentifier: nil,
+            screenName: nil,
+            customAttributes: nil,
+            userId: nil,
             deviceInfo: deviceInfo,
             file: "/Users/dev/project/Sources/ViewModel.swift",
             function: "loadData()",
             line: 99
         )
 
-        XCTAssertEqual(event.source, "ViewModel.swift:loadData():99")
+        XCTAssertEqual(event.sourceModule, "ViewModel.swift:loadData():99")
     }
 
     func testSystemMetaKeysAdded() {
         let event = EventBuilder.build(
-            body: "test",
+            message: "test",
             level: .info,
-            context: nil,
-            meta: nil,
-            userIdentifier: nil,
+            screenName: nil,
+            customAttributes: nil,
+            userId: nil,
             deviceInfo: deviceInfo,
             file: "/path/File.swift",
             function: "func()",
             line: 1
         )
 
-        XCTAssertEqual(event.meta?["_file"], "File.swift")
-        XCTAssertEqual(event.meta?["_function"], "func()")
-        XCTAssertEqual(event.meta?["_line"], "1")
+        XCTAssertEqual(event.customAttributes?["_file"], "File.swift")
+        XCTAssertEqual(event.customAttributes?["_function"], "func()")
+        XCTAssertEqual(event.customAttributes?["_line"], "1")
     }
 
-    func testUserMetaMergedWithSystemMeta() {
+    func testUserCustomAttributesMergedWithSystemAttributes() {
         let event = EventBuilder.build(
-            body: "test",
+            message: "test",
             level: .info,
-            context: nil,
-            meta: ["custom": "data"],
-            userIdentifier: nil,
+            screenName: nil,
+            customAttributes: ["custom": "data"],
+            userId: nil,
             deviceInfo: deviceInfo,
             file: "/path/File.swift",
             function: "f()",
             line: 1
         )
 
-        XCTAssertEqual(event.meta?["custom"], "data")
-        XCTAssertNotNil(event.meta?["_file"])
+        XCTAssertEqual(event.customAttributes?["custom"], "data")
+        XCTAssertNotNil(event.customAttributes?["_file"])
     }
 
     func testClientEventIdIsValidUUID() {
         let event = EventBuilder.build(
-            body: "test",
+            message: "test",
             level: .info,
-            context: nil,
-            meta: nil,
-            userIdentifier: nil,
+            screenName: nil,
+            customAttributes: nil,
+            userId: nil,
             deviceInfo: deviceInfo,
             file: "F.swift",
             function: "f()",
@@ -105,11 +105,11 @@ final class EventBuilderTests: XCTestCase {
 
     func testTimestampIsISO8601() {
         let event = EventBuilder.build(
-            body: "test",
+            message: "test",
             level: .info,
-            context: nil,
-            meta: nil,
-            userIdentifier: nil,
+            screenName: nil,
+            customAttributes: nil,
+            userId: nil,
             deviceInfo: deviceInfo,
             file: "F.swift",
             function: "f()",
@@ -121,20 +121,20 @@ final class EventBuilderTests: XCTestCase {
         XCTAssertNotNil(formatter.date(from: event.timestamp))
     }
 
-    func testMetaValuesTrimmed() {
+    func testCustomAttributeValuesTrimmed() {
         let longValue = String(repeating: "x", count: 300)
         let event = EventBuilder.build(
-            body: "test",
+            message: "test",
             level: .info,
-            context: nil,
-            meta: ["big": longValue],
-            userIdentifier: nil,
+            screenName: nil,
+            customAttributes: ["big": longValue],
+            userId: nil,
             deviceInfo: deviceInfo,
             file: "F.swift",
             function: "f()",
             line: 1
         )
 
-        XCTAssertTrue(event.meta?["big"]?.contains("[TRIMMED") == true)
+        XCTAssertTrue(event.customAttributes?["big"]?.contains("[TRIMMED") == true)
     }
 }

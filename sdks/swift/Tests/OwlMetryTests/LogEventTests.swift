@@ -5,12 +5,12 @@ final class LogEventTests: XCTestCase {
     func testCodableRoundTrip() throws {
         let event = LogEvent(
             clientEventId: "abc-123",
-            userIdentifier: "user1",
+            userId: "user1",
             level: .error,
-            source: "File.swift:test:1",
-            body: "something broke",
-            context: "checkout",
-            meta: ["key": "val"],
+            sourceModule: "File.swift:test:1",
+            message: "something broke",
+            screenName: "checkout",
+            customAttributes: ["key": "val"],
             platform: .ios,
             osVersion: "17.0",
             appVersion: "2.0",
@@ -24,22 +24,22 @@ final class LogEventTests: XCTestCase {
         let decoded = try JSONDecoder().decode(LogEvent.self, from: data)
 
         XCTAssertEqual(decoded.clientEventId, event.clientEventId)
-        XCTAssertEqual(decoded.userIdentifier, event.userIdentifier)
+        XCTAssertEqual(decoded.userId, event.userId)
         XCTAssertEqual(decoded.level, event.level)
-        XCTAssertEqual(decoded.body, event.body)
-        XCTAssertEqual(decoded.context, event.context)
+        XCTAssertEqual(decoded.message, event.message)
+        XCTAssertEqual(decoded.screenName, event.screenName)
         XCTAssertEqual(decoded.platform, event.platform)
     }
 
     func testJSONKeysAreSnakeCase() throws {
         let event = LogEvent(
             clientEventId: "id",
-            userIdentifier: nil,
+            userId: nil,
             level: .info,
-            source: nil,
-            body: "test",
-            context: nil,
-            meta: nil,
+            sourceModule: nil,
+            message: "test",
+            screenName: nil,
+            customAttributes: nil,
             platform: .macos,
             osVersion: nil,
             appVersion: nil,
@@ -59,12 +59,12 @@ final class LogEventTests: XCTestCase {
     func testNilFieldsOmittedInJSON() throws {
         let event = LogEvent(
             clientEventId: "id",
-            userIdentifier: nil,
+            userId: nil,
             level: .info,
-            source: nil,
-            body: "test",
-            context: nil,
-            meta: nil,
+            sourceModule: nil,
+            message: "test",
+            screenName: nil,
+            customAttributes: nil,
             platform: .ios,
             osVersion: nil,
             appVersion: nil,
@@ -78,10 +78,10 @@ final class LogEventTests: XCTestCase {
         let data = try encoder.encode(event)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
 
-        XCTAssertNil(json["user_identifier"])
-        XCTAssertNil(json["source"])
-        XCTAssertNil(json["context"])
-        XCTAssertNil(json["meta"])
+        XCTAssertNil(json["user_id"])
+        XCTAssertNil(json["source_module"])
+        XCTAssertNil(json["screen_name"])
+        XCTAssertNil(json["custom_attributes"])
         XCTAssertNil(json["os_version"])
     }
 }

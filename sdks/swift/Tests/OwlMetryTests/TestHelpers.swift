@@ -3,20 +3,20 @@ import Foundation
 
 extension LogEvent {
     static func stub(
-        body: String,
+        message: String,
         level: LogLevel = .info,
-        context: String? = nil,
-        meta: [String: String]? = nil,
-        userIdentifier: String? = nil
+        screenName: String? = nil,
+        customAttributes: [String: String]? = nil,
+        userId: String? = nil
     ) -> LogEvent {
         LogEvent(
             clientEventId: UUID().uuidString,
-            userIdentifier: userIdentifier,
+            userId: userId,
             level: level,
-            source: "Test.swift:test:1",
-            body: body,
-            context: context,
-            meta: meta,
+            sourceModule: "Test.swift:test:1",
+            message: message,
+            screenName: screenName,
+            customAttributes: customAttributes,
             platform: .ios,
             osVersion: "17.0.0",
             appVersion: "1.0",
