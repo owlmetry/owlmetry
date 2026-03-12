@@ -22,6 +22,10 @@ firebase-debug.log
 .next/
 out/
 
+# Swift
+sdks/swift/.build/
+
 # project notes
 CLAUDE.md
 PLAN.md
+
