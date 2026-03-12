@@ -20,7 +20,7 @@ packages/db        Drizzle ORM schema, migrations, seed
 apps/server        Fastify API server (port 4000)
 apps/web           Next.js dashboard (port 3000) — coming soon
 apps/cli           CLI tool — coming soon
-sdks/swift         Swift SDK — coming soon
+sdks/swift         Swift SDK (Swift Package)
 ```
 
 ## Requirements
@@ -51,9 +51,10 @@ pnpm db:seed
 # Start the API server
 pnpm dev:server
 
-# Run tests (requires owlmetry_test database)
+# Run tests (requires owlmetry_test database + Swift toolchain)
 createdb owlmetry_test
-pnpm test
+pnpm test              # Vitest + Swift SDK integration tests
+pnpm test:swift-sdk    # Swift SDK integration tests only
 ```
 
 ## Server Installation (Ubuntu VPS)
