@@ -8,7 +8,7 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 
 ## Features
 
-- **Event ingestion** — batch ingest up to 100 events per request with deduplication
+- **Event ingestion** — batch ingest up to 100 events per request with deduplication; supports gzip-compressed payloads
 - **Device tracking** — platform, OS version, app version, device model, locale, build number
 - **Funnel analytics** — define funnels retroactively from event data
 - **Auth model** — JWT for users, `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only)
