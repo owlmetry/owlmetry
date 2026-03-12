@@ -1,6 +1,6 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { eq } from "drizzle-orm";
-import { apiKeys, apps, teamMembers } from "@owlmetry/db";
+import { apiKeys, teamMembers } from "@owlmetry/db";
 import { API_KEY_PREFIX, hashApiKey } from "@owlmetry/shared";
 import type { AuthContext, UserJwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
@@ -31,21 +31,15 @@ export async function requireAuth(
   ) {
     const hash = hashApiKey(token);
     const db = request.server.db;
-    const [result] = await db
-      .select({
-        key: apiKeys,
-        app_bundle_id: apps.bundle_id,
-      })
+    const [key] = await db
+      .select()
       .from(apiKeys)
-      .leftJoin(apps, eq(apiKeys.app_id, apps.id))
       .where(eq(apiKeys.key_hash, hash))
       .limit(1);
 
-    if (!result) {
+    if (!key) {
       return reply.code(401).send({ error: "Invalid API key" });
     }
-
-    const { key } = result;
 
     if (key.expires_at && key.expires_at < new Date()) {
       return reply.code(401).send({ error: "API key expired" });
@@ -63,7 +57,6 @@ export async function requireAuth(
       key_id: key.id,
       key_type: key.key_type,
       app_id: key.app_id,
-      app_bundle_id: result.app_bundle_id,
       team_id: key.team_id,
       permissions: key.permissions,
     } satisfies ApiKeyContext;

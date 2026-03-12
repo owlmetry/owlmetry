@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, inArray } from "drizzle-orm";
-import { events } from "@owlmetry/db";
+import { apps, events } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
@@ -72,14 +72,24 @@ export async function ingestRoutes(app: FastifyInstance) {
       }
 
       // Validate bundle_id matches the app's registered bundle_id
-      if (auth.type === "api_key" && auth.app_bundle_id) {
-        if (bundle_id !== auth.app_bundle_id) {
-          return reply
-            .code(403)
-            .send({
-              error: "bundle_id does not match the app associated with this API key",
-            });
-        }
+      const [appRow] = await app.db
+        .select({ bundle_id: apps.bundle_id })
+        .from(apps)
+        .where(eq(apps.id, app_id))
+        .limit(1);
+
+      if (!appRow) {
+        return reply
+          .code(400)
+          .send({ error: "App associated with this API key no longer exists" });
+      }
+
+      if (bundle_id !== appRow.bundle_id) {
+        return reply
+          .code(403)
+          .send({
+            error: "bundle_id does not match the app associated with this API key",
+          });
       }
 
       const errors: Array<{ index: number; message: string }> = [];

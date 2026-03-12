@@ -10,20 +10,10 @@ public struct Configuration: Sendable {
     private static let clientKeyPrefix = "owl_client_"
 
     public init(endpoint: String, apiKey: String, flushOnBackground: Bool = true, compressionEnabled: Bool = true) throws {
-        guard let url = URL(string: endpoint) else {
-            throw ConfigurationError.invalidEndpoint(endpoint)
-        }
-        guard apiKey.hasPrefix(Self.clientKeyPrefix) else {
-            throw ConfigurationError.invalidApiKey("API key must start with \"\(Self.clientKeyPrefix)\"")
-        }
         guard let bundleId = Bundle.main.bundleIdentifier, !bundleId.isEmpty else {
             throw ConfigurationError.missingBundleId
         }
-        self.endpoint = url
-        self.apiKey = apiKey
-        self.bundleId = bundleId
-        self.flushOnBackground = flushOnBackground
-        self.compressionEnabled = compressionEnabled
+        try self.init(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled)
     }
 
     /// Internal initializer for testing with an explicit bundle ID.

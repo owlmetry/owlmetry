@@ -24,6 +24,7 @@ export const TEST_AGENT_KEY =
   "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 export const TEST_EXPIRED_KEY =
   "owl_client_cccccccccccccccccccccccccccccccccccccccccccccc";
+export const TEST_BUNDLE_ID = "dev.owlmetry.test";
 export const TEST_USER = {
   email: "test@owlmetry.dev",
   password: "testpass123",
@@ -138,7 +139,7 @@ export async function seedTestData() {
 
   const [app] = await client`
     INSERT INTO apps (team_id, name, platform, bundle_id)
-    VALUES (${team.id}, 'Test App', 'ios', 'dev.owlmetry.test')
+    VALUES (${team.id}, 'Test App', 'ios', ${TEST_BUNDLE_ID})
     RETURNING id
   `;
 

@@ -8,6 +8,7 @@ import {
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_EXPIRED_KEY,
+  TEST_BUNDLE_ID,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -28,7 +29,7 @@ afterAll(async () => {
 function ingest(
   events: any[],
   key = TEST_CLIENT_KEY,
-  bundle_id = "dev.owlmetry.test"
+  bundle_id = TEST_BUNDLE_ID
 ) {
   return app.inject({
     method: "POST",
@@ -210,7 +211,7 @@ describe("POST /v1/ingest", () => {
 
   it("accepts gzip-compressed event payload", async () => {
     const json = JSON.stringify({
-      bundle_id: "dev.owlmetry.test",
+      bundle_id: TEST_BUNDLE_ID,
       events: [{ level: "info", message: "Compressed event" }],
     });
     const compressed = gzipSync(Buffer.from(json));

@@ -6,6 +6,7 @@ import {
   seedTestData,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
+  TEST_BUNDLE_ID,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -28,7 +29,7 @@ function ingest(events: any[], key = TEST_CLIENT_KEY) {
     method: "POST",
     url: "/v1/ingest",
     headers: { authorization: `Bearer ${key}` },
-    payload: { bundle_id: "dev.owlmetry.test", events },
+    payload: { bundle_id: TEST_BUNDLE_ID, events },
   });
 }
 

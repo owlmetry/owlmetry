@@ -10,6 +10,7 @@ final class SDKIntegrationTests: XCTestCase {
         ?? "http://localhost:4111"
     static let testClientKey = "owl_client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     static let testAgentKey = "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    static let testBundleId = "dev.owlmetry.test"
 
     override func setUp() async throws {
         // Reset SDK state (simulates app restart)
@@ -36,7 +37,7 @@ final class SDKIntegrationTests: XCTestCase {
     // MARK: - Basic Tests
 
     func testFullRoundTrip() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.info("SDK integration test - info", screenName: "roundtrip")
         Owl.error("SDK integration test - error", screenName: "roundtrip", customAttributes: ["source_module": "xcode"])
@@ -70,7 +71,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testTrackingEvents() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.track("onboarding.step_1", customAttributes: ["slide": "intro"])
         Owl.track("onboarding.step_2", customAttributes: ["slide": "tutorial"])
@@ -85,7 +86,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testMetadataPreserved() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.info("custom attributes test", screenName: "checkout", customAttributes: ["item_count": "3", "currency": "USD"])
 
@@ -104,7 +105,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testClientEventIdDedup() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.info("dedup test event", screenName: "dedup")
         Owl.info("dedup test event", screenName: "dedup")
@@ -119,7 +120,7 @@ final class SDKIntegrationTests: XCTestCase {
 
     func testAnonymousIdAutoAssigned() async throws {
         // Events should always have a user_id even without calling setUser
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.info("anon id test", screenName: "anon_auto")
 
@@ -135,7 +136,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testAnonymousIdConsistentAcrossEvents() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.info("consistent anon 1", screenName: "anon_consistent")
         Owl.info("consistent anon 2", screenName: "anon_consistent")
@@ -152,14 +153,14 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testSetUserChangesIdentifier() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         // Send event with anonymous ID
         Owl.info("before login", screenName: "set_user")
         await Owl.shutdown()
 
         // Set real user and send another event
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
         Owl.setUser("real-user-123")
 
         // Small delay to let claim request fire
@@ -177,7 +178,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testIdentityClaimUpdatesAnonymousEvents() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         // Send events before login
         Owl.info("pre-login event 1", screenName: "claim_test")
@@ -195,7 +196,7 @@ final class SDKIntegrationTests: XCTestCase {
         XCTAssertTrue(anonId?.hasPrefix(IdentityManager.anonymousIdPrefix) == true)
 
         // Now "login" — this triggers the claim
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
         Owl.setUser("claimed-user-456")
 
         // Wait for the claim to process
@@ -288,7 +289,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testClearUserRevertsToAnonymousId() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         // Set user then clear
         Owl.setUser("temp-user")
@@ -308,7 +309,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testClearUserWithNewAnonymousId() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         // Send an event to capture the original anonymous ID
         Owl.info("before clear new", screenName: "clear_new_anon")
@@ -318,7 +319,7 @@ final class SDKIntegrationTests: XCTestCase {
         let originalAnonId = beforeEvents.first?["user_id"] as? String
 
         // Clear with new anonymous ID
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
         Owl.clearUser(newAnonymousId: true)
 
         Owl.info("after clear new", screenName: "clear_new_anon2")
@@ -339,7 +340,7 @@ final class SDKIntegrationTests: XCTestCase {
         // then a different user logs in on the same device.
         // Events between sessions should be claimed by the second user
         // (since they share the same anonymous ID after logout).
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.setUser("user-session-1")
         try await Task.sleep(nanoseconds: 1_000_000_000)
@@ -352,7 +353,7 @@ final class SDKIntegrationTests: XCTestCase {
         await Owl.shutdown()
 
         // Second user logs in
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
         Owl.setUser("user-session-2")
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
@@ -377,7 +378,7 @@ final class SDKIntegrationTests: XCTestCase {
     // MARK: - Compression Tests
 
     func testGzipCompressionDataIntegrity() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let screenName = "gzip_integrity_\(UUID().uuidString.prefix(8))"
 
@@ -420,7 +421,7 @@ final class SDKIntegrationTests: XCTestCase {
 
     func testOfflineQueuePersistenceAcrossRestart() async throws {
         // Simulate: events get stuck in the offline queue, app restarts, events flush on next launch
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let queue = Owl._offlineQueue!
         let screenName = "offline_persist_\(UUID().uuidString.prefix(8))"
@@ -451,7 +452,7 @@ final class SDKIntegrationTests: XCTestCase {
         await Owl.reset()
 
         // Re-configure — the new OfflineQueue loads persisted events from disk
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         // Shutdown triggers flushAll which drains the offline queue
         await Owl.shutdown()
@@ -468,7 +469,7 @@ final class SDKIntegrationTests: XCTestCase {
     }
 
     func testShutdownFlushesAllBufferedEvents() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let screenName = "shutdown_load_\(UUID().uuidString.prefix(8))"
         let eventCount = 50
@@ -492,7 +493,7 @@ final class SDKIntegrationTests: XCTestCase {
     // MARK: - Duplicate Filter Tests
 
     func testDuplicateFilterLimitsIdenticalEvents() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let screenName = "dup_filter_\(UUID().uuidString.prefix(8))"
 
@@ -512,7 +513,7 @@ final class SDKIntegrationTests: XCTestCase {
     // MARK: - Batch & Flush Tests
 
     func testEagerFlushAtBatchThreshold() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let screenName = "eager_flush_\(UUID().uuidString.prefix(8))"
 
@@ -540,7 +541,7 @@ final class SDKIntegrationTests: XCTestCase {
     // MARK: - Concurrency Tests
 
     func testConcurrentEventTracking() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let screenName = "concurrent_\(UUID().uuidString.prefix(8))"
         let tasksCount = 10
@@ -571,7 +572,7 @@ final class SDKIntegrationTests: XCTestCase {
         let eventName = "once_persist_\(UUID().uuidString.prefix(8))"
 
         // Session 1: track once
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
         Owl.trackOnce(eventName)
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
@@ -580,7 +581,7 @@ final class SDKIntegrationTests: XCTestCase {
         await Owl.reset()
 
         // Session 2: try to track the same event again
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
         Owl.trackOnce(eventName)
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
@@ -598,7 +599,7 @@ final class SDKIntegrationTests: XCTestCase {
     // MARK: - Custom Attribute Trimming Tests
 
     func testCustomAttributeTrimmingEndToEnd() async throws {
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: "dev.owlmetry.test")
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         let screenName = "attr_trim_\(UUID().uuidString.prefix(8))"
         let longValue = String(repeating: "x", count: 300)
@@ -679,7 +680,7 @@ final class SDKIntegrationTests: XCTestCase {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(Self.testClientKey)", forHTTPHeaderField: "Authorization")
 
-        let body: [String: Any] = ["bundle_id": "dev.owlmetry.test", "events": events]
+        let body: [String: Any] = ["bundle_id": Self.testBundleId, "events": events]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await URLSession.shared.data(for: request)

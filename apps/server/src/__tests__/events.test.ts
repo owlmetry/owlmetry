@@ -7,6 +7,7 @@ import {
   getToken,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
+  TEST_BUNDLE_ID,
   TEST_USER,
 } from "./setup.js";
 
@@ -30,7 +31,7 @@ async function ingestEvents(events: any[]) {
     method: "POST",
     url: "/v1/ingest",
     headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-    payload: { bundle_id: "dev.owlmetry.test", events },
+    payload: { bundle_id: TEST_BUNDLE_ID, events },
   });
 }
 
