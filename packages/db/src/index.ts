@@ -3,6 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema.js";
 
 export * from "./schema.js";
+export * from "./partitions.js";
 export { schema };
 
 export function createDb(url: string) {
