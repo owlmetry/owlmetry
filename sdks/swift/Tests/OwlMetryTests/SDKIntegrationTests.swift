@@ -12,30 +12,28 @@ final class SDKIntegrationTests: XCTestCase {
     static let testAgentKey = "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
     override func setUp() async throws {
-        // Wait briefly for server to be ready
+        // Clear persisted identity state between tests
+        Owl.clearUser(newAnonymousId: true)
+        IdentityManager.clearUserId()
+
         let ready = await waitForServer(timeout: 10)
         guard ready else {
-            throw XCTSkip("Server not running at \(Self.testEndpoint) — run via pnpm test:sdk")
+            throw XCTSkip("Server not running at \(Self.testEndpoint) — run via pnpm test:swift-sdk")
         }
     }
 
-    // MARK: - Tests
+    // MARK: - Basic Tests
 
     func testFullRoundTrip() async throws {
-        // 1. Configure SDK with real server
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
-        Owl.setUserIdentifier("integration-test-user")
 
-        // 2. Send events using the real SDK methods
-        Owl.info("SDK integration test - info", context: "integration")
-        Owl.error("SDK integration test - error", context: "integration", meta: ["source": "xcode"])
-        Owl.warn("SDK integration test - warn", context: "integration")
+        Owl.info("SDK integration test - info", context: "roundtrip")
+        Owl.error("SDK integration test - error", context: "roundtrip", meta: ["source": "xcode"])
+        Owl.warn("SDK integration test - warn", context: "roundtrip")
 
-        // 3. Flush to ensure events are sent
         await Owl.shutdown()
 
-        // 4. Query the server to verify events arrived
-        let events = try await queryEvents(context: "integration")
+        let events = try await queryEvents(context: "roundtrip")
 
         XCTAssertGreaterThanOrEqual(events.count, 3, "Expected at least 3 events from SDK")
 
@@ -43,6 +41,13 @@ final class SDKIntegrationTests: XCTestCase {
         XCTAssertTrue(bodies.contains("SDK integration test - info"))
         XCTAssertTrue(bodies.contains("SDK integration test - error"))
         XCTAssertTrue(bodies.contains("SDK integration test - warn"))
+
+        // All events should have a user_identifier (anonymous ID)
+        for event in events {
+            let uid = event["user_identifier"] as? String
+            XCTAssertNotNil(uid, "Every event should have a user_identifier")
+            XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true, "Pre-login events should have anonymous ID")
+        }
 
         // Verify device info was auto-populated
         if let firstEvent = events.first {
@@ -90,16 +95,272 @@ final class SDKIntegrationTests: XCTestCase {
     func testClientEventIdDedup() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
 
-        // Send the same event body; each call generates a unique client_event_id
-        // so they should NOT be deduped (they're distinct events)
         Owl.info("dedup test event", context: "dedup")
         Owl.info("dedup test event", context: "dedup")
 
         await Owl.shutdown()
 
-        // Both should arrive since they have different client_event_ids
         let events = try await queryEvents(context: "dedup")
         XCTAssertGreaterThanOrEqual(events.count, 2)
+    }
+
+    // MARK: - Identity Tests
+
+    func testAnonymousIdAutoAssigned() async throws {
+        // Events should always have a user_identifier even without calling setUser
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        Owl.info("anon id test", context: "anon_auto")
+
+        await Owl.shutdown()
+
+        let events = try await queryEvents(context: "anon_auto")
+        XCTAssertGreaterThanOrEqual(events.count, 1)
+
+        let uid = events.first?["user_identifier"] as? String
+        XCTAssertNotNil(uid)
+        XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true,
+                       "Event should have auto-generated anonymous ID")
+    }
+
+    func testAnonymousIdConsistentAcrossEvents() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        Owl.info("consistent anon 1", context: "anon_consistent")
+        Owl.info("consistent anon 2", context: "anon_consistent")
+        Owl.info("consistent anon 3", context: "anon_consistent")
+
+        await Owl.shutdown()
+
+        let events = try await queryEvents(context: "anon_consistent")
+        XCTAssertGreaterThanOrEqual(events.count, 3)
+
+        let userIds = Set(events.compactMap { $0["user_identifier"] as? String })
+        XCTAssertEqual(userIds.count, 1,
+                       "All events in one session should have the same anonymous ID")
+    }
+
+    func testSetUserChangesIdentifier() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        // Send event with anonymous ID
+        Owl.info("before login", context: "set_user")
+        await Owl.shutdown()
+
+        // Set real user and send another event
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+        Owl.setUser("real-user-123")
+
+        // Small delay to let claim request fire
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        Owl.info("after login", context: "set_user")
+        await Owl.shutdown()
+
+        let events = try await queryEvents(context: "set_user")
+        XCTAssertGreaterThanOrEqual(events.count, 2)
+
+        // The "after login" event should have the real user ID
+        let afterLogin = events.first(where: { ($0["body"] as? String) == "after login" })
+        XCTAssertEqual(afterLogin?["user_identifier"] as? String, "real-user-123")
+    }
+
+    func testIdentityClaimUpdatesAnonymousEvents() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        // Send events before login
+        Owl.info("pre-login event 1", context: "claim_test")
+        Owl.info("pre-login event 2", context: "claim_test")
+        Owl.warn("pre-login event 3", context: "claim_test")
+
+        await Owl.shutdown()
+
+        // Verify events have anonymous ID
+        let preClaimEvents = try await queryEvents(context: "claim_test")
+        XCTAssertGreaterThanOrEqual(preClaimEvents.count, 3)
+
+        let anonId = preClaimEvents.first?["user_identifier"] as? String
+        XCTAssertNotNil(anonId)
+        XCTAssertTrue(anonId?.hasPrefix(IdentityManager.anonymousIdPrefix) == true)
+
+        // Now "login" — this triggers the claim
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+        Owl.setUser("claimed-user-456")
+
+        // Wait for the claim to process
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+
+        await Owl.shutdown()
+
+        // Query events again — they should all now have the real user ID
+        let postClaimEvents = try await queryEvents(context: "claim_test")
+        XCTAssertGreaterThanOrEqual(postClaimEvents.count, 3)
+
+        for event in postClaimEvents {
+            let uid = event["user_identifier"] as? String
+            XCTAssertEqual(uid, "claimed-user-456",
+                           "Event '\(event["body"] as? String ?? "")' should have claimed user ID")
+        }
+    }
+
+    func testClaimEndpointDirectly() async throws {
+        // First ingest some events with an anonymous ID
+        let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
+
+        let ingestPayload: [[String: Any]] = [
+            ["level": "info", "body": "direct claim test 1", "user_identifier": anonId, "context": "direct_claim"],
+            ["level": "info", "body": "direct claim test 2", "user_identifier": anonId, "context": "direct_claim"],
+        ]
+
+        try await ingestEvents(ingestPayload)
+
+        // Verify events exist with anonymous ID
+        let preClaim = try await queryEvents(context: "direct_claim")
+        XCTAssertEqual(preClaim.count, 2)
+        XCTAssertEqual(preClaim.first?["user_identifier"] as? String, anonId)
+
+        // Call claim endpoint
+        let claimResponse = try await claimIdentity(anonymousId: anonId, userId: "direct-claimed-user")
+
+        XCTAssertTrue(claimResponse["claimed"] as? Bool == true)
+        XCTAssertEqual(claimResponse["events_updated"] as? Int, 2)
+
+        // Verify events are updated
+        let postClaim = try await queryEvents(context: "direct_claim")
+        for event in postClaim {
+            XCTAssertEqual(event["user_identifier"] as? String, "direct-claimed-user")
+        }
+    }
+
+    func testClaimIsIdempotent() async throws {
+        let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
+
+        try await ingestEvents([
+            ["level": "info", "body": "idempotent test", "user_identifier": anonId, "context": "idempotent_claim"],
+        ])
+
+        // Claim once
+        let first = try await claimIdentity(anonymousId: anonId, userId: "idempotent-user")
+        XCTAssertTrue(first["claimed"] as? Bool == true)
+        XCTAssertEqual(first["events_updated"] as? Int, 1)
+
+        // Claim again — should succeed without error
+        let second = try await claimIdentity(anonymousId: anonId, userId: "idempotent-user")
+        XCTAssertTrue(second["claimed"] as? Bool == true)
+    }
+
+    func testClaimRejectsInvalidAnonymousId() async throws {
+        // Try to claim with a non-anonymous ID prefix
+        let response = try await claimIdentityRaw(anonymousId: "not-anon-123", userId: "some-user")
+        XCTAssertEqual(response.statusCode, 400)
+    }
+
+    func testClaimRejectsAnonymousUserId() async throws {
+        let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
+        try await ingestEvents([
+            ["level": "info", "body": "test", "user_identifier": anonId, "context": "reject_anon_user"],
+        ])
+
+        // Try to claim with another anonymous ID as the user_id
+        let response = try await claimIdentityRaw(
+            anonymousId: anonId,
+            userId: "\(IdentityManager.anonymousIdPrefix)should-not-work"
+        )
+        XCTAssertEqual(response.statusCode, 400)
+    }
+
+    func testClaimRejectsNonexistentAnonymousId() async throws {
+        // Try to claim an anonymous ID with no events
+        let fakeAnonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
+        let response = try await claimIdentityRaw(anonymousId: fakeAnonId, userId: "some-user")
+        XCTAssertEqual(response.statusCode, 404)
+    }
+
+    func testClearUserRevertsToAnonymousId() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        // Set user then clear
+        Owl.setUser("temp-user")
+        try await Task.sleep(nanoseconds: 500_000_000)
+        Owl.clearUser()
+
+        Owl.info("after clear", context: "clear_user")
+        await Owl.shutdown()
+
+        let events = try await queryEvents(context: "clear_user")
+        XCTAssertGreaterThanOrEqual(events.count, 1)
+
+        let uid = events.first?["user_identifier"] as? String
+        XCTAssertNotNil(uid)
+        XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true,
+                       "After clearUser, events should use anonymous ID again")
+    }
+
+    func testClearUserWithNewAnonymousId() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        // Send an event to capture the original anonymous ID
+        Owl.info("before clear new", context: "clear_new_anon")
+        await Owl.shutdown()
+
+        let beforeEvents = try await queryEvents(context: "clear_new_anon")
+        let originalAnonId = beforeEvents.first?["user_identifier"] as? String
+
+        // Clear with new anonymous ID
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+        Owl.clearUser(newAnonymousId: true)
+
+        Owl.info("after clear new", context: "clear_new_anon2")
+        await Owl.shutdown()
+
+        let afterEvents = try await queryEvents(context: "clear_new_anon2")
+        let newAnonId = afterEvents.first?["user_identifier"] as? String
+
+        XCTAssertNotNil(originalAnonId)
+        XCTAssertNotNil(newAnonId)
+        XCTAssertTrue(newAnonId?.hasPrefix(IdentityManager.anonymousIdPrefix) == true)
+        XCTAssertNotEqual(originalAnonId, newAnonId,
+                          "New anonymous ID should differ from original after clearUser(newAnonymousId: true)")
+    }
+
+    func testSetUserAfterClearUser() async throws {
+        // Scenario: user logs in, logs out, sends anonymous events,
+        // then a different user logs in on the same device.
+        // Events between sessions should be claimed by the second user
+        // (since they share the same anonymous ID after logout).
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        Owl.setUser("user-session-1")
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        // Logout with new anonymous ID (shared device scenario)
+        Owl.clearUser(newAnonymousId: true)
+
+        // Send an event between sessions (with the fresh anonymous ID)
+        Owl.info("between sessions", context: "relogin")
+        await Owl.shutdown()
+
+        // Second user logs in
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+        Owl.setUser("user-session-2")
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        Owl.info("second login", context: "relogin")
+        await Owl.shutdown()
+
+        let events = try await queryEvents(context: "relogin")
+
+        let betweenEvent = events.first(where: { ($0["body"] as? String) == "between sessions" })
+        let secondEvent = events.first(where: { ($0["body"] as? String) == "second login" })
+
+        XCTAssertNotNil(betweenEvent)
+        XCTAssertNotNil(secondEvent)
+
+        // Between sessions was claimed by user-session-2 (same anonymous ID)
+        XCTAssertEqual(betweenEvent?["user_identifier"] as? String, "user-session-2")
+
+        // Second login should have the new user ID
+        XCTAssertEqual(secondEvent?["user_identifier"] as? String, "user-session-2")
     }
 
     // MARK: - Helpers
@@ -124,12 +385,14 @@ final class SDKIntegrationTests: XCTestCase {
 
     private func queryEvents(
         level: String? = nil,
-        context: String? = nil
+        context: String? = nil,
+        user: String? = nil
     ) async throws -> [[String: Any]] {
         var components = URLComponents(string: "\(Self.testEndpoint)/v1/events")!
         var queryItems: [URLQueryItem] = []
         if let level { queryItems.append(URLQueryItem(name: "level", value: level)) }
         if let context { queryItems.append(URLQueryItem(name: "context", value: context)) }
+        if let user { queryItems.append(URLQueryItem(name: "user", value: user)) }
         if !queryItems.isEmpty { components.queryItems = queryItems }
 
         var request = URLRequest(url: components.url!)
@@ -145,5 +408,48 @@ final class SDKIntegrationTests: XCTestCase {
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         return json?["events"] as? [[String: Any]] ?? []
+    }
+
+    private func ingestEvents(_ events: [[String: Any]]) async throws {
+        let url = URL(string: "\(Self.testEndpoint)/v1/ingest")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(Self.testClientKey)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = ["events": events]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            XCTFail("Ingest failed with status \(status)")
+            return
+        }
+    }
+
+    private func claimIdentity(anonymousId: String, userId: String) async throws -> [String: Any] {
+        let (data, _) = try await claimIdentityRequest(anonymousId: anonymousId, userId: userId)
+        return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    }
+
+    private func claimIdentityRaw(anonymousId: String, userId: String) async throws -> (statusCode: Int, body: [String: Any]) {
+        let (data, response) = try await claimIdentityRequest(anonymousId: anonymousId, userId: userId)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let body = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        return (status, body)
+    }
+
+    private func claimIdentityRequest(anonymousId: String, userId: String) async throws -> (Data, URLResponse) {
+        let url = URL(string: "\(Self.testEndpoint)/v1/identity/claim")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(Self.testClientKey)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: String] = ["anonymous_id": anonymousId, "user_id": userId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        return try await URLSession.shared.data(for: request)
     }
 }

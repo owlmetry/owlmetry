@@ -4,6 +4,7 @@ import os
 actor EventTransport {
     private var buffer: [LogEvent] = []
     private let ingestURL: URL
+    private let claimURL: URL
     private let apiKey: String
     private let session: URLSession
     private let offlineQueue: OfflineQueue
@@ -27,6 +28,7 @@ actor EventTransport {
         session: URLSession = .shared
     ) {
         self.ingestURL = endpoint.appendingPathComponent("v1/ingest")
+        self.claimURL = endpoint.appendingPathComponent("v1/identity/claim")
         self.apiKey = apiKey
         self.offlineQueue = offlineQueue
         self.networkMonitor = networkMonitor
@@ -37,7 +39,7 @@ actor EventTransport {
         guard flushTask == nil else { return }
         flushTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                try? await Task.sleep(nanoseconds: self?.flushInterval ?? 5_000_000_000)
                 guard let self else { break }
                 await self.flush()
             }
@@ -109,36 +111,72 @@ actor EventTransport {
         }
     }
 
-    private func send(_ events: [LogEvent]) async -> Bool {
-        var request = URLRequest(url: ingestURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    func claimIdentity(anonymousId: String, userId: String) async {
+        let body: [String: String] = [
+            "anonymous_id": anonymousId,
+            "user_id": userId,
+        ]
 
-        do {
-            request.httpBody = try encoder.encode(IngestRequestBody(events: events))
-        } catch {
-            Self.logger.error("Failed to encode events: \(error.localizedDescription)")
+        guard let httpBody = try? encoder.encode(body) else {
+            Self.logger.error("Failed to encode claim request")
+            return
+        }
+
+        let request = makeRequest(url: claimURL, body: httpBody)
+        let result = await performWithRetry(request, label: "Claim")
+
+        if result {
+            Self.logger.info("Identity claimed: \(anonymousId) → \(userId)")
+        } else {
+            Self.logger.error("Identity claim failed after \(self.maxRetries) attempts")
+        }
+    }
+
+    private func send(_ events: [LogEvent]) async -> Bool {
+        guard let httpBody = try? encoder.encode(IngestRequestBody(events: events)) else {
+            Self.logger.error("Failed to encode events")
             return false
         }
 
+        let request = makeRequest(url: ingestURL, body: httpBody)
+        return await performWithRetry(request, label: "Ingest")
+    }
+
+    // MARK: - Private Helpers
+
+    private func makeRequest(url: URL, body: Data) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = body
+        return request
+    }
+
+    private func performWithRetry(_ request: URLRequest, label: String) async -> Bool {
         for attempt in 0..<maxRetries {
             do {
                 let (data, response) = try await session.data(for: request)
 
-                if let httpResponse = response as? HTTPURLResponse,
-                   (200..<300).contains(httpResponse.statusCode) {
-                    if let body = try? JSONDecoder().decode(IngestResponse.self, from: data),
-                       body.rejected > 0 {
-                        Self.logger.warning("Server rejected \(body.rejected) events")
+                if let http = response as? HTTPURLResponse {
+                    if (200..<300).contains(http.statusCode) {
+                        if let ingestResponse = try? JSONDecoder().decode(IngestResponse.self, from: data),
+                           ingestResponse.rejected > 0 {
+                            Self.logger.warning("Server rejected \(ingestResponse.rejected) events")
+                        }
+                        return true
                     }
-                    return true
-                }
 
-                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-                Self.logger.warning("Ingest returned \(statusCode), attempt \(attempt + 1)/\(self.maxRetries)")
+                    // Don't retry client errors — they won't succeed
+                    if (400..<500).contains(http.statusCode) {
+                        Self.logger.warning("\(label) returned \(http.statusCode), not retrying")
+                        return false
+                    }
+
+                    Self.logger.warning("\(label) returned \(http.statusCode), attempt \(attempt + 1)/\(self.maxRetries)")
+                }
             } catch {
-                Self.logger.warning("Ingest failed: \(error.localizedDescription), attempt \(attempt + 1)/\(self.maxRetries)")
+                Self.logger.warning("\(label) failed: \(error.localizedDescription), attempt \(attempt + 1)/\(self.maxRetries)")
             }
 
             if attempt < maxRetries - 1 {

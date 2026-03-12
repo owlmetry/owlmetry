@@ -5,6 +5,7 @@ import {
   varchar,
   timestamp,
   boolean,
+  integer,
   jsonb,
   index,
   uniqueIndex,
@@ -151,6 +152,30 @@ export const events = pgTable(
       table.timestamp
     ),
     index("events_client_event_id_idx").on(table.app_id, table.client_event_id),
+  ]
+);
+
+// Event Identity Claims
+export const eventIdentityClaims = pgTable(
+  "event_identity_claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    anonymous_id: varchar("anonymous_id", { length: 255 }).notNull(),
+    user_id: varchar("user_id", { length: 255 }).notNull(),
+    events_updated: integer("events_updated").notNull().default(0),
+    claimed_at: timestamp("claimed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("event_identity_claims_app_anon_idx").on(
+      table.app_id,
+      table.anonymous_id
+    ),
+    index("event_identity_claims_app_user_idx").on(table.app_id, table.user_id),
   ]
 );
 

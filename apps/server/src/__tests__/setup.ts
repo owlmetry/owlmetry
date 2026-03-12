@@ -12,6 +12,7 @@ import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
+import { identityRoutes } from "../routes/identity.js";
 import bcrypt from "bcrypt";
 
 const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
@@ -91,6 +92,7 @@ export async function buildApp() {
   await app.register(ingestRoutes, { prefix: "/v1" });
   await app.register(eventsRoutes, { prefix: "/v1" });
   await app.register(appsRoutes, { prefix: "/v1" });
+  await app.register(identityRoutes, { prefix: "/v1" });
 
   await app.ready();
   return app;
@@ -98,6 +100,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM event_identity_claims`;
   await client`DELETE FROM funnel_progress`;
   await client`DELETE FROM funnel_definitions`;
   await client.unsafe(`DELETE FROM events`);

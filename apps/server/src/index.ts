@@ -8,6 +8,7 @@ import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
 import { eventsRoutes } from "./routes/events.js";
 import { appsRoutes } from "./routes/apps.js";
+import { identityRoutes } from "./routes/identity.js";
 
 const app = Fastify({ logger: true });
 
@@ -39,6 +40,7 @@ await app.register(authRoutes, { prefix: "/v1/auth" });
 await app.register(ingestRoutes, { prefix: "/v1" });
 await app.register(eventsRoutes, { prefix: "/v1" });
 await app.register(appsRoutes, { prefix: "/v1" });
+await app.register(identityRoutes, { prefix: "/v1" });
 
 // Start
 try {

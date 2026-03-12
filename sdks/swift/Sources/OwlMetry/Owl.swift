@@ -13,6 +13,7 @@ public enum Owl {
         var networkMonitor: NetworkMonitor?
         var offlineQueue: OfflineQueue?
         var defaultUserIdentifier: String?
+        var anonymousId: String?
         var hasWarnedNotConfigured = false
     }
 
@@ -33,6 +34,10 @@ public enum Owl {
         )
         let filter = DuplicateFilter()
 
+        // Resolve identity: saved real user ID > anonymous ID
+        let anonId = IdentityManager.anonymousId()
+        let userId = IdentityManager.savedUserId() ?? anonId
+
         let oldTransport: EventTransport? = state.withLock { s in
             let old = s.transport
             s.configuration = config
@@ -41,6 +46,8 @@ public enum Owl {
             s.offlineQueue = queue
             s.transport = transport
             s.duplicateFilter = filter
+            s.anonymousId = anonId
+            s.defaultUserIdentifier = userId
             s.hasWarnedNotConfigured = false
             return old
         }
@@ -56,10 +63,46 @@ public enum Owl {
         }
     }
 
-    // MARK: - User Identifier
+    // MARK: - User Identity
 
-    public static func setUserIdentifier(_ identifier: String?) {
-        state.withLock { $0.defaultUserIdentifier = identifier }
+    /// Set the real user identifier (call after your app's login).
+    /// This persists the ID and triggers a server-side claim to
+    /// retroactively associate all anonymous events with this user.
+    public static func setUser(_ identifier: String) {
+        IdentityManager.saveUserId(identifier)
+
+        let (anonId, transport) = state.withLock { s -> (String?, EventTransport?) in
+            let anonId = s.anonymousId
+            s.defaultUserIdentifier = identifier
+            return (anonId, s.transport)
+        }
+
+        // Fire claim request to update previously-sent anonymous events
+        if let anonId, let transport {
+            Task {
+                await transport.claimIdentity(anonymousId: anonId, userId: identifier)
+            }
+        }
+    }
+
+    /// Clear the user identifier (call on logout).
+    /// Reverts to the anonymous device ID for future events.
+    /// Pass `newAnonymousId: true` to generate a fresh anonymous ID
+    /// (use when the device may be shared between users).
+    public static func clearUser(newAnonymousId: Bool = false) {
+        IdentityManager.clearUserId()
+
+        // Generate new anonymous ID outside the lock (Keychain I/O)
+        let freshId = newAnonymousId ? IdentityManager.resetAnonymousId() : nil
+
+        state.withLock { s in
+            if let freshId {
+                s.anonymousId = freshId
+                s.defaultUserIdentifier = freshId
+            } else {
+                s.defaultUserIdentifier = s.anonymousId
+            }
+        }
     }
 
     // MARK: - Logging
@@ -68,12 +111,11 @@ public enum Owl {
         _ body: String,
         context: String? = nil,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .info, context: context, meta: meta, userIdentifier: userIdentifier,
+        log(body, level: .info, context: context, meta: meta,
             file: file, function: function, line: line)
     }
 
@@ -81,12 +123,11 @@ public enum Owl {
         _ body: String,
         context: String? = nil,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .debug, context: context, meta: meta, userIdentifier: userIdentifier,
+        log(body, level: .debug, context: context, meta: meta,
             file: file, function: function, line: line)
     }
 
@@ -94,12 +135,11 @@ public enum Owl {
         _ body: String,
         context: String? = nil,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .warn, context: context, meta: meta, userIdentifier: userIdentifier,
+        log(body, level: .warn, context: context, meta: meta,
             file: file, function: function, line: line)
     }
 
@@ -107,7 +147,6 @@ public enum Owl {
         _ body: String,
         context: String? = nil,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
@@ -115,7 +154,7 @@ public enum Owl {
         let connected = state.withLock { $0.networkMonitor?.isConnected == true }
         var updatedMeta = meta ?? [:]
         updatedMeta["_connection"] = connected ? "connected" : "disconnected"
-        log(body, level: .error, context: context, meta: updatedMeta, userIdentifier: userIdentifier,
+        log(body, level: .error, context: context, meta: updatedMeta,
             file: file, function: function, line: line)
     }
 
@@ -123,12 +162,11 @@ public enum Owl {
         _ body: String,
         context: String? = nil,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .attention, context: context, meta: meta, userIdentifier: userIdentifier,
+        log(body, level: .attention, context: context, meta: meta,
             file: file, function: function, line: line)
     }
 
@@ -136,12 +174,11 @@ public enum Owl {
         _ body: String,
         context: String? = nil,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(body, level: .tracking, context: context, meta: meta, userIdentifier: userIdentifier,
+        log(body, level: .tracking, context: context, meta: meta,
             file: file, function: function, line: line)
     }
 
@@ -150,27 +187,24 @@ public enum Owl {
     public static func track(
         _ name: String,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(name, level: .tracking, context: nil, meta: meta, userIdentifier: userIdentifier,
+        log(name, level: .tracking, context: nil, meta: meta,
             file: file, function: function, line: line)
     }
 
     public static func once(
         _ name: String,
         meta: [String: String]? = nil,
-        userIdentifier: String? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
         guard !FunnelTracker.hasTrackedOnce(name) else { return }
         FunnelTracker.markTrackedOnce(name)
-        track(name, meta: meta, userIdentifier: userIdentifier,
-              file: file, function: function, line: line)
+        track(name, meta: meta, file: file, function: function, line: line)
     }
 
     // MARK: - Lifecycle
@@ -187,7 +221,6 @@ public enum Owl {
         level: LogLevel,
         context: String?,
         meta: [String: String]?,
-        userIdentifier: String?,
         file: String,
         function: String,
         line: Int
@@ -212,7 +245,7 @@ public enum Owl {
             level: level,
             context: context,
             meta: meta,
-            userIdentifier: userIdentifier ?? defaultUser,
+            userIdentifier: defaultUser,
             deviceInfo: deviceInfo,
             file: file,
             function: function,
