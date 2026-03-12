@@ -7,7 +7,8 @@
     "db:generate": "pnpm --filter @owlmetry/db generate",
     "db:migrate": "pnpm --filter @owlmetry/db migrate",
     "db:seed": "pnpm --filter @owlmetry/db seed",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test && pnpm test:swift-sdk",
+    "test:swift-sdk": "bash scripts/test-swift-sdk.sh"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
