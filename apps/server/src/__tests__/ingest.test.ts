@@ -6,6 +6,7 @@ import {
   seedTestData,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
+  TEST_EXPIRED_KEY,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -175,5 +176,30 @@ describe("POST /v1/ingest", () => {
     });
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it("rejects expired API key", async () => {
+    const res = await ingest(
+      [{ level: "info", body: "test" }],
+      TEST_EXPIRED_KEY
+    );
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toMatch(/expired/i);
+  });
+
+  it("rate limits after too many requests", async () => {
+    // Drain the token bucket (100 tokens default)
+    const promises = [];
+    for (let i = 0; i < 105; i++) {
+      promises.push(
+        ingest([{ level: "info", body: `Flood ${i}` }])
+      );
+    }
+    const results = await Promise.all(promises);
+
+    const rateLimited = results.filter((r) => r.statusCode === 429);
+    expect(rateLimited.length).toBeGreaterThan(0);
+    expect(rateLimited[0].json().error).toMatch(/rate limit/i);
   });
 });

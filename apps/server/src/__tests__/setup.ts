@@ -23,6 +23,8 @@ export const TEST_CLIENT_KEY =
   "owl_client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 export const TEST_AGENT_KEY =
   "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+export const TEST_EXPIRED_KEY =
+  "owl_client_cccccccccccccccccccccccccccccccccccccccccccccc";
 export const TEST_USER = {
   email: "test@owlmetry.dev",
   password: "testpass123",
@@ -174,6 +176,21 @@ export async function seedTestData() {
       ${team.id},
       'Test Agent Key',
       ${JSON.stringify(["events:read", "funnels:read"])}::jsonb
+    )
+  `;
+
+  // Expired client key
+  await client`
+    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, expires_at)
+    VALUES (
+      ${hashKey(TEST_EXPIRED_KEY)},
+      ${TEST_EXPIRED_KEY.slice(0, 16)},
+      'client',
+      ${app.id},
+      ${team.id},
+      'Expired Key',
+      ${JSON.stringify(["events:write"])}::jsonb,
+      ${new Date("2020-01-01")}
     )
   `;
 

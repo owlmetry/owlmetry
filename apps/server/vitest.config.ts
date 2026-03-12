@@ -7,5 +7,6 @@ export default defineConfig({
     hookTimeout: 30000,
     fileParallelism: false,
     globalSetup: "./src/__tests__/global-setup.ts",
+    exclude: ["dist/**", "node_modules/**"],
   },
 });
