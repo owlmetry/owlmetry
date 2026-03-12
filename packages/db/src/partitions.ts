@@ -1,8 +1,22 @@
 import type postgres from "postgres";
 
+const PARTITION_NAME_PATTERN = /^events_\d{4}_\d{2}$/;
+
 export async function getDatabaseSizeBytes(client: postgres.Sql): Promise<number> {
   const result = await client`SELECT pg_database_size(current_database()) AS size`;
   return Number(result[0].size);
+}
+
+export async function getEventPartitionNames(client: postgres.Sql): Promise<string[]> {
+  const rows = await client`
+    SELECT c.relname AS partition_name
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    JOIN pg_class p ON p.oid = i.inhparent
+    WHERE p.relname = 'events'
+    ORDER BY c.relname ASC
+  `;
+  return rows.map((r) => r.partition_name as string);
 }
 
 export async function dropOldestEventPartitions(
@@ -17,71 +31,57 @@ export async function dropOldestEventPartitions(
     return { droppedPartitions, deletedRows, currentSizeBytes: currentSize };
   }
 
-  // Get all event partitions sorted oldest-first
-  const partitions = await client`
-    SELECT c.relname AS partition_name
-    FROM pg_inherits i
-    JOIN pg_class c ON c.oid = i.inhrelid
-    JOIN pg_class p ON p.oid = i.inhparent
-    WHERE p.relname = 'events'
-    ORDER BY c.relname ASC
-  `;
+  const partitions = await getEventPartitionNames(client);
 
   const now = new Date();
   const currentPartitionName = `events_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   // Phase 1: Drop entire old partitions
-  for (const row of partitions) {
+  for (const name of partitions) {
     if (currentSize <= maxSizeBytes) break;
-
-    const name = row.partition_name as string;
 
     // Never drop current or future partitions
     if (name >= currentPartitionName) continue;
 
+    if (!PARTITION_NAME_PATTERN.test(name)) continue;
+
     await client.unsafe(`DROP TABLE ${name}`);
     droppedPartitions.push(name);
-    console.log(`Dropped partition ${name} to reclaim disk space.`);
 
     currentSize = await getDatabaseSizeBytes(client);
   }
 
-  // Phase 2: Row-level fallback — delete oldest rows from current partition
+  // Phase 2: Row-level fallback — delete oldest rows from the current partition.
+  // pg_database_size won't reflect DELETEs until VACUUM, so we track by row count
+  // and delete a fixed number of batches to free up space for autovacuum to reclaim.
   if (currentSize > maxSizeBytes) {
     const batchSize = 1000;
     const maxIterations = 100;
-    let iterations = 0;
 
-    while (currentSize > maxSizeBytes && iterations < maxIterations) {
-      const deleted = await client.unsafe(`
-        DELETE FROM events
-        WHERE ctid IN (
-          SELECT ctid FROM events
-          ORDER BY "timestamp" ASC
-          LIMIT ${batchSize}
-        )
-      `);
+    // Find the oldest remaining partition to target directly (ctid is partition-local)
+    const remaining = await getEventPartitionNames(client);
+    const targetPartition = remaining.find((n) => PARTITION_NAME_PATTERN.test(n));
 
-      const count = deleted.count ?? 0;
-      if (count === 0) break;
+    if (targetPartition) {
+      for (let i = 0; i < maxIterations; i++) {
+        const deleted = await client.unsafe(`
+          DELETE FROM ${targetPartition}
+          WHERE ctid IN (
+            SELECT ctid FROM ${targetPartition}
+            ORDER BY "timestamp" ASC
+            LIMIT ${batchSize}
+          )
+        `);
 
-      deletedRows += count;
-      iterations++;
-      currentSize = await getDatabaseSizeBytes(client);
-    }
+        const count = Number(deleted.count ?? 0);
+        if (count === 0) break;
 
-    if (deletedRows > 0) {
-      console.log(`Deleted ${deletedRows} oldest event rows to reclaim disk space.`);
-    }
-
-    if (currentSize > maxSizeBytes) {
-      console.warn(
-        `Database size (${(currentSize / 1024 / 1024 / 1024).toFixed(2)} GB) still exceeds limit after pruning. ` +
-          `Consider increasing MAX_DATABASE_SIZE_GB or reducing ingestion volume.`
-      );
+        deletedRows += count;
+      }
     }
   }
 
+  currentSize = await getDatabaseSizeBytes(client);
   return { droppedPartitions, deletedRows, currentSizeBytes: currentSize };
 }
 

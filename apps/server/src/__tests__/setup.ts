@@ -16,7 +16,7 @@ import { identityRoutes } from "../routes/identity.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import bcrypt from "bcrypt";
 
-const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
+export const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
 
 export const TEST_CLIENT_KEY =
   "owl_client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

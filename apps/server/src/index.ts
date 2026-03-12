@@ -44,7 +44,16 @@ await app.register(eventsRoutes, { prefix: "/v1" });
 await app.register(appsRoutes, { prefix: "/v1" });
 await app.register(identityRoutes, { prefix: "/v1" });
 
-// Database size pruning
+// Start
+try {
+  await app.listen({ port: config.port, host: config.host });
+  console.log(`Server running on ${config.host}:${config.port}`);
+} catch (err) {
+  app.log.error(err);
+  process.exit(1);
+}
+
+// Database size pruning (runs after server is listening)
 let pruningInterval: ReturnType<typeof setInterval> | undefined;
 
 if (config.maxDatabaseSizeGb > 0) {
@@ -69,17 +78,8 @@ if (config.maxDatabaseSizeGb > 0) {
     }
   };
 
-  await runPruning();
+  runPruning();
   pruningInterval = setInterval(runPruning, 3_600_000);
-}
-
-// Start
-try {
-  await app.listen({ port: config.port, host: config.host });
-  console.log(`Server running on ${config.host}:${config.port}`);
-} catch (err) {
-  app.log.error(err);
-  process.exit(1);
 }
 
 // Graceful shutdown

@@ -3,26 +3,20 @@ import postgres from "postgres";
 import {
   getDatabaseSizeBytes,
   dropOldestEventPartitions,
+  getEventPartitionNames,
   ensurePartitions,
 } from "@owlmetry/db";
+import { TEST_DB_URL } from "./setup.js";
 
-const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
 let client: postgres.Sql;
 
 beforeEach(async () => {
   client = postgres(TEST_DB_URL, { max: 1 });
 
   // Drop all event partitions to start clean
-  const partitions = await client`
-    SELECT c.relname AS partition_name
-    FROM pg_inherits i
-    JOIN pg_class c ON c.oid = i.inhrelid
-    JOIN pg_class p ON p.oid = i.inhparent
-    WHERE p.relname = 'events'
-    ORDER BY c.relname ASC
-  `;
-  for (const row of partitions) {
-    await client.unsafe(`DROP TABLE ${row.partition_name}`);
+  const partitions = await getEventPartitionNames(client);
+  for (const name of partitions) {
+    await client.unsafe(`DROP TABLE ${name}`);
   }
 });
 
@@ -36,7 +30,7 @@ afterAll(async () => {
 async function createTestPartition(sql: postgres.Sql, year: number, month: number) {
   const mo = String(month).padStart(2, "0");
   const name = `events_${year}_${mo}`;
-  const nextDate = new Date(year, month, 1); // month is 1-based here but Date uses 0-based — works because we pass month directly
+  const nextDate = new Date(year, month, 1);
   const nextYear = nextDate.getFullYear();
   const nextMo = String(nextDate.getMonth() + 1).padStart(2, "0");
 
@@ -57,18 +51,6 @@ async function insertTestEvent(sql: postgres.Sql, timestamp: string) {
     INSERT INTO events (app_id, level, message, "timestamp")
     VALUES ('00000000-0000-0000-0000-000000000001', 'info', 'test', '${timestamp}')
   `);
-}
-
-async function getPartitionNames(sql: postgres.Sql): Promise<string[]> {
-  const rows = await sql`
-    SELECT c.relname AS partition_name
-    FROM pg_inherits i
-    JOIN pg_class c ON c.oid = i.inhrelid
-    JOIN pg_class p ON p.oid = i.inhparent
-    WHERE p.relname = 'events'
-    ORDER BY c.relname ASC
-  `;
-  return rows.map((r) => r.partition_name as string);
 }
 
 describe("getDatabaseSizeBytes", () => {
@@ -115,7 +97,7 @@ describe("dropOldestEventPartitions", () => {
     expect(result.droppedPartitions).toContain("events_2024_03");
 
     // Current-month partition should survive
-    const remaining = await getPartitionNames(client);
+    const remaining = await getEventPartitionNames(client);
     const currentPartitionName = `events_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, "0")}`;
     expect(remaining).toContain(currentPartitionName);
 
@@ -131,7 +113,7 @@ describe("dropOldestEventPartitions", () => {
 
     expect(result.droppedPartitions).toEqual([]);
 
-    const remaining = await getPartitionNames(client);
+    const remaining = await getEventPartitionNames(client);
     expect(remaining.length).toBe(1);
 
     await client.end();
