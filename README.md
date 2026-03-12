@@ -2,6 +2,8 @@
 
 Self-hosted metrics tracking platform for mobile apps. Collect events, track funnels, and investigate issues — all on your own infrastructure.
 
+> **Warning:** This project is in active development and is not yet production-ready. APIs, schemas, and configuration may change without notice.
+
 ## Features
 
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication
