@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
-import { createDatabaseConnection, ensurePartitions } from "@owlmetry/db";
+import { createDatabaseConnection, ensurePartitions, dropOldestEventPartitions } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
@@ -44,6 +44,35 @@ await app.register(eventsRoutes, { prefix: "/v1" });
 await app.register(appsRoutes, { prefix: "/v1" });
 await app.register(identityRoutes, { prefix: "/v1" });
 
+// Database size pruning
+let pruningInterval: ReturnType<typeof setInterval> | undefined;
+
+if (config.maxDatabaseSizeGb > 0) {
+  const maxSizeBytes = config.maxDatabaseSizeGb * 1024 * 1024 * 1024;
+
+  const runPruning = async () => {
+    const client = postgres(config.databaseUrl, { max: 1 });
+    try {
+      const result = await dropOldestEventPartitions(client, maxSizeBytes);
+      if (result.droppedPartitions.length > 0 || result.deletedRows > 0) {
+        app.log.info(
+          `Database pruning: dropped partitions [${result.droppedPartitions.join(", ")}], ` +
+            `deleted ${result.deletedRows} rows. ` +
+            `Current size: ${(result.currentSizeBytes / 1024 / 1024 / 1024).toFixed(2)} GB`
+        );
+      }
+    } catch (err) {
+      app.log.error("Database size pruning failed:");
+      app.log.error(err);
+    } finally {
+      await client.end();
+    }
+  };
+
+  await runPruning();
+  pruningInterval = setInterval(runPruning, 3_600_000);
+}
+
 // Start
 try {
   await app.listen({ port: config.port, host: config.host });
@@ -52,3 +81,13 @@ try {
   app.log.error(err);
   process.exit(1);
 }
+
+// Graceful shutdown
+const shutdown = async () => {
+  if (pruningInterval) clearInterval(pruningInterval);
+  await app.close();
+  process.exit(0);
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

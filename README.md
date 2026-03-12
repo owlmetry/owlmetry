@@ -181,6 +181,14 @@ crontab -e
 0 0 1 * * cd /opt/owlmetry && pnpm db:migrate >> /var/log/owlmetry-partitions.log 2>&1
 ```
 
+### 8. Database size management
+
+To prevent the database from filling your disk, set `MAX_DATABASE_SIZE_GB` in `.env`. The server checks the total database size every hour (and once at startup). When the limit is exceeded, it drops the oldest monthly event partitions first. If only the current month remains and the database is still over the limit, it falls back to deleting the oldest individual event rows. Set to `0` (default) to disable.
+
+```bash
+MAX_DATABASE_SIZE_GB=10
+```
+
 ## API Overview
 
 | Method | Endpoint | Auth | Description |
@@ -204,3 +212,4 @@ crontab -e
 | `PORT` | `4000` | API server port |
 | `HOST` | `0.0.0.0` | API server bind address |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
+| `MAX_DATABASE_SIZE_GB` | `0` (disabled) | Max database size before pruning old events |
