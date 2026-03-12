@@ -1,0 +1,18 @@
+export const KEY_PREFIX = {
+  client: "owl_client_",
+  agent: "owl_agent_",
+} as const;
+
+export const LOG_LEVELS = [
+  "info",
+  "debug",
+  "warn",
+  "error",
+  "attention",
+  "tracking",
+] as const;
+
+export const MAX_BATCH_SIZE = 100;
+export const MAX_META_VALUE_LENGTH = 200;
+export const DEFAULT_PAGE_SIZE = 50;
+export const MAX_PAGE_SIZE = 200;

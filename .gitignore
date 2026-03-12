@@ -1,0 +1,27 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# logs
+*.log
+firebase-debug.log
+
+# Next.js
+.next/
+out/
+
+# project notes
+CLAUDE.md
+PLAN.md

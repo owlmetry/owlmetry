@@ -1,0 +1,24 @@
+{
+  "name": "owlmetry",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --filter @owlmetry/server dev",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @owlmetry/db generate",
+    "db:migrate": "pnpm --filter @owlmetry/db migrate",
+    "db:seed": "pnpm --filter @owlmetry/db seed",
+    "test": "pnpm -r test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bcrypt",
+      "esbuild"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0"
+  }
+}
