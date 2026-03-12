@@ -530,7 +530,7 @@ final class SDKIntegrationTests: XCTestCase {
 
         // Session 1: track once
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
-        Owl.once(eventName)
+        Owl.trackOnce(eventName)
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
@@ -539,7 +539,7 @@ final class SDKIntegrationTests: XCTestCase {
 
         // Session 2: try to track the same event again
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
-        Owl.once(eventName)
+        Owl.trackOnce(eventName)
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 

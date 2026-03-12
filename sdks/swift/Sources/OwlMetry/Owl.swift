@@ -211,7 +211,7 @@ public enum Owl {
             file: file, function: function, line: line)
     }
 
-    public static func once(
+    public static func trackOnce(
         _ name: String,
         meta: [String: String]? = nil,
         file: String = #file,
