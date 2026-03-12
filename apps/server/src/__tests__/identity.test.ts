@@ -28,7 +28,7 @@ function ingest(events: any[], key = TEST_CLIENT_KEY) {
     method: "POST",
     url: "/v1/ingest",
     headers: { authorization: `Bearer ${key}` },
-    payload: { events },
+    payload: { bundle_id: "dev.owlmetry.test", events },
   });
 }
 

@@ -85,6 +85,19 @@ describe("POST /v1/apps", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("rejects missing bundle_id", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "No Bundle", platform: "ios" },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/bundle_id/);
+  });
+
   it("rejects API key auth (only users can create apps)", async () => {
     const res = await app.inject({
       method: "POST",
@@ -93,6 +106,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Nope",
         platform: "ios",
+        bundle_id: "dev.owlmetry.nope",
       },
     });
 
@@ -106,7 +120,7 @@ describe("POST /v1/apps", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "Second App", platform: "web" },
+      payload: { name: "Second App", platform: "web", bundle_id: "owlmetry.dev" },
     });
 
     const res = await app.inject({

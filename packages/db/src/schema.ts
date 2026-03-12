@@ -72,7 +72,7 @@ export const apps = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     platform: varchar("platform", { length: 50 }).notNull(),
-    bundle_id: varchar("bundle_id", { length: 255 }),
+    bundle_id: varchar("bundle_id", { length: 255 }).notNull(),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

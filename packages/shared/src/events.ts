@@ -46,6 +46,7 @@ export interface StoredEvent {
 }
 
 export interface IngestRequest {
+  bundle_id: string;
   events: IngestEventPayload[];
 }
 

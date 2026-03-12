@@ -35,5 +35,6 @@ struct LogEvent: Codable, Sendable {
 }
 
 struct IngestRequestBody: Codable, Sendable {
+    let bundle_id: String
     let events: [LogEvent]
 }

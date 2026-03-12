@@ -37,6 +37,7 @@ final class EventTransportTests: XCTestCase {
         XCTAssertNotNil(receivedBody)
         if let data = receivedBody {
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            XCTAssertEqual(json?["bundle_id"] as? String, "dev.owlmetry.test")
             let events = json?["events"] as? [[String: Any]]
             XCTAssertEqual(events?.count, 1)
             XCTAssertEqual(events?.first?["message"] as? String, "hello")
@@ -71,6 +72,7 @@ final class EventTransportTests: XCTestCase {
         return EventTransport(
             endpoint: URL(string: "https://api.test.com")!,
             apiKey: "owl_client_test123",
+            bundleId: "dev.owlmetry.test",
             compressionEnabled: true,
             offlineQueue: OfflineQueue(directory: tempDir),
             networkMonitor: NetworkMonitor(),

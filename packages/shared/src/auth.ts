@@ -53,6 +53,6 @@ export interface App {
   team_id: string;
   name: string;
   platform: string;
-  bundle_id: string | null;
+  bundle_id: string;
   created_at: Date;
 }

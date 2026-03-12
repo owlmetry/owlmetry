@@ -6,6 +6,7 @@ actor EventTransport {
     private let ingestURL: URL
     private let claimURL: URL
     private let apiKey: String
+    private let bundleId: String
     private let session: URLSession
     private let offlineQueue: OfflineQueue
     private let networkMonitor: NetworkMonitor
@@ -25,6 +26,7 @@ actor EventTransport {
     init(
         endpoint: URL,
         apiKey: String,
+        bundleId: String,
         compressionEnabled: Bool,
         offlineQueue: OfflineQueue,
         networkMonitor: NetworkMonitor,
@@ -33,6 +35,7 @@ actor EventTransport {
         self.ingestURL = endpoint.appendingPathComponent("v1/ingest")
         self.claimURL = endpoint.appendingPathComponent("v1/identity/claim")
         self.apiKey = apiKey
+        self.bundleId = bundleId
         self.compressionEnabled = compressionEnabled
         self.offlineQueue = offlineQueue
         self.networkMonitor = networkMonitor
@@ -147,7 +150,7 @@ actor EventTransport {
     }
 
     private func send(_ events: [LogEvent]) async -> Bool {
-        guard let httpBody = try? encoder.encode(IngestRequestBody(events: events)) else {
+        guard let httpBody = try? encoder.encode(IngestRequestBody(bundle_id: bundleId, events: events)) else {
             Self.logger.error("Failed to encode events")
             return false
         }

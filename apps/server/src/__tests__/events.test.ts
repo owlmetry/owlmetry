@@ -30,7 +30,7 @@ async function ingestEvents(events: any[]) {
     method: "POST",
     url: "/v1/ingest",
     headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-    payload: { events },
+    payload: { bundle_id: "dev.owlmetry.test", events },
   });
 }
 

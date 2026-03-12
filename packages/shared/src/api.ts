@@ -39,7 +39,7 @@ export interface CreateApiKeyResponse {
 export interface CreateAppRequest {
   name: string;
   platform: string;
-  bundle_id?: string;
+  bundle_id: string;
 }
 
 // Events query

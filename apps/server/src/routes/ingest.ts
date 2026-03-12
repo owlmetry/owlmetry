@@ -43,7 +43,13 @@ export async function ingestRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission("events:write"), rateLimit] },
     async (request, reply) => {
       const auth = request.auth;
-      const { events: payloads } = request.body;
+      const { bundle_id, events: payloads } = request.body;
+
+      if (!bundle_id || typeof bundle_id !== "string") {
+        return reply
+          .code(400)
+          .send({ error: "bundle_id is required" });
+      }
 
       if (!Array.isArray(payloads) || payloads.length === 0) {
         return reply.code(400).send({ error: "events array is required" });
@@ -63,6 +69,17 @@ export async function ingestRoutes(app: FastifyInstance) {
         return reply
           .code(400)
           .send({ error: "Client key must be scoped to an app" });
+      }
+
+      // Validate bundle_id matches the app's registered bundle_id
+      if (auth.type === "api_key" && auth.app_bundle_id) {
+        if (bundle_id !== auth.app_bundle_id) {
+          return reply
+            .code(403)
+            .send({
+              error: "bundle_id does not match the app associated with this API key",
+            });
+        }
       }
 
       const errors: Array<{ index: number; message: string }> = [];

@@ -25,12 +25,16 @@ afterAll(async () => {
   await app.close();
 });
 
-function ingest(events: any[], key = TEST_CLIENT_KEY) {
+function ingest(
+  events: any[],
+  key = TEST_CLIENT_KEY,
+  bundle_id = "dev.owlmetry.test"
+) {
   return app.inject({
     method: "POST",
     url: "/v1/ingest",
     headers: { authorization: `Bearer ${key}` },
-    payload: { events },
+    payload: { bundle_id, events },
   });
 }
 
@@ -206,6 +210,7 @@ describe("POST /v1/ingest", () => {
 
   it("accepts gzip-compressed event payload", async () => {
     const json = JSON.stringify({
+      bundle_id: "dev.owlmetry.test",
       events: [{ level: "info", message: "Compressed event" }],
     });
     const compressed = gzipSync(Buffer.from(json));
@@ -223,6 +228,29 @@ describe("POST /v1/ingest", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+  });
+
+  it("rejects request with missing bundle_id", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { events: [{ level: "info", message: "test" }] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/bundle_id/);
+  });
+
+  it("rejects request with mismatched bundle_id", async () => {
+    const res = await ingest(
+      [{ level: "info", message: "test" }],
+      TEST_CLIENT_KEY,
+      "com.wrong.bundle"
+    );
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatch(/bundle_id/);
   });
 
   it("rejects invalid gzip data", async () => {

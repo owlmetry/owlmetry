@@ -29,12 +29,29 @@ public enum Owl {
         compressionEnabled: Bool = true
     ) throws {
         let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled)
+        try configureWith(config)
+    }
+
+    /// Internal entry point for testing with an explicit bundle ID.
+    static func configure(
+        endpoint: String,
+        apiKey: String,
+        bundleId: String,
+        flushOnBackground: Bool = true,
+        compressionEnabled: Bool = true
+    ) throws {
+        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled)
+        try configureWith(config)
+    }
+
+    private static func configureWith(_ config: Configuration) throws {
 
         let monitor = NetworkMonitor()
         let queue = OfflineQueue()
         let transport = EventTransport(
             endpoint: config.endpoint,
             apiKey: config.apiKey,
+            bundleId: config.bundleId,
             compressionEnabled: config.compressionEnabled,
             offlineQueue: queue,
             networkMonitor: monitor

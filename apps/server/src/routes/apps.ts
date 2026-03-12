@@ -40,8 +40,10 @@ export async function appsRoutes(app: FastifyInstance) {
 
       const { name, platform, bundle_id } = request.body;
 
-      if (!name || !platform) {
-        return reply.code(400).send({ error: "name and platform required" });
+      if (!name || !platform || !bundle_id) {
+        return reply
+          .code(400)
+          .send({ error: "name, platform, and bundle_id are required" });
       }
 
       const [created] = await app.db
@@ -50,7 +52,7 @@ export async function appsRoutes(app: FastifyInstance) {
           team_id: auth.team_id,
           name,
           platform,
-          bundle_id: bundle_id || null,
+          bundle_id,
         })
         .returning();
 

@@ -20,6 +20,7 @@ export interface ApiKeyContext {
   key_id: string;
   key_type: "client" | "agent";
   app_id: string | null;
+  app_bundle_id: string | null;
   team_id: string;
   permissions: string[];
 }
