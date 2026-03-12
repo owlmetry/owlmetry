@@ -15,7 +15,7 @@ actor EventTransport {
     private let encoder = JSONEncoder()
 
     private let batchSize = 20
-    private let maxBufferSize = 1000
+    private let maxBufferSize = 10_000
     private let flushInterval: UInt64 = 5_000_000_000 // 5 seconds
     private let maxRetries = 5
     private let maxBackoff: TimeInterval = 30

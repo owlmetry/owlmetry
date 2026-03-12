@@ -3,7 +3,7 @@ import Foundation
 actor OfflineQueue {
     private var events: [LogEvent] = []
     private let fileURL: URL
-    private let maxEvents = 1000
+    private let maxEvents = 10_000
     private var pendingWrite = false
 
     init(directory: URL? = nil) {
