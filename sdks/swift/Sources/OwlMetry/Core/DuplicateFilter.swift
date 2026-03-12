@@ -7,6 +7,7 @@ actor DuplicateFilter {
     private var cleanupTask: Task<Void, Never>?
 
     func start() {
+        guard cleanupTask == nil else { return }
         cleanupTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
@@ -49,7 +50,7 @@ actor DuplicateFilter {
         var relevantMeta = ""
         if let meta = event.meta {
             let relevantKeys = meta.keys
-                .filter { !["_file", "_line", "_function"].contains($0) }
+                .filter { !EventBuilder.systemMetaKeys.contains($0) }
                 .sorted()
             if !relevantKeys.isEmpty {
                 relevantMeta = relevantKeys.map { "\($0):\(meta[$0] ?? "")" }.joined(separator: "|")

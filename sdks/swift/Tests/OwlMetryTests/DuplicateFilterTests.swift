@@ -9,13 +9,13 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testAllowsFirstOccurrence() async {
-        let event = makeEvent(body: "hello")
+        let event = LogEvent.stub(body: "hello")
         let allowed = await filter.shouldAllow(event)
         XCTAssertTrue(allowed)
     }
 
     func testAllowsUpToMaxDuplicates() async {
-        let event = makeEvent(body: "repeated")
+        let event = LogEvent.stub(body: "repeated")
         for i in 1...10 {
             let allowed = await filter.shouldAllow(event)
             XCTAssertTrue(allowed, "Event \(i) should be allowed")
@@ -23,7 +23,7 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testBlocksAfterMaxDuplicates() async {
-        let event = makeEvent(body: "spam")
+        let event = LogEvent.stub(body: "spam")
         for _ in 1...10 {
             _ = await filter.shouldAllow(event)
         }
@@ -32,8 +32,8 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testDifferentEventsAreIndependent() async {
-        let eventA = makeEvent(body: "message A")
-        let eventB = makeEvent(body: "message B")
+        let eventA = LogEvent.stub(body: "message A")
+        let eventB = LogEvent.stub(body: "message B")
 
         for _ in 1...10 {
             _ = await filter.shouldAllow(eventA)
@@ -47,8 +47,8 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testDifferentContextCreatesDistinctKey() async {
-        let eventA = makeEvent(body: "same", context: "screen_a")
-        let eventB = makeEvent(body: "same", context: "screen_b")
+        let eventA = LogEvent.stub(body: "same", context: "screen_a")
+        let eventB = LogEvent.stub(body: "same", context: "screen_b")
 
         for _ in 1...10 {
             _ = await filter.shouldAllow(eventA)
@@ -59,38 +59,11 @@ final class DuplicateFilterTests: XCTestCase {
     }
 
     func testSystemMetaKeysExcludedFromKey() async {
-        let event1 = makeEvent(body: "test", meta: ["_file": "A.swift", "_line": "1", "_function": "foo", "key": "val"])
-        let event2 = makeEvent(body: "test", meta: ["_file": "B.swift", "_line": "99", "_function": "bar", "key": "val"])
+        let event1 = LogEvent.stub(body: "test", meta: ["_file": "A.swift", "_line": "1", "_function": "foo", "key": "val"])
+        let event2 = LogEvent.stub(body: "test", meta: ["_file": "B.swift", "_line": "99", "_function": "bar", "key": "val"])
 
         _ = await filter.shouldAllow(event1)
-        // event2 differs only in system meta, so should share the same dedup key
-        // It's the 2nd occurrence, so should still be allowed
         let allowed = await filter.shouldAllow(event2)
         XCTAssertTrue(allowed)
-    }
-
-    // MARK: - Helpers
-
-    private func makeEvent(
-        body: String,
-        context: String? = nil,
-        meta: [String: String]? = nil
-    ) -> LogEvent {
-        LogEvent(
-            clientEventId: UUID().uuidString,
-            userIdentifier: nil,
-            level: .info,
-            source: "Test.swift:test:1",
-            body: body,
-            context: context,
-            meta: meta,
-            platform: .ios,
-            osVersion: "17.0.0",
-            appVersion: "1.0",
-            buildNumber: "1",
-            deviceModel: "iPhone16,1",
-            locale: "en_US",
-            timestamp: "2026-01-01T00:00:00.000Z"
-        )
     }
 }

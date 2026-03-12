@@ -16,18 +16,12 @@ actor OfflineQueue {
 
     func enqueue(_ event: LogEvent) {
         events.append(event)
-        if events.count > maxEvents {
-            events.removeFirst(events.count - maxEvents)
-        }
-        scheduleDiskWrite()
+        trimAndPersist()
     }
 
     func enqueue(_ batch: [LogEvent]) {
         events.append(contentsOf: batch)
-        if events.count > maxEvents {
-            events.removeFirst(events.count - maxEvents)
-        }
-        scheduleDiskWrite()
+        trimAndPersist()
     }
 
     func drain() -> [LogEvent] {
@@ -39,6 +33,13 @@ actor OfflineQueue {
 
     var count: Int { events.count }
     var isEmpty: Bool { events.isEmpty }
+
+    private func trimAndPersist() {
+        if events.count > maxEvents {
+            events.removeFirst(events.count - maxEvents)
+        }
+        scheduleDiskWrite()
+    }
 
     private func scheduleDiskWrite() {
         guard !pendingWrite else { return }

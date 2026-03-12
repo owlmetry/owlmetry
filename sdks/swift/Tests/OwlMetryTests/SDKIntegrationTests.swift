@@ -3,7 +3,7 @@ import XCTest
 
 /// End-to-end tests that run against a real OwlMetry server with a real database.
 /// These require the server to be running at TEST_ENDPOINT with the test database seeded.
-/// Run via: `pnpm test:sdk` (which handles server lifecycle automatically).
+/// Run via: `pnpm test:swift-sdk` (which handles server lifecycle automatically).
 final class SDKIntegrationTests: XCTestCase {
     /// Must match the test keys in apps/server/src/__tests__/setup.ts
     static let testEndpoint = ProcessInfo.processInfo.environment["OWLMETRY_TEST_ENDPOINT"]

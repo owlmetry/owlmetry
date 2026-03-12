@@ -2,40 +2,53 @@ import Foundation
 import os
 
 public enum Owl {
-    private static let logger = Logger(subsystem: "com.owlmetry.sdk", category: "owl")
+    static let logSubsystem = "com.owlmetry.sdk"
+    private static let logger = Logger(subsystem: logSubsystem, category: "owl")
 
-    private static var configuration: Configuration?
-    private static var deviceInfo: DeviceInfo?
-    private static var transport: EventTransport?
-    private static var duplicateFilter: DuplicateFilter?
-    private static var networkMonitor: NetworkMonitor?
-    private static var offlineQueue: OfflineQueue?
-    private static var defaultUserIdentifier: String?
-    private static var hasWarnedNotConfigured = false
+    private struct State {
+        var configuration: Configuration?
+        var deviceInfo: DeviceInfo?
+        var transport: EventTransport?
+        var duplicateFilter: DuplicateFilter?
+        var networkMonitor: NetworkMonitor?
+        var offlineQueue: OfflineQueue?
+        var defaultUserIdentifier: String?
+        var hasWarnedNotConfigured = false
+    }
+
+    private static let state = OSAllocatedUnfairLock(initialState: State())
 
     // MARK: - Setup
 
     public static func configure(endpoint: String, apiKey: String) throws {
         let config = try Configuration(endpoint: endpoint, apiKey: apiKey)
-        self.configuration = config
-        self.deviceInfo = DeviceInfo.collect()
 
         let monitor = NetworkMonitor()
-        self.networkMonitor = monitor
-
         let queue = OfflineQueue()
-        self.offlineQueue = queue
-
         let transport = EventTransport(
             endpoint: config.endpoint,
             apiKey: config.apiKey,
             offlineQueue: queue,
             networkMonitor: monitor
         )
-        self.transport = transport
-
         let filter = DuplicateFilter()
-        self.duplicateFilter = filter
+
+        let oldTransport: EventTransport? = state.withLock { s in
+            let old = s.transport
+            s.configuration = config
+            s.deviceInfo = DeviceInfo.collect()
+            s.networkMonitor = monitor
+            s.offlineQueue = queue
+            s.transport = transport
+            s.duplicateFilter = filter
+            s.hasWarnedNotConfigured = false
+            return old
+        }
+
+        // Flush old transport before replacing
+        if let oldTransport {
+            Task { await oldTransport.shutdown() }
+        }
 
         Task {
             await transport.start()
@@ -46,7 +59,7 @@ public enum Owl {
     // MARK: - User Identifier
 
     public static func setUserIdentifier(_ identifier: String?) {
-        defaultUserIdentifier = identifier
+        state.withLock { $0.defaultUserIdentifier = identifier }
     }
 
     // MARK: - Logging
@@ -99,8 +112,9 @@ public enum Owl {
         function: String = #function,
         line: Int = #line
     ) {
+        let connected = state.withLock { $0.networkMonitor?.isConnected == true }
         var updatedMeta = meta ?? [:]
-        updatedMeta["_connection"] = networkMonitor?.isConnected == true ? "connected" : "disconnected"
+        updatedMeta["_connection"] = connected ? "connected" : "disconnected"
         log(body, level: .error, context: context, meta: updatedMeta, userIdentifier: userIdentifier,
             file: file, function: function, line: line)
     }
@@ -162,7 +176,8 @@ public enum Owl {
     // MARK: - Lifecycle
 
     public static func shutdown() async {
-        await transport?.flush()
+        let transport = state.withLock { $0.transport }
+        await transport?.shutdown()
     }
 
     // MARK: - Internal
@@ -177,20 +192,27 @@ public enum Owl {
         function: String,
         line: Int
     ) {
-        guard let deviceInfo, let transport, let duplicateFilter else {
-            if !hasWarnedNotConfigured {
-                hasWarnedNotConfigured = true
-                logger.warning("Owl.configure() has not been called. Events are being dropped.")
+        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?)? in
+            guard let deviceInfo = s.deviceInfo,
+                  let transport = s.transport,
+                  let filter = s.duplicateFilter else {
+                if !s.hasWarnedNotConfigured {
+                    s.hasWarnedNotConfigured = true
+                    logger.warning("Owl.configure() has not been called. Events are being dropped.")
+                }
+                return nil
             }
-            return
+            return (deviceInfo, transport, filter, s.defaultUserIdentifier)
         }
+
+        guard let (deviceInfo, transport, duplicateFilter, defaultUser) = snapshot else { return }
 
         let event = EventBuilder.build(
             body: body,
             level: level,
             context: context,
             meta: meta,
-            userIdentifier: userIdentifier ?? defaultUserIdentifier,
+            userIdentifier: userIdentifier ?? defaultUser,
             deviceInfo: deviceInfo,
             file: file,
             function: function,

@@ -29,10 +29,9 @@ final class EventTransportTests: XCTestCase {
         }
 
         let transport = makeTransport()
-        await transport.enqueue(makeEvent(body: "hello"))
+        await transport.enqueue(LogEvent.stub(body: "hello"))
         await transport.flush()
 
-        // Give async work a moment
         try? await Task.sleep(nanoseconds: 500_000_000)
 
         XCTAssertNotNil(receivedBody)
@@ -54,7 +53,7 @@ final class EventTransportTests: XCTestCase {
         }
 
         let transport = makeTransport()
-        await transport.enqueue(makeEvent(body: "test"))
+        await transport.enqueue(LogEvent.stub(body: "test"))
         await transport.flush()
 
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -75,25 +74,6 @@ final class EventTransportTests: XCTestCase {
             offlineQueue: OfflineQueue(directory: tempDir),
             networkMonitor: NetworkMonitor(),
             session: session
-        )
-    }
-
-    private func makeEvent(body: String) -> LogEvent {
-        LogEvent(
-            clientEventId: UUID().uuidString,
-            userIdentifier: nil,
-            level: .info,
-            source: nil,
-            body: body,
-            context: nil,
-            meta: nil,
-            platform: .ios,
-            osVersion: "17.0",
-            appVersion: "1.0",
-            buildNumber: "1",
-            deviceModel: "iPhone16,1",
-            locale: "en_US",
-            timestamp: "2026-01-01T00:00:00.000Z"
         )
     }
 }

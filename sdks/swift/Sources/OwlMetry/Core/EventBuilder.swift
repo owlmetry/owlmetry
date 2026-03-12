@@ -1,6 +1,8 @@
 import Foundation
 
 enum EventBuilder {
+    static let systemMetaKeys: Set<String> = ["_file", "_function", "_line"]
+
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -18,7 +20,12 @@ enum EventBuilder {
         function: String,
         line: Int
     ) -> LogEvent {
-        let fileName = URL(fileURLWithPath: file).lastPathComponent
+        let fileName: String
+        if let lastSlash = file.lastIndex(of: "/") {
+            fileName = String(file[file.index(after: lastSlash)...])
+        } else {
+            fileName = file
+        }
 
         var mergedMeta = MetaTrimmer.trim(meta) ?? [:]
         mergedMeta["_file"] = fileName
