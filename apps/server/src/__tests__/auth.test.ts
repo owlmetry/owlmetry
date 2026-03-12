@@ -4,6 +4,7 @@ import {
   buildApp,
   truncateAll,
   seedTestData,
+  getToken,
   TEST_USER,
   TEST_CLIENT_KEY,
 } from "./setup.js";
@@ -114,17 +115,8 @@ describe("POST /v1/auth/login", () => {
 });
 
 describe("POST /v1/auth/keys", () => {
-  async function getToken() {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: TEST_USER.email, password: TEST_USER.password },
-    });
-    return res.json().token;
-  }
-
   it("generates client API key scoped to app", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/auth/keys",
@@ -144,7 +136,7 @@ describe("POST /v1/auth/keys", () => {
   });
 
   it("generates agent API key", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/auth/keys",
@@ -162,7 +154,7 @@ describe("POST /v1/auth/keys", () => {
   });
 
   it("rejects client key without app_id", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/auth/keys",

@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
-import { KEY_PREFIX, KEY_PERMISSIONS } from "@owlmetry/shared";
+import { KEY_PREFIX, KEY_PERMISSIONS, hashKey } from "@owlmetry/shared";
 import type {
   RegisterRequest,
   LoginRequest,
@@ -11,10 +11,6 @@ import type {
 } from "@owlmetry/shared";
 import { requireAuth } from "../middleware/auth.js";
 import type { JwtPayload } from "../types.js";
-
-function hashKey(key: string): string {
-  return createHash("sha256").update(key).digest("hex");
-}
 
 function slugify(name: string): string {
   return name
@@ -113,6 +109,10 @@ export async function authRoutes(app: FastifyInstance) {
       .from(teamMembers)
       .where(eq(teamMembers.user_id, user.id))
       .limit(1);
+
+    if (!membership) {
+      return reply.code(500).send({ error: "User has no team membership" });
+    }
 
     const token = app.jwt.sign(
       {

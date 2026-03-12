@@ -4,6 +4,7 @@ import {
   buildApp,
   truncateAll,
   seedTestData,
+  getToken,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_USER,
@@ -31,15 +32,6 @@ async function ingestEvents(events: any[]) {
     headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
     payload: { events },
   });
-}
-
-async function getToken() {
-  const res = await app.inject({
-    method: "POST",
-    url: "/v1/auth/login",
-    payload: { email: TEST_USER.email, password: TEST_USER.password },
-  });
-  return res.json().token;
 }
 
 function queryEvents(params: Record<string, string> = {}, key = TEST_AGENT_KEY) {
@@ -165,7 +157,7 @@ describe("GET /v1/events", () => {
   it("works with JWT auth", async () => {
     await ingestEvents([{ level: "info", body: "JWT test" }]);
 
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await queryEvents({}, token);
     expect(res.statusCode).toBe(200);
     expect(res.json().events).toHaveLength(1);

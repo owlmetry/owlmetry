@@ -4,6 +4,7 @@ import {
   buildApp,
   truncateAll,
   seedTestData,
+  getToken,
   TEST_USER,
   TEST_AGENT_KEY,
   TEST_CLIENT_KEY,
@@ -25,18 +26,9 @@ afterAll(async () => {
   await app.close();
 });
 
-async function getToken() {
-  const res = await app.inject({
-    method: "POST",
-    url: "/v1/auth/login",
-    payload: { email: TEST_USER.email, password: TEST_USER.password },
-  });
-  return res.json().token;
-}
-
 describe("GET /v1/apps", () => {
   it("lists apps for the team", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await app.inject({
       method: "GET",
       url: "/v1/apps",
@@ -61,7 +53,7 @@ describe("GET /v1/apps", () => {
 
 describe("POST /v1/apps", () => {
   it("creates a new app", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/apps",
@@ -82,7 +74,7 @@ describe("POST /v1/apps", () => {
   });
 
   it("rejects missing required fields", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/apps",
@@ -108,7 +100,7 @@ describe("POST /v1/apps", () => {
   });
 
   it("new app appears in list", async () => {
-    const token = await getToken();
+    const token = await getToken(app);
 
     await app.inject({
       method: "POST",

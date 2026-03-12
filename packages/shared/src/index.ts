@@ -3,3 +3,4 @@ export * from "./auth.js";
 export * from "./funnels.js";
 export * from "./api.js";
 export * from "./constants.js";
+export * from "./crypto.js";

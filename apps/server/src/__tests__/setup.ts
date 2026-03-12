@@ -1,23 +1,20 @@
 import Fastify from "fastify";
+import type { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
-import { createDb } from "@owlmetry/db";
+import { createDb, ensurePartitions } from "@owlmetry/db";
+import { hashKey } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
 import bcrypt from "bcrypt";
-import { createHash, randomBytes } from "node:crypto";
 
 const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
-
-function hashKey(key: string): string {
-  return createHash("sha256").update(key).digest("hex");
-}
 
 export const TEST_CLIENT_KEY =
   "owl_client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -74,19 +71,8 @@ export async function setupTestDb() {
     `);
   }
 
-  // Create partition for current month
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const nextMonth = new Date(year, now.getMonth() + 1, 1);
-  const nextYear = nextMonth.getFullYear();
-  const nextMo = String(nextMonth.getMonth() + 1).padStart(2, "0");
-
-  await migrationClient.unsafe(`
-    CREATE TABLE IF NOT EXISTS events_${year}_${month}
-      PARTITION OF events
-      FOR VALUES FROM ('${year}-${month}-01') TO ('${nextYear}-${nextMo}-01');
-  `).catch(() => {});
+  // Create partitions using shared utility
+  await ensurePartitions(migrationClient, 1);
 
   await migrationClient.end();
   migrationClient = null;
@@ -197,4 +183,13 @@ export async function seedTestData() {
   await client.end();
 
   return { userId: user.id, teamId: team.id, appId: app.id };
+}
+
+export async function getToken(app: FastifyInstance) {
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/auth/login",
+    payload: { email: TEST_USER.email, password: TEST_USER.password },
+  });
+  return res.json().token;
 }

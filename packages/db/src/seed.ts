@@ -1,14 +1,11 @@
 import { createDb } from "./index.js";
 import { users, teams, teamMembers, apps, apiKeys } from "./schema.js";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { hashKey } from "@owlmetry/shared";
 import bcrypt from "bcrypt";
 import "dotenv/config";
 
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
-
-function hashKey(key: string): string {
-  return createHash("sha256").update(key).digest("hex");
-}
 
 async function main() {
   const db = createDb(url);

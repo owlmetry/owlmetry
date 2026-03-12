@@ -1,26 +1,18 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, lt, desc, sql } from "drizzle-orm";
-import { events } from "@owlmetry/db";
+import { and, eq, gte, lte, lt, desc, inArray } from "drizzle-orm";
+import { events, apps } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@owlmetry/shared";
 import type { EventsQueryParams } from "@owlmetry/shared";
-import { requireAuth } from "../middleware/auth.js";
+import { requirePermission } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 
 export async function eventsRoutes(app: FastifyInstance) {
   // Query events
   app.get<{ Querystring: EventsQueryParams }>(
     "/events",
-    { preHandler: [requireAuth, rateLimit] },
+    { preHandler: [requirePermission("events:read"), rateLimit] },
     async (request, reply) => {
       const auth = request.auth;
-
-      // Check read permission for API keys
-      if (
-        auth.type === "api_key" &&
-        !auth.permissions.includes("events:read")
-      ) {
-        return reply.code(403).send({ error: "Missing permission: events:read" });
-      }
 
       const {
         app_id,
@@ -38,12 +30,29 @@ export async function eventsRoutes(app: FastifyInstance) {
         MAX_PAGE_SIZE
       );
 
+      // Scope to team's apps
+      const teamApps = await app.db
+        .select({ id: apps.id })
+        .from(apps)
+        .where(eq(apps.team_id, auth.team_id));
+      const teamAppIds = teamApps.map((a) => a.id);
+
+      if (teamAppIds.length === 0) {
+        return { events: [], cursor: null, has_more: false };
+      }
+
       const conditions = [];
 
-      // Scope to team's apps
       if (app_id) {
+        // Verify the requested app belongs to the team
+        if (!teamAppIds.includes(app_id)) {
+          return { events: [], cursor: null, has_more: false };
+        }
         conditions.push(eq(events.app_id, app_id));
+      } else {
+        conditions.push(inArray(events.app_id, teamAppIds));
       }
+
       if (level) {
         conditions.push(eq(events.level, level as any));
       }
@@ -60,14 +69,13 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(lte(events.timestamp, new Date(until)));
       }
       if (cursor) {
-        // cursor is ISO timestamp of last event
         conditions.push(lt(events.timestamp, new Date(cursor)));
       }
 
       const rows = await app.db
         .select()
         .from(events)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(desc(events.timestamp))
         .limit(limit + 1);
 
@@ -91,16 +99,9 @@ export async function eventsRoutes(app: FastifyInstance) {
   // Single event
   app.get<{ Params: { id: string } }>(
     "/events/:id",
-    { preHandler: [requireAuth] },
+    { preHandler: [requirePermission("events:read")] },
     async (request, reply) => {
       const auth = request.auth;
-      if (
-        auth.type === "api_key" &&
-        !auth.permissions.includes("events:read")
-      ) {
-        return reply.code(403).send({ error: "Missing permission: events:read" });
-      }
-
       const { id } = request.params;
 
       const [event] = await app.db
@@ -110,6 +111,17 @@ export async function eventsRoutes(app: FastifyInstance) {
         .limit(1);
 
       if (!event) {
+        return reply.code(404).send({ error: "Event not found" });
+      }
+
+      // Verify event belongs to team's app
+      const [eventApp] = await app.db
+        .select({ team_id: apps.team_id })
+        .from(apps)
+        .where(eq(apps.id, event.app_id))
+        .limit(1);
+
+      if (!eventApp || eventApp.team_id !== auth.team_id) {
         return reply.code(404).send({ error: "Event not found" });
       }
 

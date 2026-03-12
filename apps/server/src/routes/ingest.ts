@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { events } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
@@ -66,7 +66,7 @@ export async function ingestRoutes(app: FastifyInstance) {
       }
 
       const errors: Array<{ index: number; message: string }> = [];
-      const valid: Array<typeof events.$inferInsert> = [];
+      const validated: Array<{ index: number; event: EventPayload }> = [];
 
       for (let i = 0; i < payloads.length; i++) {
         const e = payloads[i];
@@ -75,23 +75,34 @@ export async function ingestRoutes(app: FastifyInstance) {
           errors.push({ index: i, message: err });
           continue;
         }
+        validated.push({ index: i, event: e });
+      }
 
-        // Dedup by client_event_id if provided
-        if (e.client_event_id) {
-          const existing = await app.db
-            .select({ id: events.id })
-            .from(events)
-            .where(
-              and(
-                eq(events.app_id, app_id),
-                eq(events.client_event_id, e.client_event_id)
-              )
+      // Batch dedup check: collect all client_event_ids, query once
+      const clientEventIds = validated
+        .map((v) => v.event.client_event_id)
+        .filter((id): id is string => !!id);
+
+      const existingIds = new Set<string>();
+      if (clientEventIds.length > 0) {
+        const existing = await app.db
+          .select({ client_event_id: events.client_event_id })
+          .from(events)
+          .where(
+            and(
+              eq(events.app_id, app_id),
+              inArray(events.client_event_id, clientEventIds)
             )
-            .limit(1);
+          );
+        for (const row of existing) {
+          if (row.client_event_id) existingIds.add(row.client_event_id);
+        }
+      }
 
-          if (existing.length > 0) {
-            continue; // silently skip duplicate
-          }
+      const valid: Array<typeof events.$inferInsert> = [];
+      for (const { event: e } of validated) {
+        if (e.client_event_id && existingIds.has(e.client_event_id)) {
+          continue; // silently skip duplicate
         }
 
         valid.push({

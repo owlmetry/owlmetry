@@ -1,18 +1,13 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { apiKeys, teamMembers } from "@owlmetry/db";
-import { KEY_PREFIX } from "@owlmetry/shared";
+import { KEY_PREFIX, hashKey } from "@owlmetry/shared";
 import type { AuthContext, JwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
 declare module "fastify" {
   interface FastifyRequest {
     auth: AuthContext;
   }
-}
-
-function hashKey(key: string): string {
-  return createHash("sha256").update(key).digest("hex");
 }
 
 export async function requireAuth(
