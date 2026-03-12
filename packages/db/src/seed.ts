@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { users, teams, teamMembers, apps, apiKeys } from "./schema.js";
+import { users, teams, teamMembers, projects, apps, apiKeys } from "./schema.js";
 import { randomBytes } from "node:crypto";
 import { hashApiKey } from "@owlmetry/shared";
 import bcrypt from "bcrypt";
@@ -44,11 +44,22 @@ async function main() {
     role: "owner",
   });
 
+  // Create a demo project
+  const [project] = await db
+    .insert(projects)
+    .values({
+      team_id: team.id,
+      name: "Demo Project",
+      slug: "demo",
+    })
+    .returning();
+
   // Create a demo app
   const [app] = await db
     .insert(apps)
     .values({
       team_id: team.id,
+      project_id: project.id,
       name: "Demo App",
       platform: "ios",
       bundle_id: "dev.owlmetry.demo",
@@ -82,6 +93,7 @@ async function main() {
   console.log("\nSeed complete!");
   console.log(`User:       admin@owlmetry.dev / admin123`);
   console.log(`Team:       ${team.name} (${team.slug})`);
+  console.log(`Project:    ${project.name} (${project.slug})`);
   console.log(`App:        ${app.name} (${app.id})`);
   console.log(`Client Key: ${clientKey}`);
   console.log(`Agent Key:  ${agentKey}`);

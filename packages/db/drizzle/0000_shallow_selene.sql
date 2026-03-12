@@ -18,10 +18,20 @@ CREATE TABLE "api_keys" (
 CREATE TABLE "apps" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"team_id" uuid NOT NULL,
+	"project_id" uuid NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"platform" varchar(50) NOT NULL,
-	"bundle_id" varchar(255),
+	"bundle_id" varchar(255) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "event_identity_claims" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"app_id" uuid NOT NULL,
+	"anonymous_id" varchar(255) NOT NULL,
+	"user_id" varchar(255) NOT NULL,
+	"events_reassigned_count" integer DEFAULT 0 NOT NULL,
+	"claimed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "events" (
@@ -62,6 +72,14 @@ CREATE TABLE "funnel_progress" (
 	"completed_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "projects" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"team_id" uuid NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"slug" varchar(255) NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "team_members" (
 	"team_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -88,13 +106,19 @@ CREATE TABLE "users" (
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_app_id_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "apps" ADD CONSTRAINT "apps_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "apps" ADD CONSTRAINT "apps_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_identity_claims" ADD CONSTRAINT "event_identity_claims_app_id_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funnel_definitions" ADD CONSTRAINT "funnel_definitions_app_id_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funnel_progress" ADD CONSTRAINT "funnel_progress_funnel_id_funnel_definitions_id_fk" FOREIGN KEY ("funnel_id") REFERENCES "public"."funnel_definitions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "projects" ADD CONSTRAINT "projects_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "api_keys_key_prefix_idx" ON "api_keys" USING btree ("key_prefix");--> statement-breakpoint
 CREATE INDEX "api_keys_team_id_idx" ON "api_keys" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "apps_team_id_idx" ON "apps" USING btree ("team_id");--> statement-breakpoint
+CREATE INDEX "apps_project_id_idx" ON "apps" USING btree ("project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "event_identity_claims_app_anon_idx" ON "event_identity_claims" USING btree ("app_id","anonymous_id");--> statement-breakpoint
+CREATE INDEX "event_identity_claims_app_user_idx" ON "event_identity_claims" USING btree ("app_id","user_id");--> statement-breakpoint
 CREATE INDEX "events_app_timestamp_idx" ON "events" USING btree ("app_id","timestamp");--> statement-breakpoint
 CREATE INDEX "events_app_level_timestamp_idx" ON "events" USING btree ("app_id","level","timestamp");--> statement-breakpoint
 CREATE INDEX "events_app_user_timestamp_idx" ON "events" USING btree ("app_id","user_id","timestamp");--> statement-breakpoint
@@ -102,4 +126,6 @@ CREATE INDEX "events_app_screen_name_timestamp_idx" ON "events" USING btree ("ap
 CREATE INDEX "events_client_event_id_idx" ON "events" USING btree ("app_id","client_event_id");--> statement-breakpoint
 CREATE INDEX "funnel_definitions_app_id_idx" ON "funnel_definitions" USING btree ("app_id");--> statement-breakpoint
 CREATE INDEX "funnel_progress_funnel_user_idx" ON "funnel_progress" USING btree ("funnel_id","user_id");--> statement-breakpoint
+CREATE INDEX "projects_team_id_idx" ON "projects" USING btree ("team_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "projects_team_slug_idx" ON "projects" USING btree ("team_id","slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_members_team_user_idx" ON "team_members" USING btree ("team_id","user_id");

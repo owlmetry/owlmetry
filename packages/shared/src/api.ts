@@ -1,5 +1,5 @@
 import type { StoredEvent, IngestRequest, IngestResponse } from "./events.js";
-import type { App, User, Team, ApiKey, ApiKeyType } from "./auth.js";
+import type { App, User, Team, Project, ApiKey, ApiKeyType } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 
 // Auth
@@ -35,15 +35,23 @@ export interface CreateApiKeyResponse {
   };
 }
 
+// Projects
+export interface CreateProjectRequest {
+  name: string;
+  slug: string;
+}
+
 // Apps
 export interface CreateAppRequest {
   name: string;
   platform: string;
   bundle_id: string;
+  project_id: string;
 }
 
 // Events query
 export interface EventsQueryParams {
+  project_id?: string;
   app_id?: string;
   level?: string;
   user?: string;
@@ -75,6 +83,7 @@ export type {
   App,
   User,
   Team,
+  Project,
   ApiKey,
   FunnelDefinition,
   FunnelAnalytics,

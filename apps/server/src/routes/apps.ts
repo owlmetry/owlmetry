@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
-import { apps } from "@owlmetry/db";
+import { eq, and } from "drizzle-orm";
+import { apps, projects } from "@owlmetry/db";
 import type { CreateAppRequest } from "@owlmetry/shared";
 import { requireAuth } from "../middleware/auth.js";
 
@@ -38,18 +38,37 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can create apps" });
       }
 
-      const { name, platform, bundle_id } = request.body;
+      const { name, platform, bundle_id, project_id } = request.body;
 
-      if (!name || !platform || !bundle_id) {
+      if (!name || !platform || !bundle_id || !project_id) {
         return reply
           .code(400)
-          .send({ error: "name, platform, and bundle_id are required" });
+          .send({
+            error: "name, platform, bundle_id, and project_id are required",
+          });
+      }
+
+      // Verify the project belongs to the team
+      const [project] = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, project_id),
+            eq(projects.team_id, auth.team_id)
+          )
+        )
+        .limit(1);
+
+      if (!project) {
+        return reply.code(404).send({ error: "Project not found" });
       }
 
       const [created] = await app.db
         .insert(apps)
         .values({
           team_id: auth.team_id,
+          project_id,
           name,
           platform,
           bundle_id,

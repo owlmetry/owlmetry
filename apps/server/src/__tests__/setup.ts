@@ -12,6 +12,7 @@ import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
+import { projectsRoutes } from "../routes/projects.js";
 import { identityRoutes } from "../routes/identity.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import bcrypt from "bcrypt";
@@ -95,6 +96,7 @@ export async function buildApp() {
   await app.register(ingestRoutes, { prefix: "/v1" });
   await app.register(eventsRoutes, { prefix: "/v1" });
   await app.register(appsRoutes, { prefix: "/v1" });
+  await app.register(projectsRoutes, { prefix: "/v1" });
   await app.register(identityRoutes, { prefix: "/v1" });
 
   await app.ready();
@@ -109,6 +111,7 @@ export async function truncateAll() {
   await client.unsafe(`DELETE FROM events`);
   await client`DELETE FROM api_keys`;
   await client`DELETE FROM apps`;
+  await client`DELETE FROM projects`;
   await client`DELETE FROM team_members`;
   await client`DELETE FROM teams`;
   await client`DELETE FROM users`;
@@ -137,9 +140,15 @@ export async function seedTestData() {
     VALUES (${team.id}, ${user.id}, 'owner')
   `;
 
+  const [project] = await client`
+    INSERT INTO projects (team_id, name, slug)
+    VALUES (${team.id}, 'Test Project', 'test-project')
+    RETURNING id
+  `;
+
   const [app] = await client`
-    INSERT INTO apps (team_id, name, platform, bundle_id)
-    VALUES (${team.id}, 'Test App', 'ios', ${TEST_BUNDLE_ID})
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id)
+    VALUES (${team.id}, ${project.id}, 'Test App', 'ios', ${TEST_BUNDLE_ID})
     RETURNING id
   `;
 
@@ -188,7 +197,7 @@ export async function seedTestData() {
 
   await client.end();
 
-  return { userId: user.id, teamId: team.id, appId: app.id };
+  return { userId: user.id, teamId: team.id, projectId: project.id, appId: app.id };
 }
 
 export async function getToken(app: FastifyInstance) {

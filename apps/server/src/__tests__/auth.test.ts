@@ -10,7 +10,7 @@ import {
 } from "./setup.js";
 
 let app: FastifyInstance;
-let testData: { userId: string; teamId: string; appId: string };
+let testData: { userId: string; teamId: string; projectId: string; appId: string };
 
 beforeAll(async () => {
   app = await buildApp();

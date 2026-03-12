@@ -15,6 +15,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       const auth = request.auth;
 
       const {
+        project_id,
         app_id,
         level,
         user,
@@ -49,6 +50,19 @@ export async function eventsRoutes(app: FastifyInstance) {
           return { events: [], cursor: null, has_more: false };
         }
         conditions.push(eq(events.app_id, app_id));
+      } else if (project_id) {
+        // Filter to apps within the specified project
+        const projectApps = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(
+            and(eq(apps.project_id, project_id), eq(apps.team_id, auth.team_id))
+          );
+        const projectAppIds = projectApps.map((a) => a.id);
+        if (projectAppIds.length === 0) {
+          return { events: [], cursor: null, has_more: false };
+        }
+        conditions.push(inArray(events.app_id, projectAppIds));
       } else {
         conditions.push(inArray(events.app_id, teamAppIds));
       }

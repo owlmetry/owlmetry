@@ -8,6 +8,7 @@ import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
 import { eventsRoutes } from "./routes/events.js";
 import { appsRoutes } from "./routes/apps.js";
+import { projectsRoutes } from "./routes/projects.js";
 import { identityRoutes } from "./routes/identity.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 
@@ -42,6 +43,7 @@ await app.register(authRoutes, { prefix: "/v1/auth" });
 await app.register(ingestRoutes, { prefix: "/v1" });
 await app.register(eventsRoutes, { prefix: "/v1" });
 await app.register(appsRoutes, { prefix: "/v1" });
+await app.register(projectsRoutes, { prefix: "/v1" });
 await app.register(identityRoutes, { prefix: "/v1" });
 
 // Start

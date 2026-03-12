@@ -11,7 +11,7 @@ import {
 } from "./setup.js";
 
 let app: FastifyInstance;
-let testData: { userId: string; teamId: string; appId: string };
+let testData: { userId: string; teamId: string; projectId: string; appId: string };
 
 beforeAll(async () => {
   app = await buildApp();
@@ -62,6 +62,7 @@ describe("POST /v1/apps", () => {
         name: "Android App",
         platform: "android",
         bundle_id: "dev.owlmetry.android",
+        project_id: testData.projectId,
       },
     });
 
@@ -91,7 +92,7 @@ describe("POST /v1/apps", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "No Bundle", platform: "ios" },
+      payload: { name: "No Bundle", platform: "ios", project_id: testData.projectId },
     });
 
     expect(res.statusCode).toBe(400);
@@ -107,6 +108,7 @@ describe("POST /v1/apps", () => {
         name: "Nope",
         platform: "ios",
         bundle_id: "dev.owlmetry.nope",
+        project_id: testData.projectId,
       },
     });
 
@@ -120,7 +122,7 @@ describe("POST /v1/apps", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "Second App", platform: "web", bundle_id: "owlmetry.dev" },
+      payload: { name: "Second App", platform: "web", bundle_id: "owlmetry.dev", project_id: testData.projectId },
     });
 
     const res = await app.inject({

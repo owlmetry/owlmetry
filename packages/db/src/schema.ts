@@ -62,6 +62,26 @@ export const teamMembers = pgTable(
   ]
 );
 
+// Projects
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("projects_team_id_idx").on(table.team_id),
+    uniqueIndex("projects_team_slug_idx").on(table.team_id, table.slug),
+  ]
+);
+
 // Apps
 export const apps = pgTable(
   "apps",
@@ -70,6 +90,9 @@ export const apps = pgTable(
     team_id: uuid("team_id")
       .notNull()
       .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     platform: varchar("platform", { length: 50 }).notNull(),
     bundle_id: varchar("bundle_id", { length: 255 }).notNull(),
@@ -77,7 +100,10 @@ export const apps = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("apps_team_id_idx").on(table.team_id)]
+  (table) => [
+    index("apps_team_id_idx").on(table.team_id),
+    index("apps_project_id_idx").on(table.project_id),
+  ]
 );
 
 // API Keys

@@ -48,9 +48,18 @@ export interface ApiKey {
   created_at: Date;
 }
 
+export interface Project {
+  id: string;
+  team_id: string;
+  name: string;
+  slug: string;
+  created_at: Date;
+}
+
 export interface App {
   id: string;
   team_id: string;
+  project_id: string;
   name: string;
   platform: string;
   bundle_id: string;
