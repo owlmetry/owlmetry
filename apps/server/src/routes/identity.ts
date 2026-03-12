@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   events,
   eventIdentityClaims,
@@ -66,29 +66,10 @@ export async function identityRoutes(app: FastifyInstance) {
         } satisfies ClaimResponse;
       }
 
-      // Verify events exist before doing the update
-      const [eventCheck] = await app.db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(events)
-        .where(
-          and(
-            eq(events.app_id, app_id),
-            eq(events.user_identifier, anonymous_id)
-          )
-        );
-
-      if (!eventCheck || eventCheck.count === 0) {
-        return reply
-          .code(404)
-          .send({ error: "No events found for this anonymous_id" });
-      }
-
-      const eventsUpdated = eventCheck.count;
-
       // Execute updates + claim insert in a transaction
-      await app.db.transaction(async (tx) => {
-        // Update events and funnel progress in parallel
-        const updateEventsPromise = tx
+      const eventsUpdated = await app.db.transaction(async (tx) => {
+        // Update events and get actual row count
+        const updatedEvents = await tx
           .update(events)
           .set({ user_identifier: user_id })
           .where(
@@ -96,7 +77,12 @@ export async function identityRoutes(app: FastifyInstance) {
               eq(events.app_id, app_id),
               eq(events.user_identifier, anonymous_id)
             )
-          );
+          )
+          .returning({ id: events.id });
+
+        if (updatedEvents.length === 0) {
+          return 0;
+        }
 
         // Scope funnel progress update to funnels belonging to this app
         const appFunnelIds = await tx
@@ -106,20 +92,17 @@ export async function identityRoutes(app: FastifyInstance) {
 
         const funnelIds = appFunnelIds.map((f) => f.id);
 
-        const updateFunnelsPromise =
-          funnelIds.length > 0
-            ? tx
-                .update(funnelProgress)
-                .set({ user_identifier: user_id })
-                .where(
-                  and(
-                    eq(funnelProgress.user_identifier, anonymous_id),
-                    inArray(funnelProgress.funnel_id, funnelIds)
-                  )
-                )
-            : Promise.resolve();
-
-        await Promise.all([updateEventsPromise, updateFunnelsPromise]);
+        if (funnelIds.length > 0) {
+          await tx
+            .update(funnelProgress)
+            .set({ user_identifier: user_id })
+            .where(
+              and(
+                eq(funnelProgress.user_identifier, anonymous_id),
+                inArray(funnelProgress.funnel_id, funnelIds)
+              )
+            );
+        }
 
         // Insert claim record with ON CONFLICT for concurrent request safety
         await tx
@@ -128,7 +111,7 @@ export async function identityRoutes(app: FastifyInstance) {
             app_id,
             anonymous_id,
             user_id,
-            events_updated: eventsUpdated,
+            events_updated: updatedEvents.length,
           })
           .onConflictDoNothing({
             target: [
@@ -136,7 +119,15 @@ export async function identityRoutes(app: FastifyInstance) {
               eventIdentityClaims.anonymous_id,
             ],
           });
+
+        return updatedEvents.length;
       });
+
+      if (eventsUpdated === 0) {
+        return reply
+          .code(404)
+          .send({ error: "No events found for this anonymous_id" });
+      }
 
       return {
         claimed: true,
