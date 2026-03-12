@@ -1,0 +1,45 @@
+import Foundation
+
+enum EventBuilder {
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    static func build(
+        body: String,
+        level: LogLevel,
+        context: String?,
+        meta: [String: String]?,
+        userIdentifier: String?,
+        deviceInfo: DeviceInfo,
+        file: String,
+        function: String,
+        line: Int
+    ) -> LogEvent {
+        let fileName = URL(fileURLWithPath: file).lastPathComponent
+
+        var mergedMeta = MetaTrimmer.trim(meta) ?? [:]
+        mergedMeta["_file"] = fileName
+        mergedMeta["_function"] = function
+        mergedMeta["_line"] = String(line)
+
+        return LogEvent(
+            clientEventId: UUID().uuidString,
+            userIdentifier: userIdentifier,
+            level: level,
+            source: "\(fileName):\(function):\(line)",
+            body: body,
+            context: context,
+            meta: mergedMeta.isEmpty ? nil : mergedMeta,
+            platform: deviceInfo.platform,
+            osVersion: deviceInfo.osVersion,
+            appVersion: deviceInfo.appVersion,
+            buildNumber: deviceInfo.buildNumber,
+            deviceModel: deviceInfo.deviceModel,
+            locale: deviceInfo.locale,
+            timestamp: isoFormatter.string(from: Date())
+        )
+    }
+}
