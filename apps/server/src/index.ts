@@ -1,7 +1,8 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
-import { createDb } from "@owlmetry/db";
+import postgres from "postgres";
+import { createDb, ensurePartitions } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
@@ -12,6 +13,16 @@ const app = Fastify({ logger: true });
 
 // Database
 const db = createDb(config.databaseUrl);
+
+// Ensure event partitions exist (current month + next 2)
+try {
+  const partitionClient = postgres(config.databaseUrl, { max: 1 });
+  await ensurePartitions(partitionClient, 3);
+  await partitionClient.end();
+} catch (err) {
+  app.log.warn("Failed to ensure partitions on startup — partitions may need manual creation");
+  app.log.warn(err);
+}
 
 // Decorators
 app.decorate("db", db);
