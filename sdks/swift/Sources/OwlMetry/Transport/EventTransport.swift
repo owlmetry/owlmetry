@@ -112,6 +112,9 @@ actor EventTransport {
     }
 
     func claimIdentity(anonymousId: String, userId: String) async {
+        // Flush any buffered events first so the server has them before we claim
+        await flushAll()
+
         let body: [String: String] = [
             "anonymous_id": anonymousId,
             "user_id": userId,
