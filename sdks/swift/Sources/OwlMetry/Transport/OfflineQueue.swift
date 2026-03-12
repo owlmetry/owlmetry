@@ -34,6 +34,17 @@ actor OfflineQueue {
     var count: Int { events.count }
     var isEmpty: Bool { events.isEmpty }
 
+    /// Force immediate disk write (bypasses debounce). For testing.
+    func persistNow() {
+        writeToDisk()
+    }
+
+    /// Delete the offline queue file and clear in-memory state. For testing.
+    func clear() {
+        events.removeAll()
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
     private func trimAndPersist() {
         if events.count > maxEvents {
             events.removeFirst(events.count - maxEvents)

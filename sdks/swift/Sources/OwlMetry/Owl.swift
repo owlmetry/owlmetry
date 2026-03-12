@@ -214,6 +214,26 @@ public enum Owl {
         await transport?.shutdown()
     }
 
+    // MARK: - Testing Support
+
+    /// Reset all SDK state, simulating an app restart.
+    /// After calling this, `configure()` must be called again.
+    /// Persistent state (Keychain anonymous ID, UserDefaults) is NOT cleared,
+    /// matching real app restart behavior.
+    static func reset() async {
+        let oldTransport = state.withLock { s -> EventTransport? in
+            let t = s.transport
+            s = State()
+            return t
+        }
+        await oldTransport?.shutdown()
+    }
+
+    /// Access the offline queue for testing.
+    static var _offlineQueue: OfflineQueue? {
+        state.withLock { $0.offlineQueue }
+    }
+
     // MARK: - Internal
 
     private static func log(

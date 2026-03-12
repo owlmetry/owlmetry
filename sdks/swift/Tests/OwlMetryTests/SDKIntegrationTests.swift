@@ -12,14 +12,25 @@ final class SDKIntegrationTests: XCTestCase {
     static let testAgentKey = "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
     override func setUp() async throws {
+        // Reset SDK state (simulates app restart)
+        await Owl.reset()
+
         // Clear persisted identity state between tests
         Owl.clearUser(newAnonymousId: true)
         IdentityManager.clearUserId()
+
+        // Clear offline queue file from previous tests
+        let tempQueue = OfflineQueue()
+        await tempQueue.clear()
 
         let ready = await waitForServer(timeout: 10)
         guard ready else {
             throw XCTSkip("Server not running at \(Self.testEndpoint) — run via pnpm test:swift-sdk")
         }
+    }
+
+    override func tearDown() async throws {
+        await Owl.shutdown()
     }
 
     // MARK: - Basic Tests
@@ -361,6 +372,215 @@ final class SDKIntegrationTests: XCTestCase {
 
         // Second login should have the new user ID
         XCTAssertEqual(secondEvent?["user_identifier"] as? String, "user-session-2")
+    }
+
+    // MARK: - Restart & Persistence Tests
+
+    func testOfflineQueuePersistenceAcrossRestart() async throws {
+        // Simulate: events get stuck in the offline queue, app restarts, events flush on next launch
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let queue = Owl._offlineQueue!
+        let context = "offline_persist_\(UUID().uuidString.prefix(8))"
+
+        // Manually enqueue events to the offline queue (simulates failed network send)
+        let events = (0..<5).map { i in
+            LogEvent(
+                clientEventId: UUID().uuidString,
+                userIdentifier: "offline-test-user",
+                level: .info,
+                source: "test",
+                body: "persisted_event_\(i)",
+                context: context,
+                meta: nil,
+                platform: .macos,
+                osVersion: "15.0",
+                appVersion: "1.0",
+                buildNumber: "1",
+                deviceModel: "Mac",
+                locale: "en_US",
+                timestamp: ISO8601DateFormatter().string(from: Date())
+            )
+        }
+        await queue.enqueue(events)
+        await queue.persistNow()
+
+        // "Restart" the SDK — this destroys in-memory state but the disk file remains
+        await Owl.reset()
+
+        // Re-configure — the new OfflineQueue loads persisted events from disk
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        // Shutdown triggers flushAll which drains the offline queue
+        await Owl.shutdown()
+
+        // Verify events made it to the server
+        let serverEvents = try await queryEvents(context: context)
+        XCTAssertEqual(serverEvents.count, 5, "All 5 persisted events should have been flushed after restart")
+
+        let bodies = Set(serverEvents.map { $0["body"] as? String ?? "" })
+        for i in 0..<5 {
+            XCTAssertTrue(bodies.contains("persisted_event_\(i)"),
+                          "Event persisted_event_\(i) should have been flushed")
+        }
+    }
+
+    func testShutdownFlushesAllBufferedEvents() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let context = "shutdown_load_\(UUID().uuidString.prefix(8))"
+        let eventCount = 50
+
+        // Rapid-fire events
+        for i in 0..<eventCount {
+            Owl.info("load_event_\(i)", context: context)
+        }
+
+        // Brief delay to let fire-and-forget Tasks enqueue events into the transport
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        // Shutdown should flush everything
+        await Owl.shutdown()
+
+        let serverEvents = try await queryEvents(context: context)
+        XCTAssertEqual(serverEvents.count, eventCount,
+                       "All \(eventCount) events should be flushed on shutdown")
+    }
+
+    // MARK: - Duplicate Filter Tests
+
+    func testDuplicateFilterLimitsIdenticalEvents() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let context = "dup_filter_\(UUID().uuidString.prefix(8))"
+
+        // Send 15 identical events — duplicate filter allows max 10 per 60s window
+        for _ in 0..<15 {
+            Owl.tracking("dup_body", context: context)
+        }
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let serverEvents = try await queryEvents(context: context)
+        XCTAssertEqual(serverEvents.count, 10,
+                       "Duplicate filter should cap identical events at 10 per window")
+    }
+
+    // MARK: - Batch & Flush Tests
+
+    func testEagerFlushAtBatchThreshold() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let context = "eager_flush_\(UUID().uuidString.prefix(8))"
+
+        // Send 25 unique events (exceeds batchSize of 20)
+        for i in 0..<25 {
+            Owl.info("eager_\(i)", context: context)
+        }
+
+        // Wait for eager flush to fire (triggered when buffer >= 20)
+        // but don't call shutdown yet
+        try await Task.sleep(nanoseconds: 3_000_000_000)
+
+        let earlyEvents = try await queryEvents(context: context)
+        XCTAssertGreaterThanOrEqual(earlyEvents.count, 20,
+                                    "At least 20 events should have been eagerly flushed")
+
+        // Now shutdown to flush the remainder
+        await Owl.shutdown()
+
+        let allEvents = try await queryEvents(context: context)
+        XCTAssertEqual(allEvents.count, 25,
+                       "All 25 events should be present after shutdown")
+    }
+
+    // MARK: - Concurrency Tests
+
+    func testConcurrentEventTracking() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let context = "concurrent_\(UUID().uuidString.prefix(8))"
+        let tasksCount = 10
+        let eventsPerTask = 5
+
+        // Launch concurrent tasks that all track events simultaneously
+        await withTaskGroup(of: Void.self) { group in
+            for t in 0..<tasksCount {
+                group.addTask {
+                    for e in 0..<eventsPerTask {
+                        Owl.info("concurrent_\(t)_\(e)", context: context)
+                    }
+                }
+            }
+        }
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let serverEvents = try await queryEvents(context: context)
+        XCTAssertEqual(serverEvents.count, tasksCount * eventsPerTask,
+                       "All \(tasksCount * eventsPerTask) concurrently tracked events should arrive")
+    }
+
+    // MARK: - Once-Tracking Persistence Tests
+
+    func testOnceTrackingPersistsAcrossReset() async throws {
+        let eventName = "once_persist_\(UUID().uuidString.prefix(8))"
+
+        // Session 1: track once
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+        Owl.once(eventName)
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        // "Restart"
+        await Owl.reset()
+
+        // Session 2: try to track the same event again
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+        Owl.once(eventName)
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        // Query all tracking events and filter by body
+        let events = try await queryEvents(level: "tracking")
+        let matchingEvents = events.filter { ($0["body"] as? String) == eventName }
+        XCTAssertEqual(matchingEvents.count, 1,
+                       "once() should only send the event once, even across SDK resets")
+
+        // Clean up UserDefaults to avoid polluting other test runs
+        UserDefaults.standard.removeObject(forKey: "owlmetry.once.\(eventName)")
+    }
+
+    // MARK: - Meta Trimming Tests
+
+    func testMetaTrimmingEndToEnd() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey)
+
+        let context = "meta_trim_\(UUID().uuidString.prefix(8))"
+        let longValue = String(repeating: "x", count: 300)
+
+        Owl.info("meta trim test", context: context, meta: ["long_value": longValue])
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let events = try await queryEvents(context: context)
+        guard let event = events.first(where: { ($0["body"] as? String) == "meta trim test" }) else {
+            XCTFail("Event not found")
+            return
+        }
+
+        let meta = event["meta"] as? [String: String] ?? [:]
+        let trimmedValue = meta["long_value"] ?? ""
+
+        // SDK trims to 200 chars + " [TRIMMED 300]" (214 total),
+        // then server slices to 200. Final result is 200 x's.
+        XCTAssertEqual(trimmedValue.count, 200,
+                       "Value should be trimmed to 200 chars (server-side trim)")
+        XCTAssertEqual(trimmedValue, String(repeating: "x", count: 200),
+                       "Trimmed value should be the first 200 characters")
     }
 
     // MARK: - Helpers
