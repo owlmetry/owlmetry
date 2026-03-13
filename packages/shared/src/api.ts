@@ -1,5 +1,5 @@
 import type { StoredEvent, IngestRequest, IngestResponse } from "./events.js";
-import type { App, User, Team, Project, ApiKey, ApiKeyType } from "./auth.js";
+import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 
 // Auth
@@ -130,6 +130,41 @@ export interface CreateFunnelRequest {
   steps: FunnelStep[];
 }
 
+// Teams
+export interface CreateTeamRequest {
+  name: string;
+  slug: string;
+}
+
+export interface UpdateTeamRequest {
+  name?: string;
+}
+
+export interface AddTeamMemberRequest {
+  email: string;
+  role?: TeamRole;
+}
+
+export interface UpdateTeamMemberRoleRequest {
+  role: TeamRole;
+}
+
+export interface TeamMemberResponse {
+  user_id: string;
+  email: string;
+  name: string;
+  role: TeamRole;
+}
+
+export interface TeamDetailResponse {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+  updated_at: string;
+  members: TeamMemberResponse[];
+}
+
 // Re-export for convenience
 export type {
   StoredEvent,
@@ -140,6 +175,7 @@ export type {
   Team,
   Project,
   ApiKey,
+  TeamRole,
   FunnelDefinition,
   FunnelAnalytics,
 };

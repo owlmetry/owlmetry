@@ -1,5 +1,22 @@
 export type TeamRole = "owner" | "admin" | "member";
 
+/** Numeric hierarchy for role comparisons — higher = more privileged. */
+export const TEAM_ROLE_HIERARCHY: Record<TeamRole, number> = {
+  owner: 3,
+  admin: 2,
+  member: 1,
+} as const;
+
+/** Returns true if `actorRole` outranks `targetRole`. */
+export function canManageRole(actorRole: TeamRole, targetRole: TeamRole): boolean {
+  return TEAM_ROLE_HIERARCHY[actorRole] > TEAM_ROLE_HIERARCHY[targetRole];
+}
+
+/** Returns true if `role` meets the minimum required level. */
+export function meetsMinimumRole(role: TeamRole, minimumRole: TeamRole): boolean {
+  return TEAM_ROLE_HIERARCHY[role] >= TEAM_ROLE_HIERARCHY[minimumRole];
+}
+
 export type ApiKeyType = "client" | "agent";
 
 export type Permission =
@@ -27,6 +44,7 @@ export interface Team {
   name: string;
   slug: string;
   created_at: Date;
+  updated_at: Date;
 }
 
 export interface TeamMember {

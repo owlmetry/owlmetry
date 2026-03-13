@@ -10,7 +10,7 @@ import type {
   CreateApiKeyRequest,
   UpdateMeRequest,
 } from "@owlmetry/shared";
-import { requireAuth, hasTeamAccess, getUserTeamMemberships } from "../middleware/auth.js";
+import { requireAuth, hasTeamAccess, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 
 function generateSlugFromName(name: string): string {
@@ -330,6 +330,11 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "API key not found" });
       }
 
+      const deleteKeyRoleError = assertTeamRole(auth, key.team_id, "admin");
+      if (deleteKeyRoleError) {
+        return reply.code(403).send({ error: deleteKeyRoleError });
+      }
+
       await app.db
         .update(apiKeys)
         .set({ deleted_at: new Date() })
@@ -388,6 +393,11 @@ export async function authRoutes(app: FastifyInstance) {
           return reply.code(403).send({ error: "Not a member of this team" });
         }
         resolvedTeamId = team_id!;
+      }
+
+      const keyRoleError = assertTeamRole(auth, resolvedTeamId, "admin");
+      if (keyRoleError) {
+        return reply.code(403).send({ error: keyRoleError });
       }
 
       const prefix = API_KEY_PREFIX[key_type];

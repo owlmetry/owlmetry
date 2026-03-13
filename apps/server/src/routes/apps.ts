@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { apps, projects } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
-import { requireAuth, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
+import { requireAuth, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
@@ -56,8 +56,13 @@ export async function appsRoutes(app: FastifyInstance) {
         .where(and(eq(projects.id, project_id), isNull(projects.deleted_at)))
         .limit(1);
 
-      if (!project || !hasTeamAccess(auth, project.team_id)) {
+      if (!project) {
         return reply.code(404).send({ error: "Project not found" });
+      }
+
+      const createRoleError = assertTeamRole(auth, project.team_id, "admin");
+      if (createRoleError) {
+        return reply.code(403).send({ error: createRoleError });
       }
 
       const [created] = await app.db
@@ -113,6 +118,11 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "App not found" });
       }
 
+      const updateRoleError = assertTeamRole(auth, existing.team_id, "admin");
+      if (updateRoleError) {
+        return reply.code(403).send({ error: updateRoleError });
+      }
+
       const updates: Partial<{ name: string; bundle_id: string }> = {};
       if (name) updates.name = name;
       if (bundle_id) updates.bundle_id = bundle_id;
@@ -158,6 +168,11 @@ export async function appsRoutes(app: FastifyInstance) {
 
       if (!existing) {
         return reply.code(404).send({ error: "App not found" });
+      }
+
+      const deleteRoleError = assertTeamRole(auth, existing.team_id, "admin");
+      if (deleteRoleError) {
+        return reply.code(403).send({ error: deleteRoleError });
       }
 
       await app.db

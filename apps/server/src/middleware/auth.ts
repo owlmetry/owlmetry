@@ -2,8 +2,8 @@ import type { FastifyRequest, FastifyReply } from "fastify";
 import { eq, and, isNull } from "drizzle-orm";
 import { apiKeys, teams, teamMembers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
-import { API_KEY_PREFIX, hashApiKey } from "@owlmetry/shared";
-import type { AuthTeamMembership } from "@owlmetry/shared";
+import { API_KEY_PREFIX, hashApiKey, meetsMinimumRole } from "@owlmetry/shared";
+import type { AuthTeamMembership, TeamRole } from "@owlmetry/shared";
 import type { AuthContext, UserJwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
 declare module "fastify" {
@@ -102,7 +102,7 @@ export async function requireAuth(
 
     const db = request.server.db;
     const memberships = await db
-      .select({ team_id: teamMembers.team_id })
+      .select({ team_id: teamMembers.team_id, role: teamMembers.role })
       .from(teamMembers)
       .where(eq(teamMembers.user_id, payload.sub));
 
@@ -110,6 +110,7 @@ export async function requireAuth(
       type: "user",
       user_id: payload.sub,
       email: payload.email,
+      team_memberships: memberships,
       team_ids: memberships.map((m) => m.team_id),
     } satisfies UserContext;
   } catch {
@@ -131,4 +132,28 @@ export function requirePermission(...perms: string[]) {
       }
     }
   };
+}
+
+/** Returns the user's role for a given team, or null if not a member. */
+export function getTeamRole(auth: AuthContext, teamId: string): TeamRole | null {
+  if (auth.type === "api_key") return null;
+  const membership = auth.team_memberships.find((m) => m.team_id === teamId);
+  return membership?.role ?? null;
+}
+
+/**
+ * Checks that a user-authenticated request has at least `minimumRole` on the
+ * given team. Returns an error string if the check fails, or null if it passes.
+ * API key contexts are skipped (they use permission-based auth instead).
+ */
+export function assertTeamRole(
+  auth: AuthContext,
+  teamId: string,
+  minimumRole: TeamRole
+): string | null {
+  if (auth.type === "api_key") return null; // API keys checked via requirePermission
+  const role = getTeamRole(auth, teamId);
+  if (!role) return "Not a member of this team";
+  if (!meetsMinimumRole(role, minimumRole)) return `Requires ${minimumRole} role or higher`;
+  return null;
 }

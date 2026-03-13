@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest, CreateAppRequest } from "@owlmetry/shared";
-import { requireAuth, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
+import { requireAuth, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
   // List projects for the authenticated user's teams
@@ -97,8 +97,9 @@ export async function projectsRoutes(app: FastifyInstance) {
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
       }
 
-      if (!hasTeamAccess(auth, team_id)) {
-        return reply.code(403).send({ error: "Not a member of this team" });
+      const roleError = assertTeamRole(auth, team_id, "admin");
+      if (roleError) {
+        return reply.code(403).send({ error: roleError });
       }
 
       try {
@@ -153,8 +154,13 @@ export async function projectsRoutes(app: FastifyInstance) {
         .where(and(eq(projects.id, project_id), isNull(projects.deleted_at)))
         .limit(1);
 
-      if (!project || !hasTeamAccess(auth, project.team_id)) {
+      if (!project) {
         return reply.code(404).send({ error: "Project not found" });
+      }
+
+      const appRoleError = assertTeamRole(auth, project.team_id, "admin");
+      if (appRoleError) {
+        return reply.code(403).send({ error: appRoleError });
       }
 
       const [created] = await app.db
@@ -210,6 +216,11 @@ export async function projectsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Project not found" });
       }
 
+      const updateRoleError = assertTeamRole(auth, project.team_id, "admin");
+      if (updateRoleError) {
+        return reply.code(403).send({ error: updateRoleError });
+      }
+
       const [updated] = await app.db
         .update(projects)
         .set({ name })
@@ -251,6 +262,11 @@ export async function projectsRoutes(app: FastifyInstance) {
 
       if (!project) {
         return reply.code(404).send({ error: "Project not found" });
+      }
+
+      const deleteRoleError = assertTeamRole(auth, project.team_id, "admin");
+      if (deleteRoleError) {
+        return reply.code(403).send({ error: deleteRoleError });
       }
 
       const now = new Date();

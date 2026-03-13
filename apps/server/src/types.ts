@@ -1,5 +1,6 @@
 import type { Db } from "@owlmetry/db";
 import type { FastifyInstance } from "fastify";
+import type { TeamRole } from "@owlmetry/shared";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -21,10 +22,17 @@ export interface ApiKeyContext {
   permissions: string[];
 }
 
+export interface TeamMembership {
+  team_id: string;
+  role: TeamRole;
+}
+
 export interface UserContext {
   type: "user";
   user_id: string;
   email: string;
+  team_memberships: TeamMembership[];
+  /** Derived from team_memberships for backward compatibility. */
   team_ids: string[];
 }
 

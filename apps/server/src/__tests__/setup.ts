@@ -14,6 +14,7 @@ import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
 import { projectsRoutes } from "../routes/projects.js";
 import { identityRoutes } from "../routes/identity.js";
+import { teamsRoutes } from "../routes/teams.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import bcrypt from "bcrypt";
 
@@ -97,6 +98,7 @@ export async function buildApp() {
   await app.register(appsRoutes, { prefix: "/v1" });
   await app.register(projectsRoutes, { prefix: "/v1" });
   await app.register(identityRoutes, { prefix: "/v1" });
+  await app.register(teamsRoutes, { prefix: "/v1" });
 
   await app.ready();
   return app;
