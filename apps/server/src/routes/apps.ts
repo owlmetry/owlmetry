@@ -26,6 +26,34 @@ export async function appsRoutes(app: FastifyInstance) {
     }
   );
 
+  // Get single app
+  app.get<{ Params: { id: string } }>(
+    "/apps/:id",
+    { preHandler: requirePermission("apps:read") },
+    async (request, reply) => {
+      const auth = request.auth;
+      const { id } = request.params;
+
+      const [existing] = await app.db
+        .select()
+        .from(apps)
+        .where(
+          and(
+            eq(apps.id, id),
+            inArray(apps.team_id, getAuthTeamIds(auth)),
+            isNull(apps.deleted_at)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return reply.code(404).send({ error: "App not found" });
+      }
+
+      return serializeApp(existing);
+    }
+  );
+
   // Create app (team derived from project)
   app.post<{ Body: CreateAppRequest }>(
     "/apps",

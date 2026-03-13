@@ -281,6 +281,31 @@ describe("API key permission enforcement — apps routes", () => {
     expect(res.json().error).toMatch(/apps:read/);
   });
 
+  it("agent key with apps:read can get single app", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().name).toBe("Test App");
+  });
+
+  it("agent key without apps:read cannot get single app", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const key = await createAgentKey(app, token, teamId, ["events:read"]);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${key}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatch(/apps:read/);
+  });
+
   it("agent key with apps:write can create app", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const key = await createAgentKey(app, token, teamId, ["apps:write"]);
@@ -584,6 +609,16 @@ describe("API key team boundary enforcement", () => {
     const appIds = res.json().apps.map((a: any) => a.id);
     expect(appIds).toContain(testData.appId);
     expect(appIds).not.toContain(otherAppId);
+  });
+
+  it("agent key cannot get other team's app", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${otherAppId}`,
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+
+    expect(res.statusCode).toBe(404);
   });
 
   it("agent key cannot list other team's projects", async () => {

@@ -52,6 +52,89 @@ describe("GET /v1/apps", () => {
   });
 });
 
+describe("GET /v1/apps/:id", () => {
+  it("returns app by id", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.id).toBe(testData.appId);
+    expect(body.name).toBe("Test App");
+    expect(body.platform).toBe("ios");
+    expect(body.client_key).toBe(TEST_CLIENT_KEY);
+    expect(body.created_at).toBeDefined();
+  });
+
+  it("returns 404 for non-existent app", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/apps/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for deleted app", async () => {
+    const token = await getToken(app);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for app in another team", async () => {
+    const regRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/register",
+      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+    });
+    const otherToken = regRes.json().token;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("rejects client key (no apps:read permission)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+});
+
 describe("POST /v1/apps", () => {
   it("creates a new app with auto-generated client key", async () => {
     const token = await getToken(app);
