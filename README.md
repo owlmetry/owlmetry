@@ -14,7 +14,8 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Funnel analytics** — define funnels retroactively from event data
-- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only)
+- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only). Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
+- **Team management** — create teams, invite members by email, change roles, remove members
 - **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
 
@@ -205,21 +206,29 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/v1/auth/teams` | JWT | List user's teams |
 | `GET` | `/v1/auth/keys` | JWT | List API keys for user's teams |
 | `GET` | `/v1/auth/keys/:id` | JWT | Get single API key metadata |
-| `POST` | `/v1/auth/keys` | JWT | Generate API key |
-| `DELETE` | `/v1/auth/keys/:id` | JWT | Revoke an API key |
+| `POST` | `/v1/auth/keys` | JWT (admin+) | Generate API key |
+| `DELETE` | `/v1/auth/keys/:id` | JWT (admin+) | Revoke an API key |
+| `POST` | `/v1/teams` | JWT | Create a new team |
+| `GET` | `/v1/teams/:id` | JWT | Get team details with members |
+| `PATCH` | `/v1/teams/:id` | JWT (admin+) | Rename team |
+| `DELETE` | `/v1/teams/:id` | JWT (owner) | Delete team |
+| `GET` | `/v1/teams/:id/members` | JWT | List team members |
+| `POST` | `/v1/teams/:id/members` | JWT (admin+) | Add member by email |
+| `PATCH` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Change member role |
+| `DELETE` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Remove member (or self-leave) |
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
 | `GET` | `/v1/projects` | JWT | List projects |
 | `GET` | `/v1/projects/:id` | JWT | Get project with apps |
-| `POST` | `/v1/projects` | JWT | Create project (requires team_id in body) |
-| `POST` | `/v1/projects/:id/apps` | JWT | Create app under a project |
-| `PATCH` | `/v1/projects/:id` | JWT | Update project name |
-| `DELETE` | `/v1/projects/:id` | JWT | Soft-delete project and its apps |
+| `POST` | `/v1/projects` | JWT (admin+) | Create project (requires team_id in body) |
+| `POST` | `/v1/projects/:id/apps` | JWT (admin+) | Create app under a project |
+| `PATCH` | `/v1/projects/:id` | JWT (admin+) | Update project name |
+| `DELETE` | `/v1/projects/:id` | JWT (admin+) | Soft-delete project and its apps |
 | `GET` | `/v1/apps` | JWT | List apps |
-| `POST` | `/v1/apps` | JWT | Create app (requires project_id) |
-| `PATCH` | `/v1/apps/:id` | JWT | Update app name or bundle_id |
-| `DELETE` | `/v1/apps/:id` | JWT | Soft-delete app |
+| `POST` | `/v1/apps` | JWT (admin+) | Create app (requires project_id) |
+| `PATCH` | `/v1/apps/:id` | JWT (admin+) | Update app name or bundle_id |
+| `DELETE` | `/v1/apps/:id` | JWT (admin+) | Soft-delete app |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
 
 ## Environment Variables
