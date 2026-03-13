@@ -108,16 +108,10 @@ export interface UpdateAppRequest {
   bundle_id?: string;
 }
 
-export interface CreateAppResponse {
-  id: string;
-  team_id: string;
-  project_id: string;
-  name: string;
-  platform: string;
-  bundle_id: string;
+export type CreateAppResponse = Omit<App, "created_at" | "deleted_at"> & {
   created_at: string;
   client_key: CreateApiKeyResponse;
-}
+};
 
 // Events query
 export interface EventsQueryParams {

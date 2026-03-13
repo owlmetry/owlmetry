@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
 import { createDatabaseConnection, ensurePartitions } from "@owlmetry/db";
-import { hashApiKey } from "@owlmetry/shared";
+import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import type { Permission } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
@@ -159,7 +159,7 @@ export async function seedTestData() {
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
     VALUES (
       ${hashApiKey(TEST_CLIENT_KEY)},
-      ${TEST_CLIENT_KEY.slice(0, 16)},
+      ${TEST_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
       'client',
       ${app.id},
       ${team.id},
@@ -173,7 +173,7 @@ export async function seedTestData() {
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
     VALUES (
       ${hashApiKey(TEST_AGENT_KEY)},
-      ${TEST_AGENT_KEY.slice(0, 16)},
+      ${TEST_AGENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
       'agent',
       ${null},
       ${team.id},
@@ -187,7 +187,7 @@ export async function seedTestData() {
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, expires_at)
     VALUES (
       ${hashApiKey(TEST_EXPIRED_KEY)},
-      ${TEST_EXPIRED_KEY.slice(0, 16)},
+      ${TEST_EXPIRED_KEY.slice(0, KEY_PREFIX_LENGTH)},
       'client',
       ${app.id},
       ${team.id},

@@ -1,11 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
-import { randomBytes } from "node:crypto";
 import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
-import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, hashApiKey } from "@owlmetry/shared";
+import { DEFAULT_API_KEY_PERMISSIONS, generateApiKey } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
-import { serializeApiKey } from "../utils/serialize.js";
+import { serializeApiKey, serializeApp } from "../utils/serialize.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
@@ -22,11 +21,7 @@ export async function appsRoutes(app: FastifyInstance) {
         .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
 
       return {
-        apps: rows.map((a) => ({
-          ...a,
-          created_at: a.created_at.toISOString(),
-          deleted_at: undefined,
-        })),
+        apps: rows.map(serializeApp),
       };
     }
   );
@@ -63,7 +58,9 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: createRoleError });
       }
 
-      const { created, clientKey, fullKey } = await app.db.transaction(async (tx) => {
+      const { fullKey, keyHash, keyPrefix } = generateApiKey("client");
+
+      const { created, clientKey } = await app.db.transaction(async (tx) => {
         const [created] = await tx
           .insert(apps)
           .values({
@@ -75,13 +72,11 @@ export async function appsRoutes(app: FastifyInstance) {
           })
           .returning();
 
-        const fullKey = `${API_KEY_PREFIX.client}${randomBytes(24).toString("hex")}`;
-
         const [clientKey] = await tx
           .insert(apiKeys)
           .values({
-            key_hash: hashApiKey(fullKey),
-            key_prefix: fullKey.slice(0, 16),
+            key_hash: keyHash,
+            key_prefix: keyPrefix,
             key_type: "client",
             app_id: created.id,
             team_id: project.team_id,
@@ -90,13 +85,11 @@ export async function appsRoutes(app: FastifyInstance) {
           })
           .returning();
 
-        return { created, clientKey, fullKey };
+        return { created, clientKey };
       });
 
       return reply.code(201).send({
-        ...created,
-        created_at: created.created_at.toISOString(),
-        deleted_at: undefined,
+        ...serializeApp(created),
         client_key: {
           key: fullKey,
           api_key: serializeApiKey(clientKey),
@@ -149,11 +142,7 @@ export async function appsRoutes(app: FastifyInstance) {
         .where(eq(apps.id, id))
         .returning();
 
-      return {
-        ...updated,
-        created_at: updated.created_at.toISOString(),
-        deleted_at: undefined,
-      };
+      return serializeApp(updated);
     }
   );
 

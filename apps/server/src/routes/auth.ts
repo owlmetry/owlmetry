@@ -1,9 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
-import { randomBytes } from "node:crypto";
 import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
-import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, hashApiKey } from "@owlmetry/shared";
+import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey } from "@owlmetry/shared";
 import type {
   RegisterRequest,
   LoginRequest,
@@ -436,8 +435,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: permissionError });
       }
 
-      const prefix = API_KEY_PREFIX[key_type];
-      const fullKey = `${prefix}${randomBytes(24).toString("hex")}`;
+      const { fullKey, keyHash, keyPrefix } = generateApiKey(key_type);
 
       const expires_at = expires_in_days
         ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000)
@@ -446,8 +444,8 @@ export async function authRoutes(app: FastifyInstance) {
       const [apiKey] = await app.db
         .insert(apiKeys)
         .values({
-          key_hash: hashApiKey(fullKey),
-          key_prefix: fullKey.slice(0, 16),
+          key_hash: keyHash,
+          key_prefix: keyPrefix,
           key_type,
           app_id: app_id || null,
           team_id: resolvedTeamId,

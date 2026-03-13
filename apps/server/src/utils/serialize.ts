@@ -17,3 +17,19 @@ export function serializeApiKey(k: {
     expires_at: k.expires_at?.toISOString() || null,
   };
 }
+
+export function serializeApp(a: {
+  id: string; team_id: string; project_id: string;
+  name: string; platform: string; bundle_id: string;
+  created_at: Date; deleted_at: Date | null;
+}) {
+  return {
+    id: a.id,
+    team_id: a.team_id,
+    project_id: a.project_id,
+    name: a.name,
+    platform: a.platform,
+    bundle_id: a.bundle_id,
+    created_at: a.created_at.toISOString(),
+  };
+}
