@@ -983,7 +983,7 @@ describe("PATCH /v1/auth/keys/:id", () => {
       method: "PATCH",
       url: `/v1/auth/keys/${keyId}`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "Verified", permissions: ["keys:manage"] },
+      payload: { name: "Verified", permissions: ["apps:write"] },
     });
 
     const getRes = await app.inject({
@@ -994,7 +994,7 @@ describe("PATCH /v1/auth/keys/:id", () => {
 
     expect(getRes.statusCode).toBe(200);
     expect(getRes.json().api_key.name).toBe("Verified");
-    expect(getRes.json().api_key.permissions).toEqual(["keys:manage"]);
+    expect(getRes.json().api_key.permissions).toEqual(["apps:write"]);
   });
 
   it("rejects empty body", async () => {
@@ -1059,7 +1059,7 @@ describe("PATCH /v1/auth/keys/:id", () => {
 
   it("returns 403 for API key auth", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    const { keyId, fullKey } = await createKeyAndGetId(token, teamId, ["keys:manage"]);
+    const { keyId, fullKey } = await createKeyAndGetId(token, teamId, ["apps:write"]);
 
     const res = await app.inject({
       method: "PATCH",
