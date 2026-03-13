@@ -43,6 +43,13 @@
       "when": 1773390014280,
       "tag": "0005_wise_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773400588243,
+      "tag": "0006_romantic_moonstone",
+      "breakpoints": true
     }
   ]
 }

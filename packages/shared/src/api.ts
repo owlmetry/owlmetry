@@ -108,9 +108,8 @@ export interface UpdateAppRequest {
   bundle_id?: string;
 }
 
-export type CreateAppResponse = Omit<App, "created_at" | "deleted_at"> & {
+export type AppResponse = Omit<App, "created_at" | "deleted_at"> & {
   created_at: string;
-  client_key: CreateApiKeyResponse;
 };
 
 // Events query

@@ -134,6 +134,7 @@ export interface App {
   name: string;
   platform: string;
   bundle_id: string;
+  client_key: string | null;
   created_at: Date;
   deleted_at: Date | null;
 }

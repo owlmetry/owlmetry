@@ -27,7 +27,7 @@ afterAll(async () => {
 });
 
 describe("GET /v1/apps", () => {
-  it("lists apps for the team", async () => {
+  it("lists apps with client keys", async () => {
     const token = await getToken(app);
     const res = await app.inject({
       method: "GET",
@@ -40,6 +40,7 @@ describe("GET /v1/apps", () => {
     expect(body.apps).toHaveLength(1);
     expect(body.apps[0].name).toBe("Test App");
     expect(body.apps[0].platform).toBe("ios");
+    expect(body.apps[0].client_key).toBe(TEST_CLIENT_KEY);
   });
 
   it("returns 401 without auth", async () => {
@@ -72,14 +73,7 @@ describe("POST /v1/apps", () => {
     expect(body.platform).toBe("android");
     expect(body.bundle_id).toBe("dev.owlmetry.android");
     expect(body.team_id).toBe(testData.teamId);
-
-    // Verify auto-created client key
-    expect(body.client_key).toBeDefined();
-    expect(body.client_key.key).toMatch(/^owl_client_/);
-    expect(body.client_key.api_key.key_type).toBe("client");
-    expect(body.client_key.api_key.app_id).toBe(body.id);
-    expect(body.client_key.api_key.permissions).toEqual(["events:write"]);
-    expect(body.client_key.api_key.name).toBe("Android App Client Key");
+    expect(body.client_key).toMatch(/^owl_client_/);
   });
 
   it("auto-created client key appears in keys list", async () => {
@@ -125,7 +119,7 @@ describe("POST /v1/apps", () => {
     });
 
     const body = createRes.json();
-    const clientKey = body.client_key.key;
+    const clientKey = body.client_key;
 
     const ingestRes = await app.inject({
       method: "POST",
@@ -140,6 +134,34 @@ describe("POST /v1/apps", () => {
     });
 
     expect(ingestRes.statusCode).toBe(200);
+  });
+
+  it("client key is consistent between create and list", async () => {
+    const token = await getToken(app);
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Consistent App",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.consistent",
+        project_id: testData.projectId,
+      },
+    });
+
+    const createdKey = createRes.json().client_key;
+
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const listedApp = listRes.json().apps.find(
+      (a: { bundle_id: string }) => a.bundle_id === "dev.owlmetry.consistent"
+    );
+    expect(listedApp.client_key).toBe(createdKey);
   });
 
   it("rejects missing required fields", async () => {
@@ -229,7 +251,7 @@ describe("POST /v1/apps", () => {
 });
 
 describe("PATCH /v1/apps/:id", () => {
-  it("updates app name", async () => {
+  it("updates app name and preserves client key", async () => {
     const token = await getToken(app);
     const res = await app.inject({
       method: "PATCH",
@@ -239,7 +261,9 @@ describe("PATCH /v1/apps/:id", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().name).toBe("Renamed App");
+    const body = res.json();
+    expect(body.name).toBe("Renamed App");
+    expect(body.client_key).toBe(TEST_CLIENT_KEY);
   });
 
   it("updates app bundle_id", async () => {

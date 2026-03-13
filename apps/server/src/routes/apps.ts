@@ -4,7 +4,7 @@ import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
 import { DEFAULT_API_KEY_PERMISSIONS, generateApiKey } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
-import { serializeApiKey, serializeApp } from "../utils/serialize.js";
+import { serializeApp } from "../utils/serialize.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
@@ -60,7 +60,7 @@ export async function appsRoutes(app: FastifyInstance) {
 
       const { fullKey, keyHash, keyPrefix } = generateApiKey("client");
 
-      const { created, clientKey } = await app.db.transaction(async (tx) => {
+      const [created] = await app.db.transaction(async (tx) => {
         const [created] = await tx
           .insert(apps)
           .values({
@@ -69,10 +69,11 @@ export async function appsRoutes(app: FastifyInstance) {
             name,
             platform,
             bundle_id,
+            client_key: fullKey,
           })
           .returning();
 
-        const [clientKey] = await tx
+        await tx
           .insert(apiKeys)
           .values({
             key_hash: keyHash,
@@ -82,19 +83,12 @@ export async function appsRoutes(app: FastifyInstance) {
             team_id: project.team_id,
             name: `${name} Client Key`,
             permissions: DEFAULT_API_KEY_PERMISSIONS.client,
-          })
-          .returning();
+          });
 
-        return { created, clientKey };
+        return [created];
       });
 
-      return reply.code(201).send({
-        ...serializeApp(created),
-        client_key: {
-          key: fullKey,
-          api_key: serializeApiKey(clientKey),
-        },
-      });
+      return reply.code(201).send(serializeApp(created));
     }
   );
 

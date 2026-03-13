@@ -53,7 +53,8 @@ async function main() {
     })
     .returning();
 
-  // Create a demo app
+  // Create a demo app with deterministic client key (so demo apps can hardcode it)
+  const clientKey = "owl_client_demo_000000000000000000000000000000000000000000";
   const [app] = await db
     .insert(apps)
     .values({
@@ -62,11 +63,9 @@ async function main() {
       name: "Demo App",
       platform: "ios",
       bundle_id: "dev.owlmetry.demo",
+      client_key: clientKey,
     })
     .returning();
-
-  // Create client API key (deterministic so demo apps can hardcode it)
-  const clientKey = "owl_client_demo_000000000000000000000000000000000000000000";
   await db.insert(apiKeys).values({
     key_hash: hashApiKey(clientKey),
     key_prefix: clientKey.slice(0, KEY_PREFIX_LENGTH),

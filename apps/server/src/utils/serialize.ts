@@ -21,6 +21,7 @@ export function serializeApiKey(k: {
 export function serializeApp(a: {
   id: string; team_id: string; project_id: string;
   name: string; platform: string; bundle_id: string;
+  client_key: string | null;
   created_at: Date; deleted_at: Date | null;
 }) {
   return {
@@ -30,6 +31,7 @@ export function serializeApp(a: {
     name: a.name,
     platform: a.platform,
     bundle_id: a.bundle_id,
+    client_key: a.client_key,
     created_at: a.created_at.toISOString(),
   };
 }

@@ -149,8 +149,8 @@ export async function seedTestData() {
   `;
 
   const [app] = await client`
-    INSERT INTO apps (team_id, project_id, name, platform, bundle_id)
-    VALUES (${team.id}, ${project.id}, 'Test App', 'ios', ${TEST_BUNDLE_ID})
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
+    VALUES (${team.id}, ${project.id}, 'Test App', 'ios', ${TEST_BUNDLE_ID}, ${TEST_CLIENT_KEY})
     RETURNING id
   `;
 

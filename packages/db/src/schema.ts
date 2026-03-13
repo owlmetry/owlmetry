@@ -108,6 +108,7 @@ export const apps = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     platform: varchar("platform", { length: 50 }).notNull(),
     bundle_id: varchar("bundle_id", { length: 255 }).notNull(),
+    client_key: text("client_key"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
