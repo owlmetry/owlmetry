@@ -26,7 +26,7 @@ packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed
 apps/server        Fastify API server (port 4000)
 apps/web           Next.js dashboard (port 3000) — coming soon
-apps/cli           CLI tool — coming soon
+apps/cli           CLI tool (agent key)
 sdks/swift         Swift SDK (Swift Package)
 demos/ios          iOS demo app for testing Swift SDK
 ```
@@ -232,6 +232,47 @@ MAX_DATABASE_SIZE_GB=10
 | `PATCH` | `/v1/apps/:id` | `apps:write` / JWT (admin+) | Update app name |
 | `DELETE` | `/v1/apps/:id` | JWT only (admin+) | Soft-delete app |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
+
+## CLI
+
+The CLI is a pure HTTP client for the OwlMetry API, designed for both humans and AI agents.
+
+### Setup
+
+```bash
+# Build the CLI
+pnpm build
+
+# Configure endpoint and API key (saves to ~/.owlmetry/config.json)
+node apps/cli/dist/index.js setup --endpoint http://localhost:4000 --api-key <agent-key>
+
+# Or use environment variables
+export OWLMETRY_ENDPOINT=http://localhost:4000
+export OWLMETRY_API_KEY=<agent-key>
+```
+
+### Usage
+
+```bash
+owlmetry projects                              # List projects
+owlmetry projects view <id>                    # Project details with apps
+owlmetry projects create --team-id <id> --name "My Project" --slug my-project
+
+owlmetry apps                                  # List apps
+owlmetry apps --project <id>                   # Filter by project
+owlmetry apps create --project <id> --name "iOS App" --platform ios --bundle-id com.example.app
+
+owlmetry events --since 1h                     # Events from the last hour
+owlmetry events --level error --app <id>       # Errors for a specific app
+owlmetry events view <id>                      # Full event details
+owlmetry investigate <eventId> --window 10     # Events ±10 min around target
+```
+
+### Output Formats
+
+- `--format table` (default) — human-readable tables
+- `--format json` — machine-readable JSON
+- `--format log` — color-coded log lines (best for events)
 
 ## Environment Variables
 
