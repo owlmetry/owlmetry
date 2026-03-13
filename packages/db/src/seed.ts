@@ -1,6 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
 import { users, teams, teamMembers, projects, apps, apiKeys } from "./schema.js";
-import { randomBytes } from "node:crypto";
 import { hashApiKey } from "@owlmetry/shared";
 import bcrypt from "bcrypt";
 import "dotenv/config";
@@ -66,8 +65,8 @@ async function main() {
     })
     .returning();
 
-  // Create client API key
-  const clientKey = `owl_client_${randomBytes(24).toString("hex")}`;
+  // Create client API key (deterministic so demo apps can hardcode it)
+  const clientKey = "owl_client_demo_000000000000000000000000000000000000000000";
   await db.insert(apiKeys).values({
     key_hash: hashApiKey(clientKey),
     key_prefix: clientKey.slice(0, 16),
@@ -78,8 +77,8 @@ async function main() {
     permissions: ["events:write"],
   });
 
-  // Create agent API key
-  const agentKey = `owl_agent_${randomBytes(24).toString("hex")}`;
+  // Create agent API key (deterministic so demo apps can hardcode it)
+  const agentKey = "owl_agent_demo_000000000000000000000000000000000000000000";
   await db.insert(apiKeys).values({
     key_hash: hashApiKey(agentKey),
     key_prefix: agentKey.slice(0, 16),

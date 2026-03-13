@@ -7,7 +7,7 @@ struct OwlMetryDemoApp: App {
         do {
             try Owl.configure(
                 endpoint: "http://localhost:4000",
-                apiKey: "owl_client_REPLACE_WITH_YOUR_KEY"
+                apiKey: "owl_client_demo_000000000000000000000000000000000000000000"
             )
         } catch {
             print("OwlMetry configuration failed: \(error)")
