@@ -146,6 +146,11 @@ export async function appsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("apps:write") },
     async (request, reply) => {
       const auth = request.auth;
+
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can delete apps" });
+      }
+
       const { id } = request.params;
 
       const [existing] = await app.db

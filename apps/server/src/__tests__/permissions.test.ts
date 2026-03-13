@@ -345,7 +345,7 @@ describe("API key permission enforcement — apps routes", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("agent key with apps:write can delete app", async () => {
+  it("agent key with apps:write cannot delete app (user-only)", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const key = await createAgentKey(app, token, teamId, ["apps:write"]);
 
@@ -355,8 +355,8 @@ describe("API key permission enforcement — apps routes", () => {
       headers: { authorization: `Bearer ${key}` },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json().deleted).toBe(true);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("Only users can delete apps");
   });
 
   it("agent key without apps:write cannot delete app", async () => {
@@ -465,7 +465,7 @@ describe("API key permission enforcement — projects routes", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("agent key with projects:write can delete project", async () => {
+  it("agent key with projects:write cannot delete project (user-only)", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const key = await createAgentKey(app, token, teamId, ["projects:write"]);
 
@@ -475,8 +475,8 @@ describe("API key permission enforcement — projects routes", () => {
       headers: { authorization: `Bearer ${key}` },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json().deleted).toBe(true);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("Only users can delete projects");
   });
 
   it("agent key without projects:write cannot delete project", async () => {
@@ -637,7 +637,7 @@ describe("API key team boundary enforcement", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("agent key with apps:write cannot delete other team's app", async () => {
+  it("agent key with apps:write cannot delete other team's app (user-only)", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const key = await createAgentKey(app, token, teamId, ["apps:write"]);
 
@@ -647,7 +647,8 @@ describe("API key team boundary enforcement", () => {
       headers: { authorization: `Bearer ${key}` },
     });
 
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("Only users can delete apps");
   });
 
   it("agent key with projects:write cannot update other team's project", async () => {
@@ -664,7 +665,7 @@ describe("API key team boundary enforcement", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("agent key with projects:write cannot delete other team's project", async () => {
+  it("agent key with projects:write cannot delete other team's project (user-only)", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const key = await createAgentKey(app, token, teamId, ["projects:write"]);
 
@@ -674,7 +675,8 @@ describe("API key team boundary enforcement", () => {
       headers: { authorization: `Bearer ${key}` },
     });
 
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("Only users can delete projects");
   });
 
   it("agent key with projects:write cannot create project in other team", async () => {

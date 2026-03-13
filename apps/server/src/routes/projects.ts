@@ -177,6 +177,11 @@ export async function projectsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("projects:write") },
     async (request, reply) => {
       const auth = request.auth;
+
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can delete projects" });
+      }
+
       const { id } = request.params;
 
       const [project] = await app.db
