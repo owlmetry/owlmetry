@@ -13,6 +13,16 @@ import type {
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 
+function serializeUser(user: { id: string; email: string; name: string; created_at: Date; updated_at: Date }) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    created_at: user.created_at.toISOString(),
+    updated_at: user.updated_at.toISOString(),
+  };
+}
+
 function generateSlugFromName(name: string): string {
   return name
     .toLowerCase()
@@ -70,13 +80,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     return reply.code(201).send({
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        created_at: user.created_at.toISOString(),
-        updated_at: user.updated_at.toISOString(),
-      },
+      user: serializeUser(user),
       teams: [
         {
           id: team.id,
@@ -127,13 +131,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     return {
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        created_at: user.created_at.toISOString(),
-        updated_at: user.updated_at.toISOString(),
-      },
+      user: serializeUser(user),
       teams: membershipTeams,
     };
   });
@@ -181,13 +179,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       return {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          created_at: user.created_at.toISOString(),
-          updated_at: user.updated_at.toISOString(),
-        },
+        user: serializeUser(user),
         teams: await getUserTeamMemberships(app.db, auth.user_id),
       };
     }
@@ -215,7 +207,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       const [updated] = await app.db
         .update(users)
-        .set({ ...updates, updated_at: new Date() })
+        .set(updates)
         .where(eq(users.id, auth.user_id))
         .returning({
           id: users.id,
@@ -226,13 +218,7 @@ export async function authRoutes(app: FastifyInstance) {
         });
 
       return {
-        user: {
-          id: updated.id,
-          email: updated.email,
-          name: updated.name,
-          created_at: updated.created_at.toISOString(),
-          updated_at: updated.updated_at.toISOString(),
-        },
+        user: serializeUser(updated),
       };
     }
   );

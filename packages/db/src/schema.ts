@@ -34,7 +34,8 @@ export const users = pgTable("users", {
     .defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true })
     .notNull()
-    .defaultNow(),
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // Teams
@@ -47,7 +48,8 @@ export const teams = pgTable("teams", {
     .defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: true })
     .notNull()
-    .defaultNow(),
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 // Team members
@@ -233,7 +235,8 @@ export const funnelDefinitions = pgTable(
       .defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
-      .defaultNow(),
+      .defaultNow()
+      .$onUpdate(() => new Date()),
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [index("funnel_definitions_app_id_idx").on(table.app_id)]

@@ -157,7 +157,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const [updated] = await app.db
         .update(teams)
-        .set({ name, updated_at: new Date() })
+        .set({ name })
         .where(eq(teams.id, teamId))
         .returning();
 

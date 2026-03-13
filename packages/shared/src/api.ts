@@ -2,6 +2,9 @@ import type { StoredEvent, IngestRequest, IngestResponse } from "./events.js";
 import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 
+// Serialized response types (dates as ISO strings)
+export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
+
 // Auth
 export interface RegisterRequest {
   email: string;
@@ -23,7 +26,7 @@ export interface AuthTeamMembership {
 
 export interface AuthResponse {
   token: string;
-  user: Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
+  user: UserResponse;
   teams: AuthTeamMembership[];
 }
 
@@ -47,7 +50,7 @@ export interface CreateApiKeyResponse {
 
 // User profile
 export interface MeResponse {
-  user: Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
+  user: UserResponse;
   teams: AuthTeamMembership[];
 }
 
