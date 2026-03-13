@@ -223,7 +223,6 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/v1/projects` | JWT | List projects |
 | `GET` | `/v1/projects/:id` | JWT | Get project with apps |
 | `POST` | `/v1/projects` | JWT (admin+) | Create project (requires team_id in body) |
-| `POST` | `/v1/projects/:id/apps` | JWT (admin+) | Create app under a project |
 | `PATCH` | `/v1/projects/:id` | JWT (admin+) | Update project name |
 | `DELETE` | `/v1/projects/:id` | JWT (admin+) | Soft-delete project and its apps |
 | `GET` | `/v1/apps` | JWT | List apps |

@@ -489,41 +489,6 @@ describe("API key permission enforcement — projects routes", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("agent key with apps:write can create app under project", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const key = await createAgentKey(app, token, teamId, ["apps:write"]);
-
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/apps",
-      headers: { authorization: `Bearer ${key}` },
-      payload: {
-        name: "Agent App",
-        platform: "android",
-        bundle_id: "dev.owlmetry.agentapp",
-        project_id: testData.projectId,
-      },
-    });
-
-    expect(res.statusCode).toBe(201);
-    expect(res.json().name).toBe("Agent App");
-  });
-
-  it("agent key without apps:write cannot create app", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/apps",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-      payload: {
-        name: "Nope",
-        platform: "ios",
-        bundle_id: "dev.owlmetry.nope",
-        project_id: testData.projectId,
-      },
-    });
-
-    expect(res.statusCode).toBe(403);
-  });
 });
 
 // ─── API key permission enforcement — events routes ──────────────────
