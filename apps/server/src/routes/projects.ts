@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
-import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
+import type { CreateProjectRequest, UpdateProjectRequest, CreateAppRequest } from "@owlmetry/shared";
 import { requireAuth, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
@@ -124,6 +124,55 @@ export async function projectsRoutes(app: FastifyInstance) {
         }
         throw err;
       }
+    }
+  );
+
+  // Create app under project
+  app.post<{ Params: { id: string }; Body: Omit<CreateAppRequest, "project_id"> }>(
+    "/projects/:id/apps",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can create apps" });
+      }
+
+      const { id: project_id } = request.params;
+      const { name, platform, bundle_id } = request.body;
+
+      if (!name || !platform || !bundle_id) {
+        return reply
+          .code(400)
+          .send({ error: "name, platform, and bundle_id are required" });
+      }
+
+      const [project] = await app.db
+        .select({ id: projects.id, team_id: projects.team_id })
+        .from(projects)
+        .where(and(eq(projects.id, project_id), isNull(projects.deleted_at)))
+        .limit(1);
+
+      if (!project || !hasTeamAccess(auth, project.team_id)) {
+        return reply.code(404).send({ error: "Project not found" });
+      }
+
+      const [created] = await app.db
+        .insert(apps)
+        .values({
+          team_id: project.team_id,
+          project_id,
+          name,
+          platform,
+          bundle_id,
+        })
+        .returning();
+
+      return reply.code(201).send({
+        ...created,
+        created_at: created.created_at.toISOString(),
+        deleted_at: undefined,
+      });
     }
   );
 

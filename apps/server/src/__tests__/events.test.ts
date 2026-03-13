@@ -78,7 +78,7 @@ describe("GET /v1/events", () => {
       { level: "info", message: "User B", user_id: "user-b" },
     ]);
 
-    const res = await queryEvents({ user: "user-a" });
+    const res = await queryEvents({ user_id: "user-a" });
     const body = res.json();
     expect(body.events).toHaveLength(1);
     expect(body.events[0].user_id).toBe("user-a");

@@ -114,6 +114,96 @@ describe("GET /v1/projects/:id", () => {
   });
 });
 
+describe("POST /v1/projects/:id/apps", () => {
+  it("creates an app under the project", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${testData.projectId}/apps`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Android App",
+        platform: "android",
+        bundle_id: "dev.owlmetry.android",
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.name).toBe("Android App");
+    expect(body.platform).toBe("android");
+    expect(body.bundle_id).toBe("dev.owlmetry.android");
+    expect(body.project_id).toBe(testData.projectId);
+    expect(body.team_id).toBe(testData.teamId);
+  });
+
+  it("rejects missing required fields", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${testData.projectId}/apps`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "No Platform" },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 404 for non-existent project", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/projects/00000000-0000-0000-0000-000000000000/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Ghost App",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.ghost",
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for deleted project", async () => {
+    const token = await getToken(app);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${testData.projectId}/apps`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Ghost App",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.ghost",
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${testData.projectId}/apps`,
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        name: "Nope",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.nope",
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+});
+
 describe("PATCH /v1/projects/:id", () => {
   it("updates project name", async () => {
     const token = await getToken(app);

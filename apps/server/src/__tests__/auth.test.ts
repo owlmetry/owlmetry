@@ -315,6 +315,142 @@ describe("DELETE /v1/auth/keys/:id", () => {
   });
 });
 
+describe("PATCH /v1/auth/me", () => {
+  it("updates user name", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Updated Name" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().user.name).toBe("Updated Name");
+  });
+
+  it("updates user password", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { password: "newpassword123" },
+    });
+
+    expect(res.statusCode).toBe(200);
+
+    // Verify new password works for login
+    const loginRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: { email: TEST_USER.email, password: "newpassword123" },
+    });
+    expect(loginRes.statusCode).toBe(200);
+  });
+
+  it("rejects empty body", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      payload: { name: "Nope" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { name: "Nope" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe("GET /v1/auth/keys/:id", () => {
+  it("returns a single API key", async () => {
+    const token = await getToken(app);
+
+    // Get a key ID from the list
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const keyId = listRes.json().api_keys[0].id;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.api_key.id).toBe(keyId);
+    expect(body.api_key.key_prefix).toBeDefined();
+    expect(body.api_key.created_at).toBeDefined();
+    expect(body.api_key.key_hash).toBeUndefined();
+  });
+
+  it("returns 404 for non-existent key", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for key belonging to another team", async () => {
+    const regRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/register",
+      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+    });
+    const otherToken = regRes.json().token;
+
+    const token = await getToken(app);
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const keyId = listRes.json().api_keys[0].id;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys/some-id",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
 describe("POST /v1/auth/keys", () => {
   it("generates client API key scoped to app", async () => {
     const token = await getToken(app);

@@ -19,7 +19,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         project_id,
         app_id,
         level,
-        user,
+        user_id,
         screen_name,
         since,
         until,
@@ -76,8 +76,8 @@ export async function eventsRoutes(app: FastifyInstance) {
       if (level) {
         conditions.push(eq(events.level, level as any));
       }
-      if (user) {
-        conditions.push(eq(events.user_id, user));
+      if (user_id) {
+        conditions.push(eq(events.user_id, user_id));
       }
       if (screen_name) {
         conditions.push(eq(events.screen_name, screen_name));

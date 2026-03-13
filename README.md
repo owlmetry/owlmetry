@@ -201,8 +201,10 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/auth/register` | None | Create user + team |
 | `POST` | `/v1/auth/login` | None | Get JWT token + teams list |
 | `GET` | `/v1/auth/me` | JWT | Get current user profile + teams |
+| `PATCH` | `/v1/auth/me` | JWT | Update name or password |
 | `GET` | `/v1/auth/teams` | JWT | List user's teams |
 | `GET` | `/v1/auth/keys` | JWT | List API keys for user's teams |
+| `GET` | `/v1/auth/keys/:id` | JWT | Get single API key metadata |
 | `POST` | `/v1/auth/keys` | JWT | Generate API key |
 | `DELETE` | `/v1/auth/keys/:id` | JWT | Revoke an API key |
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
@@ -211,6 +213,7 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/v1/projects` | JWT | List projects |
 | `GET` | `/v1/projects/:id` | JWT | Get project with apps |
 | `POST` | `/v1/projects` | JWT | Create project (requires team_id in body) |
+| `POST` | `/v1/projects/:id/apps` | JWT | Create app under a project |
 | `PATCH` | `/v1/projects/:id` | JWT | Update project name |
 | `DELETE` | `/v1/projects/:id` | JWT | Soft-delete project and its apps |
 | `GET` | `/v1/apps` | JWT | List apps |

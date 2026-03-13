@@ -8,6 +8,7 @@ import type {
   RegisterRequest,
   LoginRequest,
   CreateApiKeyRequest,
+  UpdateMeRequest,
 } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getUserTeamMemberships } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
@@ -188,6 +189,48 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
+  // Update profile
+  app.patch<{ Body: UpdateMeRequest }>(
+    "/me",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can update their profile" });
+      }
+
+      const { name, password } = request.body;
+
+      if (!name && !password) {
+        return reply.code(400).send({ error: "At least one field to update is required" });
+      }
+
+      const updates: Partial<{ name: string; password_hash: string }> = {};
+      if (name) updates.name = name;
+      if (password) updates.password_hash = await bcrypt.hash(password, 12);
+
+      const [updated] = await app.db
+        .update(users)
+        .set(updates)
+        .where(eq(users.id, auth.user_id))
+        .returning({
+          id: users.id,
+          email: users.email,
+          name: users.name,
+          created_at: users.created_at,
+        });
+
+      return {
+        user: {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name,
+          created_at: updated.created_at.toISOString(),
+        },
+      };
+    }
+  );
+
   // List API keys
   app.get(
     "/keys",
@@ -222,6 +265,45 @@ export async function authRoutes(app: FastifyInstance) {
           last_used_at: k.last_used_at?.toISOString() || null,
           expires_at: k.expires_at?.toISOString() || null,
         })),
+      };
+    }
+  );
+
+  // Get single API key
+  app.get<{ Params: { id: string } }>(
+    "/keys/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can view API keys" });
+      }
+
+      const [key] = await app.db
+        .select()
+        .from(apiKeys)
+        .where(
+          and(eq(apiKeys.id, request.params.id), isNull(apiKeys.deleted_at))
+        )
+        .limit(1);
+
+      if (!key || !hasTeamAccess(auth, key.team_id)) {
+        return reply.code(404).send({ error: "API key not found" });
+      }
+
+      return {
+        api_key: {
+          id: key.id,
+          key_prefix: key.key_prefix,
+          key_type: key.key_type,
+          app_id: key.app_id,
+          team_id: key.team_id,
+          name: key.name,
+          permissions: key.permissions,
+          created_at: key.created_at.toISOString(),
+          last_used_at: key.last_used_at?.toISOString() || null,
+          expires_at: key.expires_at?.toISOString() || null,
+        },
       };
     }
   );

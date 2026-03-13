@@ -50,6 +50,20 @@ export interface MeResponse {
   teams: AuthTeamMembership[];
 }
 
+export interface UpdateMeRequest {
+  name?: string;
+  password?: string;
+}
+
+// Single API key
+export interface GetApiKeyResponse {
+  api_key: Omit<ApiKey, "created_at" | "last_used_at" | "expires_at"> & {
+    created_at: string;
+    last_used_at: string | null;
+    expires_at: string | null;
+  };
+}
+
 // API key listing
 export interface ListApiKeysResponse {
   api_keys: Array<
@@ -95,7 +109,7 @@ export interface EventsQueryParams {
   project_id?: string;
   app_id?: string;
   level?: string;
-  user?: string;
+  user_id?: string;
   screen_name?: string;
   since?: string;
   until?: string;
