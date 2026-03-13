@@ -3,6 +3,7 @@ import { eq, and, inArray, isNull } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
 import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
+import { serializeApp } from "../utils/serialize.js";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
@@ -62,11 +63,7 @@ export async function projectsRoutes(app: FastifyInstance) {
         ...project,
         created_at: project.created_at.toISOString(),
         deleted_at: undefined,
-        apps: projectApps.map((a) => ({
-          ...a,
-          created_at: a.created_at.toISOString(),
-          deleted_at: undefined,
-        })),
+        apps: projectApps.map(serializeApp),
       };
     }
   );

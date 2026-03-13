@@ -60,7 +60,7 @@ export async function appsRoutes(app: FastifyInstance) {
 
       const { fullKey, keyHash, keyPrefix } = generateApiKey("client");
 
-      const [created] = await app.db.transaction(async (tx) => {
+      const created = await app.db.transaction(async (tx) => {
         const [created] = await tx
           .insert(apps)
           .values({
@@ -85,7 +85,7 @@ export async function appsRoutes(app: FastifyInstance) {
             permissions: DEFAULT_API_KEY_PERMISSIONS.client,
           });
 
-        return [created];
+        return created;
       });
 
       return reply.code(201).send(serializeApp(created));
