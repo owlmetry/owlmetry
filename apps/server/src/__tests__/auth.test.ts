@@ -8,6 +8,7 @@ import {
   getTokenAndTeamId,
   TEST_USER,
   TEST_CLIENT_KEY,
+  TEST_AGENT_KEY,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -134,6 +135,183 @@ describe("GET /v1/auth/teams", () => {
     expect(body.teams).toHaveLength(1);
     expect(body.teams[0].id).toBe(testData.teamId);
     expect(body.teams[0].role).toBe("owner");
+  });
+});
+
+describe("GET /v1/auth/me", () => {
+  it("returns user profile and teams", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.user.email).toBe(TEST_USER.email);
+    expect(body.user.name).toBe(TEST_USER.name);
+    expect(body.user.id).toBe(testData.userId);
+    expect(body.user.created_at).toBeDefined();
+    expect(body.teams).toHaveLength(1);
+    expect(body.teams[0].role).toBe("owner");
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/me",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe("GET /v1/auth/keys", () => {
+  it("lists API keys for user teams", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // seed creates 3 keys: client, agent, expired
+    expect(body.api_keys).toHaveLength(3);
+    expect(body.api_keys[0].key_prefix).toBeDefined();
+    expect(body.api_keys[0].created_at).toBeDefined();
+  });
+
+  it("does not expose key_hash", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const body = res.json();
+    for (const key of body.api_keys) {
+      expect(key.key_hash).toBeUndefined();
+    }
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe("DELETE /v1/auth/keys/:id", () => {
+  it("deletes an API key", async () => {
+    const token = await getToken(app);
+
+    // Create a key to delete
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "To Delete",
+        key_type: "client",
+        app_id: testData.appId,
+      },
+    });
+    const keyId = createRes.json().api_key.id;
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(true);
+
+    // Verify it's gone
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const ids = listRes.json().api_keys.map((k: { id: string }) => k.id);
+    expect(ids).not.toContain(keyId);
+  });
+
+  it("returns 404 for non-existent key", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/v1/auth/keys/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for key belonging to another team", async () => {
+    // Register a second user (gets their own team)
+    const regRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/register",
+      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+    });
+    const otherToken = regRes.json().token;
+
+    // Get a key ID from the original team
+    const token = await getToken(app);
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const keyId = listRes.json().api_keys[0].id;
+
+    // Try to delete from other user
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/v1/auth/keys/some-id",
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/v1/auth/keys/some-id",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 

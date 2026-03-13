@@ -44,6 +44,28 @@ export interface CreateApiKeyResponse {
   };
 }
 
+// User profile
+export interface MeResponse {
+  user: Omit<User, "created_at"> & { created_at: string };
+  teams: AuthTeamMembership[];
+}
+
+// API key listing
+export interface ListApiKeysResponse {
+  api_keys: Array<
+    Omit<ApiKey, "created_at" | "last_used_at" | "expires_at"> & {
+      created_at: string;
+      last_used_at: string | null;
+      expires_at: string | null;
+    }
+  >;
+}
+
+// API key deletion
+export interface DeleteApiKeyResponse {
+  deleted: true;
+}
+
 // Projects
 export interface CreateProjectRequest {
   team_id: string;

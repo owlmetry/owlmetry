@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "node:crypto";
 import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
@@ -148,6 +148,105 @@ export async function authRoutes(app: FastifyInstance) {
       return {
         teams: await getUserTeamMemberships(app.db, auth.user_id),
       };
+    }
+  );
+
+  // Current user profile
+  app.get(
+    "/me",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can access this endpoint" });
+      }
+
+      const [user] = await app.db
+        .select({
+          id: users.id,
+          email: users.email,
+          name: users.name,
+          created_at: users.created_at,
+        })
+        .from(users)
+        .where(eq(users.id, auth.user_id))
+        .limit(1);
+
+      if (!user) {
+        return reply.code(404).send({ error: "User not found" });
+      }
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          created_at: user.created_at.toISOString(),
+        },
+        teams: await getUserTeamMemberships(app.db, auth.user_id),
+      };
+    }
+  );
+
+  // List API keys
+  app.get(
+    "/keys",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can list API keys" });
+      }
+
+      if (auth.team_ids.length === 0) {
+        return { api_keys: [] };
+      }
+
+      const rows = await app.db
+        .select()
+        .from(apiKeys)
+        .where(inArray(apiKeys.team_id, auth.team_ids));
+
+      return {
+        api_keys: rows.map((k) => ({
+          id: k.id,
+          key_prefix: k.key_prefix,
+          key_type: k.key_type,
+          app_id: k.app_id,
+          team_id: k.team_id,
+          name: k.name,
+          permissions: k.permissions,
+          created_at: k.created_at.toISOString(),
+          last_used_at: k.last_used_at?.toISOString() || null,
+          expires_at: k.expires_at?.toISOString() || null,
+        })),
+      };
+    }
+  );
+
+  // Delete API key
+  app.delete<{ Params: { id: string } }>(
+    "/keys/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can delete API keys" });
+      }
+
+      const [key] = await app.db
+        .select()
+        .from(apiKeys)
+        .where(eq(apiKeys.id, request.params.id))
+        .limit(1);
+
+      if (!key || !hasTeamAccess(auth, key.team_id)) {
+        return reply.code(404).send({ error: "API key not found" });
+      }
+
+      await app.db.delete(apiKeys).where(eq(apiKeys.id, request.params.id));
+
+      return { deleted: true };
     }
   );
 

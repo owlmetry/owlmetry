@@ -200,8 +200,11 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/health` | None | Health check |
 | `POST` | `/v1/auth/register` | None | Create user + team |
 | `POST` | `/v1/auth/login` | None | Get JWT token + teams list |
+| `GET` | `/v1/auth/me` | JWT | Get current user profile + teams |
 | `GET` | `/v1/auth/teams` | JWT | List user's teams |
+| `GET` | `/v1/auth/keys` | JWT | List API keys for user's teams |
 | `POST` | `/v1/auth/keys` | JWT | Generate API key |
+| `DELETE` | `/v1/auth/keys/:id` | JWT | Revoke an API key |
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
