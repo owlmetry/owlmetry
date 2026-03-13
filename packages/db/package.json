@@ -15,7 +15,8 @@
     "dev": "tsc --watch",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "clear": "tsx src/clear.ts"
   },
   "dependencies": {
     "@owlmetry/shared": "workspace:*",
