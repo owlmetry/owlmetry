@@ -52,7 +52,7 @@ describe("GET /v1/apps", () => {
 });
 
 describe("POST /v1/apps", () => {
-  it("creates a new app", async () => {
+  it("creates a new app with auto-generated client key", async () => {
     const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
@@ -72,6 +72,74 @@ describe("POST /v1/apps", () => {
     expect(body.platform).toBe("android");
     expect(body.bundle_id).toBe("dev.owlmetry.android");
     expect(body.team_id).toBe(testData.teamId);
+
+    // Verify auto-created client key
+    expect(body.client_key).toBeDefined();
+    expect(body.client_key.key).toMatch(/^owl_client_/);
+    expect(body.client_key.api_key.key_type).toBe("client");
+    expect(body.client_key.api_key.app_id).toBe(body.id);
+    expect(body.client_key.api_key.permissions).toEqual(["events:write"]);
+    expect(body.client_key.api_key.name).toBe("Android App Client Key");
+  });
+
+  it("auto-created client key appears in keys list", async () => {
+    const token = await getToken(app);
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Key List App",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.keylist",
+        project_id: testData.projectId,
+      },
+    });
+
+    const appId = createRes.json().id;
+
+    const keysRes = await app.inject({
+      method: "GET",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const keys = keysRes.json().api_keys;
+    const autoKey = keys.find((k: { app_id: string }) => k.app_id === appId);
+    expect(autoKey).toBeDefined();
+    expect(autoKey.key_type).toBe("client");
+  });
+
+  it("auto-created client key works for ingest", async () => {
+    const token = await getToken(app);
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Ingest App",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.ingest",
+        project_id: testData.projectId,
+      },
+    });
+
+    const body = createRes.json();
+    const clientKey = body.client_key.key;
+
+    const ingestRes = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${clientKey}` },
+      payload: {
+        bundle_id: "dev.owlmetry.ingest",
+        events: [
+          { level: "info", message: "test event" },
+        ],
+      },
+    });
+
+    expect(ingestRes.statusCode).toBe(200);
   });
 
   it("rejects missing required fields", async () => {

@@ -1,8 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
-import { apps, projects } from "@owlmetry/db";
+import { randomBytes } from "node:crypto";
+import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
+import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, hashApiKey } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
+import { serializeApiKey } from "../utils/serialize.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
@@ -60,21 +63,44 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: createRoleError });
       }
 
-      const [created] = await app.db
-        .insert(apps)
-        .values({
-          team_id: project.team_id,
-          project_id,
-          name,
-          platform,
-          bundle_id,
-        })
-        .returning();
+      const { created, clientKey, fullKey } = await app.db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(apps)
+          .values({
+            team_id: project.team_id,
+            project_id,
+            name,
+            platform,
+            bundle_id,
+          })
+          .returning();
+
+        const fullKey = `${API_KEY_PREFIX.client}${randomBytes(24).toString("hex")}`;
+
+        const [clientKey] = await tx
+          .insert(apiKeys)
+          .values({
+            key_hash: hashApiKey(fullKey),
+            key_prefix: fullKey.slice(0, 16),
+            key_type: "client",
+            app_id: created.id,
+            team_id: project.team_id,
+            name: `${name} Client Key`,
+            permissions: DEFAULT_API_KEY_PERMISSIONS.client,
+          })
+          .returning();
+
+        return { created, clientKey, fullKey };
+      });
 
       return reply.code(201).send({
         ...created,
         created_at: created.created_at.toISOString(),
         deleted_at: undefined,
+        client_key: {
+          key: fullKey,
+          api_key: serializeApiKey(clientKey),
+        },
       });
     }
   );
