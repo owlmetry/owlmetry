@@ -46,6 +46,7 @@ export interface ApiKey {
   last_used_at: Date | null;
   expires_at: Date | null;
   created_at: Date;
+  deleted_at: Date | null;
 }
 
 export interface Project {
@@ -54,6 +55,7 @@ export interface Project {
   name: string;
   slug: string;
   created_at: Date;
+  deleted_at: Date | null;
 }
 
 export interface App {
@@ -64,4 +66,5 @@ export interface App {
   platform: string;
   bundle_id: string;
   created_at: Date;
+  deleted_at: Date | null;
 }

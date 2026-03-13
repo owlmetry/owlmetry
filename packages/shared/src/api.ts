@@ -73,12 +73,21 @@ export interface CreateProjectRequest {
   slug: string;
 }
 
+export interface UpdateProjectRequest {
+  name?: string;
+}
+
 // Apps
 export interface CreateAppRequest {
   name: string;
   platform: string;
   bundle_id: string;
   project_id: string;
+}
+
+export interface UpdateAppRequest {
+  name?: string;
+  bundle_id?: string;
 }
 
 // Events query

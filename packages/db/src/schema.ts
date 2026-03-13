@@ -75,6 +75,7 @@ export const projects = pgTable(
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     index("projects_team_id_idx").on(table.team_id),
@@ -99,6 +100,7 @@ export const apps = pgTable(
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     index("apps_team_id_idx").on(table.team_id),
@@ -125,6 +127,7 @@ export const apiKeys = pgTable(
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     index("api_keys_key_prefix_idx").on(table.key_prefix),

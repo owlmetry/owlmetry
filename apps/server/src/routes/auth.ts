@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "node:crypto";
 import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
@@ -205,7 +205,9 @@ export async function authRoutes(app: FastifyInstance) {
       const rows = await app.db
         .select()
         .from(apiKeys)
-        .where(inArray(apiKeys.team_id, auth.team_ids));
+        .where(
+          and(inArray(apiKeys.team_id, auth.team_ids), isNull(apiKeys.deleted_at))
+        );
 
       return {
         api_keys: rows.map((k) => ({
@@ -237,14 +239,19 @@ export async function authRoutes(app: FastifyInstance) {
       const [key] = await app.db
         .select()
         .from(apiKeys)
-        .where(eq(apiKeys.id, request.params.id))
+        .where(
+          and(eq(apiKeys.id, request.params.id), isNull(apiKeys.deleted_at))
+        )
         .limit(1);
 
       if (!key || !hasTeamAccess(auth, key.team_id)) {
         return reply.code(404).send({ error: "API key not found" });
       }
 
-      await app.db.delete(apiKeys).where(eq(apiKeys.id, request.params.id));
+      await app.db
+        .update(apiKeys)
+        .set({ deleted_at: new Date() })
+        .where(eq(apiKeys.id, request.params.id));
 
       return { deleted: true };
     }
@@ -287,7 +294,7 @@ export async function authRoutes(app: FastifyInstance) {
         const [appRecord] = await app.db
           .select()
           .from(apps)
-          .where(eq(apps.id, app_id))
+          .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
           .limit(1);
 
         if (!appRecord || !hasTeamAccess(auth, appRecord.team_id)) {

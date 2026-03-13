@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
-import type { CreateProjectRequest } from "@owlmetry/shared";
+import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
 import { requireAuth, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
@@ -16,12 +16,13 @@ export async function projectsRoutes(app: FastifyInstance) {
       const rows = await app.db
         .select()
         .from(projects)
-        .where(inArray(projects.team_id, teamIds));
+        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
 
       return {
         projects: rows.map((p) => ({
           ...p,
           created_at: p.created_at.toISOString(),
+          deleted_at: undefined,
         })),
       };
     }
@@ -41,7 +42,8 @@ export async function projectsRoutes(app: FastifyInstance) {
         .where(
           and(
             eq(projects.id, id),
-            inArray(projects.team_id, getAuthTeamIds(auth))
+            inArray(projects.team_id, getAuthTeamIds(auth)),
+            isNull(projects.deleted_at)
           )
         )
         .limit(1);
@@ -53,14 +55,16 @@ export async function projectsRoutes(app: FastifyInstance) {
       const projectApps = await app.db
         .select()
         .from(apps)
-        .where(eq(apps.project_id, id));
+        .where(and(eq(apps.project_id, id), isNull(apps.deleted_at)));
 
       return {
         ...project,
         created_at: project.created_at.toISOString(),
+        deleted_at: undefined,
         apps: projectApps.map((a) => ({
           ...a,
           created_at: a.created_at.toISOString(),
+          deleted_at: undefined,
         })),
       };
     }
@@ -110,6 +114,7 @@ export async function projectsRoutes(app: FastifyInstance) {
         return reply.code(201).send({
           ...created,
           created_at: created.created_at.toISOString(),
+          deleted_at: undefined,
         });
       } catch (err: any) {
         if (err.code === "23505") {
@@ -119,6 +124,100 @@ export async function projectsRoutes(app: FastifyInstance) {
         }
         throw err;
       }
+    }
+  );
+
+  // Update project
+  app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>(
+    "/projects/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can update projects" });
+      }
+
+      const { id } = request.params;
+      const { name } = request.body;
+
+      if (!name) {
+        return reply.code(400).send({ error: "At least one field to update is required" });
+      }
+
+      const [project] = await app.db
+        .select()
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, id),
+            inArray(projects.team_id, getAuthTeamIds(auth)),
+            isNull(projects.deleted_at)
+          )
+        )
+        .limit(1);
+
+      if (!project) {
+        return reply.code(404).send({ error: "Project not found" });
+      }
+
+      const [updated] = await app.db
+        .update(projects)
+        .set({ name })
+        .where(eq(projects.id, id))
+        .returning();
+
+      return {
+        ...updated,
+        created_at: updated.created_at.toISOString(),
+        deleted_at: undefined,
+      };
+    }
+  );
+
+  // Delete project (soft delete)
+  app.delete<{ Params: { id: string } }>(
+    "/projects/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can delete projects" });
+      }
+
+      const { id } = request.params;
+
+      const [project] = await app.db
+        .select()
+        .from(projects)
+        .where(
+          and(
+            eq(projects.id, id),
+            inArray(projects.team_id, getAuthTeamIds(auth)),
+            isNull(projects.deleted_at)
+          )
+        )
+        .limit(1);
+
+      if (!project) {
+        return reply.code(404).send({ error: "Project not found" });
+      }
+
+      const now = new Date();
+
+      // Soft-delete the project and all its apps
+      await app.db
+        .update(apps)
+        .set({ deleted_at: now })
+        .where(and(eq(apps.project_id, id), isNull(apps.deleted_at)));
+
+      await app.db
+        .update(projects)
+        .set({ deleted_at: now })
+        .where(eq(projects.id, id));
+
+      return { deleted: true };
     }
   );
 }

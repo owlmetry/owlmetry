@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, lt, desc, inArray } from "drizzle-orm";
+import { and, eq, gte, lte, lt, desc, inArray, isNull } from "drizzle-orm";
 import { events, apps } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@owlmetry/shared";
 import type { EventsQueryParams } from "@owlmetry/shared";
@@ -40,7 +40,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           .select({ id: apps.id })
           .from(apps)
           .where(
-            and(eq(apps.id, app_id), inArray(apps.team_id, teamIds))
+            and(eq(apps.id, app_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at))
           )
           .limit(1);
         if (!appRow) {
@@ -53,7 +53,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           .select({ id: apps.id })
           .from(apps)
           .where(
-            and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds))
+            and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at))
           );
         const projectAppIds = projectApps.map((a) => a.id);
         if (projectAppIds.length === 0) {
@@ -65,7 +65,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         const teamApps = await app.db
           .select({ id: apps.id })
           .from(apps)
-          .where(inArray(apps.team_id, teamIds));
+          .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
         const teamAppIds = teamApps.map((a) => a.id);
         if (teamAppIds.length === 0) {
           return { events: [], cursor: null, has_more: false };
@@ -138,7 +138,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       const [eventApp] = await app.db
         .select({ team_id: apps.team_id })
         .from(apps)
-        .where(eq(apps.id, event.app_id))
+        .where(and(eq(apps.id, event.app_id), isNull(apps.deleted_at)))
         .limit(1);
 
       if (!eventApp || !hasTeamAccess(auth, eventApp.team_id)) {

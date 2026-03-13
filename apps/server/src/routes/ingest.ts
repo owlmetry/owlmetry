@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { apps, events } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
@@ -75,7 +75,7 @@ export async function ingestRoutes(app: FastifyInstance) {
       const [appRow] = await app.db
         .select({ bundle_id: apps.bundle_id })
         .from(apps)
-        .where(eq(apps.id, app_id))
+        .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
         .limit(1);
 
       if (!appRow) {

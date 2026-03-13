@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { apiKeys, teams, teamMembers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { API_KEY_PREFIX, hashApiKey } from "@owlmetry/shared";
@@ -67,7 +67,7 @@ export async function requireAuth(
     const [key] = await db
       .select()
       .from(apiKeys)
-      .where(eq(apiKeys.key_hash, hash))
+      .where(and(eq(apiKeys.key_hash, hash), isNull(apiKeys.deleted_at)))
       .limit(1);
 
     if (!key) {
