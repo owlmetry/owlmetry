@@ -318,6 +318,15 @@ describe("DELETE /v1/auth/keys/:id", () => {
 describe("PATCH /v1/auth/me", () => {
   it("updates user name", async () => {
     const token = await getToken(app);
+
+    // Fetch current profile to capture original updated_at
+    const before = await app.inject({
+      method: "GET",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const originalUpdatedAt = before.json().user.updated_at;
+
     const res = await app.inject({
       method: "PATCH",
       url: "/v1/auth/me",
@@ -327,6 +336,10 @@ describe("PATCH /v1/auth/me", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().user.name).toBe("Updated Name");
+    expect(res.json().user.updated_at).toBeDefined();
+    expect(new Date(res.json().user.updated_at).getTime()).toBeGreaterThanOrEqual(
+      new Date(originalUpdatedAt).getTime()
+    );
   });
 
   it("updates user password", async () => {

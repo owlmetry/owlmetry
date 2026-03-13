@@ -14,16 +14,25 @@ import { requireAuth, getTeamRole, assertTeamRole } from "../middleware/auth.js"
 import type { UserContext } from "../types.js";
 
 async function getTeamMembers(db: Db, teamId: string) {
-  return db
+  const rows = await db
     .select({
       user_id: teamMembers.user_id,
       role: teamMembers.role,
       email: users.email,
       name: users.name,
+      joined_at: teamMembers.joined_at,
     })
     .from(teamMembers)
     .innerJoin(users, eq(users.id, teamMembers.user_id))
     .where(eq(teamMembers.team_id, teamId));
+
+  return rows.map((r) => ({
+    user_id: r.user_id,
+    email: r.email,
+    name: r.name,
+    role: r.role,
+    joined_at: r.joined_at.toISOString(),
+  }));
 }
 
 async function isLastOwner(db: Db, teamId: string): Promise<boolean> {
@@ -264,10 +273,18 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       try {
-        await app.db.insert(teamMembers).values({
+        const [member] = await app.db.insert(teamMembers).values({
           team_id: teamId,
           user_id: targetUser.id,
           role: targetRole,
+        }).returning({ joined_at: teamMembers.joined_at });
+
+        return reply.code(201).send({
+          user_id: targetUser.id,
+          email: targetUser.email,
+          name: targetUser.name,
+          role: targetRole,
+          joined_at: member.joined_at.toISOString(),
         });
       } catch (err: any) {
         if (err.code === PG_UNIQUE_VIOLATION) {
@@ -275,13 +292,6 @@ export async function teamsRoutes(app: FastifyInstance) {
         }
         throw err;
       }
-
-      return reply.code(201).send({
-        user_id: targetUser.id,
-        email: targetUser.email,
-        name: targetUser.name,
-        role: targetRole,
-      });
     }
   );
 

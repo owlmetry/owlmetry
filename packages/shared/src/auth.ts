@@ -87,6 +87,7 @@ export interface User {
   email: string;
   name: string;
   created_at: Date;
+  updated_at: Date;
 }
 
 export interface Team {
@@ -101,6 +102,7 @@ export interface TeamMember {
   team_id: string;
   user_id: string;
   role: TeamRole;
+  joined_at: Date;
 }
 
 export interface ApiKey {

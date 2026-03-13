@@ -29,6 +29,13 @@
       "when": 1773382681468,
       "tag": "0003_mature_unicorn",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773386081157,
+      "tag": "0004_lowly_malice",
+      "breakpoints": true
     }
   ]
 }

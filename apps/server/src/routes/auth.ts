@@ -75,6 +75,7 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
         name: user.name,
         created_at: user.created_at.toISOString(),
+        updated_at: user.updated_at.toISOString(),
       },
       teams: [
         {
@@ -131,6 +132,7 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
         name: user.name,
         created_at: user.created_at.toISOString(),
+        updated_at: user.updated_at.toISOString(),
       },
       teams: membershipTeams,
     };
@@ -168,6 +170,7 @@ export async function authRoutes(app: FastifyInstance) {
           email: users.email,
           name: users.name,
           created_at: users.created_at,
+          updated_at: users.updated_at,
         })
         .from(users)
         .where(eq(users.id, auth.user_id))
@@ -183,6 +186,7 @@ export async function authRoutes(app: FastifyInstance) {
           email: user.email,
           name: user.name,
           created_at: user.created_at.toISOString(),
+          updated_at: user.updated_at.toISOString(),
         },
         teams: await getUserTeamMemberships(app.db, auth.user_id),
       };
@@ -211,13 +215,14 @@ export async function authRoutes(app: FastifyInstance) {
 
       const [updated] = await app.db
         .update(users)
-        .set(updates)
+        .set({ ...updates, updated_at: new Date() })
         .where(eq(users.id, auth.user_id))
         .returning({
           id: users.id,
           email: users.email,
           name: users.name,
           created_at: users.created_at,
+          updated_at: users.updated_at,
         });
 
       return {
@@ -226,6 +231,7 @@ export async function authRoutes(app: FastifyInstance) {
           email: updated.email,
           name: updated.name,
           created_at: updated.created_at.toISOString(),
+          updated_at: updated.updated_at.toISOString(),
         },
       };
     }

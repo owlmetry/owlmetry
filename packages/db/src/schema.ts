@@ -32,6 +32,9 @@ export const users = pgTable("users", {
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
 
 // Teams
@@ -58,6 +61,9 @@ export const teamMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     role: teamRoleEnum("role").notNull().default("member"),
+    joined_at: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     uniqueIndex("team_members_team_user_idx").on(table.team_id, table.user_id),
@@ -225,6 +231,10 @@ export const funnelDefinitions = pgTable(
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [index("funnel_definitions_app_id_idx").on(table.app_id)]
 );

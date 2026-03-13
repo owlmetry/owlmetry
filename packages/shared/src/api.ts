@@ -23,7 +23,7 @@ export interface AuthTeamMembership {
 
 export interface AuthResponse {
   token: string;
-  user: Omit<User, "created_at"> & { created_at: string };
+  user: Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
   teams: AuthTeamMembership[];
 }
 
@@ -47,7 +47,7 @@ export interface CreateApiKeyResponse {
 
 // User profile
 export interface MeResponse {
-  user: Omit<User, "created_at"> & { created_at: string };
+  user: Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
   teams: AuthTeamMembership[];
 }
 
@@ -155,6 +155,7 @@ export interface TeamMemberResponse {
   email: string;
   name: string;
   role: TeamRole;
+  joined_at: string;
 }
 
 export interface TeamDetailResponse {
