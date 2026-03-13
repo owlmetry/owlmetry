@@ -59,6 +59,7 @@ export const teamMembers = pgTable(
   },
   (table) => [
     uniqueIndex("team_members_team_user_idx").on(table.team_id, table.user_id),
+    index("team_members_user_id_idx").on(table.user_id),
   ]
 );
 

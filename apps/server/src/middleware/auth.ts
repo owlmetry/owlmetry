@@ -1,7 +1,9 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { eq } from "drizzle-orm";
-import { apiKeys, teamMembers } from "@owlmetry/db";
+import { apiKeys, teams, teamMembers } from "@owlmetry/db";
+import type { Db } from "@owlmetry/db";
 import { API_KEY_PREFIX, hashApiKey } from "@owlmetry/shared";
+import type { AuthTeamMembership } from "@owlmetry/shared";
 import type { AuthContext, UserJwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
 declare module "fastify" {
@@ -18,6 +20,27 @@ export function getAuthTeamIds(auth: AuthContext): string[] {
 /** Checks if the authenticated context has access to a specific team. */
 export function hasTeamAccess(auth: AuthContext, teamId: string): boolean {
   return getAuthTeamIds(auth).includes(teamId);
+}
+
+/** Fetches team memberships with full team details for a user. */
+export async function getUserTeamMemberships(db: Db, userId: string): Promise<AuthTeamMembership[]> {
+  const rows = await db
+    .select({
+      team_id: teamMembers.team_id,
+      role: teamMembers.role,
+      team_name: teams.name,
+      team_slug: teams.slug,
+    })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teams.id, teamMembers.team_id))
+    .where(eq(teamMembers.user_id, userId));
+
+  return rows.map((m) => ({
+    id: m.team_id,
+    name: m.team_name,
+    slug: m.team_slug,
+    role: m.role,
+  }));
 }
 
 export async function requireAuth(

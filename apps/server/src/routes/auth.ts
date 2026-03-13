@@ -9,7 +9,7 @@ import type {
   LoginRequest,
   CreateApiKeyRequest,
 } from "@owlmetry/shared";
-import { requireAuth, hasTeamAccess } from "../middleware/auth.js";
+import { requireAuth, hasTeamAccess, getUserTeamMemberships } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 
 function generateSlugFromName(name: string): string {
@@ -109,19 +109,9 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: "Invalid credentials" });
     }
 
-    // Get all team memberships
-    const memberships = await app.db
-      .select({
-        team_id: teamMembers.team_id,
-        role: teamMembers.role,
-        team_name: teams.name,
-        team_slug: teams.slug,
-      })
-      .from(teamMembers)
-      .innerJoin(teams, eq(teams.id, teamMembers.team_id))
-      .where(eq(teamMembers.user_id, user.id));
+    const membershipTeams = await getUserTeamMemberships(app.db, user.id);
 
-    if (memberships.length === 0) {
+    if (membershipTeams.length === 0) {
       return reply.code(500).send({ error: "User has no team membership" });
     }
 
@@ -141,12 +131,7 @@ export async function authRoutes(app: FastifyInstance) {
         name: user.name,
         created_at: user.created_at.toISOString(),
       },
-      teams: memberships.map((m) => ({
-        id: m.team_id,
-        name: m.team_name,
-        slug: m.team_slug,
-        role: m.role,
-      })),
+      teams: membershipTeams,
     };
   });
 
@@ -160,24 +145,8 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can list teams" });
       }
 
-      const memberships = await app.db
-        .select({
-          team_id: teamMembers.team_id,
-          role: teamMembers.role,
-          team_name: teams.name,
-          team_slug: teams.slug,
-        })
-        .from(teamMembers)
-        .innerJoin(teams, eq(teams.id, teamMembers.team_id))
-        .where(eq(teamMembers.user_id, auth.user_id));
-
       return {
-        teams: memberships.map((m) => ({
-          id: m.team_id,
-          name: m.team_name,
-          slug: m.team_slug,
-          role: m.role,
-        })),
+        teams: await getUserTeamMemberships(app.db, auth.user_id),
       };
     }
   );
