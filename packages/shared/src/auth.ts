@@ -27,12 +27,60 @@ export type Permission =
   | "funnels:read"
   | "apps:read"
   | "apps:write"
+  | "projects:read"
+  | "projects:write"
   | "keys:manage";
+
+export const VALID_PERMISSIONS: Permission[] = [
+  "events:write",
+  "events:read",
+  "funnels:read",
+  "apps:read",
+  "apps:write",
+  "projects:read",
+  "projects:write",
+  "keys:manage",
+];
+
+export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
+  client: ["events:write"],
+  agent: ["events:read", "funnels:read", "apps:read", "apps:write", "projects:read", "projects:write", "keys:manage"],
+};
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
   client: ["events:write"],
-  agent: ["events:read", "funnels:read"],
+  agent: ["events:read", "funnels:read", "apps:read", "projects:read"],
 };
+
+/**
+ * Validates that every permission in the array is valid for the given key type.
+ * Returns an error string if invalid, or null if valid.
+ */
+export function validatePermissionsForKeyType(
+  keyType: ApiKeyType,
+  permissions: string[]
+): string | null {
+  if (permissions.length === 0) {
+    return "At least one permission is required";
+  }
+
+  const unique = new Set(permissions);
+  if (unique.size !== permissions.length) {
+    return "Duplicate permissions are not allowed";
+  }
+
+  const allowed = ALLOWED_PERMISSIONS_BY_KEY_TYPE[keyType];
+  for (const perm of permissions) {
+    if (!VALID_PERMISSIONS.includes(perm as Permission)) {
+      return `Unknown permission: ${perm}`;
+    }
+    if (!allowed.includes(perm as Permission)) {
+      return `Permission "${perm}" is not allowed for ${keyType} keys`;
+    }
+  }
+
+  return null;
+}
 
 export interface User {
   id: string;

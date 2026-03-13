@@ -1,5 +1,5 @@
 import type { StoredEvent, IngestRequest, IngestResponse } from "./events.js";
-import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole } from "./auth.js";
+import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 
 // Auth
@@ -33,6 +33,7 @@ export interface CreateApiKeyRequest {
   key_type: ApiKeyType;
   app_id?: string;
   team_id?: string; // required for agent keys (no app_id to derive team from)
+  permissions?: Permission[];
   expires_in_days?: number;
 }
 

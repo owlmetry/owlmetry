@@ -177,7 +177,7 @@ export async function seedTestData() {
       ${null},
       ${team.id},
       'Test Agent Key',
-      ${JSON.stringify(["events:read", "funnels:read"])}::jsonb
+      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read"])}::jsonb
     )
   `;
 

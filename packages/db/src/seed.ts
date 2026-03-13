@@ -86,7 +86,7 @@ async function main() {
     app_id: null,
     team_id: team.id,
     name: "Demo Agent Key",
-    permissions: ["events:read", "funnels:read"],
+    permissions: ["events:read", "funnels:read", "apps:read", "projects:read"],
   });
 
   console.log("\nSeed complete!");

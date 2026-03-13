@@ -3,13 +3,13 @@ import { eq, and, inArray, isNull } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest, CreateAppRequest } from "@owlmetry/shared";
 import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
-import { requireAuth, getAuthTeamIds, assertTeamRole } from "../middleware/auth.js";
+import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
   // List projects for the authenticated user's teams
   app.get(
     "/projects",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("projects:read") },
     async (request, reply) => {
       const auth = request.auth;
       const teamIds = getAuthTeamIds(auth);
@@ -32,7 +32,7 @@ export async function projectsRoutes(app: FastifyInstance) {
   // Get single project with its apps
   app.get<{ Params: { id: string } }>(
     "/projects/:id",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("projects:read") },
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
@@ -74,16 +74,9 @@ export async function projectsRoutes(app: FastifyInstance) {
   // Create project
   app.post<{ Body: CreateProjectRequest }>(
     "/projects",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("projects:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply
-          .code(403)
-          .send({ error: "Only users can create projects" });
-      }
-
       const { team_id, name, slug } = request.body;
 
       if (!team_id || !name || !slug) {
@@ -96,6 +89,10 @@ export async function projectsRoutes(app: FastifyInstance) {
         return reply
           .code(400)
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
+      }
+
+      if (!hasTeamAccess(auth, team_id)) {
+        return reply.code(403).send({ error: "Not a member of this team" });
       }
 
       const roleError = assertTeamRole(auth, team_id, "admin");
@@ -132,14 +129,9 @@ export async function projectsRoutes(app: FastifyInstance) {
   // Create app under project
   app.post<{ Params: { id: string }; Body: Omit<CreateAppRequest, "project_id"> }>(
     "/projects/:id/apps",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("apps:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can create apps" });
-      }
-
       const { id: project_id } = request.params;
       const { name, platform, bundle_id } = request.body;
 
@@ -155,7 +147,7 @@ export async function projectsRoutes(app: FastifyInstance) {
         .where(and(eq(projects.id, project_id), isNull(projects.deleted_at)))
         .limit(1);
 
-      if (!project) {
+      if (!project || !hasTeamAccess(auth, project.team_id)) {
         return reply.code(404).send({ error: "Project not found" });
       }
 
@@ -186,14 +178,9 @@ export async function projectsRoutes(app: FastifyInstance) {
   // Update project
   app.patch<{ Params: { id: string }; Body: UpdateProjectRequest }>(
     "/projects/:id",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("projects:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can update projects" });
-      }
-
       const { id } = request.params;
       const { name } = request.body;
 
@@ -239,14 +226,9 @@ export async function projectsRoutes(app: FastifyInstance) {
   // Delete project (soft delete)
   app.delete<{ Params: { id: string } }>(
     "/projects/:id",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("projects:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can delete projects" });
-      }
-
       const { id } = request.params;
 
       const [project] = await app.db

@@ -3,7 +3,7 @@ import { eq, and, inArray, isNull } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { randomBytes } from "node:crypto";
 import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
-import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, hashApiKey } from "@owlmetry/shared";
+import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, hashApiKey } from "@owlmetry/shared";
 import type {
   RegisterRequest,
   LoginRequest,
@@ -355,7 +355,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can create API keys" });
       }
 
-      const { name, key_type, app_id, team_id, expires_in_days } = request.body;
+      const { name, key_type, app_id, team_id, permissions: requestedPermissions, expires_in_days } = request.body;
 
       if (!name || !key_type) {
         return reply.code(400).send({ error: "name and key_type required" });
@@ -401,9 +401,14 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: keyRoleError });
       }
 
+      const permissions = requestedPermissions ?? DEFAULT_API_KEY_PERMISSIONS[key_type];
+      const permissionError = validatePermissionsForKeyType(key_type, permissions);
+      if (permissionError) {
+        return reply.code(400).send({ error: permissionError });
+      }
+
       const prefix = API_KEY_PREFIX[key_type];
       const fullKey = `${prefix}${randomBytes(24).toString("hex")}`;
-      const permissions = DEFAULT_API_KEY_PERMISSIONS[key_type];
 
       const expires_at = expires_in_days
         ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000)

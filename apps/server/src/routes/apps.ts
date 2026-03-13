@@ -2,13 +2,13 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { apps, projects } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
-import { requireAuth, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
+import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
   app.get(
     "/apps",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("apps:read") },
     async (request, reply) => {
       const auth = request.auth;
       const teamIds = getAuthTeamIds(auth);
@@ -31,14 +31,9 @@ export async function appsRoutes(app: FastifyInstance) {
   // Create app (team derived from project)
   app.post<{ Body: CreateAppRequest }>(
     "/apps",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("apps:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can create apps" });
-      }
-
       const { name, platform, bundle_id, project_id } = request.body;
 
       if (!name || !platform || !bundle_id || !project_id) {
@@ -56,7 +51,7 @@ export async function appsRoutes(app: FastifyInstance) {
         .where(and(eq(projects.id, project_id), isNull(projects.deleted_at)))
         .limit(1);
 
-      if (!project) {
+      if (!project || !hasTeamAccess(auth, project.team_id)) {
         return reply.code(404).send({ error: "Project not found" });
       }
 
@@ -87,14 +82,9 @@ export async function appsRoutes(app: FastifyInstance) {
   // Update app
   app.patch<{ Params: { id: string }; Body: UpdateAppRequest }>(
     "/apps/:id",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("apps:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can update apps" });
-      }
-
       const { id } = request.params;
       const { name, bundle_id } = request.body;
 
@@ -144,14 +134,9 @@ export async function appsRoutes(app: FastifyInstance) {
   // Delete app (soft delete)
   app.delete<{ Params: { id: string } }>(
     "/apps/:id",
-    { preHandler: requireAuth },
+    { preHandler: requirePermission("apps:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can delete apps" });
-      }
-
       const { id } = request.params;
 
       const [existing] = await app.db
