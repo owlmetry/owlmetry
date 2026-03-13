@@ -495,12 +495,13 @@ describe("API key permission enforcement — projects routes", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/projects/${testData.projectId}/apps`,
+      url: "/v1/apps",
       headers: { authorization: `Bearer ${key}` },
       payload: {
         name: "Agent App",
         platform: "android",
         bundle_id: "dev.owlmetry.agentapp",
+        project_id: testData.projectId,
       },
     });
 
@@ -508,15 +509,16 @@ describe("API key permission enforcement — projects routes", () => {
     expect(res.json().name).toBe("Agent App");
   });
 
-  it("agent key without apps:write cannot create app under project", async () => {
+  it("agent key without apps:write cannot create app", async () => {
     const res = await app.inject({
       method: "POST",
-      url: `/v1/projects/${testData.projectId}/apps`,
+      url: "/v1/apps",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
       payload: {
         name: "Nope",
         platform: "ios",
         bundle_id: "dev.owlmetry.nope",
+        project_id: testData.projectId,
       },
     });
 
@@ -598,9 +600,9 @@ describe("API key team boundary enforcement", () => {
 
     const appRes = await app.inject({
       method: "POST",
-      url: `/v1/projects/${otherProjectId}/apps`,
+      url: "/v1/apps",
       headers: { authorization: `Bearer ${otherTeamToken}` },
-      payload: { name: "Other App", platform: "ios", bundle_id: "dev.other.app" },
+      payload: { name: "Other App", platform: "ios", bundle_id: "dev.other.app", project_id: otherProjectId },
     });
     otherAppId = appRes.json().id;
   });
@@ -648,9 +650,9 @@ describe("API key team boundary enforcement", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/projects/${otherProjectId}/apps`,
+      url: "/v1/apps",
       headers: { authorization: `Bearer ${key}` },
-      payload: { name: "Sneaky", platform: "ios", bundle_id: "dev.sneaky.app" },
+      payload: { name: "Sneaky", platform: "ios", bundle_id: "dev.sneaky.app", project_id: otherProjectId },
     });
 
     expect(res.statusCode).toBe(404);
