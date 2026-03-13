@@ -105,7 +105,6 @@ export interface CreateAppRequest {
 
 export interface UpdateAppRequest {
   name?: string;
-  bundle_id?: string;
 }
 
 export type AppResponse = Omit<App, "created_at" | "deleted_at"> & {

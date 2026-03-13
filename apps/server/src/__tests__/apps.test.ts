@@ -266,7 +266,7 @@ describe("PATCH /v1/apps/:id", () => {
     expect(body.client_key).toBe(TEST_CLIENT_KEY);
   });
 
-  it("updates app bundle_id", async () => {
+  it("ignores bundle_id in update payload", async () => {
     const token = await getToken(app);
     const res = await app.inject({
       method: "PATCH",
@@ -275,23 +275,8 @@ describe("PATCH /v1/apps/:id", () => {
       payload: { bundle_id: "dev.owlmetry.updated" },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(res.json().bundle_id).toBe("dev.owlmetry.updated");
-  });
-
-  it("updates multiple fields at once", async () => {
-    const token = await getToken(app);
-    const res = await app.inject({
-      method: "PATCH",
-      url: `/v1/apps/${testData.appId}`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { name: "New Name", bundle_id: "dev.owlmetry.new" },
-    });
-
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.name).toBe("New Name");
-    expect(body.bundle_id).toBe("dev.owlmetry.new");
+    // bundle_id is not an updatable field, so this is treated as an empty update
+    expect(res.statusCode).toBe(400);
   });
 
   it("rejects empty body", async () => {

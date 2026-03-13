@@ -99,9 +99,9 @@ export async function appsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { name, bundle_id } = request.body;
+      const { name } = request.body;
 
-      if (!name && !bundle_id) {
+      if (!name) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
@@ -126,13 +126,9 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: updateRoleError });
       }
 
-      const updates: Partial<{ name: string; bundle_id: string }> = {};
-      if (name) updates.name = name;
-      if (bundle_id) updates.bundle_id = bundle_id;
-
       const [updated] = await app.db
         .update(apps)
-        .set(updates)
+        .set({ name })
         .where(eq(apps.id, id))
         .returning();
 
