@@ -40,13 +40,17 @@ export interface CreateApiKeyRequest {
   expires_in_days?: number;
 }
 
+// Serialized API key (dates as ISO strings, excludes deleted_at)
+export type ApiKeyResponse = Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at" | "deleted_at"> & {
+  created_at: string;
+  updated_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+};
+
 export interface CreateApiKeyResponse {
   key: string; // full key, shown only once
-  api_key: Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at"> & {
-    created_at: string;
-    updated_at: string;
-    expires_at: string | null;
-  };
+  api_key: ApiKeyResponse;
 }
 
 // User profile
@@ -67,24 +71,12 @@ export interface UpdateApiKeyRequest {
 
 // Single API key
 export interface GetApiKeyResponse {
-  api_key: Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at"> & {
-    created_at: string;
-    updated_at: string;
-    last_used_at: string | null;
-    expires_at: string | null;
-  };
+  api_key: ApiKeyResponse;
 }
 
 // API key listing
 export interface ListApiKeysResponse {
-  api_keys: Array<
-    Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at"> & {
-      created_at: string;
-      updated_at: string;
-      last_used_at: string | null;
-      expires_at: string | null;
-    }
-  >;
+  api_keys: ApiKeyResponse[];
 }
 
 // API key deletion

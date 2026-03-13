@@ -10,6 +10,7 @@ import type {
   CreateApiKeyRequest,
   UpdateApiKeyRequest,
   UpdateMeRequest,
+  Permission,
 } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
@@ -21,6 +22,26 @@ function serializeUser(user: { id: string; email: string; name: string; created_
     name: user.name,
     created_at: user.created_at.toISOString(),
     updated_at: user.updated_at.toISOString(),
+  };
+}
+
+function serializeApiKey(k: {
+  id: string; key_prefix: string; key_type: string; app_id: string | null;
+  team_id: string; name: string; permissions: unknown;
+  created_at: Date; updated_at: Date; last_used_at: Date | null; expires_at: Date | null;
+}) {
+  return {
+    id: k.id,
+    key_prefix: k.key_prefix,
+    key_type: k.key_type,
+    app_id: k.app_id,
+    team_id: k.team_id,
+    name: k.name,
+    permissions: k.permissions,
+    created_at: k.created_at.toISOString(),
+    updated_at: k.updated_at.toISOString(),
+    last_used_at: k.last_used_at?.toISOString() || null,
+    expires_at: k.expires_at?.toISOString() || null,
   };
 }
 
@@ -247,19 +268,7 @@ export async function authRoutes(app: FastifyInstance) {
         );
 
       return {
-        api_keys: rows.map((k) => ({
-          id: k.id,
-          key_prefix: k.key_prefix,
-          key_type: k.key_type,
-          app_id: k.app_id,
-          team_id: k.team_id,
-          name: k.name,
-          permissions: k.permissions,
-          created_at: k.created_at.toISOString(),
-          updated_at: k.updated_at.toISOString(),
-          last_used_at: k.last_used_at?.toISOString() || null,
-          expires_at: k.expires_at?.toISOString() || null,
-        })),
+        api_keys: rows.map(serializeApiKey),
       };
     }
   );
@@ -286,21 +295,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "API key not found" });
       }
 
-      return {
-        api_key: {
-          id: key.id,
-          key_prefix: key.key_prefix,
-          key_type: key.key_type,
-          app_id: key.app_id,
-          team_id: key.team_id,
-          name: key.name,
-          permissions: key.permissions,
-          created_at: key.created_at.toISOString(),
-          updated_at: key.updated_at.toISOString(),
-          last_used_at: key.last_used_at?.toISOString() || null,
-          expires_at: key.expires_at?.toISOString() || null,
-        },
-      };
+      return { api_key: serializeApiKey(key) };
     }
   );
 
@@ -321,7 +316,11 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       const [key] = await app.db
-        .select()
+        .select({
+          id: apiKeys.id,
+          team_id: apiKeys.team_id,
+          key_type: apiKeys.key_type,
+        })
         .from(apiKeys)
         .where(
           and(eq(apiKeys.id, request.params.id), isNull(apiKeys.deleted_at))
@@ -344,7 +343,7 @@ export async function authRoutes(app: FastifyInstance) {
         }
       }
 
-      const updates: Partial<{ name: string; permissions: string[] }> = {};
+      const updates: Partial<{ name: string; permissions: Permission[] }> = {};
       if (name) updates.name = name;
       if (permissions) updates.permissions = permissions;
 
@@ -354,21 +353,7 @@ export async function authRoutes(app: FastifyInstance) {
         .where(eq(apiKeys.id, request.params.id))
         .returning();
 
-      return {
-        api_key: {
-          id: updated.id,
-          key_prefix: updated.key_prefix,
-          key_type: updated.key_type,
-          app_id: updated.app_id,
-          team_id: updated.team_id,
-          name: updated.name,
-          permissions: updated.permissions,
-          created_at: updated.created_at.toISOString(),
-          updated_at: updated.updated_at.toISOString(),
-          last_used_at: updated.last_used_at?.toISOString() || null,
-          expires_at: updated.expires_at?.toISOString() || null,
-        },
-      };
+      return { api_key: serializeApiKey(updated) };
     }
   );
 
@@ -493,18 +478,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       return reply.code(201).send({
         key: fullKey,
-        api_key: {
-          id: apiKey.id,
-          key_prefix: apiKey.key_prefix,
-          key_type: apiKey.key_type,
-          app_id: apiKey.app_id,
-          team_id: apiKey.team_id,
-          name: apiKey.name,
-          permissions: apiKey.permissions,
-          created_at: apiKey.created_at.toISOString(),
-          updated_at: apiKey.updated_at.toISOString(),
-          expires_at: apiKey.expires_at?.toISOString() || null,
-        },
+        api_key: serializeApiKey(apiKey),
       });
     }
   );
