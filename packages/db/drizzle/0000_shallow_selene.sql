@@ -51,8 +51,7 @@ CREATE TABLE "events" (
 	"build_number" varchar(50),
 	"locale" varchar(20),
 	"timestamp" timestamp with time zone NOT NULL,
-	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"is_resolved" boolean DEFAULT false NOT NULL
+	"received_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "funnel_definitions" (

@@ -476,13 +476,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "is_resolved": {
-          "name": "is_resolved",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         }
       },
       "indexes": {

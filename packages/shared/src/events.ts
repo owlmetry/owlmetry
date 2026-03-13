@@ -42,7 +42,6 @@ export interface StoredEvent {
   locale: string | null;
   timestamp: Date;
   received_at: Date;
-  is_resolved: boolean;
 }
 
 export interface IngestRequest {

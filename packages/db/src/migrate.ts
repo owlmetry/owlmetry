@@ -56,8 +56,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       build_number VARCHAR(50),
       locale VARCHAR(20),
       "timestamp" TIMESTAMPTZ NOT NULL,
-      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      is_resolved BOOLEAN NOT NULL DEFAULT false
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     ) PARTITION BY RANGE ("timestamp");
   `);
 }

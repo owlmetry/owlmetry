@@ -4,7 +4,6 @@ import {
   text,
   varchar,
   timestamp,
-  boolean,
   integer,
   jsonb,
   index,
@@ -159,7 +158,6 @@ export const events = pgTable(
     received_at: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    is_resolved: boolean("is_resolved").notNull().default(false),
   },
   (table) => [
     index("events_app_timestamp_idx").on(table.app_id, table.timestamp),
