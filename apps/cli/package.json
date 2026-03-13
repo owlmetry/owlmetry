@@ -1,0 +1,23 @@
+{
+  "name": "@owlmetry/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "owlmetry": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@owlmetry/shared": "workspace:*",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

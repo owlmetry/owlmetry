@@ -111,6 +111,16 @@ export type AppResponse = Omit<App, "created_at" | "deleted_at"> & {
   created_at: string;
 };
 
+// Projects (serialized)
+export type ProjectResponse = Omit<Project, "created_at" | "deleted_at"> & { created_at: string };
+export type ProjectDetailResponse = ProjectResponse & { apps: AppResponse[] };
+
+// Events (serialized — API returns ISO strings, not Date objects)
+export type StoredEventResponse = Omit<StoredEvent, "timestamp" | "received_at"> & {
+  timestamp: string;
+  received_at: string;
+};
+
 // Events query
 export interface EventsQueryParams {
   project_id?: string;
@@ -125,7 +135,7 @@ export interface EventsQueryParams {
 }
 
 export interface EventsResponse {
-  events: StoredEvent[];
+  events: StoredEventResponse[];
   cursor: string | null;
   has_more: boolean;
 }
@@ -184,6 +194,7 @@ export type {
   Project,
   ApiKey,
   TeamRole,
+  Permission,
   FunnelDefinition,
   FunnelAnalytics,
 };
