@@ -1,6 +1,6 @@
 import type { Db } from "@owlmetry/db";
 import type { FastifyInstance } from "fastify";
-import type { TeamRole, Permission } from "@owlmetry/shared";
+import type { TeamRole, Permission, ApiKeyType } from "@owlmetry/shared";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -16,7 +16,7 @@ export interface UserJwtPayload {
 export interface ApiKeyContext {
   type: "api_key";
   key_id: string;
-  key_type: "client" | "agent";
+  key_type: ApiKeyType;
   app_id: string | null;
   team_id: string;
   permissions: Permission[];

@@ -189,7 +189,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       }
 
       const [project] = await app.db
-        .select()
+        .select({ id: projects.id, team_id: projects.team_id })
         .from(projects)
         .where(
           and(
@@ -232,7 +232,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       const { id } = request.params;
 
       const [project] = await app.db
-        .select()
+        .select({ id: projects.id, team_id: projects.team_id })
         .from(projects)
         .where(
           and(
@@ -255,15 +255,16 @@ export async function projectsRoutes(app: FastifyInstance) {
       const now = new Date();
 
       // Soft-delete the project and all its apps
-      await app.db
-        .update(apps)
-        .set({ deleted_at: now })
-        .where(and(eq(apps.project_id, id), isNull(apps.deleted_at)));
-
-      await app.db
-        .update(projects)
-        .set({ deleted_at: now })
-        .where(eq(projects.id, id));
+      await Promise.all([
+        app.db
+          .update(apps)
+          .set({ deleted_at: now })
+          .where(and(eq(apps.project_id, id), isNull(apps.deleted_at))),
+        app.db
+          .update(projects)
+          .set({ deleted_at: now })
+          .where(eq(projects.id, id)),
+      ]);
 
       return { deleted: true };
     }

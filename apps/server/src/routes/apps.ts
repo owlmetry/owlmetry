@@ -93,7 +93,7 @@ export async function appsRoutes(app: FastifyInstance) {
       }
 
       const [existing] = await app.db
-        .select()
+        .select({ id: apps.id, team_id: apps.team_id })
         .from(apps)
         .where(
           and(
@@ -140,7 +140,7 @@ export async function appsRoutes(app: FastifyInstance) {
       const { id } = request.params;
 
       const [existing] = await app.db
-        .select()
+        .select({ id: apps.id, team_id: apps.team_id })
         .from(apps)
         .where(
           and(
