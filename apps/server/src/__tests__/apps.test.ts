@@ -133,4 +133,205 @@ describe("POST /v1/apps", () => {
 
     expect(res.json().apps).toHaveLength(2);
   });
+
+  it("cannot create app under a deleted project", async () => {
+    const token = await getToken(app);
+
+    // Delete the project first
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Ghost App",
+        platform: "ios",
+        bundle_id: "dev.owlmetry.ghost",
+        project_id: testData.projectId,
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("PATCH /v1/apps/:id", () => {
+  it("updates app name", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Renamed App" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().name).toBe("Renamed App");
+  });
+
+  it("updates app bundle_id", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { bundle_id: "dev.owlmetry.updated" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().bundle_id).toBe("dev.owlmetry.updated");
+  });
+
+  it("updates multiple fields at once", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "New Name", bundle_id: "dev.owlmetry.new" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.name).toBe("New Name");
+    expect(body.bundle_id).toBe("dev.owlmetry.new");
+  });
+
+  it("rejects empty body", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("returns 404 for non-existent app", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/apps/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Nope" },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { name: "Nope" },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("cannot update a deleted app", async () => {
+    const token = await getToken(app);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Nope" },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("DELETE /v1/apps/:id", () => {
+  it("soft-deletes an app", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(true);
+
+    // Verify it no longer appears in the list
+    const listRes = await app.inject({
+      method: "GET",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(listRes.json().apps).toHaveLength(0);
+  });
+
+  it("returns 404 for non-existent app", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/v1/apps/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 when deleting an already-deleted app", async () => {
+    const token = await getToken(app);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for app belonging to another team", async () => {
+    const regRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/register",
+      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+    });
+    const otherToken = regRes.json().token;
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${otherToken}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 403 with API key auth", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
 });

@@ -211,8 +211,12 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/v1/projects` | JWT | List projects |
 | `GET` | `/v1/projects/:id` | JWT | Get project with apps |
 | `POST` | `/v1/projects` | JWT | Create project (requires team_id in body) |
+| `PATCH` | `/v1/projects/:id` | JWT | Update project name |
+| `DELETE` | `/v1/projects/:id` | JWT | Soft-delete project and its apps |
 | `GET` | `/v1/apps` | JWT | List apps |
 | `POST` | `/v1/apps` | JWT | Create app (requires project_id) |
+| `PATCH` | `/v1/apps/:id` | JWT | Update app name or bundle_id |
+| `DELETE` | `/v1/apps/:id` | JWT | Soft-delete app |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
 
 ## Environment Variables
