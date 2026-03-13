@@ -78,18 +78,15 @@ export class OwlMetryClient {
   }
 
   async getProject(id: string): Promise<ProjectDetailResponse> {
-    const result = await this.request<{ project: ProjectDetailResponse }>("GET", `/v1/projects/${id}`);
-    return result.project;
+    return this.request<ProjectDetailResponse>("GET", `/v1/projects/${id}`);
   }
 
   async createProject(body: CreateProjectRequest): Promise<ProjectResponse> {
-    const result = await this.request<{ project: ProjectResponse }>("POST", "/v1/projects", { body });
-    return result.project;
+    return this.request<ProjectResponse>("POST", "/v1/projects", { body });
   }
 
   async updateProject(id: string, body: UpdateProjectRequest): Promise<ProjectResponse> {
-    const result = await this.request<{ project: ProjectResponse }>("PATCH", `/v1/projects/${id}`, { body });
-    return result.project;
+    return this.request<ProjectResponse>("PATCH", `/v1/projects/${id}`, { body });
   }
 
   // Apps
@@ -99,18 +96,15 @@ export class OwlMetryClient {
   }
 
   async getApp(id: string): Promise<AppResponse> {
-    const result = await this.request<{ app: AppResponse }>("GET", `/v1/apps/${id}`);
-    return result.app;
+    return this.request<AppResponse>("GET", `/v1/apps/${id}`);
   }
 
   async createApp(body: CreateAppRequest): Promise<AppResponse> {
-    const result = await this.request<{ app: AppResponse }>("POST", "/v1/apps", { body });
-    return result.app;
+    return this.request<AppResponse>("POST", "/v1/apps", { body });
   }
 
   async updateApp(id: string, body: UpdateAppRequest): Promise<AppResponse> {
-    const result = await this.request<{ app: AppResponse }>("PATCH", `/v1/apps/${id}`, { body });
-    return result.app;
+    return this.request<AppResponse>("PATCH", `/v1/apps/${id}`, { body });
   }
 
   // Events
@@ -130,7 +124,6 @@ export class OwlMetryClient {
   }
 
   async getEvent(id: string): Promise<StoredEventResponse> {
-    const result = await this.request<{ event: StoredEventResponse }>("GET", `/v1/events/${id}`);
-    return result.event;
+    return this.request<StoredEventResponse>("GET", `/v1/events/${id}`);
   }
 }

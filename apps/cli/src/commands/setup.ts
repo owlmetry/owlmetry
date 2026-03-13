@@ -1,25 +1,34 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { saveConfig } from "../config.js";
+import { saveConfig, getGlobals } from "../config.js";
 import { OwlMetryClient } from "../client.js";
 
 export const setupCommand = new Command("setup")
-  .description("Configure CLI endpoint and API key")
-  .requiredOption("--endpoint <url>", "OwlMetry server URL")
-  .requiredOption("--api-key <key>", "API key (agent key)")
-  .action(async (opts: { endpoint: string; apiKey: string }) => {
+  .description("Configure CLI endpoint and API key (pass --endpoint and --api-key)")
+  .action(async (_opts, cmd) => {
+    const globals = getGlobals(cmd);
+
+    if (!globals.endpoint) {
+      console.error(chalk.red("--endpoint is required for setup"));
+      process.exit(1);
+    }
+    if (!globals.apiKey) {
+      console.error(chalk.red("--api-key is required for setup"));
+      process.exit(1);
+    }
+
     // Validate URL
     try {
-      new URL(opts.endpoint);
+      new URL(globals.endpoint);
     } catch {
-      console.error(chalk.red(`Invalid URL: ${opts.endpoint}`));
+      console.error(chalk.red(`Invalid URL: ${globals.endpoint}`));
       process.exit(1);
     }
 
     // Verify connectivity
     const client = new OwlMetryClient({
-      endpoint: opts.endpoint,
-      apiKey: opts.apiKey,
+      endpoint: globals.endpoint,
+      apiKey: globals.apiKey,
     });
 
     try {
@@ -31,6 +40,6 @@ export const setupCommand = new Command("setup")
       process.exit(1);
     }
 
-    saveConfig({ endpoint: opts.endpoint, api_key: opts.apiKey });
+    saveConfig({ endpoint: globals.endpoint, api_key: globals.apiKey });
     console.log(chalk.green("Configuration saved to ~/.owlmetry/config.json"));
   });
