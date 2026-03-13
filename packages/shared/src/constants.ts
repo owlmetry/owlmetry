@@ -16,3 +16,7 @@ export const MAX_BATCH_SIZE = 100;
 export const MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH = 200;
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
+
+export const SLUG_REGEX = /^[a-z0-9-]+$/;
+
+export const PG_UNIQUE_VIOLATION = "23505";

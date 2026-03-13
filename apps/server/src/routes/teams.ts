@@ -1,7 +1,8 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { eq, and, count } from "drizzle-orm";
 import { teams, teamMembers, users } from "@owlmetry/db";
-import { canManageRole, meetsMinimumRole } from "@owlmetry/shared";
+import type { Db } from "@owlmetry/db";
+import { canManageRole, VALID_TEAM_ROLES, SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import type {
   TeamRole,
   CreateTeamRequest,
@@ -11,6 +12,27 @@ import type {
 } from "@owlmetry/shared";
 import { requireAuth, getTeamRole, assertTeamRole } from "../middleware/auth.js";
 import type { UserContext } from "../types.js";
+
+async function getTeamMembers(db: Db, teamId: string) {
+  return db
+    .select({
+      user_id: teamMembers.user_id,
+      role: teamMembers.role,
+      email: users.email,
+      name: users.name,
+    })
+    .from(teamMembers)
+    .innerJoin(users, eq(users.id, teamMembers.user_id))
+    .where(eq(teamMembers.team_id, teamId));
+}
+
+async function isLastOwner(db: Db, teamId: string): Promise<boolean> {
+  const [result] = await db
+    .select({ count: count() })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.team_id, teamId), eq(teamMembers.role, "owner")));
+  return result.count <= 1;
+}
 
 export async function teamsRoutes(app: FastifyInstance) {
   // Create team
@@ -30,22 +52,26 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "name and slug are required" });
       }
 
-      if (!/^[a-z0-9-]+$/.test(slug)) {
+      if (!SLUG_REGEX.test(slug)) {
         return reply
           .code(400)
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
       }
 
       try {
-        const [team] = await app.db
-          .insert(teams)
-          .values({ name, slug })
-          .returning();
+        const team = await app.db.transaction(async (tx) => {
+          const [created] = await tx
+            .insert(teams)
+            .values({ name, slug })
+            .returning();
 
-        await app.db.insert(teamMembers).values({
-          team_id: team.id,
-          user_id: auth.user_id,
-          role: "owner",
+          await tx.insert(teamMembers).values({
+            team_id: created.id,
+            user_id: auth.user_id,
+            role: "owner",
+          });
+
+          return created;
         });
 
         return reply.code(201).send({
@@ -56,7 +82,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           updated_at: team.updated_at.toISOString(),
         });
       } catch (err: any) {
-        if (err.code === "23505") {
+        if (err.code === PG_UNIQUE_VIOLATION) {
           return reply.code(409).send({ error: "A team with this slug already exists" });
         }
         throw err;
@@ -77,26 +103,15 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: roleError });
       }
 
-      const [team] = await app.db
-        .select()
-        .from(teams)
-        .where(eq(teams.id, teamId))
-        .limit(1);
+      const [teamRows, members] = await Promise.all([
+        app.db.select().from(teams).where(eq(teams.id, teamId)).limit(1),
+        getTeamMembers(app.db, teamId),
+      ]);
 
+      const team = teamRows[0];
       if (!team) {
         return reply.code(404).send({ error: "Team not found" });
       }
-
-      const members = await app.db
-        .select({
-          user_id: teamMembers.user_id,
-          role: teamMembers.role,
-          email: users.email,
-          name: users.name,
-        })
-        .from(teamMembers)
-        .innerJoin(users, eq(users.id, teamMembers.user_id))
-        .where(eq(teamMembers.team_id, teamId));
 
       return {
         id: team.id,
@@ -199,18 +214,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: roleError });
       }
 
-      const members = await app.db
-        .select({
-          user_id: teamMembers.user_id,
-          role: teamMembers.role,
-          email: users.email,
-          name: users.name,
-        })
-        .from(teamMembers)
-        .innerJoin(users, eq(users.id, teamMembers.user_id))
-        .where(eq(teamMembers.team_id, teamId));
-
-      return { members };
+      return { members: await getTeamMembers(app.db, teamId) };
     }
   );
 
@@ -238,7 +242,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "email is required" });
       }
 
-      if (!["owner", "admin", "member"].includes(targetRole)) {
+      if (!(VALID_TEAM_ROLES as readonly string[]).includes(targetRole)) {
         return reply.code(400).send({ error: "Invalid role" });
       }
 
@@ -266,7 +270,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           role: targetRole,
         });
       } catch (err: any) {
-        if (err.code === "23505") {
+        if (err.code === PG_UNIQUE_VIOLATION) {
           return reply.code(409).send({ error: "User is already a member of this team" });
         }
         throw err;
@@ -300,7 +304,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       const { role: newRole } = request.body;
 
-      if (!newRole || !["owner", "admin", "member"].includes(newRole)) {
+      if (!newRole || !(VALID_TEAM_ROLES as readonly string[]).includes(newRole)) {
         return reply.code(400).send({ error: "A valid role is required" });
       }
 
@@ -333,12 +337,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       // Prevent demoting the last owner
       if (target.role === "owner" && newRole !== "owner") {
-        const [ownerCount] = await app.db
-          .select({ count: count() })
-          .from(teamMembers)
-          .where(and(eq(teamMembers.team_id, teamId), eq(teamMembers.role, "owner")));
-
-        if (ownerCount.count <= 1) {
+        if (await isLastOwner(app.db, teamId)) {
           return reply.code(400).send({ error: "Cannot demote the last owner" });
         }
       }
@@ -409,23 +408,15 @@ async function handleLeaveTeam(
   app: FastifyInstance,
   auth: UserContext,
   teamId: string,
-  reply: any
+  reply: FastifyReply
 ) {
   const role = getTeamRole(auth, teamId);
   if (!role) {
     return reply.code(403).send({ error: "Not a member of this team" });
   }
 
-  // If the user is an owner, ensure they're not the last one
-  if (role === "owner") {
-    const [ownerCount] = await app.db
-      .select({ count: count() })
-      .from(teamMembers)
-      .where(and(eq(teamMembers.team_id, teamId), eq(teamMembers.role, "owner")));
-
-    if (ownerCount.count <= 1) {
-      return reply.code(400).send({ error: "Transfer ownership before leaving — you are the sole owner" });
-    }
+  if (role === "owner" && await isLastOwner(app.db, teamId)) {
+    return reply.code(400).send({ error: "Transfer ownership before leaving — you are the sole owner" });
   }
 
   await app.db

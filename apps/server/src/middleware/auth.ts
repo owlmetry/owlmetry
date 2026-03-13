@@ -14,7 +14,9 @@ declare module "fastify" {
 
 /** Returns all team IDs the authenticated context has access to. */
 export function getAuthTeamIds(auth: AuthContext): string[] {
-  return auth.type === "api_key" ? [auth.team_id] : auth.team_ids;
+  return auth.type === "api_key"
+    ? [auth.team_id]
+    : auth.team_memberships.map((m) => m.team_id);
 }
 
 /** Checks if the authenticated context has access to a specific team. */
@@ -111,7 +113,6 @@ export async function requireAuth(
       user_id: payload.sub,
       email: payload.email,
       team_memberships: memberships,
-      team_ids: memberships.map((m) => m.team_id),
     } satisfies UserContext;
   } catch {
     return reply.code(401).send({ error: "Invalid or expired token" });

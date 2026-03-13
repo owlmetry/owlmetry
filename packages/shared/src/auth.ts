@@ -1,5 +1,7 @@
 export type TeamRole = "owner" | "admin" | "member";
 
+export const VALID_TEAM_ROLES: TeamRole[] = ["owner", "admin", "member"];
+
 /** Numeric hierarchy for role comparisons — higher = more privileged. */
 export const TEAM_ROLE_HIERARCHY: Record<TeamRole, number> = {
   owner: 3,

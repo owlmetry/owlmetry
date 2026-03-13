@@ -10,7 +10,7 @@ import type {
   CreateApiKeyRequest,
   UpdateMeRequest,
 } from "@owlmetry/shared";
-import { requireAuth, hasTeamAccess, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
+import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 
 function generateSlugFromName(name: string): string {
@@ -241,7 +241,8 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can list API keys" });
       }
 
-      if (auth.team_ids.length === 0) {
+      const teamIds = getAuthTeamIds(auth);
+      if (teamIds.length === 0) {
         return { api_keys: [] };
       }
 
@@ -249,7 +250,7 @@ export async function authRoutes(app: FastifyInstance) {
         .select()
         .from(apiKeys)
         .where(
-          and(inArray(apiKeys.team_id, auth.team_ids), isNull(apiKeys.deleted_at))
+          and(inArray(apiKeys.team_id, teamIds), isNull(apiKeys.deleted_at))
         );
 
       return {

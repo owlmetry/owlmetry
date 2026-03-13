@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { projects, apps } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest, CreateAppRequest } from "@owlmetry/shared";
-import { requireAuth, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
+import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
+import { requireAuth, getAuthTeamIds, assertTeamRole } from "../middleware/auth.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
   // List projects for the authenticated user's teams
@@ -91,7 +92,7 @@ export async function projectsRoutes(app: FastifyInstance) {
           .send({ error: "team_id, name, and slug are required" });
       }
 
-      if (!/^[a-z0-9-]+$/.test(slug)) {
+      if (!SLUG_REGEX.test(slug)) {
         return reply
           .code(400)
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
@@ -118,7 +119,7 @@ export async function projectsRoutes(app: FastifyInstance) {
           deleted_at: undefined,
         });
       } catch (err: any) {
-        if (err.code === "23505") {
+        if (err.code === PG_UNIQUE_VIOLATION) {
           return reply
             .code(409)
             .send({ error: "A project with this slug already exists in your team" });

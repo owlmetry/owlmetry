@@ -32,8 +32,6 @@ export interface UserContext {
   user_id: string;
   email: string;
   team_memberships: TeamMembership[];
-  /** Derived from team_memberships for backward compatibility. */
-  team_ids: string[];
 }
 
 export type AuthContext = ApiKeyContext | UserContext;
