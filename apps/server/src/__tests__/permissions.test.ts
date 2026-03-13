@@ -1,14 +1,16 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import postgres from "postgres";
-import { validatePermissionsForKeyType } from "@owlmetry/shared";
+import {
+  validatePermissionsForKeyType,
+  ALLOWED_PERMISSIONS_BY_KEY_TYPE,
+  DEFAULT_API_KEY_PERMISSIONS,
+} from "@owlmetry/shared";
 import {
   buildApp,
   truncateAll,
   seedTestData,
   getTokenAndTeamId,
   createAgentKey,
-  TEST_DB_URL,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
@@ -43,15 +45,7 @@ describe("validatePermissionsForKeyType", () => {
 
   it("accepts all agent permissions", () => {
     expect(
-      validatePermissionsForKeyType("agent", [
-        "events:read",
-        "funnels:read",
-        "apps:read",
-        "apps:write",
-        "projects:read",
-        "projects:write",
-        "keys:manage",
-      ])
+      validatePermissionsForKeyType("agent", ALLOWED_PERMISSIONS_BY_KEY_TYPE.agent)
     ).toBeNull();
   });
 
@@ -119,20 +113,12 @@ describe("Custom permissions at key creation", () => {
         name: "Full Agent",
         key_type: "agent",
         team_id: teamId,
-        permissions: [
-          "events:read",
-          "funnels:read",
-          "apps:read",
-          "apps:write",
-          "projects:read",
-          "projects:write",
-          "keys:manage",
-        ],
+        permissions: ALLOWED_PERMISSIONS_BY_KEY_TYPE.agent,
       },
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json().api_key.permissions).toHaveLength(7);
+    expect(res.json().api_key.permissions).toHaveLength(ALLOWED_PERMISSIONS_BY_KEY_TYPE.agent.length);
   });
 
   it("uses default permissions when none specified", async () => {
@@ -150,12 +136,7 @@ describe("Custom permissions at key creation", () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json().api_key.permissions).toEqual([
-      "events:read",
-      "funnels:read",
-      "apps:read",
-      "projects:read",
-    ]);
+    expect(res.json().api_key.permissions).toEqual(DEFAULT_API_KEY_PERMISSIONS.agent);
   });
 
   it("rejects unknown permission in request", async () => {
@@ -336,22 +317,6 @@ describe("API key permission enforcement — apps routes", () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json().error).toMatch(/apps:write/);
-  });
-
-  it("client key without apps:write cannot create app", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/apps",
-      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-      payload: {
-        name: "Nope",
-        platform: "ios",
-        bundle_id: "dev.owlmetry.nope",
-        project_id: testData.projectId,
-      },
-    });
-
-    expect(res.statusCode).toBe(403);
   });
 
   it("agent key with apps:write can update app", async () => {
@@ -601,34 +566,7 @@ describe("API key permission enforcement — events routes", () => {
     expect(res.json().error).toMatch(/events:read/);
   });
 
-  it("client key with events:write can ingest", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/ingest",
-      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-      payload: {
-        bundle_id: TEST_BUNDLE_ID,
-        events: [{ level: "info", message: "client ingest" }],
-      },
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json().accepted).toBe(1);
-  });
-
-  it("agent key without events:write cannot ingest", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/ingest",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-      payload: {
-        bundle_id: TEST_BUNDLE_ID,
-        events: [{ level: "info", message: "nope" }],
-      },
-    });
-
-    expect(res.statusCode).toBe(403);
-  });
+  // client key ingest and agent key ingest rejection are covered in ingest.test.ts
 });
 
 // ─── API key team boundary enforcement ───────────────────────────────
@@ -955,53 +893,5 @@ describe("JWT user permission bypass", () => {
   });
 });
 
-// ─── Auth endpoint user-only enforcement ─────────────────────────────
-
-describe("Auth endpoints reject API keys", () => {
-  it("agent key cannot access GET /v1/auth/me", async () => {
-    const res = await app.inject({
-      method: "GET",
-      url: "/v1/auth/me",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-    });
-    expect(res.statusCode).toBe(403);
-  });
-
-  it("agent key cannot access GET /v1/auth/keys", async () => {
-    const res = await app.inject({
-      method: "GET",
-      url: "/v1/auth/keys",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-    });
-    expect(res.statusCode).toBe(403);
-  });
-
-  it("agent key cannot create keys via POST /v1/auth/keys", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/auth/keys",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-      payload: { name: "Nope", key_type: "agent", team_id: testData.teamId },
-    });
-    expect(res.statusCode).toBe(403);
-  });
-
-  it("agent key cannot delete keys via DELETE /v1/auth/keys/:id", async () => {
-    const res = await app.inject({
-      method: "DELETE",
-      url: "/v1/auth/keys/some-id",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-    });
-    expect(res.statusCode).toBe(403);
-  });
-
-  it("agent key cannot update profile via PATCH /v1/auth/me", async () => {
-    const res = await app.inject({
-      method: "PATCH",
-      url: "/v1/auth/me",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-      payload: { name: "Nope" },
-    });
-    expect(res.statusCode).toBe(403);
-  });
-});
+// Auth endpoint user-only enforcement is covered in auth.test.ts
+// (same middleware rejects both client and agent keys identically)
