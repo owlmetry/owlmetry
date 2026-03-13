@@ -1,7 +1,7 @@
 import chalk, { type ChalkInstance } from "chalk";
-import type { StoredEventResponse } from "@owlmetry/shared";
+import type { LogLevel, StoredEventResponse } from "@owlmetry/shared";
 
-const LEVEL_COLORS: Record<string, ChalkInstance> = {
+const LEVEL_COLORS: Record<LogLevel, ChalkInstance> = {
   error: chalk.red,
   warn: chalk.yellow,
   attention: chalk.magenta,
@@ -19,7 +19,7 @@ export function formatEventLog(
   event: StoredEventResponse,
   opts?: { highlight?: boolean },
 ): string {
-  const color = LEVEL_COLORS[event.level] ?? chalk.white;
+  const color = LEVEL_COLORS[event.level as LogLevel] ?? chalk.white;
   const prefix = opts?.highlight ? chalk.bold.white(">>> ") : "    ";
   const level = color(event.level.toUpperCase().padEnd(9));
   const time = chalk.dim(`[${formatTime(event.timestamp)}]`);

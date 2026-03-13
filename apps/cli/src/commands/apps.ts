@@ -1,17 +1,13 @@
 import { Command, Option } from "commander";
-import { resolveConfig } from "../config.js";
-import { OwlMetryClient } from "../client.js";
-import { output, type OutputFormat } from "../formatters/index.js";
+import { createClient } from "../config.js";
+import { output } from "../formatters/index.js";
 import { formatAppsTable, formatAppDetail } from "../formatters/table.js";
 
 export const appsCommand = new Command("apps")
   .description("List apps")
   .option("--project <id>", "Filter by project ID")
   .action(async (opts: { project?: string }, cmd) => {
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
-
+    const { client, globals } = createClient(cmd);
     let apps = await client.listApps();
     if (opts.project) {
       apps = apps.filter((a) => a.project_id === opts.project);
@@ -23,10 +19,7 @@ appsCommand
   .command("view <id>")
   .description("View app details")
   .action(async (id: string, _opts, cmd) => {
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
-
+    const { client, globals } = createClient(cmd);
     const app = await client.getApp(id);
     output(globals.format, app, () => formatAppDetail(app));
   });
@@ -43,10 +36,7 @@ appsCommand
   )
   .requiredOption("--bundle-id <bundleId>", "Bundle identifier")
   .action(async (opts: { project: string; name: string; platform: string; bundleId: string }, cmd: Command) => {
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
-
+    const { client, globals } = createClient(cmd);
     const app = await client.createApp({
       project_id: opts.project,
       name: opts.name,
@@ -61,10 +51,7 @@ appsCommand
   .description("Update app name")
   .requiredOption("--name <name>", "New app name")
   .action(async (id: string, opts: { name: string }, cmd) => {
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
-
+    const { client, globals } = createClient(cmd);
     const app = await client.updateApp(id, { name: opts.name });
     output(globals.format, app, () => formatAppDetail(app));
   });

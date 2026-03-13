@@ -1,12 +1,19 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import chalk from "chalk";
 import { LOG_LEVELS } from "@owlmetry/shared";
-import { resolveConfig } from "../config.js";
-import { OwlMetryClient } from "../client.js";
+import type { EventsResponse } from "@owlmetry/shared";
+import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { formatEventsTable, formatEventDetail } from "../formatters/table.js";
 import { formatEventsLog } from "../formatters/log.js";
 import { parseTimeInput } from "../utils/time.js";
+
+function paginationHint(result: EventsResponse): string {
+  if (result.has_more && result.cursor) {
+    return `\n${chalk.dim(`More results available. Use --cursor ${result.cursor}`)}`;
+  }
+  return "";
+}
 
 export const eventsCommand = new Command("events")
   .description("Query events")
@@ -14,7 +21,10 @@ export const eventsCommand = new Command("events")
   .option("--app <id>", "Filter by app ID")
   .option("--since <time>", "Start time (e.g. 1h, 30m, 7d, or ISO 8601)")
   .option("--until <time>", "End time")
-  .option("--level <level>", "Filter by log level")
+  .addOption(
+    new Option("--level <level>", "Filter by log level")
+      .choices(LOG_LEVELS as unknown as string[]),
+  )
   .option("--user <id>", "Filter by user ID")
   .option("--screen <name>", "Filter by screen name")
   .option("--limit <n>", "Max events to return")
@@ -30,14 +40,7 @@ export const eventsCommand = new Command("events")
     limit?: string;
     cursor?: string;
   }, cmd) => {
-    if (opts.level && !LOG_LEVELS.includes(opts.level as typeof LOG_LEVELS[number])) {
-      console.error(chalk.red(`Invalid level: ${opts.level}. Valid: ${LOG_LEVELS.join(", ")}`));
-      process.exit(1);
-    }
-
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
+    const { client, globals } = createClient(cmd);
 
     const since = opts.since
       ? parseTimeInput(opts.since)
@@ -58,23 +61,12 @@ export const eventsCommand = new Command("events")
       cursor: opts.cursor,
     });
 
+    const hint = paginationHint(result);
     output(
       globals.format,
       result,
-      () => {
-        let out = formatEventsTable(result.events);
-        if (result.has_more && result.cursor) {
-          out += `\n${chalk.dim(`More results available. Use --cursor ${result.cursor}`)}`;
-        }
-        return out;
-      },
-      () => {
-        let out = formatEventsLog(result.events);
-        if (result.has_more && result.cursor) {
-          out += `\n${chalk.dim(`More results available. Use --cursor ${result.cursor}`)}`;
-        }
-        return out;
-      },
+      () => formatEventsTable(result.events) + hint,
+      () => formatEventsLog(result.events) + hint,
     );
   });
 
@@ -82,10 +74,7 @@ eventsCommand
   .command("view <id>")
   .description("View event details")
   .action(async (id: string, _opts, cmd) => {
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
-
+    const { client, globals } = createClient(cmd);
     const event = await client.getEvent(id);
     output(globals.format, event, () => formatEventDetail(event));
   });
@@ -95,10 +84,8 @@ export const investigateCommand = new Command("investigate")
   .argument("<eventId>", "Target event ID")
   .option("--window <minutes>", "Time window in minutes around target event", "5")
   .action(async (eventId: string, opts: { window: string }, cmd) => {
-    const globals = cmd.optsWithGlobals() as { format: OutputFormat; endpoint?: string; apiKey?: string };
+    const { client, globals } = createClient(cmd);
     const format = globals.format === "table" ? "log" as OutputFormat : globals.format;
-    const config = resolveConfig(globals);
-    const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
 
     const target = await client.getEvent(eventId);
     const windowMs = parseInt(opts.window, 10) * 60_000;
@@ -112,10 +99,6 @@ export const investigateCommand = new Command("investigate")
       limit: 200,
     });
 
-    output(
-      format,
-      { target, context: result.events },
-      () => formatEventsLog(result.events, { highlightId: eventId }),
-      () => formatEventsLog(result.events, { highlightId: eventId }),
-    );
+    const logOutput = () => formatEventsLog(result.events, { highlightId: eventId });
+    output(format, { target, context: result.events }, logOutput, logOutput);
   });

@@ -23,25 +23,13 @@ program.addCommand(investigateCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;
+  const message = err instanceof Error ? err.message : String(err);
+  const status = err instanceof ApiError ? err.status : undefined;
 
-  if (err instanceof ApiError) {
-    if (format === "json") {
-      console.error(JSON.stringify({ error: err.message, status: err.status }));
-    } else {
-      console.error(chalk.red(`API error (${err.status}): ${err.message}`));
-    }
-    process.exit(1);
+  if (format === "json") {
+    console.error(JSON.stringify(status ? { error: message, status } : { error: message }));
+  } else {
+    console.error(chalk.red(status ? `API error (${status}): ${message}` : message));
   }
-
-  if (err instanceof Error) {
-    if (format === "json") {
-      console.error(JSON.stringify({ error: err.message }));
-    } else {
-      console.error(chalk.red(err.message));
-    }
-    process.exit(1);
-  }
-
-  console.error(chalk.red(String(err)));
   process.exit(1);
 });
