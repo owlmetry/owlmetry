@@ -13,8 +13,8 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 - **Device tracking** — platform, OS version, app version, device model, locale, build number
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
-- **Funnel analytics** — define funnels retroactively from event data
-- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs (write-only), `owl_agent_` keys for agents/CLI (read-only). Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
+- **Funnel analytics** — planned but not yet implemented (database tables exist, API routes and UI coming later)
+- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs, `owl_agent_` keys for agents/CLI. Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
 - **Team management** — create teams, invite members by email, change roles, remove members
 - **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
@@ -28,6 +28,7 @@ apps/server        Fastify API server (port 4000)
 apps/web           Next.js dashboard (port 3000) — coming soon
 apps/cli           CLI tool — coming soon
 sdks/swift         Swift SDK (Swift Package)
+demos/ios          iOS demo app for testing Swift SDK
 ```
 
 ## Requirements
@@ -220,15 +221,16 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
-| `GET` | `/v1/projects` | JWT | List projects |
-| `GET` | `/v1/projects/:id` | JWT | Get project with apps |
-| `POST` | `/v1/projects` | JWT (admin+) | Create project (requires team_id in body) |
-| `PATCH` | `/v1/projects/:id` | JWT (admin+) | Update project name |
-| `DELETE` | `/v1/projects/:id` | JWT (admin+) | Soft-delete project and its apps |
-| `GET` | `/v1/apps` | JWT | List apps |
-| `POST` | `/v1/apps` | JWT (admin+) | Create app (requires project_id) |
-| `PATCH` | `/v1/apps/:id` | JWT (admin+) | Update app name or bundle_id |
-| `DELETE` | `/v1/apps/:id` | JWT (admin+) | Soft-delete app |
+| `GET` | `/v1/projects` | `projects:read` / JWT | List projects |
+| `GET` | `/v1/projects/:id` | `projects:read` / JWT | Get project with apps |
+| `POST` | `/v1/projects` | `projects:write` / JWT (admin+) | Create project (requires team_id in body) |
+| `PATCH` | `/v1/projects/:id` | `projects:write` / JWT (admin+) | Update project name |
+| `DELETE` | `/v1/projects/:id` | JWT only (admin+) | Soft-delete project and its apps |
+| `GET` | `/v1/apps` | `apps:read` / JWT | List apps |
+| `GET` | `/v1/apps/:id` | `apps:read` / JWT | Get single app |
+| `POST` | `/v1/apps` | `apps:write` / JWT (admin+) | Create app (requires project_id) |
+| `PATCH` | `/v1/apps/:id` | `apps:write` / JWT (admin+) | Update app name |
+| `DELETE` | `/v1/apps/:id` | JWT only (admin+) | Soft-delete app |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
 
 ## Environment Variables
