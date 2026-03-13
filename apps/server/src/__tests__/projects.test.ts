@@ -188,7 +188,7 @@ describe("POST /v1/projects/:id/apps", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("returns 403 with API key auth", async () => {
+  it("rejects client key (no apps:write permission)", async () => {
     const res = await app.inject({
       method: "POST",
       url: `/v1/projects/${testData.projectId}/apps`,
@@ -275,7 +275,7 @@ describe("PATCH /v1/projects/:id", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("returns 403 with API key auth", async () => {
+  it("rejects client key (no projects:write permission)", async () => {
     const res = await app.inject({
       method: "PATCH",
       url: `/v1/projects/${testData.projectId}`,
@@ -365,7 +365,7 @@ describe("DELETE /v1/projects/:id", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("returns 403 with API key auth", async () => {
+  it("rejects client key (no projects:write permission)", async () => {
     const res = await app.inject({
       method: "DELETE",
       url: `/v1/projects/${testData.projectId}`,

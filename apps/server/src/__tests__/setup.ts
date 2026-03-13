@@ -8,6 +8,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
 import { createDatabaseConnection, ensurePartitions } from "@owlmetry/db";
 import { hashApiKey } from "@owlmetry/shared";
+import type { Permission } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
@@ -220,4 +221,22 @@ export async function getTokenAndTeamId(app: FastifyInstance) {
 export async function getToken(app: FastifyInstance) {
   const { token } = await getTokenAndTeamId(app);
   return token;
+}
+
+/**
+ * Creates an agent API key with the given permissions and returns the full key string.
+ */
+export async function createAgentKey(
+  app: FastifyInstance,
+  token: string,
+  teamId: string,
+  permissions: Permission[]
+): Promise<string> {
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/auth/keys",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { name: "Custom Agent Key", key_type: "agent", team_id: teamId, permissions },
+  });
+  return res.json().key;
 }

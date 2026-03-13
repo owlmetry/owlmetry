@@ -99,7 +99,7 @@ describe("POST /v1/apps", () => {
     expect(res.json().error).toMatch(/bundle_id/);
   });
 
-  it("rejects API key auth (only users can create apps)", async () => {
+  it("rejects client key (no apps:write permission)", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/apps",
@@ -226,7 +226,7 @@ describe("PATCH /v1/apps/:id", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("returns 403 with API key auth", async () => {
+  it("rejects client key (no apps:write permission)", async () => {
     const res = await app.inject({
       method: "PATCH",
       url: `/v1/apps/${testData.appId}`,
@@ -325,7 +325,7 @@ describe("DELETE /v1/apps/:id", () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it("returns 403 with API key auth", async () => {
+  it("rejects client key (no apps:write permission)", async () => {
     const res = await app.inject({
       method: "DELETE",
       url: `/v1/apps/${testData.appId}`,
