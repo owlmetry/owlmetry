@@ -42,8 +42,9 @@ export interface CreateApiKeyRequest {
 
 export interface CreateApiKeyResponse {
   key: string; // full key, shown only once
-  api_key: Omit<ApiKey, "created_at" | "last_used_at" | "expires_at"> & {
+  api_key: Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at"> & {
     created_at: string;
+    updated_at: string;
     expires_at: string | null;
   };
 }
@@ -59,10 +60,16 @@ export interface UpdateMeRequest {
   password?: string;
 }
 
+export interface UpdateApiKeyRequest {
+  name?: string;
+  permissions?: Permission[];
+}
+
 // Single API key
 export interface GetApiKeyResponse {
-  api_key: Omit<ApiKey, "created_at" | "last_used_at" | "expires_at"> & {
+  api_key: Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at"> & {
     created_at: string;
+    updated_at: string;
     last_used_at: string | null;
     expires_at: string | null;
   };
@@ -71,8 +78,9 @@ export interface GetApiKeyResponse {
 // API key listing
 export interface ListApiKeysResponse {
   api_keys: Array<
-    Omit<ApiKey, "created_at" | "last_used_at" | "expires_at"> & {
+    Omit<ApiKey, "created_at" | "updated_at" | "last_used_at" | "expires_at"> & {
       created_at: string;
+      updated_at: string;
       last_used_at: string | null;
       expires_at: string | null;
     }

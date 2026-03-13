@@ -8,6 +8,7 @@ import type {
   RegisterRequest,
   LoginRequest,
   CreateApiKeyRequest,
+  UpdateApiKeyRequest,
   UpdateMeRequest,
 } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
@@ -255,6 +256,7 @@ export async function authRoutes(app: FastifyInstance) {
           name: k.name,
           permissions: k.permissions,
           created_at: k.created_at.toISOString(),
+          updated_at: k.updated_at.toISOString(),
           last_used_at: k.last_used_at?.toISOString() || null,
           expires_at: k.expires_at?.toISOString() || null,
         })),
@@ -294,8 +296,77 @@ export async function authRoutes(app: FastifyInstance) {
           name: key.name,
           permissions: key.permissions,
           created_at: key.created_at.toISOString(),
+          updated_at: key.updated_at.toISOString(),
           last_used_at: key.last_used_at?.toISOString() || null,
           expires_at: key.expires_at?.toISOString() || null,
+        },
+      };
+    }
+  );
+
+  // Update API key
+  app.patch<{ Params: { id: string }; Body: UpdateApiKeyRequest }>(
+    "/keys/:id",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can update API keys" });
+      }
+
+      const { name, permissions } = request.body;
+
+      if (!name && !permissions) {
+        return reply.code(400).send({ error: "At least one field to update is required" });
+      }
+
+      const [key] = await app.db
+        .select()
+        .from(apiKeys)
+        .where(
+          and(eq(apiKeys.id, request.params.id), isNull(apiKeys.deleted_at))
+        )
+        .limit(1);
+
+      if (!key || !hasTeamAccess(auth, key.team_id)) {
+        return reply.code(404).send({ error: "API key not found" });
+      }
+
+      const roleError = assertTeamRole(auth, key.team_id, "admin");
+      if (roleError) {
+        return reply.code(403).send({ error: roleError });
+      }
+
+      if (permissions) {
+        const permissionError = validatePermissionsForKeyType(key.key_type, permissions);
+        if (permissionError) {
+          return reply.code(400).send({ error: permissionError });
+        }
+      }
+
+      const updates: Partial<{ name: string; permissions: string[] }> = {};
+      if (name) updates.name = name;
+      if (permissions) updates.permissions = permissions;
+
+      const [updated] = await app.db
+        .update(apiKeys)
+        .set(updates)
+        .where(eq(apiKeys.id, request.params.id))
+        .returning();
+
+      return {
+        api_key: {
+          id: updated.id,
+          key_prefix: updated.key_prefix,
+          key_type: updated.key_type,
+          app_id: updated.app_id,
+          team_id: updated.team_id,
+          name: updated.name,
+          permissions: updated.permissions,
+          created_at: updated.created_at.toISOString(),
+          updated_at: updated.updated_at.toISOString(),
+          last_used_at: updated.last_used_at?.toISOString() || null,
+          expires_at: updated.expires_at?.toISOString() || null,
         },
       };
     }
@@ -431,6 +502,7 @@ export async function authRoutes(app: FastifyInstance) {
           name: apiKey.name,
           permissions: apiKey.permissions,
           created_at: apiKey.created_at.toISOString(),
+          updated_at: apiKey.updated_at.toISOString(),
           expires_at: apiKey.expires_at?.toISOString() || null,
         },
       });

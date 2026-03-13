@@ -116,6 +116,7 @@ export interface ApiKey {
   last_used_at: Date | null;
   expires_at: Date | null;
   created_at: Date;
+  updated_at: Date;
   deleted_at: Date | null;
 }
 

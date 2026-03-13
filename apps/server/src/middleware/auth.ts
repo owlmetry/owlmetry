@@ -127,10 +127,11 @@ export function requirePermission(...perms: Permission[]) {
     const auth = request.auth;
     if (auth.type === "user") return; // users have full access per role
 
-    for (const perm of perms) {
-      if (!auth.permissions.includes(perm)) {
-        return reply.code(403).send({ error: `Missing permission: ${perm}` });
-      }
+    const missing = perms.filter(perm => !auth.permissions.includes(perm));
+    if (missing.length > 0) {
+      return reply.code(403).send({
+        error: `Missing permission${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`,
+      });
     }
   };
 }

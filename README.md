@@ -207,6 +207,7 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/v1/auth/keys` | JWT | List API keys for user's teams |
 | `GET` | `/v1/auth/keys/:id` | JWT | Get single API key metadata |
 | `POST` | `/v1/auth/keys` | JWT (admin+) | Generate API key |
+| `PATCH` | `/v1/auth/keys/:id` | JWT (admin+) | Update API key name or permissions |
 | `DELETE` | `/v1/auth/keys/:id` | JWT (admin+) | Revoke an API key |
 | `POST` | `/v1/teams` | JWT | Create a new team |
 | `GET` | `/v1/teams/:id` | JWT | Get team details with members |

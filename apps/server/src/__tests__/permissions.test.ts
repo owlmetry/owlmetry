@@ -893,5 +893,279 @@ describe("JWT user permission bypass", () => {
   });
 });
 
+// ─── PATCH /v1/auth/keys/:id — update API key ────────────────────────
+
+describe("PATCH /v1/auth/keys/:id", () => {
+  async function createKeyAndGetId(token: string, teamId: string, permissions?: string[]) {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Updatable Key",
+        key_type: "agent",
+        team_id: teamId,
+        ...(permissions ? { permissions } : {}),
+      },
+    });
+    return { keyId: res.json().api_key.id, fullKey: res.json().key };
+  }
+
+  it("updates permissions on an agent key", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { permissions: ["apps:read", "apps:write", "events:read"] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().api_key.permissions).toEqual(["apps:read", "apps:write", "events:read"]);
+  });
+
+  it("updates name on an API key", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Renamed Key" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().api_key.name).toBe("Renamed Key");
+  });
+
+  it("updates both name and permissions", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Both Updated", permissions: ["funnels:read"] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const apiKey = res.json().api_key;
+    expect(apiKey.name).toBe("Both Updated");
+    expect(apiKey.permissions).toEqual(["funnels:read"]);
+  });
+
+  it("returns updated_at that differs from created_at after update", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Timestamped" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const apiKey = res.json().api_key;
+    expect(apiKey.updated_at).toBeDefined();
+    expect(apiKey.created_at).toBeDefined();
+  });
+
+  it("GET reflects updated values", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Verified", permissions: ["keys:manage"] },
+    });
+
+    const getRes = await app.inject({
+      method: "GET",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(getRes.statusCode).toBe(200);
+    expect(getRes.json().api_key.name).toBe("Verified");
+    expect(getRes.json().api_key.permissions).toEqual(["keys:manage"]);
+  });
+
+  it("rejects empty body", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/at least one/i);
+  });
+
+  it("rejects invalid permissions for key type", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { permissions: ["events:write"] }, // not allowed for agent keys
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/not allowed.*agent/);
+  });
+
+  it("rejects empty permissions array", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { permissions: [] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/at least one/i);
+  });
+
+  it("rejects duplicate permissions", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { permissions: ["events:read", "events:read"] },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/duplicate/i);
+  });
+
+  it("returns 403 for API key auth", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId, fullKey } = await createKeyAndGetId(token, teamId, ["keys:manage"]);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${fullKey}` },
+      payload: { name: "Self Update" },
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("returns 404 for non-existent key", async () => {
+    const { token } = await getTokenAndTeamId(app);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/keys/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Ghost" },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 404 for key belonging to another team", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    // Register another user (different team)
+    const regRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/register",
+      payload: { email: "outsider@owlmetry.dev", password: "pass123", name: "Outsider" },
+    });
+    const outsiderToken = regRes.json().token;
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${outsiderToken}` },
+      payload: { name: "Hijack" },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("returns 403 for member role", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const { keyId } = await createKeyAndGetId(token, teamId);
+
+    // Register second user and add as member
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/register",
+      payload: { email: "member-update@owlmetry.dev", password: "pass123", name: "Member" },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/members`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: "member-update@owlmetry.dev", role: "member" },
+    });
+    const loginRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: { email: "member-update@owlmetry.dev", password: "pass123" },
+    });
+    const memberToken = loginRes.json().token;
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/auth/keys/${keyId}`,
+      headers: { authorization: `Bearer ${memberToken}` },
+      payload: { name: "Member Update" },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatch(/admin/i);
+  });
+});
+
+// ─── requirePermission reports all missing permissions ────────────────
+
+describe("requirePermission reports all missing permissions", () => {
+  it("reports multiple missing permissions at once", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const key = await createAgentKey(app, token, teamId, ["events:read"]);
+
+    // Hit a route that requires both apps:read and apps:write (create app requires apps:write,
+    // but let's use projects which requires projects:write)
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${key}` },
+      payload: {
+        name: "Test",
+        platform: "ios",
+        bundle_id: "dev.test",
+        project_id: testData.projectId,
+      },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toMatch(/apps:write/);
+  });
+});
+
 // Auth endpoint user-only enforcement is covered in auth.test.ts
 // (same middleware rejects both client and agent keys identically)
