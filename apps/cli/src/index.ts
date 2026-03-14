@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import chalk from "chalk";
 import { ApiError } from "./client.js";
 import { setupCommand } from "./commands/setup.js";
@@ -11,7 +11,11 @@ const program = new Command()
   .name("owlmetry")
   .version("0.1.0")
   .description("OwlMetry CLI — query metrics and manage your apps from the terminal")
-  .option("--format <format>", "Output format (table, json, log)", "table")
+  .addOption(
+    new Option("--format <format>", "Output format")
+      .choices(["table", "json", "log"])
+      .default("table"),
+  )
   .option("--endpoint <url>", "OwlMetry server URL")
   .option("--api-key <key>", "API key");
 

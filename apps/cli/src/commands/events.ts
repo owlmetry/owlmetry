@@ -28,7 +28,14 @@ export const eventsCommand = new Command("events")
   .option("--user <id>", "Filter by user ID")
   .option("--session <id>", "Filter by session ID")
   .option("--screen <name>", "Filter by screen name")
-  .option("--limit <n>", "Max events to return")
+  .addOption(
+    new Option("--limit <n>", "Max events to return")
+      .argParser((value) => {
+        const n = parseInt(value, 10);
+        if (Number.isNaN(n) || n <= 0) throw new Error("--limit must be a positive integer");
+        return n;
+      }),
+  )
   .option("--cursor <cursor>", "Pagination cursor")
   .action(async (opts: {
     project?: string;
@@ -39,7 +46,7 @@ export const eventsCommand = new Command("events")
     user?: string;
     session?: string;
     screen?: string;
-    limit?: string;
+    limit?: number;
     cursor?: string;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
@@ -60,7 +67,7 @@ export const eventsCommand = new Command("events")
       user_id: opts.user,
       session_id: opts.session,
       screen_name: opts.screen,
-      limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
+      limit: opts.limit,
       cursor: opts.cursor,
     });
 
@@ -85,13 +92,21 @@ eventsCommand
 export const investigateCommand = new Command("investigate")
   .description("Show events surrounding a specific event")
   .argument("<eventId>", "Target event ID")
-  .option("--window <minutes>", "Time window in minutes around target event", "5")
-  .action(async (eventId: string, opts: { window: string }, cmd) => {
+  .addOption(
+    new Option("--window <minutes>", "Time window in minutes around target event")
+      .default(5)
+      .argParser((value) => {
+        const n = parseInt(value, 10);
+        if (Number.isNaN(n) || n <= 0) throw new Error("--window must be a positive integer");
+        return n;
+      }),
+  )
+  .action(async (eventId: string, opts: { window: number }, cmd) => {
     const { client, globals } = createClient(cmd);
     const format = globals.format === "table" ? "log" as OutputFormat : globals.format;
 
     const target = await client.getEvent(eventId);
-    const windowMs = parseInt(opts.window, 10) * 60_000;
+    const windowMs = opts.window * 60_000;
     const targetTime = new Date(target.timestamp).getTime();
 
     const result = await client.queryEvents({
