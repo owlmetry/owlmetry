@@ -6,6 +6,7 @@ import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { formatEventsTable, formatEventDetail } from "../formatters/table.js";
 import { formatEventsLog } from "../formatters/log.js";
+import { parsePositiveInt } from "../utils/parse.js";
 import { parseTimeInput } from "../utils/time.js";
 
 function paginationHint(result: EventsResponse): string {
@@ -30,11 +31,7 @@ export const eventsCommand = new Command("events")
   .option("--screen <name>", "Filter by screen name")
   .addOption(
     new Option("--limit <n>", "Max events to return")
-      .argParser((value) => {
-        const n = parseInt(value, 10);
-        if (Number.isNaN(n) || n <= 0) throw new Error("--limit must be a positive integer");
-        return n;
-      }),
+      .argParser((v) => parsePositiveInt(v, "--limit")),
   )
   .option("--cursor <cursor>", "Pagination cursor")
   .action(async (opts: {
@@ -95,11 +92,7 @@ export const investigateCommand = new Command("investigate")
   .addOption(
     new Option("--window <minutes>", "Time window in minutes around target event")
       .default(5)
-      .argParser((value) => {
-        const n = parseInt(value, 10);
-        if (Number.isNaN(n) || n <= 0) throw new Error("--window must be a positive integer");
-        return n;
-      }),
+      .argParser((v) => parsePositiveInt(v, "--window")),
   )
   .action(async (eventId: string, opts: { window: number }, cmd) => {
     const { client, globals } = createClient(cmd);
