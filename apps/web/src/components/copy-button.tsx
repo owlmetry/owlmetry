@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     return () => {

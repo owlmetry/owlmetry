@@ -10,6 +10,15 @@ export function UserMenu() {
   const { user } = useUser();
   const router = useRouter();
 
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : user?.email?.[0]?.toUpperCase() ?? "?";
+
   async function handleLogout() {
     try {
       await api.post("/v1/auth/logout");
@@ -25,6 +34,9 @@ export function UserMenu() {
       <span className="text-sm text-muted-foreground">
         {user?.name || user?.email}
       </span>
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+        {initials}
+      </div>
       <Button variant="ghost" size="icon" onClick={handleLogout} title="Sign out">
         <LogOut className="h-4 w-4" />
       </Button>
