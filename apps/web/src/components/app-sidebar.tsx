@@ -5,36 +5,12 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/use-user";
+import { OwlLogo } from "@/components/owl-logo";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderOpen },
 ];
-
-export function OwlLogo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" fill="none" className={className}>
-      <path
-        d="M5 13 L3 7 L9 4 L16 3 L23 4 L29 7 L27 13 L27 24 L22 29 L16 26 L10 29 L5 24 Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        fill="currentColor"
-        fillOpacity="0.1"
-      />
-      <circle cx="11" cy="14" r="5" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.05" />
-      <circle cx="11" cy="14" r="2.5" fill="currentColor" />
-      <circle cx="21" cy="14" r="5" stroke="currentColor" strokeWidth="1.5" fill="currentColor" fillOpacity="0.05" />
-      <circle cx="21" cy="14" r="2.5" fill="currentColor" />
-      <path
-        d="M14 21 L16 24.5 L18 21"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 export function AppSidebar() {
   const pathname = usePathname();

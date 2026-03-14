@@ -7,7 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OwlLogo } from "@/components/app-sidebar";
+import { OwlLogo } from "@/components/owl-logo";
 
 export default function RegisterPage() {
   const router = useRouter();
