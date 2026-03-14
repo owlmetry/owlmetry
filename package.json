@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev:server": "pnpm --filter @owlmetry/server dev",
+    "dev:web": "pnpm --filter @owlmetry/web dev",
     "dev:cli": "pnpm --filter @owlmetry/cli dev",
     "build": "pnpm -r build",
     "db:generate": "pnpm --filter @owlmetry/db generate",

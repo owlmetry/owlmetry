@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -91,7 +92,8 @@ export async function buildApp() {
 
   app.decorate("db", db);
   await app.register(decompressPlugin);
-  await app.register(cors, { origin: true });
+  await app.register(cookie);
+  await app.register(cors, { origin: true, credentials: true });
   await app.register(jwt, { secret: "test-secret" });
 
   app.get("/health", async () => ({ status: "ok" }));

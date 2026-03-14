@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
 import { createDatabaseConnection, ensurePartitions, dropOldestEventPartitions } from "@owlmetry/db";
@@ -33,7 +34,8 @@ app.decorate("db", db);
 
 // Plugins
 await app.register(decompressPlugin);
-await app.register(cors, { origin: config.corsOrigins });
+await app.register(cookie);
+await app.register(cors, { origin: config.corsOrigins, credentials: true });
 await app.register(jwt, { secret: config.jwtSecret });
 
 // Health check

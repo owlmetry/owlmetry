@@ -14,6 +14,15 @@ import type {
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 import { serializeApiKey } from "../utils/serialize.js";
+import { config } from "../config.js";
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: config.cookieSecure,
+  sameSite: "strict" as const,
+  path: "/",
+  maxAge: 7 * 24 * 60 * 60, // 7 days, matching JWT expiry
+};
 
 function serializeUser(user: { id: string; email: string; name: string; created_at: Date; updated_at: Date }) {
   return {
@@ -80,6 +89,8 @@ export async function authRoutes(app: FastifyInstance) {
       { expiresIn: "7d" }
     );
 
+    reply.setCookie("token", token, COOKIE_OPTIONS);
+
     return reply.code(201).send({
       token,
       user: serializeUser(user),
@@ -131,11 +142,19 @@ export async function authRoutes(app: FastifyInstance) {
       { expiresIn: "7d" }
     );
 
+    reply.setCookie("token", token, COOKIE_OPTIONS);
+
     return {
       token,
       user: serializeUser(user),
       teams: membershipTeams,
     };
+  });
+
+  // Logout
+  app.post("/logout", async (_request, reply) => {
+    reply.clearCookie("token", { path: "/" });
+    return { success: true };
   });
 
   // List teams for authenticated user

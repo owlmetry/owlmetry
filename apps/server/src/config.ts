@@ -6,4 +6,6 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET || "dev-secret-change-me",
   corsOrigins: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"],
   maxDatabaseSizeGb: Number(process.env.MAX_DATABASE_SIZE_GB || 0),
+  nodeEnv: process.env.NODE_ENV || "development",
+  cookieSecure: process.env.NODE_ENV === "production",
 };

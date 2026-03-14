@@ -50,13 +50,18 @@ export async function requireAuth(
   reply: FastifyReply
 ) {
   const header = request.headers.authorization;
-  if (!header) {
-    return reply.code(401).send({ error: "Missing authorization header" });
-  }
+  let token: string;
 
-  const [scheme, token] = header.split(" ");
-  if (scheme !== "Bearer" || !token) {
-    return reply.code(401).send({ error: "Invalid authorization format" });
+  if (header) {
+    const [scheme, headerToken] = header.split(" ");
+    if (scheme !== "Bearer" || !headerToken) {
+      return reply.code(401).send({ error: "Invalid authorization format" });
+    }
+    token = headerToken;
+  } else if (request.cookies?.token) {
+    token = request.cookies.token;
+  } else {
+    return reply.code(401).send({ error: "Missing authorization" });
   }
 
   // API key auth
@@ -100,7 +105,7 @@ export async function requireAuth(
 
   // JWT auth — identity only, team memberships preloaded
   try {
-    const payload = (await request.jwtVerify()) as UserJwtPayload;
+    const payload = request.server.jwt.verify<UserJwtPayload>(token);
 
     const db = request.server.db;
     const memberships = await db
