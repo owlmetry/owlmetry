@@ -15,8 +15,8 @@ async function main() {
   const [user] = await db
     .insert(users)
     .values({
-      email: "admin@owlmetry.dev",
-      password_hash: await bcrypt.hash("admin123", 12),
+      email: "admin@owlmetry.com",
+      password_hash: await bcrypt.hash("H00tH00t", 12),
       name: "Admin",
     })
     .onConflictDoNothing()
@@ -62,7 +62,7 @@ async function main() {
       project_id: project.id,
       name: "Demo App",
       platform: "ios",
-      bundle_id: "dev.owlmetry.demo",
+      bundle_id: "com.owlmetry.demo",
       client_key: clientKey,
     })
     .returning();
@@ -89,7 +89,7 @@ async function main() {
   });
 
   console.log("\nSeed complete!");
-  console.log(`User:       admin@owlmetry.dev / admin123`);
+  console.log(`User:       admin@owlmetry.com / H00tH00t`);
   console.log(`Team:       ${team.name} (${team.slug})`);
   console.log(`Project:    ${project.name} (${project.slug})`);
   console.log(`App:        ${app.name} (${app.id})`);

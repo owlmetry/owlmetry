@@ -261,7 +261,7 @@ describe("DELETE /v1/projects/:id", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
     });
     const otherToken = regRes.json().token;
 

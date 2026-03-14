@@ -10,7 +10,7 @@ final class SDKIntegrationTests: XCTestCase {
         ?? "http://localhost:4111"
     static let testClientKey = "owl_client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     static let testAgentKey = "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    static let testBundleId = "dev.owlmetry.test"
+    static let testBundleId = "com.owlmetry.test"
 
     override func setUp() async throws {
         // Reset SDK state (simulates app restart)

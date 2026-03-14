@@ -318,7 +318,7 @@ describe("API key permission enforcement — apps routes", () => {
       payload: {
         name: "Agent Created App",
         platform: "android",
-        bundle_id: "dev.owlmetry.agent",
+        bundle_id: "com.owlmetry.agent",
         project_id: testData.projectId,
       },
     });
@@ -336,7 +336,7 @@ describe("API key permission enforcement — apps routes", () => {
       payload: {
         name: "Nope",
         platform: "ios",
-        bundle_id: "dev.owlmetry.nope",
+        bundle_id: "com.owlmetry.nope",
         project_id: testData.projectId,
       },
     });
@@ -575,7 +575,7 @@ describe("API key team boundary enforcement", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
     });
     otherTeamToken = regRes.json().token;
     otherTeamId = regRes.json().teams[0].id;
@@ -833,18 +833,18 @@ describe("JWT user permission bypass", () => {
     await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "member@owlmetry.dev", password: "pass123", name: "Member" },
+      payload: { email: "member@owlmetry.com", password: "pass123", name: "Member" },
     });
     await app.inject({
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "member@owlmetry.dev", role: "member" },
+      payload: { email: "member@owlmetry.com", role: "member" },
     });
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "member@owlmetry.dev", password: "pass123" },
+      payload: { email: "member@owlmetry.com", password: "pass123" },
     });
     const memberToken = loginRes.json().token;
 
@@ -876,7 +876,7 @@ describe("JWT user permission bypass", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "outsider@owlmetry.dev", password: "pass123", name: "Outsider" },
+      payload: { email: "outsider@owlmetry.com", password: "pass123", name: "Outsider" },
     });
     const outsiderToken = regRes.json().token;
 
@@ -1097,7 +1097,7 @@ describe("PATCH /v1/auth/keys/:id", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "outsider@owlmetry.dev", password: "pass123", name: "Outsider" },
+      payload: { email: "outsider@owlmetry.com", password: "pass123", name: "Outsider" },
     });
     const outsiderToken = regRes.json().token;
 
@@ -1119,18 +1119,18 @@ describe("PATCH /v1/auth/keys/:id", () => {
     await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "member-update@owlmetry.dev", password: "pass123", name: "Member" },
+      payload: { email: "member-update@owlmetry.com", password: "pass123", name: "Member" },
     });
     await app.inject({
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "member-update@owlmetry.dev", role: "member" },
+      payload: { email: "member-update@owlmetry.com", role: "member" },
     });
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "member-update@owlmetry.dev", password: "pass123" },
+      payload: { email: "member-update@owlmetry.com", password: "pass123" },
     });
     const memberToken = loginRes.json().token;
 

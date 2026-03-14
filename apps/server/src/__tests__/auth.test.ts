@@ -33,7 +33,7 @@ describe("POST /v1/auth/register", () => {
       method: "POST",
       url: "/v1/auth/register",
       payload: {
-        email: "new@owlmetry.dev",
+        email: "new@owlmetry.com",
         password: "password123",
         name: "New User",
       },
@@ -42,7 +42,7 @@ describe("POST /v1/auth/register", () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.token).toBeDefined();
-    expect(body.user.email).toBe("new@owlmetry.dev");
+    expect(body.user.email).toBe("new@owlmetry.com");
     expect(body.user.name).toBe("New User");
     expect(body.teams).toHaveLength(1);
     expect(body.teams[0].role).toBe("owner");
@@ -112,7 +112,7 @@ describe("POST /v1/auth/login", () => {
       method: "POST",
       url: "/v1/auth/login",
       payload: {
-        email: "nobody@owlmetry.dev",
+        email: "nobody@owlmetry.com",
         password: "password123",
       },
     });
@@ -275,7 +275,7 @@ describe("DELETE /v1/auth/keys/:id", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
     });
     const otherToken = regRes.json().token;
 
@@ -434,7 +434,7 @@ describe("GET /v1/auth/keys/:id", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
     });
     const otherToken = regRes.json().token;
 

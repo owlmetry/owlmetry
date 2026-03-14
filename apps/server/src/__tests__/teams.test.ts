@@ -30,7 +30,7 @@ async function registerSecondUser() {
   const res = await app.inject({
     method: "POST",
     url: "/v1/auth/register",
-    payload: { email: "second@owlmetry.dev", password: "pass123", name: "Second User" },
+    payload: { email: "second@owlmetry.com", password: "pass123", name: "Second User" },
   });
   const body = res.json();
   return { token: body.token, userId: body.user.id, teamId: body.teams[0].id };
@@ -146,14 +146,14 @@ describe("PATCH /v1/teams/:teamId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "member" },
+      payload: { email: "second@owlmetry.com", role: "member" },
     });
 
     // Re-login to pick up new membership
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const secondToken = loginRes.json().token;
 
@@ -219,13 +219,13 @@ describe("DELETE /v1/teams/:teamId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "admin" },
+      payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const adminToken = loginRes.json().token;
 
@@ -250,7 +250,7 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev" },
+      payload: { email: "second@owlmetry.com" },
     });
 
     expect(res.statusCode).toBe(201);
@@ -266,21 +266,21 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "admin" },
+      payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
     // Register a third user
     await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.dev", password: "pass123", name: "Third User" },
+      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
     });
 
     // Admin adds third user
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const adminToken = loginRes.json().token;
 
@@ -288,7 +288,7 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { email: "third@owlmetry.dev" },
+      payload: { email: "third@owlmetry.com" },
     });
 
     expect(res.statusCode).toBe(201);
@@ -303,20 +303,20 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "member" },
+      payload: { email: "second@owlmetry.com", role: "member" },
     });
 
     // Register third user
     await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.dev", password: "pass123", name: "Third User" },
+      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
     });
 
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const memberToken = loginRes.json().token;
 
@@ -324,7 +324,7 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${memberToken}` },
-      payload: { email: "third@owlmetry.dev" },
+      payload: { email: "third@owlmetry.com" },
     });
 
     expect(res.statusCode).toBe(403);
@@ -337,7 +337,7 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "nobody@owlmetry.dev" },
+      payload: { email: "nobody@owlmetry.com" },
     });
 
     expect(res.statusCode).toBe(404);
@@ -351,14 +351,14 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev" },
+      payload: { email: "second@owlmetry.com" },
     });
 
     const res = await app.inject({
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev" },
+      payload: { email: "second@owlmetry.com" },
     });
 
     expect(res.statusCode).toBe(409);
@@ -373,20 +373,20 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "admin" },
+      payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
     // Register third user
     await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.dev", password: "pass123", name: "Third User" },
+      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
     });
 
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const adminToken = loginRes.json().token;
 
@@ -394,7 +394,7 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { email: "third@owlmetry.dev", role: "owner" },
+      payload: { email: "third@owlmetry.com", role: "owner" },
     });
 
     expect(res.statusCode).toBe(403);
@@ -408,7 +408,7 @@ describe("POST /v1/teams/:teamId/members", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "owner" },
+      payload: { email: "second@owlmetry.com", role: "owner" },
     });
 
     expect(res.statusCode).toBe(201);
@@ -426,7 +426,7 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev" },
+      payload: { email: "second@owlmetry.com" },
     });
 
     const res = await app.inject({
@@ -462,19 +462,19 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "admin" },
+      payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
     // Register third user and add as member
     await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.dev", password: "pass123", name: "Third User" },
+      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
     });
     const thirdLogin = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "third@owlmetry.dev", password: "pass123" },
+      payload: { email: "third@owlmetry.com", password: "pass123" },
     });
     const thirdUserId = thirdLogin.json().user.id;
 
@@ -482,14 +482,14 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "third@owlmetry.dev" },
+      payload: { email: "third@owlmetry.com" },
     });
 
     // Admin tries to promote third to owner
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const adminToken = loginRes.json().token;
 
@@ -514,14 +514,14 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "owner" },
+      payload: { email: "second@owlmetry.com", role: "owner" },
     });
 
     // Second owner demotes first — should succeed since there's still one owner left
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const secondToken = loginRes.json().token;
 
@@ -591,7 +591,7 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev" },
+      payload: { email: "second@owlmetry.com" },
     });
 
     const res = await app.inject({
@@ -620,13 +620,13 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev", role: "admin" },
+      payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const adminToken = loginRes.json().token;
 
@@ -647,13 +647,13 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.dev" },
+      payload: { email: "second@owlmetry.com" },
     });
 
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     const memberToken = loginRes.json().token;
 
@@ -695,13 +695,13 @@ describe("Role enforcement on existing routes", () => {
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${ownerToken}` },
-      payload: { email: "second@owlmetry.dev", role },
+      payload: { email: "second@owlmetry.com", role },
     });
 
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.dev", password: "pass123" },
+      payload: { email: "second@owlmetry.com", password: "pass123" },
     });
     return loginRes.json().token;
   }

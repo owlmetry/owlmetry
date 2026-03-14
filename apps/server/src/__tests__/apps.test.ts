@@ -104,7 +104,7 @@ describe("GET /v1/apps/:id", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
     });
     const otherToken = regRes.json().token;
 
@@ -146,7 +146,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Android App",
         platform: "android",
-        bundle_id: "dev.owlmetry.android",
+        bundle_id: "com.owlmetry.android",
         project_id: testData.projectId,
       },
     });
@@ -155,7 +155,7 @@ describe("POST /v1/apps", () => {
     const body = res.json();
     expect(body.name).toBe("Android App");
     expect(body.platform).toBe("android");
-    expect(body.bundle_id).toBe("dev.owlmetry.android");
+    expect(body.bundle_id).toBe("com.owlmetry.android");
     expect(body.team_id).toBe(testData.teamId);
     expect(body.client_key).toMatch(/^owl_client_/);
   });
@@ -169,7 +169,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Key List App",
         platform: "ios",
-        bundle_id: "dev.owlmetry.keylist",
+        bundle_id: "com.owlmetry.keylist",
         project_id: testData.projectId,
       },
     });
@@ -197,7 +197,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Ingest App",
         platform: "ios",
-        bundle_id: "dev.owlmetry.ingest",
+        bundle_id: "com.owlmetry.ingest",
         project_id: testData.projectId,
       },
     });
@@ -210,7 +210,7 @@ describe("POST /v1/apps", () => {
       url: "/v1/ingest",
       headers: { authorization: `Bearer ${clientKey}` },
       payload: {
-        bundle_id: "dev.owlmetry.ingest",
+        bundle_id: "com.owlmetry.ingest",
         events: [
           { level: "info", message: "test event", session_id: TEST_SESSION_ID },
         ],
@@ -229,7 +229,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Consistent App",
         platform: "ios",
-        bundle_id: "dev.owlmetry.consistent",
+        bundle_id: "com.owlmetry.consistent",
         project_id: testData.projectId,
       },
     });
@@ -243,7 +243,7 @@ describe("POST /v1/apps", () => {
     });
 
     const listedApp = listRes.json().apps.find(
-      (a: { bundle_id: string }) => a.bundle_id === "dev.owlmetry.consistent"
+      (a: { bundle_id: string }) => a.bundle_id === "com.owlmetry.consistent"
     );
     expect(listedApp.client_key).toBe(createdKey);
   });
@@ -281,7 +281,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Nope",
         platform: "ios",
-        bundle_id: "dev.owlmetry.nope",
+        bundle_id: "com.owlmetry.nope",
         project_id: testData.projectId,
       },
     });
@@ -296,7 +296,7 @@ describe("POST /v1/apps", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "Second App", platform: "web", bundle_id: "owlmetry.dev", project_id: testData.projectId },
+      payload: { name: "Second App", platform: "web", bundle_id: "owlmetry.com", project_id: testData.projectId },
     });
 
     const res = await app.inject({
@@ -325,7 +325,7 @@ describe("POST /v1/apps", () => {
       payload: {
         name: "Ghost App",
         platform: "ios",
-        bundle_id: "dev.owlmetry.ghost",
+        bundle_id: "com.owlmetry.ghost",
         project_id: testData.projectId,
       },
     });
@@ -356,7 +356,7 @@ describe("PATCH /v1/apps/:id", () => {
       method: "PATCH",
       url: `/v1/apps/${testData.appId}`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { bundle_id: "dev.owlmetry.updated" },
+      payload: { bundle_id: "com.owlmetry.updated" },
     });
 
     // bundle_id is not an updatable field, so this is treated as an empty update
@@ -473,7 +473,7 @@ describe("DELETE /v1/apps/:id", () => {
     const regRes = await app.inject({
       method: "POST",
       url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.dev", password: "pass123", name: "Other" },
+      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
     });
     const otherToken = regRes.json().token;
 
