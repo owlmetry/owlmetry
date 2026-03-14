@@ -48,8 +48,8 @@ async function createTestPartition(sql: postgres.Sql, year: number, month: numbe
 
 async function insertTestEvent(sql: postgres.Sql, timestamp: string) {
   await sql.unsafe(`
-    INSERT INTO events (app_id, level, message, "timestamp")
-    VALUES ('00000000-0000-0000-0000-000000000001', 'info', 'test', '${timestamp}')
+    INSERT INTO events (app_id, session_id, level, message, "timestamp")
+    VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'info', 'test', '${timestamp}')
   `);
 }
 

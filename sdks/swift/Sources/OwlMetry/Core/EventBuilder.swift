@@ -15,6 +15,7 @@ enum EventBuilder {
         screenName: String?,
         customAttributes: [String: String]?,
         userId: String?,
+        sessionId: String,
         deviceInfo: DeviceInfo,
         file: String,
         function: String,
@@ -34,6 +35,7 @@ enum EventBuilder {
 
         return LogEvent(
             clientEventId: UUID().uuidString,
+            sessionId: sessionId,
             userId: userId,
             level: level,
             sourceModule: "\(fileName):\(function):\(line)",

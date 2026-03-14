@@ -133,6 +133,8 @@ async function createMonthlyEventPartition(client: postgres.Sql, date: Date) {
         ON ${partitionName} (app_id, screen_name, "timestamp");
       CREATE INDEX IF NOT EXISTS ${partitionName}_client_eid_idx
         ON ${partitionName} (app_id, client_event_id);
+      CREATE INDEX IF NOT EXISTS ${partitionName}_app_session_ts_idx
+        ON ${partitionName} (app_id, session_id, "timestamp");
     `);
 
     console.log(`Partition ${partitionName} ready.`);

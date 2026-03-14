@@ -14,6 +14,7 @@ import {
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
+  TEST_SESSION_ID,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -526,7 +527,7 @@ describe("API key permission enforcement — events routes", () => {
       headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
       payload: {
         bundle_id: TEST_BUNDLE_ID,
-        events: [{ level: "info", message: "perm test" }],
+        events: [{ level: "info", message: "perm test", session_id: TEST_SESSION_ID }],
       },
     });
   }

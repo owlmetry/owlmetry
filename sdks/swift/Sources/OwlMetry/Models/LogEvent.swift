@@ -2,6 +2,7 @@ import Foundation
 
 struct LogEvent: Codable, Sendable {
     let clientEventId: String
+    let sessionId: String
     var userId: String?
     let level: LogLevel
     let sourceModule: String?
@@ -18,6 +19,7 @@ struct LogEvent: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case clientEventId = "client_event_id"
+        case sessionId = "session_id"
         case userId = "user_id"
         case level
         case sourceModule = "source_module"

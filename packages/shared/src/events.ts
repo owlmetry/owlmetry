@@ -10,6 +10,7 @@ export type Platform = "ios" | "ipados" | "macos" | "android" | "web";
 
 export interface IngestEventPayload {
   client_event_id?: string;
+  session_id: string;
   user_id?: string;
   level: LogLevel;
   source_module?: string;
@@ -28,6 +29,7 @@ export interface IngestEventPayload {
 export interface StoredEvent {
   id: string;
   app_id: string;
+  session_id: string;
   user_id: string | null;
   level: LogLevel;
   source_module: string | null;

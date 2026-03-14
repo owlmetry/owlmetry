@@ -28,6 +28,7 @@ export const TEST_AGENT_KEY =
 export const TEST_EXPIRED_KEY =
   "owl_client_cccccccccccccccccccccccccccccccccccccccccccccc";
 export const TEST_BUNDLE_ID = "dev.owlmetry.test";
+export const TEST_SESSION_ID = "00000000-0000-0000-0000-000000000001";
 export const TEST_USER = {
   email: "test@owlmetry.dev",
   password: "testpass123",

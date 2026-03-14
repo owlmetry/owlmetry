@@ -43,6 +43,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       id UUID DEFAULT gen_random_uuid(),
       app_id UUID NOT NULL,
       client_event_id VARCHAR(255),
+      session_id UUID NOT NULL,
       user_id VARCHAR(255),
       level log_level NOT NULL,
       source_module TEXT,

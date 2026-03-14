@@ -20,6 +20,9 @@ function validateIngestEventPayload(
   if (!payload.level || !LOG_LEVELS.includes(payload.level as any)) {
     return `events[${index}]: level must be one of ${LOG_LEVELS.join(", ")}`;
   }
+  if (!payload.session_id || typeof payload.session_id !== "string") {
+    return `events[${index}]: session_id is required and must be a string`;
+  }
   return null;
 }
 
@@ -135,6 +138,7 @@ export async function ingestRoutes(app: FastifyInstance) {
         valid.push({
           app_id,
           client_event_id: e.client_event_id || null,
+          session_id: e.session_id,
           user_id: e.user_id || null,
           level: e.level,
           source_module: e.source_module || null,

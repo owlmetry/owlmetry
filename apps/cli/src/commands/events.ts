@@ -26,6 +26,7 @@ export const eventsCommand = new Command("events")
       .choices(LOG_LEVELS as unknown as string[]),
   )
   .option("--user <id>", "Filter by user ID")
+  .option("--session <id>", "Filter by session ID")
   .option("--screen <name>", "Filter by screen name")
   .option("--limit <n>", "Max events to return")
   .option("--cursor <cursor>", "Pagination cursor")
@@ -36,6 +37,7 @@ export const eventsCommand = new Command("events")
     until?: string;
     level?: string;
     user?: string;
+    session?: string;
     screen?: string;
     limit?: string;
     cursor?: string;
@@ -56,6 +58,7 @@ export const eventsCommand = new Command("events")
       until,
       level: opts.level,
       user_id: opts.user,
+      session_id: opts.session,
       screen_name: opts.screen,
       limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
       cursor: opts.cursor,

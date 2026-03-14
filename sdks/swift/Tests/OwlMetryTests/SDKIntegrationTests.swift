@@ -430,6 +430,7 @@ final class SDKIntegrationTests: XCTestCase {
         let events = (0..<5).map { i in
             LogEvent(
                 clientEventId: UUID().uuidString,
+                sessionId: UUID().uuidString,
                 userId: "offline-test-user",
                 level: .info,
                 sourceModule: "test",
@@ -680,7 +681,13 @@ final class SDKIntegrationTests: XCTestCase {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(Self.testClientKey)", forHTTPHeaderField: "Authorization")
 
-        let body: [String: Any] = ["bundle_id": Self.testBundleId, "events": events]
+        // Auto-inject session_id if not present
+        let enrichedEvents = events.map { event -> [String: Any] in
+            var e = event
+            if e["session_id"] == nil { e["session_id"] = UUID().uuidString }
+            return e
+        }
+        let body: [String: Any] = ["bundle_id": Self.testBundleId, "events": enrichedEvents]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (_, response) = try await URLSession.shared.data(for: request)

@@ -9,6 +9,7 @@ import {
   TEST_AGENT_KEY,
   TEST_EXPIRED_KEY,
   TEST_BUNDLE_ID,
+  TEST_SESSION_ID,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -42,7 +43,7 @@ function ingest(
 describe("POST /v1/ingest", () => {
   it("accepts a single valid event", async () => {
     const res = await ingest([
-      { level: "info", message: "App launched" },
+      { level: "info", message: "App launched", session_id: TEST_SESSION_ID },
     ]);
 
     expect(res.statusCode).toBe(200);
@@ -53,6 +54,7 @@ describe("POST /v1/ingest", () => {
     const events = Array.from({ length: 20 }, (_, i) => ({
       level: "info",
       message: `Event ${i}`,
+      session_id: TEST_SESSION_ID,
     }));
 
     const res = await ingest(events);
@@ -65,6 +67,7 @@ describe("POST /v1/ingest", () => {
       {
         level: "info",
         message: "Full event",
+        session_id: TEST_SESSION_ID,
         user_id: "user-1",
         source_module: "AppDelegate",
         screen_name: "launch",
@@ -86,6 +89,7 @@ describe("POST /v1/ingest", () => {
     const events = Array.from({ length: 101 }, (_, i) => ({
       level: "info",
       message: `Event ${i}`,
+      session_id: TEST_SESSION_ID,
     }));
 
     const res = await ingest(events);
@@ -94,7 +98,7 @@ describe("POST /v1/ingest", () => {
   });
 
   it("rejects events with missing message", async () => {
-    const res = await ingest([{ level: "info" }]);
+    const res = await ingest([{ level: "info", session_id: TEST_SESSION_ID }]);
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({
@@ -105,7 +109,7 @@ describe("POST /v1/ingest", () => {
   });
 
   it("rejects events with invalid level", async () => {
-    const res = await ingest([{ level: "critical", message: "test" }]);
+    const res = await ingest([{ level: "critical", message: "test", session_id: TEST_SESSION_ID }]);
 
     expect(res.statusCode).toBe(200);
     expect(res.json().rejected).toBe(1);
@@ -113,9 +117,9 @@ describe("POST /v1/ingest", () => {
 
   it("accepts valid events and rejects invalid ones in same batch", async () => {
     const res = await ingest([
-      { level: "info", message: "Good event" },
-      { level: "info" }, // missing message
-      { level: "error", message: "Another good one" },
+      { level: "info", message: "Good event", session_id: TEST_SESSION_ID },
+      { level: "info", session_id: TEST_SESSION_ID }, // missing message
+      { level: "error", message: "Another good one", session_id: TEST_SESSION_ID },
     ]);
 
     expect(res.statusCode).toBe(200);
@@ -126,11 +130,11 @@ describe("POST /v1/ingest", () => {
 
   it("deduplicates by client_event_id", async () => {
     await ingest([
-      { level: "info", message: "First", client_event_id: "evt-1" },
+      { level: "info", message: "First", client_event_id: "evt-1", session_id: TEST_SESSION_ID },
     ]);
 
     const res = await ingest([
-      { level: "info", message: "Duplicate", client_event_id: "evt-1" },
+      { level: "info", message: "Duplicate", client_event_id: "evt-1", session_id: TEST_SESSION_ID },
     ]);
 
     expect(res.statusCode).toBe(200);
@@ -143,6 +147,7 @@ describe("POST /v1/ingest", () => {
       {
         level: "info",
         message: "Trimmed custom attributes",
+        session_id: TEST_SESSION_ID,
         custom_attributes: { key: longValue },
       },
     ]);
@@ -158,7 +163,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects agent key (no events:write permission)", async () => {
     const res = await ingest(
-      [{ level: "info", message: "test" }],
+      [{ level: "info", message: "test", session_id: TEST_SESSION_ID }],
       TEST_AGENT_KEY
     );
 
@@ -167,7 +172,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects invalid API key", async () => {
     const res = await ingest(
-      [{ level: "info", message: "test" }],
+      [{ level: "info", message: "test", session_id: TEST_SESSION_ID }],
       "owl_client_invalidkeyinvalidkeyinvalidkeyinvalidke"
     );
 
@@ -178,7 +183,7 @@ describe("POST /v1/ingest", () => {
     const res = await app.inject({
       method: "POST",
       url: "/v1/ingest",
-      payload: { events: [{ level: "info", message: "test" }] },
+      payload: { events: [{ level: "info", message: "test", session_id: TEST_SESSION_ID }] },
     });
 
     expect(res.statusCode).toBe(401);
@@ -186,7 +191,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects expired API key", async () => {
     const res = await ingest(
-      [{ level: "info", message: "test" }],
+      [{ level: "info", message: "test", session_id: TEST_SESSION_ID }],
       TEST_EXPIRED_KEY
     );
 
@@ -199,7 +204,7 @@ describe("POST /v1/ingest", () => {
     const promises = [];
     for (let i = 0; i < 105; i++) {
       promises.push(
-        ingest([{ level: "info", message: `Flood ${i}` }])
+        ingest([{ level: "info", message: `Flood ${i}`, session_id: TEST_SESSION_ID }])
       );
     }
     const results = await Promise.all(promises);
@@ -212,7 +217,7 @@ describe("POST /v1/ingest", () => {
   it("accepts gzip-compressed event payload", async () => {
     const json = JSON.stringify({
       bundle_id: TEST_BUNDLE_ID,
-      events: [{ level: "info", message: "Compressed event" }],
+      events: [{ level: "info", message: "Compressed event", session_id: TEST_SESSION_ID }],
     });
     const compressed = gzipSync(Buffer.from(json));
 
@@ -236,7 +241,7 @@ describe("POST /v1/ingest", () => {
       method: "POST",
       url: "/v1/ingest",
       headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-      payload: { events: [{ level: "info", message: "test" }] },
+      payload: { events: [{ level: "info", message: "test", session_id: TEST_SESSION_ID }] },
     });
 
     expect(res.statusCode).toBe(400);
@@ -245,7 +250,7 @@ describe("POST /v1/ingest", () => {
 
   it("rejects request with mismatched bundle_id", async () => {
     const res = await ingest(
-      [{ level: "info", message: "test" }],
+      [{ level: "info", message: "test", session_id: TEST_SESSION_ID }],
       TEST_CLIENT_KEY,
       "com.wrong.bundle"
     );

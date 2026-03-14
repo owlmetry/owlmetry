@@ -8,6 +8,7 @@ import {
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
+  TEST_SESSION_ID,
   TEST_USER,
 } from "./setup.js";
 
@@ -47,8 +48,8 @@ function queryEvents(params: Record<string, string> = {}, key = TEST_AGENT_KEY) 
 describe("GET /v1/events", () => {
   it("returns ingested events", async () => {
     await ingestEvents([
-      { level: "info", message: "Event 1" },
-      { level: "error", message: "Event 2" },
+      { level: "info", message: "Event 1", session_id: TEST_SESSION_ID },
+      { level: "error", message: "Event 2", session_id: TEST_SESSION_ID },
     ]);
 
     const res = await queryEvents();
@@ -61,9 +62,9 @@ describe("GET /v1/events", () => {
 
   it("filters by level", async () => {
     await ingestEvents([
-      { level: "info", message: "Info event" },
-      { level: "error", message: "Error event" },
-      { level: "error", message: "Another error" },
+      { level: "info", message: "Info event", session_id: TEST_SESSION_ID },
+      { level: "error", message: "Error event", session_id: TEST_SESSION_ID },
+      { level: "error", message: "Another error", session_id: TEST_SESSION_ID },
     ]);
 
     const res = await queryEvents({ level: "error" });
@@ -74,8 +75,8 @@ describe("GET /v1/events", () => {
 
   it("filters by user_id", async () => {
     await ingestEvents([
-      { level: "info", message: "User A", user_id: "user-a" },
-      { level: "info", message: "User B", user_id: "user-b" },
+      { level: "info", message: "User A", user_id: "user-a", session_id: TEST_SESSION_ID },
+      { level: "info", message: "User B", user_id: "user-b", session_id: TEST_SESSION_ID },
     ]);
 
     const res = await queryEvents({ user_id: "user-a" });
@@ -86,8 +87,8 @@ describe("GET /v1/events", () => {
 
   it("filters by screen_name", async () => {
     await ingestEvents([
-      { level: "info", message: "Test", screen_name: "AppDelegate" },
-      { level: "info", message: "Test", screen_name: "ViewController" },
+      { level: "info", message: "Test", screen_name: "AppDelegate", session_id: TEST_SESSION_ID },
+      { level: "info", message: "Test", screen_name: "ViewController", session_id: TEST_SESSION_ID },
     ]);
 
     const res = await queryEvents({ screen_name: "AppDelegate" });
@@ -101,8 +102,8 @@ describe("GET /v1/events", () => {
     const recent = new Date().toISOString();
 
     await ingestEvents([
-      { level: "info", message: "Old event", timestamp: old },
-      { level: "info", message: "Recent event", timestamp: recent },
+      { level: "info", message: "Old event", timestamp: old, session_id: TEST_SESSION_ID },
+      { level: "info", message: "Recent event", timestamp: recent, session_id: TEST_SESSION_ID },
     ]);
 
     const res = await queryEvents({ since: "2026-03-10T00:00:00Z" });
@@ -116,6 +117,7 @@ describe("GET /v1/events", () => {
       level: "info" as const,
       message: `Event ${i}`,
       timestamp: new Date(Date.now() - i * 1000).toISOString(),
+      session_id: TEST_SESSION_ID,
     }));
     await ingestEvents(events);
 
@@ -156,7 +158,7 @@ describe("GET /v1/events", () => {
   });
 
   it("works with JWT auth", async () => {
-    await ingestEvents([{ level: "info", message: "JWT test" }]);
+    await ingestEvents([{ level: "info", message: "JWT test", session_id: TEST_SESSION_ID }]);
 
     const token = await getToken(app);
     const res = await queryEvents({}, token);
@@ -167,7 +169,7 @@ describe("GET /v1/events", () => {
 
 describe("GET /v1/events/:id", () => {
   it("returns a single event", async () => {
-    await ingestEvents([{ level: "info", message: "Find me" }]);
+    await ingestEvents([{ level: "info", message: "Find me", session_id: TEST_SESSION_ID }]);
 
     const listRes = await queryEvents();
     const eventId = listRes.json().events[0].id;

@@ -5,6 +5,7 @@ final class LogEventTests: XCTestCase {
     func testCodableRoundTrip() throws {
         let event = LogEvent(
             clientEventId: "abc-123",
+            sessionId: "session-123",
             userId: "user1",
             level: .error,
             sourceModule: "File.swift:test:1",
@@ -34,6 +35,7 @@ final class LogEventTests: XCTestCase {
     func testJSONKeysAreSnakeCase() throws {
         let event = LogEvent(
             clientEventId: "id",
+            sessionId: "session-id",
             userId: nil,
             level: .info,
             sourceModule: nil,
@@ -53,12 +55,14 @@ final class LogEventTests: XCTestCase {
         let json = String(data: data, encoding: .utf8)!
 
         XCTAssertTrue(json.contains("client_event_id"))
+        XCTAssertTrue(json.contains("session_id"))
         XCTAssertFalse(json.contains("clientEventId"))
     }
 
     func testNilFieldsOmittedInJSON() throws {
         let event = LogEvent(
             clientEventId: "id",
+            sessionId: "session-id",
             userId: nil,
             level: .info,
             sourceModule: nil,

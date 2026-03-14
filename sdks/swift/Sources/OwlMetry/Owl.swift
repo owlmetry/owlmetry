@@ -15,6 +15,7 @@ public enum Owl {
         var lifecycleObserver: LifecycleObserver?
         var defaultUserId: String?
         var anonymousId: String?
+        var sessionId: String?
         var hasWarnedNotConfigured = false
     }
 
@@ -79,6 +80,7 @@ public enum Owl {
             s.duplicateFilter = filter
             s.lifecycleObserver = lifecycleObserver
             s.anonymousId = anonId
+            s.sessionId = UUID().uuidString
             s.defaultUserId = userId
             s.hasWarnedNotConfigured = false
             return old
@@ -282,7 +284,7 @@ public enum Owl {
         function: String,
         line: Int
     ) {
-        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?)? in
+        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?, String?)? in
             guard let deviceInfo = s.deviceInfo,
                   let transport = s.transport,
                   let filter = s.duplicateFilter else {
@@ -292,10 +294,10 @@ public enum Owl {
                 }
                 return nil
             }
-            return (deviceInfo, transport, filter, s.defaultUserId)
+            return (deviceInfo, transport, filter, s.defaultUserId, s.sessionId)
         }
 
-        guard let (deviceInfo, transport, duplicateFilter, defaultUser) = snapshot else { return }
+        guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId) = snapshot else { return }
 
         let event = EventBuilder.build(
             message: message,
@@ -303,6 +305,7 @@ public enum Owl {
             screenName: screenName,
             customAttributes: customAttributes,
             userId: defaultUser,
+            sessionId: sessionId ?? UUID().uuidString,
             deviceInfo: deviceInfo,
             file: file,
             function: function,

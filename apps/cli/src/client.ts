@@ -114,6 +114,7 @@ export class OwlMetryClient {
       app_id: params.app_id,
       level: params.level,
       user_id: params.user_id,
+      session_id: params.session_id,
       screen_name: params.screen_name,
       since: params.since,
       until: params.until,

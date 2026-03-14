@@ -11,6 +11,7 @@ extension LogEvent {
     ) -> LogEvent {
         LogEvent(
             clientEventId: UUID().uuidString,
+            sessionId: "test-session-id",
             userId: userId,
             level: level,
             sourceModule: "Test.swift:test:1",

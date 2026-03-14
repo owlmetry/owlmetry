@@ -161,6 +161,7 @@ export const events = pgTable(
     id: uuid("id").defaultRandom(),
     app_id: uuid("app_id").notNull(),
     client_event_id: varchar("client_event_id", { length: 255 }),
+    session_id: uuid("session_id").notNull(),
     user_id: varchar("user_id", { length: 255 }),
     level: logLevelEnum("level").notNull(),
     source_module: text("source_module"),
@@ -196,6 +197,7 @@ export const events = pgTable(
       table.timestamp
     ),
     index("events_client_event_id_idx").on(table.app_id, table.client_event_id),
+    index("events_app_session_timestamp_idx").on(table.app_id, table.session_id, table.timestamp),
   ]
 );
 

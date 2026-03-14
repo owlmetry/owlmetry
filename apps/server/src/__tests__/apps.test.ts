@@ -8,6 +8,7 @@ import {
   TEST_USER,
   TEST_AGENT_KEY,
   TEST_CLIENT_KEY,
+  TEST_SESSION_ID,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -211,7 +212,7 @@ describe("POST /v1/apps", () => {
       payload: {
         bundle_id: "dev.owlmetry.ingest",
         events: [
-          { level: "info", message: "test event" },
+          { level: "info", message: "test event", session_id: TEST_SESSION_ID },
         ],
       },
     });

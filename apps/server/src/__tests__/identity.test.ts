@@ -7,6 +7,7 @@ import {
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
+  TEST_SESSION_ID,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -57,8 +58,8 @@ describe("POST /v1/identity/claim", () => {
 
     // Ingest events with anonymous ID
     await ingest([
-      { level: "info", message: "claim event 1", user_id: anonId, screen_name: "claim" },
-      { level: "info", message: "claim event 2", user_id: anonId, screen_name: "claim" },
+      { level: "info", message: "claim event 1", user_id: anonId, screen_name: "claim", session_id: TEST_SESSION_ID },
+      { level: "info", message: "claim event 2", user_id: anonId, screen_name: "claim", session_id: TEST_SESSION_ID },
     ]);
 
     // Claim
@@ -77,7 +78,7 @@ describe("POST /v1/identity/claim", () => {
     const anonId = "owl_anon_test-idempotent";
 
     await ingest([
-      { level: "info", message: "idem event", user_id: anonId },
+      { level: "info", message: "idem event", user_id: anonId, session_id: TEST_SESSION_ID },
     ]);
 
     const first = await claim({ anonymous_id: anonId, user_id: "idem-user" });
@@ -110,7 +111,7 @@ describe("POST /v1/identity/claim", () => {
   it("rejects user_id with owl_anon_ prefix", async () => {
     const anonId = "owl_anon_test-reject-anon-user";
     await ingest([
-      { level: "info", message: "test", user_id: anonId },
+      { level: "info", message: "test", user_id: anonId, session_id: TEST_SESSION_ID },
     ]);
 
     const res = await claim({
@@ -143,7 +144,7 @@ describe("POST /v1/identity/claim", () => {
 
     // Ingest events under this app's client key
     await ingest([
-      { level: "info", message: "app-scoped event", user_id: anonId },
+      { level: "info", message: "app-scoped event", user_id: anonId, session_id: TEST_SESSION_ID },
     ]);
 
     // Claim should work
@@ -157,8 +158,8 @@ describe("POST /v1/identity/claim", () => {
     const anonId2 = "owl_anon_user-b";
 
     await ingest([
-      { level: "info", message: "user A event", user_id: anonId1, screen_name: "isolation" },
-      { level: "info", message: "user B event", user_id: anonId2, screen_name: "isolation" },
+      { level: "info", message: "user A event", user_id: anonId1, screen_name: "isolation", session_id: TEST_SESSION_ID },
+      { level: "info", message: "user B event", user_id: anonId2, screen_name: "isolation", session_id: TEST_SESSION_ID },
     ]);
 
     // Claim only anonId1

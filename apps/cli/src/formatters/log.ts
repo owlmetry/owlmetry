@@ -27,6 +27,7 @@ export function formatEventLog(
 
   const meta: string[] = [];
   if (event.user_id) meta.push(`user=${event.user_id}`);
+  if (event.session_id) meta.push(`session=${event.session_id.slice(0, 8)}`);
   if (event.screen_name) meta.push(`screen=${event.screen_name}`);
   const metaStr = meta.length > 0 ? chalk.dim(`  (${meta.join(", ")})`) : "";
 

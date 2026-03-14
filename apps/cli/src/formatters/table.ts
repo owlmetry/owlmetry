@@ -86,6 +86,7 @@ export function formatEventDetail(event: StoredEventResponse): string {
     `${chalk.bold("Level:")}           ${event.level}`,
     `${chalk.bold("Message:")}         ${event.message}`,
     `${chalk.bold("User ID:")}         ${event.user_id ?? "—"}`,
+    `${chalk.bold("Session ID:")}      ${event.session_id}`,
     `${chalk.bold("Screen:")}          ${event.screen_name ?? "—"}`,
     `${chalk.bold("Source Module:")}   ${event.source_module ?? "—"}`,
     `${chalk.bold("Platform:")}        ${event.platform ?? "—"}`,
