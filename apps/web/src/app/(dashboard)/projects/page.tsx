@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
 import type { ProjectResponse } from "@owlmetry/shared";
@@ -19,7 +28,7 @@ function slugify(name: string): string {
 export default function ProjectsPage() {
   const { teams } = useUser();
   const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
-  const [showCreate, setShowCreate] = useState(false);
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +45,7 @@ export default function ProjectsPage() {
     try {
       await api.post("/v1/projects", { name, slug: slugify(name), team_id: defaultTeamId });
       setName("");
-      setShowCreate(false);
+      setOpen(false);
       mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create project");
@@ -49,17 +58,22 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Projects</h1>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
-      </div>
-
-      {showCreate && (
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={handleCreate} className="flex items-end gap-4">
-              <div className="flex-1 space-y-2">
+        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setName(""); setError(""); } }}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>New Project</DialogTitle>
+              <DialogDescription>
+                Create a new project to group your apps.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreate} className="space-y-4">
+              <div className="space-y-2">
                 <Label htmlFor="project-name">Project name</Label>
                 <Input
                   id="project-name"
@@ -67,19 +81,19 @@ export default function ProjectsPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
+                  autoFocus
                 />
               </div>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Create"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>
-                Cancel
-              </Button>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <DialogFooter>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Creating..." : "Create Project"}
+                </Button>
+              </DialogFooter>
             </form>
-            {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-          </CardContent>
-        </Card>
-      )}
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {projects.length === 0 ? (
         <p className="text-muted-foreground">No projects yet. Create one to get started.</p>

@@ -9,6 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
 import { api, ApiError } from "@/lib/api";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
@@ -32,7 +41,7 @@ export default function ProjectDetailPage() {
   const [editError, setEditError] = useState("");
 
   // Create app
-  const [showCreateApp, setShowCreateApp] = useState(false);
+  const [appDialogOpen, setAppDialogOpen] = useState(false);
   const [appName, setAppName] = useState("");
   const [appPlatform, setAppPlatform] = useState("ios");
   const [appBundleId, setAppBundleId] = useState("");
@@ -88,13 +97,21 @@ export default function ProjectDetailPage() {
       setNewClientKey(res.app.client_key);
       setAppName("");
       setAppBundleId("");
-      setShowCreateApp(false);
+      setAppPlatform("ios");
+      setAppDialogOpen(false);
       mutate();
     } catch (err) {
       setAppError(err instanceof ApiError ? err.message : "Failed to create app");
     } finally {
       setAppLoading(false);
     }
+  }
+
+  function resetAppDialog() {
+    setAppName("");
+    setAppBundleId("");
+    setAppPlatform("ios");
+    setAppError("");
   }
 
   return (
@@ -163,64 +180,65 @@ export default function ProjectDetailPage() {
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium">Apps</h2>
-        <Button onClick={() => setShowCreateApp(!showCreateApp)}>
-          <Plus className="h-4 w-4" />
-          New App
-        </Button>
-      </div>
-
-      {showCreateApp && (
-        <Card>
-          <CardContent className="pt-6">
+        <Dialog open={appDialogOpen} onOpenChange={(v) => { setAppDialogOpen(v); if (!v) resetAppDialog(); }}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4" />
+              New App
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>New App</DialogTitle>
+              <DialogDescription>
+                Add an app to {project.name}.
+              </DialogDescription>
+            </DialogHeader>
             <form onSubmit={handleCreateApp} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="app-name">Name</Label>
-                  <Input
-                    id="app-name"
-                    placeholder="My iOS App"
-                    value={appName}
-                    onChange={(e) => setAppName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="app-platform">Platform</Label>
-                  <select
-                    id="app-platform"
-                    value={appPlatform}
-                    onChange={(e) => setAppPlatform(e.target.value)}
-                    className="flex h-9 w-full border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    {PLATFORM_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="app-bundle-id">Bundle ID</Label>
-                  <Input
-                    id="app-bundle-id"
-                    placeholder="com.example.myapp"
-                    value={appBundleId}
-                    onChange={(e) => setAppBundleId(e.target.value)}
-                    required
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="app-name">Name</Label>
+                <Input
+                  id="app-name"
+                  placeholder="My iOS App"
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  required
+                  autoFocus
+                />
               </div>
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="app-platform">Platform</Label>
+                <select
+                  id="app-platform"
+                  value={appPlatform}
+                  onChange={(e) => setAppPlatform(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {PLATFORM_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="app-bundle-id">Bundle ID</Label>
+                <Input
+                  id="app-bundle-id"
+                  placeholder="com.example.myapp"
+                  value={appBundleId}
+                  onChange={(e) => setAppBundleId(e.target.value)}
+                  required
+                />
+              </div>
+              {appError && <p className="text-sm text-destructive">{appError}</p>}
+              <DialogFooter>
                 <Button type="submit" disabled={appLoading}>
                   {appLoading ? "Creating..." : "Create App"}
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => setShowCreateApp(false)}>
-                  Cancel
-                </Button>
-              </div>
-              {appError && <p className="text-sm text-destructive">{appError}</p>}
+              </DialogFooter>
             </form>
-          </CardContent>
-        </Card>
-      )}
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {project.apps.length === 0 ? (
         <p className="text-muted-foreground">No apps yet.</p>
@@ -300,7 +318,7 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
         {error && <p className="text-destructive">{error}</p>}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Platform</span>
-          <span className="capitalize">{app.platform}</span>
+          <span>{PLATFORM_OPTIONS.find((p) => p.value === app.platform)?.label ?? app.platform}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Bundle ID</span>
