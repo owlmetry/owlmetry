@@ -10,19 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
+import type { ProjectResponse } from "@owlmetry/shared";
 
-interface Project {
-  id: string;
-  team_id: string;
-  name: string;
-  slug: string;
-  created_at: string;
-  deleted_at: string | null;
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 export default function ProjectsPage() {
   const { teams } = useUser();
-  const { data, mutate } = useSWR<{ projects: Project[] }>("/v1/projects");
+  const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -38,7 +34,7 @@ export default function ProjectsPage() {
     setLoading(true);
 
     try {
-      await api.post("/v1/projects", { name, team_id: defaultTeamId });
+      await api.post("/v1/projects", { name, slug: slugify(name), team_id: defaultTeamId });
       setName("");
       setShowCreate(false);
       mutate();

@@ -10,10 +10,16 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const { headers: extraHeaders, ...rest } = options ?? {};
+  const headers: Record<string, string> = { ...extraHeaders as Record<string, string> };
+  if (rest.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
+    headers,
+    ...rest,
   });
 
   if (!res.ok) {

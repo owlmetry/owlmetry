@@ -3,58 +3,33 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
-import { ArrowLeft, Plus, Copy, Check, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CopyButton } from "@/components/copy-button";
 import { api, ApiError } from "@/lib/api";
+import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
 
-interface App {
-  id: string;
-  name: string;
-  platform: string;
-  bundle_id: string;
-  client_key: string | null;
-  project_id: string;
-  team_id: string;
-  created_at: string;
-}
-
-interface ProjectDetail {
-  id: string;
-  team_id: string;
-  name: string;
-  slug: string;
-  created_at: string;
-  apps: App[];
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <Button variant="ghost" size="icon" onClick={copy} title="Copy">
-      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-    </Button>
-  );
-}
+const PLATFORM_OPTIONS = [
+  { value: "ios", label: "iOS" },
+  { value: "ipados", label: "iPadOS" },
+  { value: "macos", label: "macOS" },
+  { value: "android", label: "Android" },
+  { value: "web", label: "Web" },
+];
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { data: project, mutate } = useSWR<ProjectDetail>(`/v1/projects/${id}`);
+  const { data: project, mutate } = useSWR<ProjectDetailResponse>(`/v1/projects/${id}`);
 
   // Edit project
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editError, setEditError] = useState("");
 
   // Create app
   const [showCreateApp, setShowCreateApp] = useState(false);
@@ -67,6 +42,7 @@ export default function ProjectDetailPage() {
 
   // Delete
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   if (!project) {
     return <p className="text-muted-foreground">Loading...</p>;
@@ -74,22 +50,25 @@ export default function ProjectDetailPage() {
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
+    setEditError("");
     try {
       await api.patch(`/v1/projects/${id}`, { name: editName });
       setEditing(false);
       mutate();
-    } catch {
-      // ignore
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "Failed to rename");
     }
   }
 
   async function handleDelete() {
     if (!confirm("Delete this project and all its apps?")) return;
     setDeleting(true);
+    setDeleteError("");
     try {
       await api.delete(`/v1/projects/${id}`);
       router.push("/projects");
-    } catch {
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Failed to delete");
       setDeleting(false);
     }
   }
@@ -100,7 +79,7 @@ export default function ProjectDetailPage() {
     setAppLoading(true);
 
     try {
-      const res = await api.post<{ app: App & { client_key: string } }>("/v1/apps", {
+      const res = await api.post<{ app: AppResponse & { client_key: string } }>("/v1/apps", {
         name: appName,
         platform: appPlatform,
         bundle_id: appBundleId,
@@ -139,6 +118,7 @@ export default function ProjectDetailPage() {
             <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
               Cancel
             </Button>
+            {editError && <span className="text-sm text-destructive">{editError}</span>}
           </form>
         ) : (
           <div className="flex items-center gap-2">
@@ -161,6 +141,8 @@ export default function ProjectDetailPage() {
           </div>
         )}
       </div>
+
+      {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
 
       <p className="text-sm text-muted-foreground">Slug: {project.slug}</p>
 
@@ -210,9 +192,9 @@ export default function ProjectDetailPage() {
                     onChange={(e) => setAppPlatform(e.target.value)}
                     className="flex h-9 w-full border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <option value="ios">iOS</option>
-                    <option value="android">Android</option>
-                    <option value="web">Web</option>
+                    {PLATFORM_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -245,7 +227,7 @@ export default function ProjectDetailPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {project.apps.map((app) => (
-            <AppCard key={app.id} app={app} onDeleted={mutate} />
+            <AppCard key={app.id} app={app} onChanged={mutate} />
           ))}
         </div>
       )}
@@ -253,29 +235,33 @@ export default function ProjectDetailPage() {
   );
 }
 
-function AppCard({ app, onDeleted }: { app: App; onDeleted: () => void }) {
+function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }) {
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(app.name);
+  const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     try {
       await api.patch(`/v1/apps/${app.id}`, { name });
       setEditingName(false);
-      onDeleted();
-    } catch {
-      // ignore
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to rename");
     }
   }
 
   async function handleDelete() {
     if (!confirm(`Delete app "${app.name}"?`)) return;
     setDeleting(true);
+    setError("");
     try {
       await api.delete(`/v1/apps/${app.id}`);
-      onDeleted();
-    } catch {
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete");
       setDeleting(false);
     }
   }
@@ -311,6 +297,7 @@ function AppCard({ app, onDeleted }: { app: App; onDeleted: () => void }) {
         )}
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
+        {error && <p className="text-destructive">{error}</p>}
         <div className="flex justify-between">
           <span className="text-muted-foreground">Platform</span>
           <span className="capitalize">{app.platform}</span>
