@@ -9,6 +9,7 @@
     "db:generate": "pnpm --filter @owlmetry/db generate",
     "db:migrate": "pnpm --filter @owlmetry/db migrate",
     "db:seed": "pnpm --filter @owlmetry/db seed",
+    "db:seed-events": "pnpm --filter @owlmetry/db seed-events",
     "db:unsafe-reset": "pnpm --filter @owlmetry/db dev:unsafe-reset",
     "test": "pnpm -r test && pnpm test:swift-sdk",
     "test:swift-sdk": "bash scripts/test-swift-sdk.sh",
