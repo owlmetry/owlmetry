@@ -31,17 +31,22 @@ appsCommand
   .requiredOption("--name <name>", "App name")
   .addOption(
     new Option("--platform <platform>", "Platform")
-      .choices(["ios", "ipados", "macos", "android", "web"])
+      .choices(["ios", "ipados", "macos", "android", "web", "server"])
       .makeOptionMandatory(),
   )
-  .requiredOption("--bundle-id <bundleId>", "Bundle identifier")
-  .action(async (opts: { project: string; name: string; platform: string; bundleId: string }, cmd: Command) => {
+  .option("--bundle-id <bundleId>", "Bundle identifier (required for non-server platforms)")
+  .action(async (opts: { project: string; name: string; platform: string; bundleId?: string }, cmd: Command) => {
+    if (opts.platform !== "server" && !opts.bundleId) {
+      console.error("Error: --bundle-id is required for non-server platforms");
+      process.exit(1);
+    }
+
     const { client, globals } = createClient(cmd);
     const app = await client.createApp({
       project_id: opts.project,
       name: opts.name,
       platform: opts.platform,
-      bundle_id: opts.bundleId,
+      ...(opts.bundleId ? { bundle_id: opts.bundleId } : {}),
     });
     output(globals.format, app, () => formatAppDetail(app));
   });

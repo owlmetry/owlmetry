@@ -29,6 +29,8 @@ export const TEST_AGENT_KEY =
   "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 export const TEST_EXPIRED_KEY =
   "owl_client_cccccccccccccccccccccccccccccccccccccccccccccc";
+export const TEST_SERVER_KEY =
+  "owl_server_dddddddddddddddddddddddddddddddddddddddddddd";
 export const TEST_BUNDLE_ID = "com.owlmetry.test";
 export const TEST_SESSION_ID = "00000000-0000-0000-0000-000000000001";
 export const TEST_USER = {
@@ -41,6 +43,26 @@ let migrationClient: postgres.Sql | null = null;
 
 export async function setupTestDb() {
   migrationClient = postgres(TEST_DB_URL, { max: 1 });
+
+  // Add 'server' to api_key_type enum if not present (ALTER TYPE ... ADD VALUE
+  // cannot run inside a transaction, which Drizzle's migrator uses)
+  const enumCheck = await migrationClient`
+    SELECT 1 FROM pg_enum WHERE enumlabel = 'server'
+      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
+  `;
+  if (enumCheck.length === 0) {
+    await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
+  }
+
+  // Make bundle_id nullable if not already
+  const colCheck = await migrationClient`
+    SELECT is_nullable FROM information_schema.columns
+    WHERE table_name = 'apps' AND column_name = 'bundle_id'
+  `;
+  if (colCheck.length > 0 && colCheck[0].is_nullable === 'NO') {
+    await migrationClient`ALTER TABLE apps ALTER COLUMN bundle_id DROP NOT NULL`;
+  }
+
   const migrationDb = drizzle(migrationClient);
   await migrate(migrationDb, {
     migrationsFolder: "../../packages/db/drizzle",

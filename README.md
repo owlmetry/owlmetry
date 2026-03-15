@@ -14,7 +14,7 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Funnel analytics** — planned but not yet implemented (database tables exist, API routes and UI coming later)
-- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs, `owl_agent_` keys for agents/CLI. Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
+- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for client SDKs, `owl_server_` keys for server SDKs, `owl_agent_` keys for agents/CLI. Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
 - **Team management** — create teams, invite members by email, change roles, remove members
 - **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
@@ -28,6 +28,7 @@ apps/server        Fastify API server (port 4000)
 apps/web           Next.js dashboard (port 3000) — coming soon
 apps/cli           CLI tool (agent key)
 sdks/swift         Swift SDK (Swift Package)
+sdks/node          Node.js Server SDK (zero dependencies)
 demos/ios          iOS demo app for testing Swift SDK
 ```
 
@@ -63,6 +64,7 @@ pnpm dev:server
 createdb owlmetry_test
 pnpm test              # Vitest + Swift SDK integration tests
 pnpm test:swift-sdk    # Swift SDK integration tests only
+pnpm test:node-sdk     # Node SDK integration tests only
 ```
 
 ## Server Installation (Ubuntu VPS)
@@ -218,7 +220,7 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/teams/:id/members` | JWT (admin+) | Add member by email |
 | `PATCH` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Change member role |
 | `DELETE` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Remove member (or self-leave) |
-| `POST` | `/v1/ingest` | Client key | Batch ingest events |
+| `POST` | `/v1/ingest` | Client/Server key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
 | `GET` | `/v1/projects` | `projects:read` / JWT | List projects |
@@ -273,6 +275,51 @@ owlmetry investigate <eventId> --window 10     # Events ±10 min around target
 - `--format table` (default) — human-readable tables
 - `--format json` — machine-readable JSON
 - `--format log` — color-coded log lines (best for events)
+
+## Node.js Server SDK
+
+The Node.js SDK (`@owlmetry/node`) lets you log server-side events into the same OwlMetry pipeline as your client events. Zero runtime dependencies.
+
+### Setup
+
+1. Create a server-platform app in OwlMetry (via dashboard, CLI, or API)
+2. Use the generated `owl_server_` key
+
+### Usage
+
+```typescript
+import { Owl } from '@owlmetry/node';
+
+// Initialize at server startup
+Owl.configure({
+  endpoint: 'https://your-owlmetry.com',
+  apiKey: 'owl_server_xxx',
+  serviceName: 'api-server',
+  appVersion: '1.0.0',
+});
+
+// Simple logging
+Owl.info('User logged in', { route: '/auth/login' });
+Owl.error('Payment failed', { error: err.message });
+Owl.warn('Rate limit approaching', { endpoint: '/v1/ingest' });
+Owl.debug('Cache miss', { key: 'user:123:profile' });
+
+// Scoped logger with preset userId
+const owl = Owl.withUser('user_123');
+owl.info('Processing order');
+owl.error('Payment failed', { error: err.message });
+
+// Graceful shutdown (flushes all buffered events)
+await Owl.shutdown();
+```
+
+### Transport
+
+- Events are buffered in memory and flushed every 5 seconds or when 20 events accumulate
+- Payloads over 512 bytes are gzip-compressed
+- Failed requests are retried up to 5 times with exponential backoff
+- All logging methods never throw — errors go to `console.error` when `debug: true`
+- `session_id` is generated per `configure()` call, representing the server process lifetime
 
 ## Environment Variables
 

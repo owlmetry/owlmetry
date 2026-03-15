@@ -67,7 +67,8 @@ export async function requireAuth(
   // API key auth
   if (
     token.startsWith(API_KEY_PREFIX.client) ||
-    token.startsWith(API_KEY_PREFIX.agent)
+    token.startsWith(API_KEY_PREFIX.agent) ||
+    token.startsWith(API_KEY_PREFIX.server)
   ) {
     const hash = hashApiKey(token);
     const db = request.server.db;

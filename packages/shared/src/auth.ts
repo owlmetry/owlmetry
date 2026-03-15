@@ -19,7 +19,7 @@ export function meetsMinimumRole(role: TeamRole, minimumRole: TeamRole): boolean
   return TEAM_ROLE_HIERARCHY[role] >= TEAM_ROLE_HIERARCHY[minimumRole];
 }
 
-export type ApiKeyType = "client" | "agent";
+export type ApiKeyType = "client" | "agent" | "server";
 
 export type Permission =
   | "events:write"
@@ -43,11 +43,13 @@ export const VALID_PERMISSIONS: Permission[] = [
 export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
   client: ["events:write"],
   agent: ["events:read", "funnels:read", "apps:read", "apps:write", "projects:read", "projects:write"],
+  server: ["events:write"],
 };
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
   client: ["events:write"],
   agent: ["events:read", "funnels:read", "apps:read", "projects:read"],
+  server: ["events:write"],
 };
 
 /**
@@ -133,7 +135,7 @@ export interface App {
   project_id: string;
   name: string;
   platform: string;
-  bundle_id: string;
+  bundle_id: string | null;
   client_key: string | null;
   created_at: Date;
   deleted_at: Date | null;

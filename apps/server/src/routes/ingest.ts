@@ -49,12 +49,6 @@ export async function ingestRoutes(app: FastifyInstance) {
       const auth = request.auth;
       const { bundle_id, events: payloads } = request.body;
 
-      if (!bundle_id || typeof bundle_id !== "string") {
-        return reply
-          .code(400)
-          .send({ error: "bundle_id is required" });
-      }
-
       if (!Array.isArray(payloads) || payloads.length === 0) {
         return reply.code(400).send({ error: "events array is required" });
       }
@@ -72,10 +66,10 @@ export async function ingestRoutes(app: FastifyInstance) {
       if (!app_id) {
         return reply
           .code(400)
-          .send({ error: "Client key must be scoped to an app" });
+          .send({ error: "API key must be scoped to an app" });
       }
 
-      // Validate bundle_id matches the app's registered bundle_id
+      // Look up the app to validate bundle_id (if applicable)
       const [appRow] = await app.db
         .select({ bundle_id: apps.bundle_id })
         .from(apps)
@@ -88,12 +82,21 @@ export async function ingestRoutes(app: FastifyInstance) {
           .send({ error: "App associated with this API key no longer exists" });
       }
 
-      if (bundle_id !== appRow.bundle_id) {
-        return reply
-          .code(403)
-          .send({
-            error: "bundle_id does not match the app associated with this API key",
-          });
+      // Server apps (no bundle_id on the app) skip bundle_id validation;
+      // client apps require a matching bundle_id in the request
+      if (appRow.bundle_id) {
+        if (!bundle_id || typeof bundle_id !== "string") {
+          return reply
+            .code(400)
+            .send({ error: "bundle_id is required" });
+        }
+        if (bundle_id !== appRow.bundle_id) {
+          return reply
+            .code(403)
+            .send({
+              error: "bundle_id does not match the app associated with this API key",
+            });
+        }
       }
 
       const errors: Array<{ index: number; message: string }> = [];

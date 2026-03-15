@@ -28,6 +28,7 @@ const PLATFORM_OPTIONS = [
   { value: "macos", label: "macOS" },
   { value: "android", label: "Android" },
   { value: "web", label: "Web" },
+  { value: "server", label: "Server" },
 ];
 
 export default function ProjectDetailPage() {
@@ -91,7 +92,7 @@ export default function ProjectDetailPage() {
       const res = await api.post<{ app: AppResponse & { client_key: string } }>("/v1/apps", {
         name: appName,
         platform: appPlatform,
-        bundle_id: appBundleId,
+        ...(appPlatform !== "server" ? { bundle_id: appBundleId } : {}),
         project_id: id,
       });
       setNewClientKey(res.app.client_key);
@@ -227,16 +228,18 @@ export default function ProjectDetailPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="app-bundle-id">Bundle ID</Label>
-                <Input
-                  id="app-bundle-id"
-                  placeholder="com.example.myapp"
-                  value={appBundleId}
-                  onChange={(e) => setAppBundleId(e.target.value)}
-                  required
-                />
-              </div>
+              {appPlatform !== "server" && (
+                <div className="space-y-2">
+                  <Label htmlFor="app-bundle-id">Bundle ID</Label>
+                  <Input
+                    id="app-bundle-id"
+                    placeholder="com.example.myapp"
+                    value={appBundleId}
+                    onChange={(e) => setAppBundleId(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
               {appError && <p className="text-sm text-destructive">{appError}</p>}
               <DialogFooter>
                 <Button type="submit" disabled={appLoading}>
@@ -328,13 +331,15 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
           <span className="text-muted-foreground">Platform</span>
           <span>{PLATFORM_OPTIONS.find((p) => p.value === app.platform)?.label ?? app.platform}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Bundle ID</span>
-          <span className="font-mono text-xs">{app.bundle_id}</span>
-        </div>
+        {app.bundle_id && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Bundle ID</span>
+            <span className="font-mono text-xs">{app.bundle_id}</span>
+          </div>
+        )}
         {app.client_key && (
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Client Key</span>
+            <span className="text-muted-foreground">{app.platform === "server" ? "Server Key" : "Client Key"}</span>
             <div className="flex items-center gap-1">
               <code className="bg-muted px-1.5 py-0.5 text-xs">
                 {app.client_key.slice(0, 20)}...

@@ -14,7 +14,7 @@ import {
 
 // Enums
 export const teamRoleEnum = pgEnum("team_role", ["owner", "admin", "member"]);
-export const apiKeyTypeEnum = pgEnum("api_key_type", ["client", "agent"]);
+export const apiKeyTypeEnum = pgEnum("api_key_type", ["client", "agent", "server"]);
 export const logLevelEnum = pgEnum("log_level", [
   "info",
   "debug",
@@ -108,7 +108,7 @@ export const apps = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     platform: varchar("platform", { length: 50 }).notNull(),
-    bundle_id: varchar("bundle_id", { length: 255 }).notNull(),
+    bundle_id: varchar("bundle_id", { length: 255 }),
     client_key: text("client_key"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()

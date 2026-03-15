@@ -59,7 +59,7 @@ export default function AppDetailPage() {
         <div>
           <h1 className="text-2xl font-semibold">{app.name}</h1>
           <p className="text-sm text-muted-foreground">
-            {app.platform} &middot; {app.bundle_id}
+            {app.platform}{app.bundle_id ? ` \u00B7 ${app.bundle_id}` : ""}
           </p>
         </div>
       </div>

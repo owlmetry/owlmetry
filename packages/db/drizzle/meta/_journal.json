@@ -64,6 +64,13 @@
       "when": 1773830400000,
       "tag": "0008_brave_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1773568893131,
+      "tag": "0009_sloppy_vertigo",
+      "breakpoints": true
     }
   ]
 }

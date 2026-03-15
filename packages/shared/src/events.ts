@@ -6,7 +6,7 @@ export type LogLevel =
   | "attention"
   | "tracking";
 
-export type Platform = "ios" | "ipados" | "macos" | "android" | "web";
+export type Platform = "ios" | "ipados" | "macos" | "android" | "web" | "server";
 
 export interface IngestEventPayload {
   client_event_id?: string;
@@ -47,7 +47,7 @@ export interface StoredEvent {
 }
 
 export interface IngestRequest {
-  bundle_id: string;
+  bundle_id?: string;
   events: IngestEventPayload[];
 }
 

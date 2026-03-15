@@ -89,6 +89,29 @@ async function main() {
     permissions: ["events:read", "funnels:read", "apps:read", "projects:read"],
   });
 
+  // Create a demo server app with deterministic server key
+  const serverKey = "owl_server_demo_000000000000000000000000000000000000000000";
+  const [serverApp] = await db
+    .insert(apps)
+    .values({
+      team_id: team.id,
+      project_id: project.id,
+      name: "Demo API Server",
+      platform: "server",
+      bundle_id: null,
+      client_key: serverKey,
+    })
+    .returning();
+  await db.insert(apiKeys).values({
+    key_hash: hashApiKey(serverKey),
+    key_prefix: serverKey.slice(0, KEY_PREFIX_LENGTH),
+    key_type: "server",
+    app_id: serverApp.id,
+    team_id: team.id,
+    name: "Demo Server Key",
+    permissions: ["events:write"],
+  });
+
   // Seed demo events
   const session1 = crypto.randomUUID();
   const session2 = crypto.randomUUID();
@@ -116,6 +139,18 @@ async function main() {
 
   await db.insert(events).values(
     seedEvents.map((e) => ({ ...e, app_id: app.id }))
+  );
+
+  // Seed server events
+  const serverSession = crypto.randomUUID();
+  const serverEvents: SeedEvent[] = [
+    { session_id: serverSession, level: "info", message: "Server started on port 4000", screen_name: "", user_id: "", source_module: "index.ts:42", platform: "server", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 10 * 60000) },
+    { session_id: serverSession, level: "info", message: "User authenticated successfully", screen_name: "", user_id: "user-42", source_module: "auth.ts:118", platform: "server", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 9 * 60000), custom_attributes: { route: "/v1/auth/login", method: "POST" } },
+    { session_id: serverSession, level: "error", message: "Database connection timeout after 30s", screen_name: "", user_id: "", source_module: "db.ts:55", platform: "server", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 1 * 60000), custom_attributes: { pool_size: "10", active_connections: "10" } },
+  ];
+
+  await db.insert(events).values(
+    serverEvents.map((e) => ({ ...e, app_id: serverApp.id }))
   );
 
   // Seed app_users
@@ -149,9 +184,11 @@ async function main() {
   console.log(`Team:       ${team.name} (${team.slug})`);
   console.log(`Project:    ${project.name} (${project.slug})`);
   console.log(`App:        ${app.name} (${app.id})`);
+  console.log(`Server App: ${serverApp.name} (${serverApp.id})`);
   console.log(`Client Key: ${clientKey}`);
+  console.log(`Server Key: ${serverKey}`);
   console.log(`Agent Key:  ${agentKey}`);
-  console.log(`Events:     ${seedEvents.length} demo events seeded`);
+  console.log(`Events:     ${seedEvents.length + serverEvents.length} demo events seeded`);
   console.log("\nSave these keys — they won't be shown again.");
 
   process.exit(0);

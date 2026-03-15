@@ -1,6 +1,7 @@
 export const API_KEY_PREFIX = {
   client: "owl_client_",
   agent: "owl_agent_",
+  server: "owl_server_",
 } as const;
 
 export const LOG_LEVELS = [

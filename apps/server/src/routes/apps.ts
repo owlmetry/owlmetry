@@ -62,12 +62,19 @@ export async function appsRoutes(app: FastifyInstance) {
       const auth = request.auth;
       const { name, platform, bundle_id, project_id } = request.body;
 
-      if (!name || !platform || !bundle_id || !project_id) {
+      if (!name || !platform || !project_id) {
         return reply
           .code(400)
           .send({
-            error: "name, platform, bundle_id, and project_id are required",
+            error: "name, platform, and project_id are required",
           });
+      }
+
+      // Server apps don't need a bundle_id; all other platforms require it
+      if (platform !== "server" && !bundle_id) {
+        return reply
+          .code(400)
+          .send({ error: "bundle_id is required for non-server platforms" });
       }
 
       // Look up project and verify team membership
@@ -86,7 +93,8 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: createRoleError });
       }
 
-      const { fullKey, keyHash, keyPrefix } = generateApiKey("client");
+      const keyType = platform === "server" ? "server" as const : "client" as const;
+      const { fullKey, keyHash, keyPrefix } = generateApiKey(keyType);
 
       const created = await app.db.transaction(async (tx) => {
         const [created] = await tx
@@ -96,7 +104,7 @@ export async function appsRoutes(app: FastifyInstance) {
             project_id,
             name,
             platform,
-            bundle_id,
+            bundle_id: bundle_id || null,
             client_key: fullKey,
           })
           .returning();
@@ -106,11 +114,11 @@ export async function appsRoutes(app: FastifyInstance) {
           .values({
             key_hash: keyHash,
             key_prefix: keyPrefix,
-            key_type: "client",
+            key_type: keyType,
             app_id: created.id,
             team_id: project.team_id,
-            name: `${name} Client Key`,
-            permissions: DEFAULT_API_KEY_PERMISSIONS.client,
+            name: `${name} ${keyType === "server" ? "Server" : "Client"} Key`,
+            permissions: DEFAULT_API_KEY_PERMISSIONS[keyType],
           });
 
         return created;

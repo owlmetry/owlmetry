@@ -99,7 +99,7 @@ export interface UpdateProjectRequest {
 export interface CreateAppRequest {
   name: string;
   platform: string;
-  bundle_id: string;
+  bundle_id?: string;
   project_id: string;
 }
 

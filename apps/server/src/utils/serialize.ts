@@ -36,7 +36,7 @@ export function serializeAppUser(u: {
 
 export function serializeApp(a: {
   id: string; team_id: string; project_id: string;
-  name: string; platform: string; bundle_id: string;
+  name: string; platform: string; bundle_id: string | null;
   client_key: string | null;
   created_at: Date; deleted_at: Date | null;
 }) {
