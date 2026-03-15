@@ -1,37 +1,63 @@
 # OwlMetry
 
-Self-hosted observability for the agentic development era. Ship your app, collect real usage data, and feed it directly to your AI coding agent — so it can see what's actually happening in production and fix things autonomously.
+Agent-first observability. One Postgres instance. No humans required.
 
-Most AI-assisted development is a one-way street: you vibe-code a feature, ship it, and hope for the best. OwlMetry closes the loop. It gives your agent eyes on real user behavior, crash patterns, and performance bottlenecks — turning "build and forget" into a continuous feedback cycle where your agent can make informed decisions based on what's actually happening in the wild.
+OwlMetry is a self-hosted observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through the CLI.
+
+Most observability tools are built for humans staring at dashboards. OwlMetry is built for agents making API calls. Every feature is accessible programmatically through agent API keys, a CLI, and a complete REST API. The web dashboard exists as an optional visual layer — not the primary interface.
 
 > **Warning:** This project is in active development and is not yet production-ready. APIs, schemas, and configuration may change without notice.
 
+## Why agent-first?
+
+Traditional observability requires a human in the loop: someone to check dashboards, read alerts, interpret metrics, and decide what to fix. That made sense when humans wrote all the code. It doesn't make sense when your agent is already writing the code — it should also be the one monitoring it.
+
+With OwlMetry, your agent can:
+
+1. **Set up observability** — create projects, register apps, and integrate the SDK into your codebase
+2. **Monitor in production** — query events, filter by level/app/time, investigate error clusters
+3. **Diagnose issues** — pull events around an incident window, correlate sessions, trace user journeys
+4. **Act on what it finds** — the agent reads the data, understands the problem, and writes the fix
+
+The dashboard is there if you want to look. But you shouldn't have to.
+
+## Why self-hosted?
+
+Your analytics data is some of the most sensitive information you have — user behavior, device details, session traces, error logs. OwlMetry keeps all of it on your own infrastructure. No data leaves your servers, no third-party vendor has access, no privacy policy to hope they follow. This isn't a feature toggle — it's the architecture. Self-hosted by design means GDPR, HIPAA, and SOC 2 compliance becomes a property of your infrastructure, not a vendor promise.
+
+And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres instance. One database, one API server. That's the entire backend. Monthly partitioning handles event volume, auto-pruning manages disk space, and Postgres does what it's been doing reliably for decades.
+
 ## Features
 
+- **Agent-native API** — every operation available through `owl_agent_` keys: query events, list apps, read projects, analyze funnels. Agents are first-class citizens, not an afterthought
+- **CLI for agents and humans** — `--format json` for machine consumption, `--format table` for humans. Same tool, both audiences
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; supports gzip-compressed payloads
 - **Projects & apps** — organize apps by product across platforms (`apple`, `android`, `web`, `backend`); Apple platform covers iOS, iPadOS, and macOS with a single app
-- **Device tracking** — environment (runtime platform: ios/ipados/macos/android/web/backend), OS version, app version, device model, locale, build number
+- **Device tracking** — environment, OS version, app version, device model, locale, build number
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
-- **Funnel analytics** — planned but not yet implemented (database tables exist, API routes and UI coming later)
-- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs (client and server), `owl_agent_` keys for agents/CLI. Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
+- **Funnel analytics** — define conversion funnels and let your agent query drop-off rates programmatically
+- **Dashboard optional** — Next.js web UI for when you want a visual overview. Not required for any workflow
+- **Single Postgres** — no Kafka, no ClickHouse, no Redis. One database. Monthly partitioned events handle the scale
+- **Auth model** — `owl_client_` keys for SDKs, `owl_agent_` keys for agents/CLI, JWT for the optional dashboard. Role-based access: **owner** > **admin** > **member**
 - **Team management** — create teams, invite members by email, change roles, remove members
-- **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
 
 ## Architecture
 
 ```
+apps/server        Fastify API server (port 4000) — the core of OwlMetry
+apps/cli           CLI for agents and humans (agent key auth)
+apps/web           Next.js dashboard (port 3000) — optional visual layer
+sdks/swift         Swift SDK (Swift Package)
+sdks/node          Node.js Server SDK (zero runtime dependencies)
 packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed
-apps/server        Fastify API server (port 4000)
-apps/web           Next.js dashboard (port 3000) — coming soon
-apps/cli           CLI tool (agent key)
-sdks/swift         Swift SDK (Swift Package)
-sdks/node          Node.js Server SDK (zero dependencies)
-demos/ios          iOS demo app for testing Swift SDK
-demos/node         Node.js demo server for testing Node SDK
+demos/ios          iOS demo app
+demos/node         Node.js demo server
 ```
+
+The API server is the product. Everything else — the dashboard, the CLI, the SDKs — is a client of that API. This means your agent has the same capabilities as the web UI. Nothing is dashboard-only.
 
 ## Requirements
 
@@ -238,7 +264,7 @@ MAX_DATABASE_SIZE_GB=10
 
 ## CLI
 
-The CLI is a pure HTTP client for the OwlMetry API, designed for both humans and AI agents.
+The CLI is a thin HTTP client over the OwlMetry API. It works equally well as a tool for coding agents (`--format json`) and for humans (`--format table`).
 
 ### Setup
 
@@ -257,6 +283,7 @@ export OWLMETRY_API_KEY=<agent-key>
 ### Usage
 
 ```bash
+# An agent can do all of this programmatically
 owlmetry projects                              # List projects
 owlmetry projects view <id>                    # Project details with apps
 owlmetry projects create --team-id <id> --name "My Project" --slug my-project
@@ -273,13 +300,13 @@ owlmetry investigate <eventId> --window 10     # Events ±10 min around target
 
 ### Output Formats
 
+- `--format json` — machine-readable, ideal for agents
 - `--format table` (default) — human-readable tables
-- `--format json` — machine-readable JSON
-- `--format log` — color-coded log lines (best for events)
+- `--format log` — color-coded log lines (best for tailing events)
 
 ## Node.js Server SDK
 
-The Node.js SDK (`@owlmetry/node`) lets you log server-side events into the same OwlMetry pipeline as your client events. Zero runtime dependencies.
+Zero-dependency server-side SDK. Your agent can add this to any Node.js project in seconds.
 
 ### Setup
 
