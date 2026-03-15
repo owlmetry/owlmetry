@@ -1,17 +1,9 @@
 import { Command, Option } from "commander";
-import chalk from "chalk";
-import type { AppUsersResponse } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 import { formatAppUsersTable } from "../formatters/table.js";
 import { parsePositiveInt } from "../utils/parse.js";
-
-function paginationHint(result: AppUsersResponse): string {
-  if (result.has_more && result.cursor) {
-    return `\n${chalk.dim(`More results available. Use --cursor ${result.cursor}`)}`;
-  }
-  return "";
-}
+import { paginationHint } from "../utils/pagination.js";
 
 export const usersCommand = new Command("users")
   .description("List app users")

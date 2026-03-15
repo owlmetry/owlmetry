@@ -3,17 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
+import { buildQueryString } from "@/lib/query";
 import type { EventsResponse, EventsQueryParams, StoredEventResponse } from "@owlmetry/shared";
-
-function buildQueryString(params: EventsQueryParams): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "" && value !== null) {
-      search.set(key, String(value));
-    }
-  }
-  return search.toString();
-}
 
 export function useEvents(filters: EventsQueryParams) {
   const [extraEvents, setExtraEvents] = useState<StoredEventResponse[]>([]);

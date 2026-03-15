@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, lt, desc, inArray, isNull, ilike } from "drizzle-orm";
 import { apps, appUsers } from "@owlmetry/db";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@owlmetry/shared";
 import type { AppUsersQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { serializeAppUser } from "../utils/serialize.js";
+import { normalizeLimit } from "../utils/pagination.js";
 
 export async function appUsersRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string }; Querystring: AppUsersQueryParams }>(
@@ -15,10 +15,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
       const { id } = request.params;
       const { search, is_anonymous, cursor, limit: rawLimit } = request.query;
 
-      const limit = Math.min(
-        Math.max(Number(rawLimit) || DEFAULT_PAGE_SIZE, 1),
-        MAX_PAGE_SIZE
-      );
+      const limit = normalizeLimit(rawLimit);
 
       // Verify app exists and belongs to caller's team
       const teamIds = getAuthTeamIds(auth);

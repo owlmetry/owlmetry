@@ -175,7 +175,9 @@ export async function ingestRoutes(app: FastifyInstance) {
               set: { last_seen_at: sql`NOW()` },
             })
             .execute()
-            .catch(() => {});
+            .catch((err) => {
+              request.log.warn({ err }, "Failed to upsert app_users");
+            });
         }
       }
 

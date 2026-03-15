@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, desc, inArray, isNull } from "drizzle-orm";
 import { events, apps } from "@owlmetry/db";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@owlmetry/shared";
 import type { EventsQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { normalizeLimit } from "../utils/pagination.js";
 
 export async function eventsRoutes(app: FastifyInstance) {
   // Query events
@@ -28,10 +28,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         limit: rawLimit,
       } = request.query;
 
-      const limit = Math.min(
-        Math.max(Number(rawLimit) || DEFAULT_PAGE_SIZE, 1),
-        MAX_PAGE_SIZE
-      );
+      const limit = normalizeLimit(rawLimit);
 
       const conditions = [];
 

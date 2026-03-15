@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
@@ -34,9 +34,12 @@ export default function AppDetailPage() {
   const [search, setSearch] = useState("");
   const [anonymousFilter, setAnonymousFilter] = useState("");
 
-  const filters: AppUsersQueryParams = {};
-  if (search) filters.search = search;
-  if (anonymousFilter && anonymousFilter !== "all") filters.is_anonymous = anonymousFilter;
+  const filters = useMemo<AppUsersQueryParams>(() => {
+    const f: AppUsersQueryParams = {};
+    if (search) f.search = search;
+    if (anonymousFilter && anonymousFilter !== "all") f.is_anonymous = anonymousFilter;
+    return f;
+  }, [search, anonymousFilter]);
 
   const { users, isLoading, isLoadingMore, hasMore, loadMore } = useAppUsers(id, filters);
 

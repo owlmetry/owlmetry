@@ -1,20 +1,12 @@
 import { Command, Option } from "commander";
-import chalk from "chalk";
 import { LOG_LEVELS } from "@owlmetry/shared";
-import type { EventsResponse } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { formatEventsTable, formatEventDetail } from "../formatters/table.js";
 import { formatEventsLog } from "../formatters/log.js";
 import { parsePositiveInt } from "../utils/parse.js";
 import { parseTimeInput } from "../utils/time.js";
-
-function paginationHint(result: EventsResponse): string {
-  if (result.has_more && result.cursor) {
-    return `\n${chalk.dim(`More results available. Use --cursor ${result.cursor}`)}`;
-  }
-  return "";
-}
+import { paginationHint } from "../utils/pagination.js";
 
 export const eventsCommand = new Command("events")
   .description("Query events")

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   events,
   appUsers,
@@ -47,27 +47,24 @@ export async function identityRoutes(app: FastifyInstance) {
           .send({ error: "Client key must be scoped to an app" });
       }
 
-      // Idempotency: check if the real user already has this anonymous_id in claimed_from
-      const [existingRealUser] = await app.db
-        .select()
-        .from(appUsers)
-        .where(
-          and(
-            eq(appUsers.app_id, app_id),
-            eq(appUsers.user_id, user_id)
-          )
-        )
-        .limit(1);
-
-      if (existingRealUser?.claimed_from?.includes(anonymous_id)) {
-        return {
-          claimed: true,
-          events_reassigned_count: 0,
-        } satisfies IdentityClaimResponse;
-      }
-
-      // Execute updates in a transaction
+      // Execute all checks and updates in a single transaction
       const eventsReassignedCount = await app.db.transaction(async (tx) => {
+        // Idempotency: check if the real user already has this anonymous_id in claimed_from
+        const [realUserRow] = await tx
+          .select()
+          .from(appUsers)
+          .where(
+            and(
+              eq(appUsers.app_id, app_id),
+              eq(appUsers.user_id, user_id)
+            )
+          )
+          .limit(1);
+
+        if (realUserRow?.claimed_from?.includes(anonymous_id)) {
+          return -1; // sentinel: already claimed
+        }
+
         // Update events user_id from anonymous to real
         const updatedEvents = await tx
           .update(events)
@@ -104,7 +101,7 @@ export async function identityRoutes(app: FastifyInstance) {
             );
         }
 
-        // Merge app_users: check if real user row exists
+        // Merge app_users: fetch anonymous row
         const [anonRow] = await tx
           .select()
           .from(appUsers)
@@ -116,19 +113,19 @@ export async function identityRoutes(app: FastifyInstance) {
           )
           .limit(1);
 
-        if (existingRealUser) {
+        if (realUserRow) {
           // Real user exists — merge: append anonymous_id to claimed_from, take earliest first_seen_at
-          const newClaimedFrom = [...(existingRealUser.claimed_from ?? []), anonymous_id];
+          const newClaimedFrom = [...(realUserRow.claimed_from ?? []), anonymous_id];
           const updates: Record<string, unknown> = {
             claimed_from: newClaimedFrom,
           };
-          if (anonRow && anonRow.first_seen_at < existingRealUser.first_seen_at) {
+          if (anonRow && anonRow.first_seen_at < realUserRow.first_seen_at) {
             updates.first_seen_at = anonRow.first_seen_at;
           }
           await tx
             .update(appUsers)
             .set(updates)
-            .where(eq(appUsers.id, existingRealUser.id));
+            .where(eq(appUsers.id, realUserRow.id));
 
           // Delete the anonymous row if it exists
           if (anonRow) {
@@ -151,6 +148,13 @@ export async function identityRoutes(app: FastifyInstance) {
 
         return updatedEvents.length;
       });
+
+      if (eventsReassignedCount === -1) {
+        return {
+          claimed: true,
+          events_reassigned_count: 0,
+        } satisfies IdentityClaimResponse;
+      }
 
       if (eventsReassignedCount === 0) {
         return reply
