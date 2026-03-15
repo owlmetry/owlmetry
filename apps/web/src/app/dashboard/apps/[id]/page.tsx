@@ -51,7 +51,7 @@ export default function AppDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href={`/projects/${app.project_id}`}>
+        <Link href={`/dashboard/projects/${app.project_id}`}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -75,7 +75,7 @@ export default function AppDetailPage() {
             <CopyButton text={app.client_key} />
           </div>
         )}
-        <Link href={`/events?app_id=${id}`}>
+        <Link href={`/dashboard/events?app_id=${id}`}>
           <Button variant="outline" size="sm">View Events</Button>
         </Link>
       </div>
@@ -152,7 +152,7 @@ export default function AppDetailPage() {
                     <TableRow key={user.id}>
                       <TableCell className="font-mono text-xs py-1.5">
                         <Link
-                          href={`/events?app_id=${id}&user_id=${user.user_id}`}
+                          href={`/dashboard/events?app_id=${id}&user_id=${user.user_id}`}
                           className="hover:underline"
                         >
                           {user.user_id}

@@ -89,7 +89,7 @@ export default function EventsPage() {
     if (until) params.set("until", until);
     if (includeDebug) params.set("include_debug", "true");
     const qs = params.toString();
-    router.replace(`/events${qs ? `?${qs}` : ""}`, { scroll: false });
+    router.replace(`/dashboard/events${qs ? `?${qs}` : ""}`, { scroll: false });
   }, [projectId, appId, level, userId, screenName, since, until, includeDebug, router]);
 
   useEffect(() => {

@@ -147,3 +147,33 @@
 .animate-fade-in {
   animation: fade-in 0.3s ease-out both;
 }
+
+/* Landing page animations */
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.landing-float {
+  animation: landing-float 4s ease-in-out infinite;
+}
+
+.landing-stagger-1 {
+  animation: fade-in-up 0.5s ease-out both;
+  animation-delay: 0s;
+}
+
+.landing-stagger-2 {
+  animation: fade-in-up 0.5s ease-out both;
+  animation-delay: 0.1s;
+}
+
+.landing-stagger-3 {
+  animation: fade-in-up 0.5s ease-out both;
+  animation-delay: 0.2s;
+}
+
+.landing-stagger-4 {
+  animation: fade-in-up 0.5s ease-out both;
+  animation-delay: 0.3s;
+}

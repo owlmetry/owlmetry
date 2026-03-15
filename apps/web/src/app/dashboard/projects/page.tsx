@@ -100,7 +100,7 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`}>
+            <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
               <Card className="transition-colors hover:border-primary/50">
                 <CardHeader>
                   <CardTitle>{project.name}</CardTitle>

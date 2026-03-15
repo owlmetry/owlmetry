@@ -7,9 +7,9 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { UserMenu } from "@/components/user-menu";
 
 const pageTitles: Record<string, string> = {
-  "/": "Dashboard",
-  "/events": "Events",
-  "/projects": "Projects",
+  "/dashboard": "Dashboard",
+  "/dashboard/events": "Events",
+  "/dashboard/projects": "Projects",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const pageTitle =
     pageTitles[pathname] ??
-    (pathname.startsWith("/projects/") ? "Project Details" : "");
+    (pathname.startsWith("/dashboard/projects/") ? "Project Details" : "");
 
   return (
     <div className="flex min-h-screen">

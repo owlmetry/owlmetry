@@ -74,7 +74,7 @@ export default function ProjectDetailPage() {
     setDeleteError("");
     try {
       await api.delete(`/v1/projects/${id}`);
-      router.push("/projects");
+      router.push("/dashboard/projects");
     } catch (err) {
       setDeleteError(err instanceof ApiError ? err.message : "Failed to delete");
       setDeleting(false);
@@ -116,7 +116,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/projects">
+        <Link href="/dashboard/projects">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -162,7 +162,7 @@ export default function ProjectDetailPage() {
 
       <div className="flex items-center gap-4">
         <p className="text-sm text-muted-foreground">Slug: {project.slug}</p>
-        <Link href={`/events?project_id=${id}`}>
+        <Link href={`/dashboard/events?project_id=${id}`}>
           <Button variant="outline" size="sm">
             <ScrollText className="h-3.5 w-3.5 mr-1.5" />
             View All Events
@@ -348,14 +348,14 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
         )}
         <div className="flex gap-3 pt-1">
           <Link
-            href={`/apps/${app.id}`}
+            href={`/dashboard/apps/${app.id}`}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <Users className="h-3 w-3" />
             Users
           </Link>
           <Link
-            href={`/events?app_id=${app.id}`}
+            href={`/dashboard/events?app_id=${app.id}`}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <ScrollText className="h-3 w-3" />

@@ -74,7 +74,7 @@ export default function DashboardPage() {
       <div>
         <h2 className="text-lg font-medium mb-3">Quick Actions</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Link href="/projects">
+          <Link href="/dashboard/projects">
             <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
               <CardContent className="flex items-center gap-3 pt-6">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -90,7 +90,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </Link>
-          <Link href="/projects">
+          <Link href="/dashboard/projects">
             <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
               <CardContent className="flex items-center gap-3 pt-6">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

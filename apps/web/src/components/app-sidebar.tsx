@@ -8,9 +8,9 @@ import { useUser } from "@/hooks/use-user";
 import { OwlLogo } from "@/components/owl-logo";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/events", label: "Events", icon: ScrollText },
-  { href: "/projects", label: "Projects", icon: FolderOpen },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/events", label: "Events", icon: ScrollText },
+  { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
 ];
 
 export function AppSidebar() {
@@ -21,16 +21,16 @@ export function AppSidebar() {
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-14 items-center border-b px-4 gap-2.5">
-        <OwlLogo className="h-6 w-6 text-primary" />
-        <Link href="/" className="text-lg font-semibold tracking-tight">
+        <OwlLogo className="h-6 w-6" />
+        <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
           OwlMetry
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map((item) => {
           const active =
-            item.href === "/"
-              ? pathname === "/"
+            item.href === "/dashboard"
+              ? pathname === "/dashboard"
               : pathname.startsWith(item.href);
           return (
             <Link

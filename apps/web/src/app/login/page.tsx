@@ -23,7 +23,7 @@ export default function LoginPage() {
 
     try {
       await api.post("/v1/auth/login", { email, password });
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed");
