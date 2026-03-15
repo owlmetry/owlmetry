@@ -6,7 +6,10 @@ export type LogLevel =
   | "attention"
   | "tracking";
 
-export type Platform = "ios" | "ipados" | "macos" | "android" | "web" | "server";
+export type AppPlatform = "apple" | "android" | "web" | "backend";
+export type Environment = "ios" | "ipados" | "macos" | "android" | "web" | "backend";
+/** @deprecated Use Environment instead */
+export type Platform = Environment;
 
 export interface IngestEventPayload {
   client_event_id?: string;
@@ -17,7 +20,7 @@ export interface IngestEventPayload {
   message: string;
   screen_name?: string;
   custom_attributes?: Record<string, string>;
-  platform?: Platform;
+  environment?: Environment;
   os_version?: string;
   app_version?: string;
   build_number?: string;
@@ -36,7 +39,7 @@ export interface StoredEvent {
   message: string;
   screen_name: string | null;
   custom_attributes: Record<string, string> | null;
-  platform: Platform | null;
+  environment: Environment | null;
   os_version: string | null;
   app_version: string | null;
   build_number: string | null;

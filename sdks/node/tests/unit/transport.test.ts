@@ -23,7 +23,7 @@ function makeEvent(overrides?: Partial<LogEvent>): LogEvent {
     session_id: "sess-1",
     level: "info",
     message: "test event",
-    platform: "server",
+    environment: "backend",
     timestamp: new Date().toISOString(),
     ...overrides,
   };

@@ -40,7 +40,7 @@ describe("GET /v1/apps", () => {
     const body = res.json();
     expect(body.apps).toHaveLength(1);
     expect(body.apps[0].name).toBe("Test App");
-    expect(body.apps[0].platform).toBe("ios");
+    expect(body.apps[0].platform).toBe("apple");
     expect(body.apps[0].client_key).toBe(TEST_CLIENT_KEY);
   });
 
@@ -66,7 +66,7 @@ describe("GET /v1/apps/:id", () => {
     const body = res.json();
     expect(body.id).toBe(testData.appId);
     expect(body.name).toBe("Test App");
-    expect(body.platform).toBe("ios");
+    expect(body.platform).toBe("apple");
     expect(body.client_key).toBe(TEST_CLIENT_KEY);
     expect(body.created_at).toBeDefined();
   });
@@ -168,7 +168,7 @@ describe("POST /v1/apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "Key List App",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "com.owlmetry.keylist",
         project_id: testData.projectId,
       },
@@ -196,7 +196,7 @@ describe("POST /v1/apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "Ingest App",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "com.owlmetry.ingest",
         project_id: testData.projectId,
       },
@@ -228,7 +228,7 @@ describe("POST /v1/apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "Consistent App",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "com.owlmetry.consistent",
         project_id: testData.projectId,
       },
@@ -266,7 +266,7 @@ describe("POST /v1/apps", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "No Bundle", platform: "ios", project_id: testData.projectId },
+      payload: { name: "No Bundle", platform: "apple", project_id: testData.projectId },
     });
 
     expect(res.statusCode).toBe(400);
@@ -280,7 +280,7 @@ describe("POST /v1/apps", () => {
       headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
       payload: {
         name: "Nope",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "com.owlmetry.nope",
         project_id: testData.projectId,
       },
@@ -324,7 +324,7 @@ describe("POST /v1/apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "Ghost App",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "com.owlmetry.ghost",
         project_id: testData.projectId,
       },

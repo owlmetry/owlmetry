@@ -335,7 +335,7 @@ describe("API key permission enforcement — apps routes", () => {
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
       payload: {
         name: "Nope",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "com.owlmetry.nope",
         project_id: testData.projectId,
       },
@@ -593,7 +593,7 @@ describe("API key team boundary enforcement", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${otherTeamToken}` },
-      payload: { name: "Other App", platform: "ios", bundle_id: "dev.other.app", project_id: otherProjectId },
+      payload: { name: "Other App", platform: "apple", bundle_id: "dev.other.app", project_id: otherProjectId },
     });
     otherAppId = appRes.json().id;
   });
@@ -653,7 +653,7 @@ describe("API key team boundary enforcement", () => {
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${key}` },
-      payload: { name: "Sneaky", platform: "ios", bundle_id: "dev.sneaky.app", project_id: otherProjectId },
+      payload: { name: "Sneaky", platform: "apple", bundle_id: "dev.sneaky.app", project_id: otherProjectId },
     });
 
     expect(res.statusCode).toBe(404);
@@ -863,7 +863,7 @@ describe("JWT user permission bypass", () => {
       headers: { authorization: `Bearer ${memberToken}` },
       payload: {
         name: "Nope",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "dev.nope",
         project_id: testData.projectId,
       },
@@ -1161,7 +1161,7 @@ describe("requirePermission reports all missing permissions", () => {
       headers: { authorization: `Bearer ${key}` },
       payload: {
         name: "Test",
-        platform: "ios",
+        platform: "apple",
         bundle_id: "dev.test",
         project_id: testData.projectId,
       },

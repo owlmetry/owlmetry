@@ -31,13 +31,13 @@ appsCommand
   .requiredOption("--name <name>", "App name")
   .addOption(
     new Option("--platform <platform>", "Platform")
-      .choices(["ios", "ipados", "macos", "android", "web", "server"])
+      .choices(["apple", "android", "web", "backend"])
       .makeOptionMandatory(),
   )
-  .option("--bundle-id <bundleId>", "Bundle identifier (required for non-server platforms)")
+  .option("--bundle-id <bundleId>", "Bundle identifier (required for non-backend platforms)")
   .action(async (opts: { project: string; name: string; platform: string; bundleId?: string }, cmd: Command) => {
-    if (opts.platform !== "server" && !opts.bundleId) {
-      console.error("Error: --bundle-id is required for non-server platforms");
+    if (opts.platform !== "backend" && !opts.bundleId) {
+      console.error("Error: --bundle-id is required for non-backend platforms");
       process.exit(1);
     }
 
@@ -45,7 +45,7 @@ appsCommand
     const app = await client.createApp({
       project_id: opts.project,
       name: opts.name,
-      platform: opts.platform,
+      platform: opts.platform as import("@owlmetry/shared").AppPlatform,
       ...(opts.bundleId ? { bundle_id: opts.bundleId } : {}),
     });
     output(globals.format, app, () => formatAppDetail(app));

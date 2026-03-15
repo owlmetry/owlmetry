@@ -50,7 +50,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       message TEXT NOT NULL,
       screen_name VARCHAR(255),
       custom_attributes JSONB,
-      platform VARCHAR(20),
+      environment environment,
       os_version VARCHAR(50),
       app_version VARCHAR(50),
       device_model VARCHAR(100),

@@ -72,7 +72,7 @@ describe("POST /v1/ingest", () => {
         source_module: "AppDelegate",
         screen_name: "launch",
         custom_attributes: { key: "value" },
-        platform: "ios",
+        environment: "ios",
         os_version: "18.2",
         app_version: "2.1.0",
         device_model: "iPhone 15 Pro",

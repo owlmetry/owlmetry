@@ -1,4 +1,4 @@
-import type { StoredEvent, IngestRequest, IngestResponse } from "./events.js";
+import type { StoredEvent, IngestRequest, IngestResponse, AppPlatform } from "./events.js";
 import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 
@@ -98,7 +98,7 @@ export interface UpdateProjectRequest {
 // Apps
 export interface CreateAppRequest {
   name: string;
-  platform: string;
+  platform: AppPlatform;
   bundle_id?: string;
   project_id: string;
 }
@@ -213,6 +213,7 @@ export type {
   StoredEvent,
   IngestRequest,
   IngestResponse,
+  AppPlatform,
   App,
   User,
   Team,

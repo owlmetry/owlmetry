@@ -70,7 +70,7 @@ function createEvent(
     source_module: getSourceModule(),
     message,
     custom_attributes: normalizeAttributes(attrs),
-    platform: "server",
+    environment: "backend",
     ...(ctx.config.appVersion ? { app_version: ctx.config.appVersion } : {}),
     timestamp: new Date().toISOString(),
   };

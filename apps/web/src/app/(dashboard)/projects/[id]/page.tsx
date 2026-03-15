@@ -23,12 +23,10 @@ import { api, ApiError } from "@/lib/api";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
 
 const PLATFORM_OPTIONS = [
-  { value: "ios", label: "iOS" },
-  { value: "ipados", label: "iPadOS" },
-  { value: "macos", label: "macOS" },
+  { value: "apple", label: "Apple" },
   { value: "android", label: "Android" },
   { value: "web", label: "Web" },
-  { value: "server", label: "Server" },
+  { value: "backend", label: "Backend" },
 ];
 
 export default function ProjectDetailPage() {
@@ -44,7 +42,7 @@ export default function ProjectDetailPage() {
   // Create app
   const [appDialogOpen, setAppDialogOpen] = useState(false);
   const [appName, setAppName] = useState("");
-  const [appPlatform, setAppPlatform] = useState("ios");
+  const [appPlatform, setAppPlatform] = useState("apple");
   const [appBundleId, setAppBundleId] = useState("");
   const [appError, setAppError] = useState("");
   const [appLoading, setAppLoading] = useState(false);
@@ -92,7 +90,7 @@ export default function ProjectDetailPage() {
       const res = await api.post<{ app: AppResponse & { client_key: string } }>("/v1/apps", {
         name: appName,
         platform: appPlatform,
-        ...(appPlatform !== "server" ? { bundle_id: appBundleId } : {}),
+        ...(appPlatform !== "backend" ? { bundle_id: appBundleId } : {}),
         project_id: id,
       });
       setNewClientKey(res.app.client_key);
@@ -228,7 +226,7 @@ export default function ProjectDetailPage() {
                   ))}
                 </select>
               </div>
-              {appPlatform !== "server" && (
+              {appPlatform !== "backend" && (
                 <div className="space-y-2">
                   <Label htmlFor="app-bundle-id">Bundle ID</Label>
                   <Input

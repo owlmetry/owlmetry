@@ -33,7 +33,7 @@ describe("server platform apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "API Server",
-        platform: "server",
+        platform: "backend",
         project_id: testData.projectId,
       },
     });
@@ -41,7 +41,7 @@ describe("server platform apps", () => {
     expect(res.statusCode).toBe(201);
     const body = res.json();
     expect(body.name).toBe("API Server");
-    expect(body.platform).toBe("server");
+    expect(body.platform).toBe("backend");
     expect(body.bundle_id).toBeNull();
     expect(body.client_key).toMatch(/^owl_client_/);
   });
@@ -54,7 +54,7 @@ describe("server platform apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "Server Key App",
-        platform: "server",
+        platform: "backend",
         project_id: testData.projectId,
       },
     });
@@ -82,7 +82,7 @@ describe("server platform apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "Ingest Server",
-        platform: "server",
+        platform: "backend",
         project_id: testData.projectId,
       },
     });
@@ -95,7 +95,7 @@ describe("server platform apps", () => {
       headers: { authorization: `Bearer ${clientKey}` },
       payload: {
         events: [
-          { level: "info", message: "Server started", session_id: TEST_SESSION_ID, platform: "server" },
+          { level: "info", message: "Server started", session_id: TEST_SESSION_ID, environment: "backend" },
         ],
       },
     });
@@ -104,21 +104,39 @@ describe("server platform apps", () => {
     expect(ingestRes.json().accepted).toBe(1);
   });
 
-  it("still requires bundle_id for non-server platforms", async () => {
+  it("still requires bundle_id for non-backend platforms", async () => {
     const token = await getToken(app);
     const res = await app.inject({
       method: "POST",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${token}` },
       payload: {
-        name: "No Bundle iOS",
-        platform: "ios",
+        name: "No Bundle Apple",
+        platform: "apple",
         project_id: testData.projectId,
       },
     });
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toMatch(/bundle_id/);
+  });
+
+  it("rejects invalid platform value", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Invalid Platform",
+        platform: "ios",
+        bundle_id: "com.owlmetry.invalid",
+        project_id: testData.projectId,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/Invalid platform/);
   });
 
   it("app users upsert works for server app events", async () => {
@@ -129,7 +147,7 @@ describe("server platform apps", () => {
       headers: { authorization: `Bearer ${token}` },
       payload: {
         name: "User Tracking Server",
-        platform: "server",
+        platform: "backend",
         project_id: testData.projectId,
       },
     });
@@ -143,7 +161,7 @@ describe("server platform apps", () => {
       headers: { authorization: `Bearer ${clientKey}` },
       payload: {
         events: [
-          { level: "info", message: "User action", session_id: TEST_SESSION_ID, user_id: "server-user-1", platform: "server" },
+          { level: "info", message: "User action", session_id: TEST_SESSION_ID, user_id: "server-user-1", environment: "backend" },
         ],
       },
     });

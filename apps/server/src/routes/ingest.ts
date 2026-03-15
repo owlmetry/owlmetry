@@ -149,7 +149,7 @@ export async function ingestRoutes(app: FastifyInstance) {
           message: e.message,
           screen_name: e.screen_name || null,
           custom_attributes: truncateCustomAttributeValues(e.custom_attributes),
-          platform: e.platform || null,
+          environment: e.environment || null,
           os_version: e.os_version || null,
           app_version: e.app_version || null,
           device_model: e.device_model || null,

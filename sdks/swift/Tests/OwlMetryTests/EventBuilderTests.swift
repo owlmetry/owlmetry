@@ -29,7 +29,7 @@ final class EventBuilderTests: XCTestCase {
         XCTAssertEqual(event.level, .info)
         XCTAssertEqual(event.screenName, "onboarding")
         XCTAssertEqual(event.userId, "user123")
-        XCTAssertEqual(event.platform, .ios)
+        XCTAssertEqual(event.environment, .ios)
         XCTAssertEqual(event.osVersion, "17.0.0")
         XCTAssertEqual(event.appVersion, "1.0")
         XCTAssertEqual(event.buildNumber, "42")

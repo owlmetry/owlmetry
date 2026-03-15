@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
-import { DEFAULT_API_KEY_PERMISSIONS, generateApiKey } from "@owlmetry/shared";
+import { APP_PLATFORMS, DEFAULT_API_KEY_PERMISSIONS, generateApiKey } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { serializeApp } from "../utils/serialize.js";
 
@@ -70,11 +70,17 @@ export async function appsRoutes(app: FastifyInstance) {
           });
       }
 
-      // Server apps don't need a bundle_id; all other platforms require it
-      if (platform !== "server" && !bundle_id) {
+      if (!(APP_PLATFORMS as readonly string[]).includes(platform)) {
         return reply
           .code(400)
-          .send({ error: "bundle_id is required for non-server platforms" });
+          .send({ error: `Invalid platform. Must be one of: ${APP_PLATFORMS.join(", ")}` });
+      }
+
+      // Backend apps don't need a bundle_id; all other platforms require it
+      if (platform !== "backend" && !bundle_id) {
+        return reply
+          .code(400)
+          .send({ error: "bundle_id is required for non-backend platforms" });
       }
 
       // Look up project and verify team membership

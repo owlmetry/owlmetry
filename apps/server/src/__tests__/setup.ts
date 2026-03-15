@@ -52,6 +52,20 @@ export async function setupTestDb() {
     await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
   }
 
+  // Create app_platform and environment enums if not present
+  const appPlatformCheck = await migrationClient`
+    SELECT 1 FROM pg_type WHERE typname = 'app_platform'
+  `;
+  if (appPlatformCheck.length === 0) {
+    await migrationClient.unsafe(`CREATE TYPE app_platform AS ENUM ('apple', 'android', 'web', 'backend')`);
+  }
+  const environmentCheck = await migrationClient`
+    SELECT 1 FROM pg_type WHERE typname = 'environment'
+  `;
+  if (environmentCheck.length === 0) {
+    await migrationClient.unsafe(`CREATE TYPE environment AS ENUM ('ios', 'ipados', 'macos', 'android', 'web', 'backend')`);
+  }
+
   // Make bundle_id nullable if not already
   const colCheck = await migrationClient`
     SELECT is_nullable FROM information_schema.columns
@@ -59,6 +73,19 @@ export async function setupTestDb() {
   `;
   if (colCheck.length > 0 && colCheck[0].is_nullable === 'NO') {
     await migrationClient`ALTER TABLE apps ALTER COLUMN bundle_id DROP NOT NULL`;
+  }
+
+  // Convert apps.platform from varchar to app_platform enum if needed
+  const platformColCheck = await migrationClient`
+    SELECT data_type FROM information_schema.columns
+    WHERE table_name = 'apps' AND column_name = 'platform'
+  `;
+  if (platformColCheck.length > 0 && platformColCheck[0].data_type === 'character varying') {
+    await migrationClient.unsafe(`
+      UPDATE apps SET platform = 'apple' WHERE platform IN ('ios', 'ipados', 'macos');
+      UPDATE apps SET platform = 'backend' WHERE platform = 'server';
+      ALTER TABLE apps ALTER COLUMN platform TYPE app_platform USING platform::app_platform
+    `);
   }
 
   const migrationDb = drizzle(migrationClient);
@@ -88,7 +115,7 @@ export async function setupTestDb() {
         message TEXT NOT NULL,
         screen_name VARCHAR(255),
         custom_attributes JSONB,
-        platform VARCHAR(20),
+        environment environment,
         os_version VARCHAR(50),
         app_version VARCHAR(50),
         device_model VARCHAR(100),
@@ -97,6 +124,19 @@ export async function setupTestDb() {
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       ) PARTITION BY RANGE ("timestamp");
+    `);
+  }
+
+  // Rename platform → environment on events table if still using old column name
+  const evtColCheck = await migrationClient`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'events' AND column_name = 'platform'
+  `;
+  if (evtColCheck.length > 0) {
+    await migrationClient.unsafe(`
+      ALTER TABLE events RENAME COLUMN platform TO environment;
+      UPDATE events SET environment = 'backend' WHERE environment = 'server';
+      ALTER TABLE events ALTER COLUMN environment TYPE environment USING environment::environment
     `);
   }
 
@@ -176,7 +216,7 @@ export async function seedTestData() {
 
   const [app] = await client`
     INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-    VALUES (${team.id}, ${project.id}, 'Test App', 'ios', ${TEST_BUNDLE_ID}, ${TEST_CLIENT_KEY})
+    VALUES (${team.id}, ${project.id}, 'Test App', 'apple', ${TEST_BUNDLE_ID}, ${TEST_CLIENT_KEY})
     RETURNING id
   `;
 

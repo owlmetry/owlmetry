@@ -42,7 +42,7 @@ enum EventBuilder {
             message: message,
             screenName: screenName,
             customAttributes: mergedAttributes.isEmpty ? nil : mergedAttributes,
-            platform: deviceInfo.platform,
+            environment: deviceInfo.platform,
             osVersion: deviceInfo.osVersion,
             appVersion: deviceInfo.appVersion,
             buildNumber: deviceInfo.buildNumber,

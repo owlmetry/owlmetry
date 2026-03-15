@@ -73,7 +73,7 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect }: E
             <DetailRow label="Session ID" value={event.session_id} />
             <DetailRow label="Screen Name" value={event.screen_name} />
             <DetailRow label="Source Module" value={event.source_module} />
-            <DetailRow label="Platform" value={event.platform} />
+            <DetailRow label="Environment" value={event.environment} />
             <DetailRow label="OS Version" value={event.os_version} />
             <DetailRow label="App Version" value={event.app_version} />
             <DetailRow label="Build Number" value={event.build_number} />

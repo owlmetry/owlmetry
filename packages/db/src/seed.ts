@@ -62,7 +62,7 @@ async function main() {
       team_id: team.id,
       project_id: project.id,
       name: "Demo App",
-      platform: "ios",
+      platform: "apple",
       bundle_id: "com.owlmetry.demo",
       client_key: clientKey,
     })
@@ -97,7 +97,7 @@ async function main() {
       team_id: team.id,
       project_id: project.id,
       name: "Demo API Server",
-      platform: "server",
+      platform: "backend",
       bundle_id: null,
       client_key: serverAppKey,
     })
@@ -120,21 +120,22 @@ async function main() {
   type SeedEvent = {
     session_id: string; level: "info" | "debug" | "warn" | "error" | "attention" | "tracking";
     message: string; screen_name: string; user_id: string; source_module: string;
-    platform: string; os_version: string; app_version: string; device_model: string;
+    environment: "ios" | "ipados" | "macos" | "android" | "web" | "backend";
+    os_version: string; app_version: string; device_model: string;
     locale: string; timestamp: Date; custom_attributes?: Record<string, string>;
   };
 
   const seedEvents: SeedEvent[] = [
-    { session_id: session1, level: "info", message: "App launched", screen_name: "HomeScreen", user_id: "user-42", source_module: "AppDelegate", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 8 * 60000) },
-    { session_id: session1, level: "debug", message: "Loading user preferences", screen_name: "HomeScreen", user_id: "user-42", source_module: "PrefsManager", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 7 * 60000) },
-    { session_id: session1, level: "info", message: "Dashboard rendered", screen_name: "Dashboard", user_id: "user-42", source_module: "DashboardVC", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 6 * 60000) },
-    { session_id: session1, level: "warn", message: "Slow network response: 2.3s", screen_name: "Dashboard", user_id: "user-42", source_module: "NetworkManager", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 5 * 60000) },
-    { session_id: session1, level: "error", message: "Failed to load profile image: 404", screen_name: "ProfileScreen", user_id: "user-42", source_module: "ImageLoader", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 4 * 60000) },
-    { session_id: session1, level: "tracking", message: "onboarding.tutorial_begin", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "FunnelTracker", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 3 * 60000) },
-    { session_id: session1, level: "attention", message: "User skipped onboarding step 3", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "OnboardingVC", platform: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 2 * 60000), custom_attributes: { step: "3", reason: "skipped" } },
-    { session_id: session2, level: "info", message: "App launched", screen_name: "HomeScreen", user_id: "user-99", source_module: "AppDelegate", platform: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 90000) },
-    { session_id: session2, level: "info", message: "Search performed", screen_name: "SearchScreen", user_id: "user-99", source_module: "SearchVC", platform: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 60000), custom_attributes: { query: "weather", results_count: "12" } },
-    { session_id: session2, level: "error", message: "Crash in search results rendering", screen_name: "SearchScreen", user_id: "user-99", source_module: "SearchResultsVC", platform: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 30000) },
+    { session_id: session1, level: "info", message: "App launched", screen_name: "HomeScreen", user_id: "user-42", source_module: "AppDelegate", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 8 * 60000) },
+    { session_id: session1, level: "debug", message: "Loading user preferences", screen_name: "HomeScreen", user_id: "user-42", source_module: "PrefsManager", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 7 * 60000) },
+    { session_id: session1, level: "info", message: "Dashboard rendered", screen_name: "Dashboard", user_id: "user-42", source_module: "DashboardVC", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 6 * 60000) },
+    { session_id: session1, level: "warn", message: "Slow network response: 2.3s", screen_name: "Dashboard", user_id: "user-42", source_module: "NetworkManager", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 5 * 60000) },
+    { session_id: session1, level: "error", message: "Failed to load profile image: 404", screen_name: "ProfileScreen", user_id: "user-42", source_module: "ImageLoader", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 4 * 60000) },
+    { session_id: session1, level: "tracking", message: "onboarding.tutorial_begin", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "FunnelTracker", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 3 * 60000) },
+    { session_id: session1, level: "attention", message: "User skipped onboarding step 3", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "OnboardingVC", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 2 * 60000), custom_attributes: { step: "3", reason: "skipped" } },
+    { session_id: session2, level: "info", message: "App launched", screen_name: "HomeScreen", user_id: "user-99", source_module: "AppDelegate", environment: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 90000) },
+    { session_id: session2, level: "info", message: "Search performed", screen_name: "SearchScreen", user_id: "user-99", source_module: "SearchVC", environment: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 60000), custom_attributes: { query: "weather", results_count: "12" } },
+    { session_id: session2, level: "error", message: "Crash in search results rendering", screen_name: "SearchScreen", user_id: "user-99", source_module: "SearchResultsVC", environment: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 30000) },
   ];
 
   await db.insert(events).values(
@@ -144,9 +145,9 @@ async function main() {
   // Seed server events
   const serverSession = crypto.randomUUID();
   const serverEvents: SeedEvent[] = [
-    { session_id: serverSession, level: "info", message: "Server started on port 4000", screen_name: "", user_id: "", source_module: "index.ts:42", platform: "server", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 10 * 60000) },
-    { session_id: serverSession, level: "info", message: "User authenticated successfully", screen_name: "", user_id: "user-42", source_module: "auth.ts:118", platform: "server", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 9 * 60000), custom_attributes: { route: "/v1/auth/login", method: "POST" } },
-    { session_id: serverSession, level: "error", message: "Database connection timeout after 30s", screen_name: "", user_id: "", source_module: "db.ts:55", platform: "server", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 1 * 60000), custom_attributes: { pool_size: "10", active_connections: "10" } },
+    { session_id: serverSession, level: "info", message: "Server started on port 4000", screen_name: "", user_id: "", source_module: "index.ts:42", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 10 * 60000) },
+    { session_id: serverSession, level: "info", message: "User authenticated successfully", screen_name: "", user_id: "user-42", source_module: "auth.ts:118", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 9 * 60000), custom_attributes: { route: "/v1/auth/login", method: "POST" } },
+    { session_id: serverSession, level: "error", message: "Database connection timeout after 30s", screen_name: "", user_id: "", source_module: "db.ts:55", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 1 * 60000), custom_attributes: { pool_size: "10", active_connections: "10" } },
   ];
 
   await db.insert(events).values(

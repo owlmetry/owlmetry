@@ -9,8 +9,8 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 ## Features
 
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; supports gzip-compressed payloads
-- **Projects & apps** — organize apps by product across platforms (e.g., "MyApp" project contains iOS + Android apps)
-- **Device tracking** — platform, OS version, app version, device model, locale, build number
+- **Projects & apps** — organize apps by product across platforms (`apple`, `android`, `web`, `backend`); Apple platform covers iOS, iPadOS, and macOS with a single app
+- **Device tracking** — environment (runtime platform: ios/ipados/macos/android/web/backend), OS version, app version, device model, locale, build number
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Funnel analytics** — planned but not yet implemented (database tables exist, API routes and UI coming later)
@@ -262,7 +262,7 @@ owlmetry projects create --team-id <id> --name "My Project" --slug my-project
 
 owlmetry apps                                  # List apps
 owlmetry apps --project <id>                   # Filter by project
-owlmetry apps create --project <id> --name "iOS App" --platform ios --bundle-id com.example.app
+owlmetry apps create --project <id> --name "iOS App" --platform apple --bundle-id com.example.app
 
 owlmetry events --since 1h                     # Events from the last hour
 owlmetry events --level error --app <id>       # Errors for a specific app
@@ -282,7 +282,7 @@ The Node.js SDK (`@owlmetry/node`) lets you log server-side events into the same
 
 ### Setup
 
-1. Create a server-platform app in OwlMetry (via dashboard, CLI, or API)
+1. Create a backend-platform app in OwlMetry (via dashboard, CLI, or API)
 2. Use the generated `owl_client_` key
 
 ### Usage

@@ -33,7 +33,7 @@ SERVER_KEY_HASH=$(node -e "const{createHash}=require('crypto');console.log(creat
 SERVER_KEY_PREFIX=$(echo "$TEST_SERVER_KEY" | cut -c1-16)
 TEAM_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM teams LIMIT 1")
 PROJECT_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM projects LIMIT 1")
-EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM apps WHERE platform = 'server' LIMIT 1")
+EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM apps WHERE platform = 'backend' LIMIT 1")
 
 if [ -z "$EXISTING" ]; then
     echo "Creating test server app..."
@@ -43,7 +43,7 @@ DECLARE
   v_app_id uuid;
 BEGIN
   INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-  VALUES ('$TEAM_ID', '$PROJECT_ID', 'Test Server App', 'server', NULL, '$TEST_SERVER_KEY')
+  VALUES ('$TEAM_ID', '$PROJECT_ID', 'Test Server App', 'backend', NULL, '$TEST_SERVER_KEY')
   RETURNING id INTO v_app_id;
 
   INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)

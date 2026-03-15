@@ -132,7 +132,7 @@ export interface App {
   team_id: string;
   project_id: string;
   name: string;
-  platform: string;
+  platform: import("./events.js").AppPlatform;
   bundle_id: string | null;
   client_key: string | null;
   created_at: Date;

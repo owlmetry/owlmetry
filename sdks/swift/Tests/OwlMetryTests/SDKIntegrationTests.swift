@@ -63,7 +63,7 @@ final class SDKIntegrationTests: XCTestCase {
 
         // Verify device info was auto-populated
         if let firstEvent = events.first {
-            XCTAssertNotNil(firstEvent["platform"])
+            XCTAssertNotNil(firstEvent["environment"])
             XCTAssertNotNil(firstEvent["os_version"])
             XCTAssertNotNil(firstEvent["device_model"])
             XCTAssertNotNil(firstEvent["locale"])
@@ -437,7 +437,7 @@ final class SDKIntegrationTests: XCTestCase {
                 message: "persisted_event_\(i)",
                 screenName: screenName,
                 customAttributes: nil,
-                platform: .macos,
+                environment: .macos,
                 osVersion: "15.0",
                 appVersion: "1.0",
                 buildNumber: "1",

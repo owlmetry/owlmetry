@@ -9,7 +9,7 @@ struct LogEvent: Codable, Sendable {
     let message: String
     let screenName: String?
     let customAttributes: [String: String]?
-    let platform: OwlPlatform
+    let environment: OwlPlatform
     let osVersion: String?
     let appVersion: String?
     let buildNumber: String?
@@ -26,7 +26,7 @@ struct LogEvent: Codable, Sendable {
         case message
         case screenName = "screen_name"
         case customAttributes = "custom_attributes"
-        case platform
+        case environment
         case osVersion = "os_version"
         case appVersion = "app_version"
         case buildNumber = "build_number"

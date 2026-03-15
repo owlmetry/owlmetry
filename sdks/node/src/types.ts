@@ -27,7 +27,7 @@ export interface LogEvent {
   source_module?: string;
   message: string;
   custom_attributes?: Record<string, string>;
-  platform: "server";
+  environment: "backend";
   app_version?: string;
   timestamp: string;
 }

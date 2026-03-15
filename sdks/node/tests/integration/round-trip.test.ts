@@ -36,10 +36,10 @@ describe("Node SDK integration", () => {
     });
 
     assert.equal(res.status, 200);
-    const body = await res.json() as { events: Array<{ message: string; platform: string; custom_attributes: Record<string, string> }> };
+    const body = await res.json() as { events: Array<{ message: string; environment: string; custom_attributes: Record<string, string> }> };
     const found = body.events.find((e) => e.message === uniqueMsg);
     assert.ok(found, `Expected to find event with message "${uniqueMsg}"`);
-    assert.equal(found.platform, "server");
+    assert.equal(found.environment, "backend");
     assert.deepEqual(found.custom_attributes, { test: "true" });
   });
 

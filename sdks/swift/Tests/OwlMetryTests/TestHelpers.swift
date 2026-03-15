@@ -18,7 +18,7 @@ extension LogEvent {
             message: message,
             screenName: screenName,
             customAttributes: customAttributes,
-            platform: .ios,
+            environment: .ios,
             osVersion: "17.0.0",
             appVersion: "1.0",
             buildNumber: "1",

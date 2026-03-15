@@ -105,7 +105,7 @@ export function formatEventDetail(event: StoredEventResponse): string {
     `${chalk.bold("Session ID:")}      ${event.session_id}`,
     `${chalk.bold("Screen:")}          ${event.screen_name ?? "—"}`,
     `${chalk.bold("Source Module:")}   ${event.source_module ?? "—"}`,
-    `${chalk.bold("Platform:")}        ${event.platform ?? "—"}`,
+    `${chalk.bold("Environment:")}     ${event.environment ?? "—"}`,
     `${chalk.bold("OS Version:")}      ${event.os_version ?? "—"}`,
     `${chalk.bold("App Version:")}     ${event.app_version ?? "—"}`,
     `${chalk.bold("Build Number:")}    ${event.build_number ?? "—"}`,

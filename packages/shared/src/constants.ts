@@ -17,6 +17,9 @@ export const MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH = 200;
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
 
+export const APP_PLATFORMS = ["apple", "android", "web", "backend"] as const;
+export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
+
 export const SLUG_REGEX = /^[a-z0-9-]+$/;
 
 export const PG_UNIQUE_VIOLATION = "23505";

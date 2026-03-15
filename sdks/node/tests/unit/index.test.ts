@@ -66,7 +66,7 @@ describe("Owl", () => {
     assert.equal(body.events.length, 6);
     assert.equal(body.events[0].level, "info");
     assert.equal(body.events[0].message, "info msg");
-    assert.equal(body.events[0].platform, "server");
+    assert.equal(body.events[0].environment, "backend");
     assert.ok(body.events[0].session_id);
     assert.ok(body.events[0].client_event_id);
     assert.ok(body.events[0].timestamp);

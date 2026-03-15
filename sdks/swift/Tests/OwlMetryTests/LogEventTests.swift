@@ -12,7 +12,7 @@ final class LogEventTests: XCTestCase {
             message: "something broke",
             screenName: "checkout",
             customAttributes: ["key": "val"],
-            platform: .ios,
+            environment: .ios,
             osVersion: "17.0",
             appVersion: "2.0",
             buildNumber: "100",
@@ -29,7 +29,7 @@ final class LogEventTests: XCTestCase {
         XCTAssertEqual(decoded.level, event.level)
         XCTAssertEqual(decoded.message, event.message)
         XCTAssertEqual(decoded.screenName, event.screenName)
-        XCTAssertEqual(decoded.platform, event.platform)
+        XCTAssertEqual(decoded.environment, event.environment)
     }
 
     func testJSONKeysAreSnakeCase() throws {
@@ -42,7 +42,7 @@ final class LogEventTests: XCTestCase {
             message: "test",
             screenName: nil,
             customAttributes: nil,
-            platform: .macos,
+            environment: .macos,
             osVersion: nil,
             appVersion: nil,
             buildNumber: nil,
@@ -69,7 +69,7 @@ final class LogEventTests: XCTestCase {
             message: "test",
             screenName: nil,
             customAttributes: nil,
-            platform: .ios,
+            environment: .ios,
             osVersion: nil,
             appVersion: nil,
             buildNumber: nil,

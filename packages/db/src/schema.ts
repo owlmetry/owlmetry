@@ -15,6 +15,8 @@ import {
 // Enums
 export const teamRoleEnum = pgEnum("team_role", ["owner", "admin", "member"]);
 export const apiKeyTypeEnum = pgEnum("api_key_type", ["client", "agent", "server"]);
+export const appPlatformEnum = pgEnum("app_platform", ["apple", "android", "web", "backend"]);
+export const environmentEnum = pgEnum("environment", ["ios", "ipados", "macos", "android", "web", "backend"]);
 export const logLevelEnum = pgEnum("log_level", [
   "info",
   "debug",
@@ -107,7 +109,7 @@ export const apps = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
-    platform: varchar("platform", { length: 50 }).notNull(),
+    platform: appPlatformEnum("platform").notNull(),
     bundle_id: varchar("bundle_id", { length: 255 }),
     client_key: text("client_key"),
     created_at: timestamp("created_at", { withTimezone: true })
@@ -169,7 +171,7 @@ export const events = pgTable(
     message: text("message").notNull(),
     screen_name: varchar("screen_name", { length: 255 }),
     custom_attributes: jsonb("custom_attributes").$type<Record<string, string>>(),
-    platform: varchar("platform", { length: 20 }),
+    environment: environmentEnum("environment"),
     os_version: varchar("os_version", { length: 50 }),
     app_version: varchar("app_version", { length: 50 }),
     device_model: varchar("device_model", { length: 100 }),
