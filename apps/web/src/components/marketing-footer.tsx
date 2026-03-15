@@ -30,7 +30,7 @@ const columns = [
 
 export function MarketingFooter() {
   return (
-    <footer style={{ background: "oklch(0.12 0.015 55)" }}>
+    <footer style={{ background: "oklch(0.10 0.012 55)" }}>
       <div className="mx-auto max-w-6xl px-6 py-16">
         <div className="grid gap-12 md:grid-cols-4">
           <div className="space-y-4">
@@ -40,13 +40,13 @@ export function MarketingFooter() {
                 OwlMetry
               </span>
             </div>
-            <p className="text-sm text-white/40 leading-relaxed">
-              Self-hosted analytics that puts you in control of your data.
+            <p className="text-sm text-white/35 leading-relaxed">
+              Agent-first observability. Self-hosted by design.
             </p>
           </div>
           {columns.map((col) => (
             <div key={col.title}>
-              <h3 className="text-sm font-semibold text-white/70 mb-4">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-white/50 mb-4">
                 {col.title}
               </h3>
               <ul className="space-y-2.5">
@@ -54,7 +54,7 @@ export function MarketingFooter() {
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-sm text-white/40 transition-colors hover:text-white/70"
+                      className="text-sm text-white/35 transition-colors hover:text-white/70"
                     >
                       {link.label}
                     </Link>
@@ -64,11 +64,11 @@ export function MarketingFooter() {
             </div>
           ))}
         </div>
-        <div className="mt-16 flex items-center justify-between border-t border-white/10 pt-8">
-          <p className="text-xs text-white/30">
-            &copy; {new Date().getFullYear()} OwlMetry. All rights reserved.
+        <div className="mt-16 flex items-center justify-between border-t border-white/[0.06] pt-8">
+          <p className="text-xs text-white/25">
+            &copy; {new Date().getFullYear()} OwlMetry
           </p>
-          <p className="text-xs text-white/30">Open Source</p>
+          <p className="text-xs text-white/25">Open Source</p>
         </div>
       </div>
     </footer>
