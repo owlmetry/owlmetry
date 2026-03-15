@@ -8,10 +8,12 @@ struct ContentView: View {
     @State private var logMessage = "Hello from the demo app"
     @State private var greetName = "World"
     @State private var eventLog: [String] = []
+    @State private var isRunningDemo = false
 
     var body: some View {
         NavigationStack {
             Form {
+                runFullDemoSection
                 loggingSection
                 trackingSection
                 identitySection
@@ -146,6 +148,66 @@ struct ContentView: View {
             }
             .tint(.orange)
         }
+    }
+
+    // MARK: - Full Demo
+
+    private var runFullDemoSection: some View {
+        Section("Full Demo") {
+            Button {
+                guard !isRunningDemo else { return }
+                isRunningDemo = true
+                Task {
+                    await runFullDemo()
+                    isRunningDemo = false
+                }
+            } label: {
+                HStack {
+                    Text("Run Full Demo")
+                    Spacer()
+                    if isRunningDemo {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(isRunningDemo)
+            .tint(.indigo)
+        }
+    }
+
+    private func runFullDemo() async {
+        appendLog("— Full Demo Started —")
+
+        // 1. iOS info event
+        Owl.info("Demo started", screenName: "ContentView")
+        appendLog("[INFO] Demo started")
+
+        // 2. iOS tracking event
+        Owl.tracking("demo_full_test")
+        appendLog("[TRACK] demo_full_test")
+
+        // 3. Backend greet → 2 info events server-side
+        let greetResult = await callBackend(
+            path: "/api/greet",
+            body: ["name": "OwlBot"]
+        )
+        appendLog("[BACKEND] greet: \(greetResult)")
+
+        // 4. Pause between backend calls
+        try? await Task.sleep(for: .seconds(1))
+
+        // 5. Backend checkout → info + warn + error server-side
+        let checkoutResult = await callBackend(
+            path: "/api/checkout",
+            body: ["item": "Premium Plan"]
+        )
+        appendLog("[BACKEND] checkout: \(checkoutResult)")
+
+        // 6. iOS error event for investigation
+        Owl.error("Simulated client crash", screenName: "ContentView")
+        appendLog("[ERROR] Simulated client crash")
+
+        appendLog("— Full Demo Complete —")
     }
 
     // MARK: - Log Output
