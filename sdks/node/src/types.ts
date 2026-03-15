@@ -3,7 +3,7 @@ export type LogLevel = "info" | "debug" | "warn" | "error" | "attention" | "trac
 export interface OwlConfiguration {
   /** OwlMetry server endpoint URL */
   endpoint: string;
-  /** Server API key (must start with owl_server_) */
+  /** Client API key for a server-platform app (must start with owl_client_) */
   apiKey: string;
   /** Service name for logging/debugging (not sent as bundle_id) */
   serviceName?: string;

@@ -5,7 +5,7 @@ import { validateConfiguration } from "../../src/configuration.js";
 describe("validateConfiguration", () => {
   const validConfig = {
     endpoint: "http://localhost:4000",
-    apiKey: "owl_server_test_key_1234567890123456",
+    apiKey: "owl_client_test_key_1234567890123456",
   };
 
   it("accepts valid configuration", () => {
@@ -44,17 +44,17 @@ describe("validateConfiguration", () => {
     );
   });
 
-  it("rejects non-owl_server_ prefixed key", () => {
+  it("rejects agent key prefix", () => {
     assert.throws(
-      () => validateConfiguration({ ...validConfig, apiKey: "owl_client_abc123" }),
-      /must start with "owl_server_"/,
+      () => validateConfiguration({ ...validConfig, apiKey: "owl_agent_abc123" }),
+      /must start with "owl_client_"/,
     );
   });
 
-  it("rejects owl_agent_ prefixed key", () => {
+  it("rejects arbitrary key prefix", () => {
     assert.throws(
-      () => validateConfiguration({ ...validConfig, apiKey: "owl_agent_abc123" }),
-      /must start with "owl_server_"/,
+      () => validateConfiguration({ ...validConfig, apiKey: "some_random_key" }),
+      /must start with "owl_client_"/,
     );
   });
 

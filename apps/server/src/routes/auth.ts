@@ -336,7 +336,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       if (permissions) {
-        const permissionError = validatePermissionsForKeyType(key.key_type, permissions);
+        const permissionError = validatePermissionsForKeyType(key.key_type as import("@owlmetry/shared").ApiKeyType, permissions);
         if (permissionError) {
           return reply.code(400).send({ error: permissionError });
         }
@@ -408,13 +408,13 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "name and key_type required" });
       }
 
-      if (!["client", "agent", "server"].includes(key_type)) {
-        return reply.code(400).send({ error: "key_type must be 'client', 'agent', or 'server'" });
+      if (!["client", "agent"].includes(key_type)) {
+        return reply.code(400).send({ error: "key_type must be 'client' or 'agent'" });
       }
 
-      // Client and server keys must be scoped to an app
-      if ((key_type === "client" || key_type === "server") && !app_id) {
-        return reply.code(400).send({ error: `${key_type === "client" ? "Client" : "Server"} keys require an app_id` });
+      // Client keys must be scoped to an app
+      if (key_type === "client" && !app_id) {
+        return reply.code(400).send({ error: "Client keys require an app_id" });
       }
 
       // Agent keys without an app require a team_id

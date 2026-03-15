@@ -8,7 +8,7 @@ SERVER_PID=""
 TEST_PORT=4112
 TEST_DB="postgres://localhost:5432/owlmetry_test"
 TEST_DB_NAME="owlmetry_test"
-TEST_SERVER_KEY="owl_server_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+TEST_SERVER_KEY="owl_client_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 TEST_AGENT_KEY="owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 cleanup() {
@@ -47,7 +47,7 @@ BEGIN
   RETURNING id INTO v_app_id;
 
   INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
-  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'server', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write"]'::jsonb);
+  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write"]'::jsonb);
 END \$\$;
 SQL
     echo "Server app seeded"

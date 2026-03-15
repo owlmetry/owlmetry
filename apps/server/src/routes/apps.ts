@@ -93,8 +93,7 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: createRoleError });
       }
 
-      const keyType = platform === "server" ? "server" as const : "client" as const;
-      const { fullKey, keyHash, keyPrefix } = generateApiKey(keyType);
+      const { fullKey, keyHash, keyPrefix } = generateApiKey("client");
 
       const created = await app.db.transaction(async (tx) => {
         const [created] = await tx
@@ -114,11 +113,11 @@ export async function appsRoutes(app: FastifyInstance) {
           .values({
             key_hash: keyHash,
             key_prefix: keyPrefix,
-            key_type: keyType,
+            key_type: "client",
             app_id: created.id,
             team_id: project.team_id,
-            name: `${name} ${keyType === "server" ? "Server" : "Client"} Key`,
-            permissions: DEFAULT_API_KEY_PERMISSIONS[keyType],
+            name: `${name} Client Key`,
+            permissions: DEFAULT_API_KEY_PERMISSIONS.client,
           });
 
         return created;

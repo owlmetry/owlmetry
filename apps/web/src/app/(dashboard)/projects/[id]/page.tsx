@@ -339,7 +339,7 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
         )}
         {app.client_key && (
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{app.platform === "server" ? "Server Key" : "Client Key"}</span>
+            <span className="text-muted-foreground">Client Key</span>
             <div className="flex items-center gap-1">
               <code className="bg-muted px-1.5 py-0.5 text-xs">
                 {app.client_key.slice(0, 20)}...

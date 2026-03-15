@@ -14,7 +14,7 @@ Most AI-assisted development is a one-way street: you vibe-code a feature, ship 
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Funnel analytics** — planned but not yet implemented (database tables exist, API routes and UI coming later)
-- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for client SDKs, `owl_server_` keys for server SDKs, `owl_agent_` keys for agents/CLI. Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
+- **Auth model** — identity-only JWT for users (multi-team support, no extra headers needed), `owl_client_` keys for SDKs (client and server), `owl_agent_` keys for agents/CLI. Role-based access: **owner** (full control), **admin** (manage resources and members), **member** (read-only)
 - **Team management** — create teams, invite members by email, change roles, remove members
 - **Monthly partitioned events** — auto-creates PostgreSQL partitions for high-volume event storage
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
@@ -293,7 +293,7 @@ import { Owl } from '@owlmetry/node';
 // Initialize at server startup
 Owl.configure({
   endpoint: 'https://your-owlmetry.com',
-  apiKey: 'owl_server_xxx',
+  apiKey: 'owl_client_xxx',
   serviceName: 'api-server',
   appVersion: '1.0.0',
 });

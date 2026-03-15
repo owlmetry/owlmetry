@@ -1,6 +1,6 @@
 import type { OwlConfiguration } from "./types.js";
 
-const SERVER_KEY_PREFIX = "owl_server_";
+const CLIENT_KEY_PREFIX = "owl_client_";
 
 export interface ValidatedConfig {
   endpoint: string;
@@ -34,8 +34,8 @@ export function validateConfiguration(config: OwlConfiguration): ValidatedConfig
     throw new Error("OwlMetry: apiKey is required");
   }
 
-  if (!config.apiKey.startsWith(SERVER_KEY_PREFIX)) {
-    throw new Error(`OwlMetry: apiKey must start with "${SERVER_KEY_PREFIX}"`);
+  if (!config.apiKey.startsWith(CLIENT_KEY_PREFIX)) {
+    throw new Error(`OwlMetry: apiKey must start with "${CLIENT_KEY_PREFIX}"`);
   }
 
   return {

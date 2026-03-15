@@ -3,7 +3,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { apiKeys, teams, teamMembers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { API_KEY_PREFIX, hashApiKey, meetsMinimumRole } from "@owlmetry/shared";
-import type { AuthTeamMembership, TeamRole, Permission } from "@owlmetry/shared";
+import type { AuthTeamMembership, TeamRole, Permission, ApiKeyType } from "@owlmetry/shared";
 import type { AuthContext, UserJwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
 declare module "fastify" {
@@ -67,8 +67,7 @@ export async function requireAuth(
   // API key auth
   if (
     token.startsWith(API_KEY_PREFIX.client) ||
-    token.startsWith(API_KEY_PREFIX.agent) ||
-    token.startsWith(API_KEY_PREFIX.server)
+    token.startsWith(API_KEY_PREFIX.agent)
   ) {
     const hash = hashApiKey(token);
     const db = request.server.db;
@@ -96,7 +95,7 @@ export async function requireAuth(
     request.auth = {
       type: "api_key",
       key_id: key.id,
-      key_type: key.key_type,
+      key_type: key.key_type as ApiKeyType,
       app_id: key.app_id,
       team_id: key.team_id,
       permissions: key.permissions as Permission[],

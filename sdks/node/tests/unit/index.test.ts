@@ -46,7 +46,7 @@ describe("Owl", () => {
   it("logs events at all levels after configure", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
 
@@ -75,7 +75,7 @@ describe("Owl", () => {
   it("withUser creates scoped logger with user_id", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
 
@@ -93,7 +93,7 @@ describe("Owl", () => {
   it("truncates attribute values at 200 chars", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
 
@@ -108,7 +108,7 @@ describe("Owl", () => {
   it("coerces non-string attribute values to string", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
 
@@ -124,7 +124,7 @@ describe("Owl", () => {
   it("includes appVersion when configured", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       appVersion: "1.2.3",
       flushThreshold: 100,
     });
@@ -139,7 +139,7 @@ describe("Owl", () => {
   it("does not include bundle_id in request body", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
 
@@ -153,7 +153,7 @@ describe("Owl", () => {
   it("generates new session_id on each configure", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
     Owl.info("first");
@@ -166,7 +166,7 @@ describe("Owl", () => {
 
     Owl.configure({
       endpoint: "http://localhost:4000",
-      apiKey: "owl_server_test_1234567890123456789012345678",
+      apiKey: "owl_client_test_1234567890123456789012345678",
       flushThreshold: 100,
     });
     Owl.info("second");

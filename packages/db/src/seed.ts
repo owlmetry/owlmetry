@@ -89,8 +89,8 @@ async function main() {
     permissions: ["events:read", "funnels:read", "apps:read", "projects:read"],
   });
 
-  // Create a demo server app with deterministic server key
-  const serverKey = "owl_server_demo_000000000000000000000000000000000000000000";
+  // Create a demo server app with deterministic client key
+  const serverAppKey = "owl_client_svr_0000000000000000000000000000000000000000";
   const [serverApp] = await db
     .insert(apps)
     .values({
@@ -99,16 +99,16 @@ async function main() {
       name: "Demo API Server",
       platform: "server",
       bundle_id: null,
-      client_key: serverKey,
+      client_key: serverAppKey,
     })
     .returning();
   await db.insert(apiKeys).values({
-    key_hash: hashApiKey(serverKey),
-    key_prefix: serverKey.slice(0, KEY_PREFIX_LENGTH),
-    key_type: "server",
+    key_hash: hashApiKey(serverAppKey),
+    key_prefix: serverAppKey.slice(0, KEY_PREFIX_LENGTH),
+    key_type: "client",
     app_id: serverApp.id,
     team_id: team.id,
-    name: "Demo Server Key",
+    name: "Demo API Server Client Key",
     permissions: ["events:write"],
   });
 
@@ -186,7 +186,7 @@ async function main() {
   console.log(`App:        ${app.name} (${app.id})`);
   console.log(`Server App: ${serverApp.name} (${serverApp.id})`);
   console.log(`Client Key: ${clientKey}`);
-  console.log(`Server Key: ${serverKey}`);
+  console.log(`Server Key: ${serverAppKey}`);
   console.log(`Agent Key:  ${agentKey}`);
   console.log(`Events:     ${seedEvents.length + serverEvents.length} demo events seeded`);
   console.log("\nSave these keys — they won't be shown again.");

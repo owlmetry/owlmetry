@@ -7,7 +7,7 @@ import type { LogEvent } from "../../src/types.js";
 function makeConfig(overrides?: Partial<ValidatedConfig>): ValidatedConfig {
   return {
     endpoint: "http://localhost:4000",
-    apiKey: "owl_server_test_1234567890123456789012345678",
+    apiKey: "owl_client_test_1234567890123456789012345678",
     serviceName: "test",
     debug: false,
     flushIntervalMs: 60000,
