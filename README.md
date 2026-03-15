@@ -2,7 +2,7 @@
 
 Agent-first observability. One Postgres instance. No humans required.
 
-OwlMetry is a self-hosted observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through the API.
+OwlMetry is a self-hosted observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through the CLI.
 
 Most observability tools are built for humans staring at dashboards. OwlMetry is built for agents making API calls. Every feature is accessible programmatically through agent API keys, a CLI, and a complete REST API. The web dashboard exists as an optional visual layer — not the primary interface.
 
