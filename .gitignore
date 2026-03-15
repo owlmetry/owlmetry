@@ -6,6 +6,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.xcodebuildmcp
 
 # IDE
 .vscode/
@@ -29,3 +30,4 @@ sdks/swift/.build/
 CLAUDE.md
 PLAN.md
 .claude
+
