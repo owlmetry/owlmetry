@@ -36,7 +36,11 @@ app.decorate("db", db);
 // Plugins
 await app.register(decompressPlugin);
 await app.register(cookie);
-await app.register(cors, { origin: config.corsOrigins, credentials: true });
+await app.register(cors, {
+  origin: config.corsOrigins,
+  credentials: true,
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+});
 await app.register(jwt, { secret: config.jwtSecret });
 
 // Health check
