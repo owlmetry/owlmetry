@@ -47,6 +47,7 @@ function normalizeAttributes(attrs?: Record<string, unknown>): Record<string, st
 let config: ValidatedConfig | null = null;
 let transport: Transport | null = null;
 let sessionId: string | null = null;
+let beforeExitRegistered = false;
 
 function ensureConfigured(): { config: ValidatedConfig; transport: Transport; sessionId: string } {
   if (!config || !transport || !sessionId) {
@@ -148,6 +149,15 @@ export const Owl = {
     config = validateConfiguration(options);
     transport = new Transport(config);
     sessionId = randomUUID();
+
+    if (!beforeExitRegistered) {
+      beforeExitRegistered = true;
+      process.on("beforeExit", async () => {
+        if (transport && transport.bufferSize > 0) {
+          await transport.flush();
+        }
+      });
+    }
   },
 
   info(message: string, attrs?: Record<string, unknown>): void {
@@ -180,6 +190,18 @@ export const Owl = {
 
   async flush(): Promise<void> {
     if (transport) await transport.flush();
+  },
+
+  wrapHandler<TArgs extends unknown[], TReturn>(
+    handler: (...args: TArgs) => Promise<TReturn>,
+  ): (...args: TArgs) => Promise<TReturn> {
+    return async (...args: TArgs): Promise<TReturn> => {
+      try {
+        return await handler(...args);
+      } finally {
+        await Owl.flush();
+      }
+    };
   },
 
   async shutdown(): Promise<void> {

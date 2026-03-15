@@ -150,6 +150,62 @@ describe("Owl", () => {
     assert.equal(body.bundle_id, undefined);
   });
 
+  it("wrapHandler flushes after successful execution", async () => {
+    Owl.configure({
+      endpoint: "http://localhost:4000",
+      apiKey: "owl_client_test_1234567890123456789012345678",
+      flushThreshold: 100,
+    });
+
+    const handler = Owl.wrapHandler(async (name: string) => {
+      Owl.info("hello", { name });
+      return `hi ${name}`;
+    });
+
+    const result = await handler("world");
+    assert.equal(result, "hi world");
+    assert.ok(getCallCount() > 0);
+  });
+
+  it("wrapHandler flushes when handler throws", async () => {
+    Owl.configure({
+      endpoint: "http://localhost:4000",
+      apiKey: "owl_client_test_1234567890123456789012345678",
+      flushThreshold: 100,
+    });
+
+    const handler = Owl.wrapHandler(async () => {
+      Owl.error("something broke");
+      throw new Error("boom");
+    });
+
+    await assert.rejects(handler, { message: "boom" });
+    assert.ok(getCallCount() > 0);
+  });
+
+  it("wrapHandler preserves arguments", async () => {
+    Owl.configure({
+      endpoint: "http://localhost:4000",
+      apiKey: "owl_client_test_1234567890123456789012345678",
+      flushThreshold: 100,
+    });
+
+    let receivedArgs: unknown[] = [];
+    const handler = Owl.wrapHandler(async (a: number, b: string, c: boolean) => {
+      receivedArgs = [a, b, c];
+    });
+
+    await handler(42, "test", true);
+    assert.deepEqual(receivedArgs, [42, "test", true]);
+  });
+
+  it("wrapHandler works when not configured", async () => {
+    // Don't call configure — handler should still work without throwing
+    const handler = Owl.wrapHandler(async () => "ok");
+    const result = await handler();
+    assert.equal(result, "ok");
+  });
+
   it("generates new session_id on each configure", async () => {
     Owl.configure({
       endpoint: "http://localhost:4000",

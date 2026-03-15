@@ -321,6 +321,27 @@ await Owl.shutdown();
 - All logging methods never throw — errors go to `console.error` when `debug: true`
 - `session_id` is generated per `configure()` call, representing the server process lifetime
 
+### Serverless Environments
+
+In short-lived environments (Firebase Cloud Functions, AWS Lambda), buffered events may be lost when the process freezes or terminates before the flush timer fires. Use `Owl.wrapHandler()` to automatically flush after each invocation:
+
+```typescript
+import { onRequest } from 'firebase-functions/v2/https';
+import { Owl } from '@owlmetry/node';
+
+Owl.configure({ endpoint: 'https://...', apiKey: 'owl_client_...' });
+
+export const myFunction = onRequest(
+  Owl.wrapHandler(async (req, res) => {
+    Owl.info('Function invoked', { path: req.path });
+    res.send('OK');
+  }),
+);
+```
+
+- **Safety net**: The SDK also registers a `beforeExit` hook that flushes any remaining events when the Node.js event loop drains, catching events that slip through without `wrapHandler`.
+- **Use `wrapHandler`, not `shutdown()`** — `shutdown()` destroys the transport, which breaks warm container reuse. `wrapHandler` only flushes, keeping the SDK ready for the next invocation.
+
 ## Environment Variables
 
 | Variable | Default | Description |
