@@ -7,16 +7,13 @@ Step-by-step guide for setting up, running, and verifying the full OwlMetry demo
 Verify these tools are available:
 
 ```bash
-node --version       # v18+
-pnpm --version       # v8+
-psql --version       # PostgreSQL 15+
+node --version          # v18+
+pnpm --version          # v8+
+psql --version          # PostgreSQL 15+
+xcodebuildmcp --help    # XcodeBuildMCP CLI (required for iOS build/run/UI automation)
 ```
 
-If using UI automation for the iOS app, ensure `xcodebuildmcp` is available:
-
-```bash
-xcodebuildmcp --help
-```
+If `xcodebuildmcp` is not installed, see https://github.com/getsentry/XcodeBuildMCP for setup instructions. All iOS simulator operations (build, run, screenshot, tap) use this CLI — do not use raw `xcrun simctl` or `xcodebuild` directly.
 
 ## Phase 2: Database & Build Setup
 
@@ -86,56 +83,39 @@ Expected: a table showing "Demo Project".
 ### Find a simulator
 
 ```bash
-xcrun simctl list devices available | grep iPhone
+xcodebuildmcp simulator list
 ```
 
-Pick a device (e.g., "iPhone 16") and note its UDID.
+Pick a simulator (e.g., "iPhone 16") and note its UDID. You can also use `--simulator-name` instead of `--simulator-id` in commands below.
 
-### Using xcodebuildmcp (recommended for agents)
+### Build and run
 
 ```bash
-# List simulators
-xcodebuildmcp simulator list
-
-# Build and run
 xcodebuildmcp simulator build-and-run \
   --scheme OwlMetryDemo \
   --project-path demos/ios/OwlMetryDemo.xcodeproj \
-  --simulator-id <UDID>
+  --simulator-name "iPhone 16"
 ```
 
-### Using xcodebuild (manual)
-
-```bash
-xcodebuild -project demos/ios/OwlMetryDemo.xcodeproj \
-  -scheme OwlMetryDemo \
-  -destination 'platform=iOS Simulator,name=iPhone 16' \
-  -quiet
-
-xcrun simctl boot <UDID>
-open -a Simulator
-xcrun simctl install <UDID> <path-to-built-.app>
-xcrun simctl launch <UDID> dev.owlmetry.demo
-```
+This builds, installs, and launches the app in one step. The Simulator app will open automatically.
 
 ## Phase 6: Tap "Run Full Demo"
 
 The "Full Demo" section is at the top of the app's form. Tap the **"Run Full Demo"** button.
 
-### Using xcodebuildmcp UI automation
-
 ```bash
-# Take a snapshot to find the button
-xcodebuildmcp snapshot-ui --simulator-id <UDID>
+# Snapshot the UI to find the button coordinates
+xcodebuildmcp ui-automation snapshot-ui --simulator-id <UDID>
 
-# Tap the button (coordinates from snapshot)
-xcodebuildmcp tap --simulator-id <UDID> --x <X> --y <Y>
+# Tap the button (use coordinates from snapshot)
+xcodebuildmcp ui-automation tap --simulator-id <UDID> --x <X> --y <Y>
 
 # Wait for events to flush (SDK auto-flushes every 5s, wrapHandler flushes immediately)
 sleep 10
 
-# Verify — screenshot should show "Full Demo Complete" in event log
-xcodebuildmcp screenshot --simulator-id <UDID>
+# Scroll down to see the event log, then screenshot to verify "Full Demo Complete"
+xcodebuildmcp ui-automation swipe --simulator-id <UDID> --x1 196 --y1 600 --x2 196 --y2 100
+xcodebuildmcp ui-automation screenshot --simulator-id <UDID> --return-format path
 ```
 
 ### What the button does
@@ -233,7 +213,7 @@ lsof -ti:4000 | xargs kill 2>/dev/null || true
 lsof -ti:4007 | xargs kill 2>/dev/null || true
 
 # Terminate iOS app on simulator
-xcrun simctl terminate <UDID> dev.owlmetry.demo
+xcodebuildmcp simulator stop --simulator-id <UDID> --bundle-id dev.owlmetry.demo
 ```
 
 ## Troubleshooting
