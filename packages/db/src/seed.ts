@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { users, teams, teamMembers, projects, apps, apiKeys, events } from "./schema.js";
+import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers } from "./schema.js";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import bcrypt from "bcrypt";
 import crypto from "node:crypto";
@@ -117,6 +117,32 @@ async function main() {
   await db.insert(events).values(
     seedEvents.map((e) => ({ ...e, app_id: app.id }))
   );
+
+  // Seed app_users
+  const now_ts = new Date();
+  await db.insert(appUsers).values([
+    {
+      app_id: app.id,
+      user_id: "user-42",
+      is_anonymous: false,
+      first_seen_at: new Date(now - 8 * 60000),
+      last_seen_at: new Date(now - 2 * 60000),
+    },
+    {
+      app_id: app.id,
+      user_id: "user-99",
+      is_anonymous: false,
+      first_seen_at: new Date(now - 90000),
+      last_seen_at: new Date(now - 30000),
+    },
+    {
+      app_id: app.id,
+      user_id: "owl_anon_demo-visitor",
+      is_anonymous: true,
+      first_seen_at: new Date(now - 120000),
+      last_seen_at: now_ts,
+    },
+  ]);
 
   console.log("\nSeed complete!");
   console.log(`User:       admin@owlmetry.com / H00tH00t`);

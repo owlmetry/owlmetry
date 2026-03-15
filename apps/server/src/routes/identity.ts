@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   events,
-  eventIdentityClaims,
+  appUsers,
   funnelDefinitions,
   funnelProgress,
 } from "@owlmetry/db";
@@ -47,28 +47,28 @@ export async function identityRoutes(app: FastifyInstance) {
           .send({ error: "Client key must be scoped to an app" });
       }
 
-      // Check idempotency before starting transaction
-      const [existingClaim] = await app.db
+      // Idempotency: check if the real user already has this anonymous_id in claimed_from
+      const [existingRealUser] = await app.db
         .select()
-        .from(eventIdentityClaims)
+        .from(appUsers)
         .where(
           and(
-            eq(eventIdentityClaims.app_id, app_id),
-            eq(eventIdentityClaims.anonymous_id, anonymous_id)
+            eq(appUsers.app_id, app_id),
+            eq(appUsers.user_id, user_id)
           )
         )
         .limit(1);
 
-      if (existingClaim) {
+      if (existingRealUser?.claimed_from?.includes(anonymous_id)) {
         return {
           claimed: true,
-          events_reassigned_count: existingClaim.events_reassigned_count,
+          events_reassigned_count: 0,
         } satisfies IdentityClaimResponse;
       }
 
-      // Execute updates + claim insert in a transaction
+      // Execute updates in a transaction
       const eventsReassignedCount = await app.db.transaction(async (tx) => {
-        // Update events and get actual row count
+        // Update events user_id from anonymous to real
         const updatedEvents = await tx
           .update(events)
           .set({ user_id: user_id })
@@ -104,21 +104,50 @@ export async function identityRoutes(app: FastifyInstance) {
             );
         }
 
-        // Insert claim record with ON CONFLICT for concurrent request safety
-        await tx
-          .insert(eventIdentityClaims)
-          .values({
-            app_id,
-            anonymous_id,
-            user_id,
-            events_reassigned_count: updatedEvents.length,
-          })
-          .onConflictDoNothing({
-            target: [
-              eventIdentityClaims.app_id,
-              eventIdentityClaims.anonymous_id,
-            ],
-          });
+        // Merge app_users: check if real user row exists
+        const [anonRow] = await tx
+          .select()
+          .from(appUsers)
+          .where(
+            and(
+              eq(appUsers.app_id, app_id),
+              eq(appUsers.user_id, anonymous_id)
+            )
+          )
+          .limit(1);
+
+        if (existingRealUser) {
+          // Real user exists — merge: append anonymous_id to claimed_from, take earliest first_seen_at
+          const newClaimedFrom = [...(existingRealUser.claimed_from ?? []), anonymous_id];
+          const updates: Record<string, unknown> = {
+            claimed_from: newClaimedFrom,
+          };
+          if (anonRow && anonRow.first_seen_at < existingRealUser.first_seen_at) {
+            updates.first_seen_at = anonRow.first_seen_at;
+          }
+          await tx
+            .update(appUsers)
+            .set(updates)
+            .where(eq(appUsers.id, existingRealUser.id));
+
+          // Delete the anonymous row if it exists
+          if (anonRow) {
+            await tx
+              .delete(appUsers)
+              .where(eq(appUsers.id, anonRow.id));
+          }
+        } else if (anonRow) {
+          // No real user row — update anonymous row in-place
+          await tx
+            .update(appUsers)
+            .set({
+              user_id: user_id,
+              is_anonymous: false,
+              claimed_from: [anonymous_id],
+            })
+            .where(eq(appUsers.id, anonRow.id));
+        }
+        // If neither exists, the claim still succeeds (events were reassigned)
 
         return updatedEvents.length;
       });

@@ -6,6 +6,7 @@ import { setupCommand } from "./commands/setup.js";
 import { projectsCommand } from "./commands/projects.js";
 import { appsCommand } from "./commands/apps.js";
 import { eventsCommand, investigateCommand } from "./commands/events.js";
+import { usersCommand } from "./commands/users.js";
 
 const program = new Command()
   .name("owlmetry")
@@ -24,6 +25,7 @@ program.addCommand(projectsCommand);
 program.addCommand(appsCommand);
 program.addCommand(eventsCommand);
 program.addCommand(investigateCommand);
+program.addCommand(usersCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

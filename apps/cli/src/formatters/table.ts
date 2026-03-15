@@ -1,6 +1,6 @@
 import Table from "cli-table3";
 import chalk from "chalk";
-import type { ProjectResponse, ProjectDetailResponse, AppResponse, StoredEventResponse } from "@owlmetry/shared";
+import type { ProjectResponse, ProjectDetailResponse, AppResponse, AppUserResponse, StoredEventResponse } from "@owlmetry/shared";
 import { truncate, getTerminalWidth } from "../utils/truncate.js";
 
 export function formatProjectsTable(projects: ProjectResponse[]): string {
@@ -58,6 +58,22 @@ export function formatAppDetail(app: AppResponse): string {
     `${chalk.bold("Team ID:")}     ${app.team_id}`,
     `${chalk.bold("Created:")}     ${app.created_at}`,
   ].join("\n");
+}
+
+export function formatAppUsersTable(users: AppUserResponse[]): string {
+  const table = new Table({
+    head: [chalk.bold("User ID"), chalk.bold("Type"), chalk.bold("Claims"), chalk.bold("First Seen"), chalk.bold("Last Seen")],
+  });
+  for (const u of users) {
+    table.push([
+      u.user_id,
+      u.is_anonymous ? "anon" : "real",
+      String(u.claimed_from?.length ?? 0),
+      u.first_seen_at,
+      u.last_seen_at,
+    ]);
+  }
+  return table.toString();
 }
 
 export function formatEventsTable(events: StoredEventResponse[]): string {

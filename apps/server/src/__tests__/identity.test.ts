@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import postgres from "postgres";
 import {
   buildApp,
   truncateAll,
@@ -8,6 +9,7 @@ import {
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
   TEST_SESSION_ID,
+  TEST_DB_URL,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -50,6 +52,13 @@ function queryEvents(params: Record<string, string> = {}) {
     url: `/v1/events${qs ? `?${qs}` : ""}`,
     headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
   });
+}
+
+async function getAppUsers(appId: string) {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  const rows = await client`SELECT * FROM app_users WHERE app_id = ${appId}`;
+  await client.end();
+  return rows;
 }
 
 describe("POST /v1/identity/claim", () => {
@@ -173,5 +182,80 @@ describe("POST /v1/identity/claim", () => {
 
     const userAEvent = events.find((e: any) => e.message === "user A event");
     expect(userAEvent.user_id).toBe("real-user-a");
+  });
+
+  it("creates app_users row on ingest and merges on claim", async () => {
+    const anonId = "owl_anon_test-app-users";
+
+    // Ingest to create anonymous app_user
+    const ingestRes = await ingest([
+      { level: "info", message: "test", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+    expect(ingestRes.statusCode).toBe(200);
+
+    // Wait briefly for fire-and-forget upsert
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Get app_id from test data
+    const seedData = await app.inject({
+      method: "GET",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    const appId = seedData.json().apps[0].id;
+
+    // Verify anonymous user was created
+    let users = await getAppUsers(appId);
+    const anonUser = users.find((u: any) => u.user_id === anonId);
+    expect(anonUser).toBeDefined();
+    expect(anonUser!.is_anonymous).toBe(true);
+
+    // Claim
+    const res = await claim({ anonymous_id: anonId, user_id: "claimed-user" });
+    expect(res.statusCode).toBe(200);
+
+    // Verify: anonymous row converted to real user with claimed_from
+    users = await getAppUsers(appId);
+    const realUser = users.find((u: any) => u.user_id === "claimed-user");
+    expect(realUser).toBeDefined();
+    expect(realUser!.is_anonymous).toBe(false);
+    expect(realUser!.claimed_from).toEqual([anonId]);
+
+    // Anonymous row should be gone
+    const stillAnon = users.find((u: any) => u.user_id === anonId);
+    expect(stillAnon).toBeUndefined();
+  });
+
+  it("merges into existing real user on claim", async () => {
+    const anonId = "owl_anon_test-merge";
+
+    // Ingest events for both anon and real user
+    await ingest([
+      { level: "info", message: "anon event", user_id: anonId, session_id: TEST_SESSION_ID },
+      { level: "info", message: "real event", user_id: "existing-real", session_id: TEST_SESSION_ID },
+    ]);
+
+    // Wait for fire-and-forget
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Claim anon -> existing-real
+    const res = await claim({ anonymous_id: anonId, user_id: "existing-real" });
+    expect(res.statusCode).toBe(200);
+
+    const seedData = await app.inject({
+      method: "GET",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    const appId = seedData.json().apps[0].id;
+
+    const users = await getAppUsers(appId);
+    const realUser = users.find((u: any) => u.user_id === "existing-real");
+    expect(realUser).toBeDefined();
+    expect(realUser!.claimed_from).toEqual([anonId]);
+
+    // Anonymous row should be deleted
+    const anonUser = users.find((u: any) => u.user_id === anonId);
+    expect(anonUser).toBeUndefined();
   });
 });

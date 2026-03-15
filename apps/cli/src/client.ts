@@ -1,5 +1,7 @@
 import type {
   AppResponse,
+  AppUsersResponse,
+  AppUsersQueryParams,
   CreateAppRequest,
   CreateProjectRequest,
   EventsQueryParams,
@@ -105,6 +107,17 @@ export class OwlMetryClient {
 
   async updateApp(id: string, body: UpdateAppRequest): Promise<AppResponse> {
     return this.request<AppResponse>("PATCH", `/v1/apps/${id}`, { body });
+  }
+
+  // App Users
+  async listAppUsers(appId: string, params: AppUsersQueryParams = {}): Promise<AppUsersResponse> {
+    const stringParams: Record<string, string | undefined> = {
+      search: params.search,
+      is_anonymous: params.is_anonymous,
+      cursor: params.cursor,
+      limit: params.limit?.toString(),
+    };
+    return this.request<AppUsersResponse>("GET", `/v1/apps/${appId}/users`, { params: stringParams });
   }
 
   // Events

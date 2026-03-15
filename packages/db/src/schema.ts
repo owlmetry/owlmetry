@@ -5,6 +5,7 @@ import {
   varchar,
   timestamp,
   integer,
+  boolean,
   jsonb,
   index,
   uniqueIndex,
@@ -201,27 +202,28 @@ export const events = pgTable(
   ]
 );
 
-// Event Identity Claims
-export const eventIdentityClaims = pgTable(
-  "event_identity_claims",
+// App Users — auto-populated on ingest, tracks anonymous vs real users
+export const appUsers = pgTable(
+  "app_users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     app_id: uuid("app_id")
       .notNull()
       .references(() => apps.id, { onDelete: "cascade" }),
-    anonymous_id: varchar("anonymous_id", { length: 255 }).notNull(),
     user_id: varchar("user_id", { length: 255 }).notNull(),
-    events_reassigned_count: integer("events_reassigned_count").notNull().default(0),
-    claimed_at: timestamp("claimed_at", { withTimezone: true })
+    is_anonymous: boolean("is_anonymous").notNull(),
+    claimed_from: jsonb("claimed_from").$type<string[]>(),
+    first_seen_at: timestamp("first_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    last_seen_at: timestamp("last_seen_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("event_identity_claims_app_anon_idx").on(
-      table.app_id,
-      table.anonymous_id
-    ),
-    index("event_identity_claims_app_user_idx").on(table.app_id, table.user_id),
+    uniqueIndex("app_users_app_user_idx").on(table.app_id, table.user_id),
+    index("app_users_app_anonymous_idx").on(table.app_id, table.is_anonymous),
+    index("app_users_app_last_seen_idx").on(table.app_id, table.last_seen_at),
   ]
 );
 

@@ -184,6 +184,30 @@ export interface TeamDetailResponse {
   members: TeamMemberResponse[];
 }
 
+// App Users
+export interface AppUserResponse {
+  id: string;
+  app_id: string;
+  user_id: string;
+  is_anonymous: boolean;
+  claimed_from: string[] | null;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface AppUsersResponse {
+  users: AppUserResponse[];
+  cursor: string | null;
+  has_more: boolean;
+}
+
+export interface AppUsersQueryParams {
+  search?: string;
+  is_anonymous?: string;
+  cursor?: string;
+  limit?: number;
+}
+
 // Re-export for convenience
 export type {
   StoredEvent,

@@ -16,6 +16,7 @@ import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
 import { projectsRoutes } from "../routes/projects.js";
 import { identityRoutes } from "../routes/identity.js";
+import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import bcrypt from "bcrypt";
@@ -103,6 +104,7 @@ export async function buildApp() {
   await app.register(appsRoutes, { prefix: "/v1" });
   await app.register(projectsRoutes, { prefix: "/v1" });
   await app.register(identityRoutes, { prefix: "/v1" });
+  await app.register(appUsersRoutes, { prefix: "/v1" });
   await app.register(teamsRoutes, { prefix: "/v1" });
 
   await app.ready();
@@ -111,7 +113,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
-  await client`DELETE FROM event_identity_claims`;
+  await client`DELETE FROM app_users`;
   await client`DELETE FROM funnel_progress`;
   await client`DELETE FROM funnel_definitions`;
   await client.unsafe(`DELETE FROM events`);

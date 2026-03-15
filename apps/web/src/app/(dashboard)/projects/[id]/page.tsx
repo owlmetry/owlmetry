@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
-import { ArrowLeft, Plus, Pencil, Trash2, ScrollText } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, ScrollText, Users } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -343,13 +343,22 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
             </div>
           </div>
         )}
-        <Link
-          href={`/events?app_id=${app.id}`}
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors pt-1"
-        >
-          <ScrollText className="h-3 w-3" />
-          Events
-        </Link>
+        <div className="flex gap-3 pt-1">
+          <Link
+            href={`/apps/${app.id}`}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Users className="h-3 w-3" />
+            Users
+          </Link>
+          <Link
+            href={`/events?app_id=${app.id}`}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ScrollText className="h-3 w-3" />
+            Events
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

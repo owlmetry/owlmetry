@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray, isNull } from "drizzle-orm";
-import { apps, events } from "@owlmetry/db";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { apps, events, appUsers } from "@owlmetry/db";
+import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import {
   MAX_BATCH_SIZE,
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
@@ -157,6 +158,25 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       if (valid.length > 0) {
         await app.db.insert(events).values(valid);
+
+        // Fire-and-forget: upsert app_users for each unique user_id in the batch
+        const uniqueUserIds = [...new Set(valid.map((e) => e.user_id).filter((id): id is string => !!id))];
+        if (uniqueUserIds.length > 0) {
+          const userRows = uniqueUserIds.map((uid) => ({
+            app_id,
+            user_id: uid,
+            is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
+          }));
+          app.db
+            .insert(appUsers)
+            .values(userRows)
+            .onConflictDoUpdate({
+              target: [appUsers.app_id, appUsers.user_id],
+              set: { last_seen_at: sql`NOW()` },
+            })
+            .execute()
+            .catch(() => {});
+        }
       }
 
       return {
