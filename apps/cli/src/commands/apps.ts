@@ -29,7 +29,7 @@ appsCommand
 appsCommand
   .command("create")
   .description("Create a new app")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .requiredOption("--name <name>", "App name")
   .addOption(
     new Option("--platform <platform>", "Platform")
@@ -37,7 +37,7 @@ appsCommand
       .makeOptionMandatory(),
   )
   .option("--bundle-id <bundleId>", "Bundle identifier (required for non-backend platforms)")
-  .action(async (opts: { project: string; name: string; platform: string; bundleId?: string }, cmd: Command) => {
+  .action(async (opts: { projectId: string; name: string; platform: string; bundleId?: string }, cmd: Command) => {
     if (opts.platform !== "backend" && !opts.bundleId) {
       console.error("Error: --bundle-id is required for non-backend platforms");
       process.exit(1);
@@ -45,7 +45,7 @@ appsCommand
 
     const { client, globals } = createClient(cmd);
     const app = await client.createApp({
-      project_id: opts.project,
+      project_id: opts.projectId,
       name: opts.name,
       platform: opts.platform as AppPlatform,
       ...(opts.bundleId ? { bundle_id: opts.bundleId } : {}),
