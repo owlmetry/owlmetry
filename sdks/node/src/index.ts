@@ -56,12 +56,12 @@ function ensureConfigured(): { config: ValidatedConfig; transport: Transport; se
 }
 
 function createEvent(
+  ctx: { config: ValidatedConfig; sessionId: string },
   level: LogLevel,
   message: string,
   attrs?: Record<string, unknown>,
   userId?: string,
 ): LogEvent {
-  const ctx = ensureConfigured();
   return {
     client_event_id: randomUUID(),
     session_id: ctx.sessionId,
@@ -79,7 +79,7 @@ function createEvent(
 function log(level: LogLevel, message: string, attrs?: Record<string, unknown>, userId?: string): void {
   try {
     const ctx = ensureConfigured();
-    const event = createEvent(level, message, attrs, userId);
+    const event = createEvent(ctx, level, message, attrs, userId);
     ctx.transport.enqueue(event);
   } catch (err) {
     if (config?.debug) {
@@ -130,7 +130,7 @@ export class ScopedOwl {
  * ```
  * import { Owl } from '@owlmetry/node';
  *
- * Owl.configure({ endpoint: 'https://...', apiKey: 'owl_server_...' });
+ * Owl.configure({ endpoint: 'https://...', apiKey: 'owl_client_...' });
  * Owl.info('Server started');
  *
  * const owl = Owl.withUser('user_123');
@@ -141,6 +141,10 @@ export class ScopedOwl {
  */
 export const Owl = {
   configure(options: OwlConfiguration): void {
+    // Clean up previous transport if reconfiguring
+    if (transport) {
+      transport.shutdown().catch(() => {});
+    }
     config = validateConfiguration(options);
     transport = new Transport(config);
     sessionId = randomUUID();

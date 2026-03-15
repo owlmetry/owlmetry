@@ -220,7 +220,7 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/teams/:id/members` | JWT (admin+) | Add member by email |
 | `PATCH` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Change member role |
 | `DELETE` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Remove member (or self-leave) |
-| `POST` | `/v1/ingest` | Client/Server key | Batch ingest events |
+| `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
 | `GET` | `/v1/projects` | `projects:read` / JWT | List projects |
@@ -283,7 +283,7 @@ The Node.js SDK (`@owlmetry/node`) lets you log server-side events into the same
 ### Setup
 
 1. Create a server-platform app in OwlMetry (via dashboard, CLI, or API)
-2. Use the generated `owl_server_` key
+2. Use the generated `owl_client_` key
 
 ### Usage
 
