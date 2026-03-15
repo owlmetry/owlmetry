@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, ScrollText } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -161,7 +161,15 @@ export default function ProjectDetailPage() {
 
       {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
 
-      <p className="text-sm text-muted-foreground">Slug: {project.slug}</p>
+      <div className="flex items-center gap-4">
+        <p className="text-sm text-muted-foreground">Slug: {project.slug}</p>
+        <Link href={`/events?project_id=${id}`}>
+          <Button variant="outline" size="sm">
+            <ScrollText className="h-3.5 w-3.5 mr-1.5" />
+            View All Events
+          </Button>
+        </Link>
+      </div>
 
       {newClientKey && (
         <Card className="border-primary">
@@ -335,6 +343,13 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
             </div>
           </div>
         )}
+        <Link
+          href={`/events?app_id=${app.id}`}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors pt-1"
+        >
+          <ScrollText className="h-3 w-3" />
+          Events
+        </Link>
       </CardContent>
     </Card>
   );
