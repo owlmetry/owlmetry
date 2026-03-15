@@ -96,7 +96,7 @@ export default function ProjectDetailPage() {
       setNewClientKey(res.app.client_key);
       setAppName("");
       setAppBundleId("");
-      setAppPlatform("ios");
+      setAppPlatform("apple");
       setAppDialogOpen(false);
       mutate();
     } catch (err) {
@@ -109,7 +109,7 @@ export default function ProjectDetailPage() {
   function resetAppDialog() {
     setAppName("");
     setAppBundleId("");
-    setAppPlatform("ios");
+    setAppPlatform("apple");
     setAppError("");
   }
 

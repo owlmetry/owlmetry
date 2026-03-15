@@ -1,4 +1,6 @@
 import { Command, Option } from "commander";
+import { APP_PLATFORMS } from "@owlmetry/shared";
+import type { AppPlatform } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 import { formatAppsTable, formatAppDetail } from "../formatters/table.js";
@@ -31,7 +33,7 @@ appsCommand
   .requiredOption("--name <name>", "App name")
   .addOption(
     new Option("--platform <platform>", "Platform")
-      .choices(["apple", "android", "web", "backend"])
+      .choices([...APP_PLATFORMS])
       .makeOptionMandatory(),
   )
   .option("--bundle-id <bundleId>", "Bundle identifier (required for non-backend platforms)")
@@ -45,7 +47,7 @@ appsCommand
     const app = await client.createApp({
       project_id: opts.project,
       name: opts.name,
-      platform: opts.platform as import("@owlmetry/shared").AppPlatform,
+      platform: opts.platform as AppPlatform,
       ...(opts.bundleId ? { bundle_id: opts.bundleId } : {}),
     });
     output(globals.format, app, () => formatAppDetail(app));

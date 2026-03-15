@@ -1,3 +1,5 @@
+import type { AppPlatform } from "./events.js";
+
 export type TeamRole = "owner" | "admin" | "member";
 
 export const VALID_TEAM_ROLES: TeamRole[] = ["owner", "admin", "member"];
@@ -132,7 +134,7 @@ export interface App {
   team_id: string;
   project_id: string;
   name: string;
-  platform: import("./events.js").AppPlatform;
+  platform: AppPlatform;
   bundle_id: string | null;
   client_key: string | null;
   created_at: Date;

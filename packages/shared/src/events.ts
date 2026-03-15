@@ -8,8 +8,6 @@ export type LogLevel =
 
 export type AppPlatform = "apple" | "android" | "web" | "backend";
 export type Environment = "ios" | "ipados" | "macos" | "android" | "web" | "backend";
-/** @deprecated Use Environment instead */
-export type Platform = Environment;
 
 export interface IngestEventPayload {
   client_event_id?: string;
