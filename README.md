@@ -30,6 +30,7 @@ apps/cli           CLI tool (agent key)
 sdks/swift         Swift SDK (Swift Package)
 sdks/node          Node.js Server SDK (zero dependencies)
 demos/ios          iOS demo app for testing Swift SDK
+demos/node         Node.js demo server for testing Node SDK
 ```
 
 ## Requirements
@@ -341,6 +342,36 @@ export const myFunction = onRequest(
 
 - **Safety net**: The SDK also registers a `beforeExit` hook that flushes any remaining events when the Node.js event loop drains, catching events that slip through without `wrapHandler`.
 - **Use `wrapHandler`, not `shutdown()`** — `shutdown()` destroys the transport, which breaks warm container reuse. `wrapHandler` only flushes, keeping the SDK ready for the next invocation.
+
+## Demo Apps
+
+Both demo apps send events to the same "Demo Project" in the dashboard, showing iOS and backend events side by side.
+
+### Node.js backend demo
+
+A zero-dependency HTTP server using the Node SDK. Demonstrates `Owl.wrapHandler()` for auto-flushing and `Owl.withUser()` for scoped logging.
+
+```bash
+# Requires: OwlMetry server running on port 4000 with seeded data
+cd sdks/node && npx tsc     # Build the Node SDK (if not already built)
+pnpm dev:demo-node          # Starts on port 4007
+```
+
+Endpoints:
+- `GET /health` — health check
+- `POST /api/greet` — success path (info events): `{ "name": "Alice", "userId": "user-42" }`
+- `POST /api/checkout` — error path (warn + error events): `{ "item": "Widget", "userId": "user-42" }`
+
+### iOS demo
+
+The iOS demo includes a "Backend Demo" section that calls the Node demo server. Set a User ID in the Identity section first so iOS and backend events share the same user.
+
+```bash
+# Requires: OwlMetry server (port 4000) + Node demo server (port 4007)
+pnpm dev:server             # Terminal 1
+pnpm dev:demo-node          # Terminal 2
+# Build and run iOS demo on simulator (Terminal 3)
+```
 
 ## Environment Variables
 

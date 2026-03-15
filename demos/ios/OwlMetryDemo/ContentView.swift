@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var customKey = ""
     @State private var customValue = ""
     @State private var logMessage = "Hello from the demo app"
+    @State private var greetName = "World"
     @State private var eventLog: [String] = []
 
     var body: some View {
@@ -14,6 +15,7 @@ struct ContentView: View {
                 loggingSection
                 trackingSection
                 identitySection
+                backendDemoSection
                 logOutputSection
             }
             .navigationTitle("OwlMetry Demo")
@@ -111,6 +113,41 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Backend Demo
+
+    private var backendDemoSection: some View {
+        Section("Backend Demo") {
+            TextField("Name", text: $greetName)
+                .autocorrectionDisabled()
+
+            Button("Greet") {
+                Owl.track("backend_greet_tapped", customAttributes: ["name": greetName])
+                appendLog("[TRACK] backend_greet_tapped")
+                Task {
+                    let result = await callBackend(
+                        path: "/api/greet",
+                        body: ["name": greetName, "userId": userId.isEmpty ? nil : userId]
+                    )
+                    appendLog("[BACKEND] \(result)")
+                }
+            }
+            .tint(.green)
+
+            Button("Checkout (simulated failure)") {
+                Owl.track("backend_checkout_tapped", customAttributes: ["item": "Widget"])
+                appendLog("[TRACK] backend_checkout_tapped")
+                Task {
+                    let result = await callBackend(
+                        path: "/api/checkout",
+                        body: ["item": "Widget", "userId": userId.isEmpty ? nil : userId]
+                    )
+                    appendLog("[BACKEND] \(result)")
+                }
+            }
+            .tint(.orange)
+        }
+    }
+
     // MARK: - Log Output
 
     private var logOutputSection: some View {
@@ -125,6 +162,27 @@ struct ContentView: View {
                         .monospaced()
                 }
             }
+        }
+    }
+
+    private func callBackend(path: String, body: [String: String?]) async -> String {
+        guard let url = URL(string: "http://localhost:4007\(path)") else {
+            return "Invalid URL"
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let filtered = body.compactMapValues { $0 }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: filtered)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let text = String(data: data, encoding: .utf8) ?? "No body"
+            return "\(status): \(text)"
+        } catch {
+            return "Error: \(error.localizedDescription)"
         }
     }
 

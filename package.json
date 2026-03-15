@@ -12,7 +12,8 @@
     "db:unsafe-reset": "pnpm --filter @owlmetry/db dev:unsafe-reset",
     "test": "pnpm -r test && pnpm test:swift-sdk",
     "test:swift-sdk": "bash scripts/test-swift-sdk.sh",
-    "test:node-sdk": "bash scripts/test-node-sdk.sh"
+    "test:node-sdk": "bash scripts/test-node-sdk.sh",
+    "dev:demo-node": "node demos/node/server.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
