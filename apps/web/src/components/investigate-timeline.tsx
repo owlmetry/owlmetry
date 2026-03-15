@@ -33,6 +33,7 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
       limit: "200",
     });
     if (event.user_id) params.set("user_id", event.user_id);
+    if (event.is_debug) params.set("include_debug", "true");
 
     api
       .get<EventsResponse>(`/v1/events?${params}`)

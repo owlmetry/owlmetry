@@ -177,6 +177,7 @@ export const events = pgTable(
     device_model: varchar("device_model", { length: 100 }),
     build_number: varchar("build_number", { length: 50 }),
     locale: varchar("locale", { length: 20 }),
+    is_debug: boolean("is_debug").notNull().default(false),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     received_at: timestamp("received_at", { withTimezone: true })
       .notNull()
@@ -201,6 +202,7 @@ export const events = pgTable(
     ),
     index("events_client_event_id_idx").on(table.app_id, table.client_event_id),
     index("events_app_session_timestamp_idx").on(table.app_id, table.session_id, table.timestamp),
+    index("events_app_debug_timestamp_idx").on(table.app_id, table.is_debug, table.timestamp),
   ]
 );
 

@@ -20,6 +20,7 @@ final class EventBuilderTests: XCTestCase {
             userId: "user123",
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "/path/to/MyFile.swift",
             function: "doStuff()",
             line: 42
@@ -46,6 +47,7 @@ final class EventBuilderTests: XCTestCase {
             userId: nil,
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "/Users/dev/project/Sources/ViewModel.swift",
             function: "loadData()",
             line: 99
@@ -63,6 +65,7 @@ final class EventBuilderTests: XCTestCase {
             userId: nil,
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "/path/File.swift",
             function: "func()",
             line: 1
@@ -82,6 +85,7 @@ final class EventBuilderTests: XCTestCase {
             userId: nil,
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "/path/File.swift",
             function: "f()",
             line: 1
@@ -100,6 +104,7 @@ final class EventBuilderTests: XCTestCase {
             userId: nil,
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "F.swift",
             function: "f()",
             line: 1
@@ -117,6 +122,7 @@ final class EventBuilderTests: XCTestCase {
             userId: nil,
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "F.swift",
             function: "f()",
             line: 1
@@ -137,6 +143,7 @@ final class EventBuilderTests: XCTestCase {
             userId: nil,
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
+            isDebug: true,
             file: "F.swift",
             function: "f()",
             line: 1

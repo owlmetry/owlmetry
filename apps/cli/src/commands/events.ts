@@ -26,6 +26,7 @@ export const eventsCommand = new Command("events")
       .argParser((v) => parsePositiveInt(v, "--limit")),
   )
   .option("--cursor <cursor>", "Pagination cursor")
+  .option("--include-debug", "Include debug events (hidden by default)")
   .action(async (opts: {
     project?: string;
     app?: string;
@@ -37,6 +38,7 @@ export const eventsCommand = new Command("events")
     screen?: string;
     limit?: number;
     cursor?: string;
+    includeDebug?: boolean;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
@@ -58,6 +60,7 @@ export const eventsCommand = new Command("events")
       screen_name: opts.screen,
       limit: opts.limit,
       cursor: opts.cursor,
+      include_debug: opts.includeDebug ? "true" : undefined,
     });
 
     const hint = paginationHint(result);

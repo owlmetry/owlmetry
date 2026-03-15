@@ -73,6 +73,7 @@ function createEvent(
     custom_attributes: normalizeAttributes(attrs),
     environment: "backend",
     ...(ctx.config.appVersion ? { app_version: ctx.config.appVersion } : {}),
+    is_debug: ctx.config.isDebug,
     timestamp: new Date().toISOString(),
   };
 }

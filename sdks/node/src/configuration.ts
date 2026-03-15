@@ -8,6 +8,7 @@ export interface ValidatedConfig {
   serviceName: string;
   appVersion?: string;
   debug: boolean;
+  isDebug: boolean;
   flushIntervalMs: number;
   flushThreshold: number;
   maxBufferSize: number;
@@ -44,6 +45,7 @@ export function validateConfiguration(config: OwlConfiguration): ValidatedConfig
     serviceName: config.serviceName || "unknown",
     appVersion: config.appVersion,
     debug: config.debug ?? false,
+    isDebug: config.isDebug ?? (process.env.NODE_ENV !== "production"),
     flushIntervalMs: config.flushIntervalMs ?? 5000,
     flushThreshold: config.flushThreshold ?? 20,
     maxBufferSize: config.maxBufferSize ?? 10000,

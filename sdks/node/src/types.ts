@@ -17,6 +17,8 @@ export interface OwlConfiguration {
   flushThreshold?: number;
   /** Max events in buffer before dropping oldest (default: 10000) */
   maxBufferSize?: number;
+  /** Mark events as debug. Defaults to `process.env.NODE_ENV !== "production"` */
+  isDebug?: boolean;
 }
 
 export interface LogEvent {
@@ -29,6 +31,7 @@ export interface LogEvent {
   custom_attributes?: Record<string, string>;
   environment: "backend";
   app_version?: string;
+  is_debug?: boolean;
   timestamp: string;
 }
 

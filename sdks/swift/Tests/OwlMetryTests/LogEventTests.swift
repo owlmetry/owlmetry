@@ -18,6 +18,7 @@ final class LogEventTests: XCTestCase {
             buildNumber: "100",
             deviceModel: "iPhone16,1",
             locale: "en_US",
+            isDebug: true,
             timestamp: "2026-01-01T00:00:00.000Z"
         )
 
@@ -48,6 +49,7 @@ final class LogEventTests: XCTestCase {
             buildNumber: nil,
             deviceModel: nil,
             locale: nil,
+            isDebug: false,
             timestamp: "2026-01-01T00:00:00.000Z"
         )
 
@@ -75,6 +77,7 @@ final class LogEventTests: XCTestCase {
             buildNumber: nil,
             deviceModel: nil,
             locale: nil,
+            isDebug: false,
             timestamp: "2026-01-01T00:00:00.000Z"
         )
 

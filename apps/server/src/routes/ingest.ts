@@ -155,6 +155,7 @@ export async function ingestRoutes(app: FastifyInstance) {
           device_model: e.device_model || null,
           build_number: e.build_number || null,
           locale: e.locale || null,
+          is_debug: e.is_debug ?? false,
           timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
         });
       }

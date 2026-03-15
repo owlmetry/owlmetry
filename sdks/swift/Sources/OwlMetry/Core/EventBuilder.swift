@@ -17,6 +17,7 @@ enum EventBuilder {
         userId: String?,
         sessionId: String,
         deviceInfo: DeviceInfo,
+        isDebug: Bool,
         file: String,
         function: String,
         line: Int
@@ -48,6 +49,7 @@ enum EventBuilder {
             buildNumber: deviceInfo.buildNumber,
             deviceModel: deviceInfo.deviceModel,
             locale: deviceInfo.locale,
+            isDebug: isDebug,
             timestamp: isoFormatter.string(from: Date())
         )
     }

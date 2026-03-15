@@ -137,6 +137,29 @@ describe("GET /v1/events", () => {
     expect(ids1.filter((id: string) => ids2.includes(id))).toHaveLength(0);
   });
 
+  it("excludes debug events by default", async () => {
+    await ingestEvents([
+      { level: "info", message: "Production event", session_id: TEST_SESSION_ID },
+      { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
+    ]);
+
+    const res = await queryEvents();
+    const body = res.json();
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].message).toBe("Production event");
+  });
+
+  it("includes debug events when include_debug=true", async () => {
+    await ingestEvents([
+      { level: "info", message: "Production event", session_id: TEST_SESSION_ID },
+      { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
+    ]);
+
+    const res = await queryEvents({ include_debug: "true" });
+    const body = res.json();
+    expect(body.events).toHaveLength(2);
+  });
+
   it("returns empty array when no events match", async () => {
     const res = await queryEvents({ level: "attention" });
     const body = res.json();

@@ -111,6 +111,7 @@ export function formatEventDetail(event: StoredEventResponse): string {
     `${chalk.bold("Build Number:")}    ${event.build_number ?? "—"}`,
     `${chalk.bold("Device Model:")}    ${event.device_model ?? "—"}`,
     `${chalk.bold("Locale:")}          ${event.locale ?? "—"}`,
+    `${chalk.bold("Debug:")}           ${event.is_debug ? chalk.yellow("Yes") : "No"}`,
   ];
 
   if (event.custom_attributes && Object.keys(event.custom_attributes).length > 0) {

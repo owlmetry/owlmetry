@@ -31,16 +31,17 @@ describe("Node SDK integration", () => {
     await new Promise((r) => setTimeout(r, 500));
 
     // Query events back via agent key
-    const res = await fetch(`${ENDPOINT}/v1/events?limit=10`, {
+    const res = await fetch(`${ENDPOINT}/v1/events?limit=10&include_debug=true`, {
       headers: { Authorization: `Bearer ${AGENT_KEY}` },
     });
 
     assert.equal(res.status, 200);
-    const body = await res.json() as { events: Array<{ message: string; environment: string; custom_attributes: Record<string, string> }> };
+    const body = await res.json() as { events: Array<{ message: string; environment: string; custom_attributes: Record<string, string>; is_debug: boolean }> };
     const found = body.events.find((e) => e.message === uniqueMsg);
     assert.ok(found, `Expected to find event with message "${uniqueMsg}"`);
     assert.equal(found.environment, "backend");
     assert.deepEqual(found.custom_attributes, { test: "true" });
+    assert.equal(found.is_debug, true);
   });
 
   it("sends events with user_id via withUser", async () => {
@@ -51,7 +52,7 @@ describe("Node SDK integration", () => {
 
     await new Promise((r) => setTimeout(r, 500));
 
-    const res = await fetch(`${ENDPOINT}/v1/events?user_id=integration-user-42&limit=10`, {
+    const res = await fetch(`${ENDPOINT}/v1/events?user_id=integration-user-42&limit=10&include_debug=true`, {
       headers: { Authorization: `Bearer ${AGENT_KEY}` },
     });
 
@@ -75,7 +76,7 @@ describe("Node SDK integration", () => {
 
     await new Promise((r) => setTimeout(r, 500));
 
-    const res = await fetch(`${ENDPOINT}/v1/events?limit=50`, {
+    const res = await fetch(`${ENDPOINT}/v1/events?limit=50&include_debug=true`, {
       headers: { Authorization: `Bearer ${AGENT_KEY}` },
     });
 

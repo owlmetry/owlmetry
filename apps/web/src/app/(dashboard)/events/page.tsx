@@ -46,6 +46,7 @@ export default function EventsPage() {
   const [screenName, setScreenName] = useState(searchParams.get("screen_name") ?? "");
   const [since, setSince] = useState(searchParams.get("since") ?? "");
   const [until, setUntil] = useState(searchParams.get("until") ?? "");
+  const [includeDebug, setIncludeDebug] = useState(searchParams.get("include_debug") === "true");
 
   // Selected event for detail sheet
   const [selectedEvent, setSelectedEvent] = useState<StoredEventResponse | null>(null);
@@ -72,6 +73,7 @@ export default function EventsPage() {
   if (screenName) filters.screen_name = screenName;
   if (since) filters.since = new Date(since).toISOString();
   if (until) filters.until = new Date(until + "T23:59:59").toISOString();
+  if (includeDebug) filters.include_debug = "true";
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filters);
 
@@ -85,9 +87,10 @@ export default function EventsPage() {
     if (screenName) params.set("screen_name", screenName);
     if (since) params.set("since", since);
     if (until) params.set("until", until);
+    if (includeDebug) params.set("include_debug", "true");
     const qs = params.toString();
     router.replace(`/events${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [projectId, appId, level, userId, screenName, since, until, router]);
+  }, [projectId, appId, level, userId, screenName, since, until, includeDebug, router]);
 
   useEffect(() => {
     updateUrl();
@@ -109,9 +112,10 @@ export default function EventsPage() {
     setScreenName("");
     setSince("");
     setUntil("");
+    setIncludeDebug(false);
   }
 
-  const hasFilters = projectId || appId || level || userId || screenName || since || until;
+  const hasFilters = projectId || appId || level || userId || screenName || since || until || includeDebug;
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);
@@ -212,6 +216,18 @@ export default function EventsPage() {
             onChange={(e) => setUntil(e.target.value)}
             className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
+        </div>
+
+        <div className="flex items-end">
+          <label className="flex items-center gap-1.5 h-8 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeDebug}
+              onChange={(e) => setIncludeDebug(e.target.checked)}
+              className="rounded border-input"
+            />
+            Show debug events
+          </label>
         </div>
 
         {hasFilters && (

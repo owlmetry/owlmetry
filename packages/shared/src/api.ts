@@ -133,6 +133,7 @@ export interface EventsQueryParams {
   until?: string;
   cursor?: string;
   limit?: number;
+  include_debug?: string;
 }
 
 export interface EventsResponse {

@@ -26,6 +26,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         until,
         cursor,
         limit: rawLimit,
+        include_debug,
       } = request.query;
 
       const limit = normalizeLimit(rawLimit);
@@ -69,6 +70,11 @@ export async function eventsRoutes(app: FastifyInstance) {
           return { events: [], cursor: null, has_more: false };
         }
         conditions.push(inArray(events.app_id, teamAppIds));
+      }
+
+      // Exclude debug events by default
+      if (include_debug !== "true") {
+        conditions.push(eq(events.is_debug, false));
       }
 
       if (level) {

@@ -56,6 +56,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       device_model VARCHAR(100),
       build_number VARCHAR(50),
       locale VARCHAR(20),
+      is_debug BOOLEAN NOT NULL DEFAULT FALSE,
       "timestamp" TIMESTAMPTZ NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     ) PARTITION BY RANGE ("timestamp");

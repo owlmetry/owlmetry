@@ -443,6 +443,7 @@ final class SDKIntegrationTests: XCTestCase {
                 buildNumber: "1",
                 deviceModel: "Mac",
                 locale: "en_US",
+                isDebug: true,
                 timestamp: ISO8601DateFormatter().string(from: Date())
             )
         }
@@ -653,11 +654,13 @@ final class SDKIntegrationTests: XCTestCase {
         user: String? = nil
     ) async throws -> [[String: Any]] {
         var components = URLComponents(string: "\(Self.testEndpoint)/v1/events")!
-        var queryItems: [URLQueryItem] = []
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "include_debug", value: "true"),
+        ]
         if let level { queryItems.append(URLQueryItem(name: "level", value: level)) }
         if let screenName { queryItems.append(URLQueryItem(name: "screen_name", value: screenName)) }
         if let user { queryItems.append(URLQueryItem(name: "user", value: user)) }
-        if !queryItems.isEmpty { components.queryItems = queryItems }
+        components.queryItems = queryItems
 
         var request = URLRequest(url: components.url!)
         request.setValue("Bearer \(Self.testAgentKey)", forHTTPHeaderField: "Authorization")

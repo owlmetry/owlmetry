@@ -79,6 +79,12 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect }: E
             <DetailRow label="Build Number" value={event.build_number} />
             <DetailRow label="Device Model" value={event.device_model} />
             <DetailRow label="Locale" value={event.locale} />
+            {event.is_debug && (
+              <div className="flex justify-between gap-4 py-1.5">
+                <span className="shrink-0 text-xs text-muted-foreground">Debug</span>
+                <span className="text-right text-xs font-medium text-yellow-600">Yes</span>
+              </div>
+            )}
           </div>
 
           {event.custom_attributes && Object.keys(event.custom_attributes).length > 0 && (

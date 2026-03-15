@@ -133,6 +133,7 @@ export class OwlMetryClient {
       until: params.until,
       cursor: params.cursor,
       limit: params.limit?.toString(),
+      include_debug: params.include_debug,
     };
     return this.request<EventsResponse>("GET", "/v1/events", { params: stringParams });
   }

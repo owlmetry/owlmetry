@@ -259,6 +259,42 @@ describe("POST /v1/ingest", () => {
     expect(res.json().error).toMatch(/bundle_id/);
   });
 
+  it("stores is_debug flag from event payload", async () => {
+    const res = await ingest([
+      { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
+    ]);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+
+    // Query with include_debug to find the event
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: "/v1/events?include_debug=true",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    const events = eventsRes.json().events;
+    expect(events).toHaveLength(1);
+    expect(events[0].is_debug).toBe(true);
+  });
+
+  it("defaults is_debug to false when not provided", async () => {
+    const res = await ingest([
+      { level: "info", message: "Normal event", session_id: TEST_SESSION_ID },
+    ]);
+
+    expect(res.statusCode).toBe(200);
+
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: "/v1/events",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    const events = eventsRes.json().events;
+    expect(events).toHaveLength(1);
+    expect(events[0].is_debug).toBe(false);
+  });
+
   it("rejects invalid gzip data", async () => {
     const res = await app.inject({
       method: "POST",

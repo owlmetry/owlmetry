@@ -1,0 +1,2 @@
+ALTER TABLE "events" ADD COLUMN "is_debug" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX "events_app_debug_timestamp_idx" ON "events" USING btree ("app_id","is_debug","timestamp");
