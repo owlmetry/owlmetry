@@ -21,6 +21,12 @@ With OwlMetry, your agent can:
 
 The dashboard is there if you want to look. But you shouldn't have to.
 
+## Why self-hosted?
+
+Your analytics data is some of the most sensitive information you have — user behavior, device details, session traces, error logs. OwlMetry keeps all of it on your own infrastructure. No data leaves your servers, no third-party vendor has access, no privacy policy to hope they follow. This isn't a feature toggle — it's the architecture. Self-hosted by design means GDPR, HIPAA, and SOC 2 compliance becomes a property of your infrastructure, not a vendor promise.
+
+And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres instance. One database, one API server. That's the entire backend. Monthly partitioning handles event volume, auto-pruning manages disk space, and Postgres does what it's been doing reliably for decades.
+
 ## Features
 
 - **Agent-native API** — every operation available through `owl_agent_` keys: query events, list apps, read projects, analyze funnels. Agents are first-class citizens, not an afterthought
