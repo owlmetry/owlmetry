@@ -117,15 +117,7 @@ async function main() {
   const session2 = crypto.randomUUID();
   const now = Date.now();
 
-  type SeedEvent = {
-    session_id: string; level: "info" | "debug" | "warn" | "error" | "attention" | "tracking";
-    message: string; screen_name: string; user_id: string; source_module: string;
-    environment: "ios" | "ipados" | "macos" | "android" | "web" | "backend";
-    os_version: string; app_version: string; device_model: string;
-    locale: string; timestamp: Date; custom_attributes?: Record<string, string>;
-  };
-
-  const seedEvents: SeedEvent[] = [
+  const seedEvents: Array<Omit<typeof events.$inferInsert, "app_id">> = [
     { session_id: session1, level: "info", message: "App launched", screen_name: "HomeScreen", user_id: "user-42", source_module: "AppDelegate", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 8 * 60000) },
     { session_id: session1, level: "debug", message: "Loading user preferences", screen_name: "HomeScreen", user_id: "user-42", source_module: "PrefsManager", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 7 * 60000) },
     { session_id: session1, level: "info", message: "Dashboard rendered", screen_name: "Dashboard", user_id: "user-42", source_module: "DashboardVC", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 6 * 60000) },
@@ -144,7 +136,7 @@ async function main() {
 
   // Seed server events
   const serverSession = crypto.randomUUID();
-  const serverEvents: SeedEvent[] = [
+  const serverEvents: Array<Omit<typeof events.$inferInsert, "app_id">> = [
     { session_id: serverSession, level: "info", message: "Server started on port 4000", screen_name: "", user_id: "", source_module: "index.ts:42", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 10 * 60000) },
     { session_id: serverSession, level: "info", message: "User authenticated successfully", screen_name: "", user_id: "user-42", source_module: "auth.ts:118", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 9 * 60000), custom_attributes: { route: "/v1/auth/login", method: "POST" } },
     { session_id: serverSession, level: "error", message: "Database connection timeout after 30s", screen_name: "", user_id: "", source_module: "db.ts:55", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 1 * 60000), custom_attributes: { pool_size: "10", active_connections: "10" } },
