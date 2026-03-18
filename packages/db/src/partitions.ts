@@ -1,7 +1,6 @@
 import type postgres from "postgres";
 
 const PARTITION_NAME_PATTERN = /^events_\d{4}_\d{2}$/;
-const METRIC_PARTITION_NAME_PATTERN = /^metric_events_\d{4}_\d{2}$/;
 
 export async function getDatabaseSizeBytes(client: postgres.Sql): Promise<number> {
   const result = await client`SELECT pg_database_size(current_database()) AS size`;
@@ -86,27 +85,17 @@ export async function dropOldestEventPartitions(
   return { droppedPartitions, deletedRows, currentSizeBytes: currentSize };
 }
 
-export async function ensurePartitions(client: postgres.Sql, monthsAhead = 3) {
-  // Check if events table exists and is partitioned
-  const result = await client`
-    SELECT relkind FROM pg_class WHERE relname = 'events'
-  `;
+// ── Generic partition helpers ──────────────────────────────────────────
 
-  if (result.length === 0 || result[0].relkind !== "p") {
-    // Table doesn't exist or isn't partitioned — skip (migration handles initial setup)
-    return;
-  }
-
-  const now = new Date();
-  for (let i = 0; i < monthsAhead; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    await createMonthlyEventPartition(client, date);
-  }
+interface PartitionConfig {
+  tableName: string;
+  prefix: string;
+  indexesSql: (partitionName: string) => string;
 }
 
-export async function ensureMetricEventPartitions(client: postgres.Sql, monthsAhead = 3) {
+async function ensureTablePartitions(client: postgres.Sql, config: PartitionConfig, monthsAhead: number) {
   const result = await client`
-    SELECT relkind FROM pg_class WHERE relname = 'metric_events'
+    SELECT relkind FROM pg_class WHERE relname = ${config.tableName}
   `;
 
   if (result.length === 0 || result[0].relkind !== "p") {
@@ -116,14 +105,14 @@ export async function ensureMetricEventPartitions(client: postgres.Sql, monthsAh
   const now = new Date();
   for (let i = 0; i < monthsAhead; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    await createMonthlyMetricEventPartition(client, date);
+    await createMonthlyPartition(client, config, date);
   }
 }
 
-async function createMonthlyMetricEventPartition(client: postgres.Sql, date: Date) {
+async function createMonthlyPartition(client: postgres.Sql, config: PartitionConfig, date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  const partitionName = `metric_events_${year}_${month}`;
+  const partitionName = `${config.prefix}${year}_${month}`;
 
   const nextMonth = new Date(year, date.getMonth() + 1, 1);
   const nextYear = nextMonth.getFullYear();
@@ -135,66 +124,11 @@ async function createMonthlyMetricEventPartition(client: postgres.Sql, date: Dat
   try {
     await client.unsafe(`
       CREATE TABLE IF NOT EXISTS ${partitionName}
-        PARTITION OF metric_events
+        PARTITION OF ${config.tableName}
         FOR VALUES FROM ('${from}') TO ('${to}');
     `);
 
-    await client.unsafe(`
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_slug_ts_idx
-        ON ${partitionName} (app_id, metric_slug, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_slug_phase_ts_idx
-        ON ${partitionName} (app_id, metric_slug, phase, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_tracking_id_idx
-        ON ${partitionName} (app_id, tracking_id);
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_client_eid_idx
-        ON ${partitionName} (app_id, client_event_id);
-    `);
-
-    console.log(`Metric partition ${partitionName} ready.`);
-  } catch (err: any) {
-    if (err.code === "42P07") {
-      // relation already exists — fine
-    } else {
-      throw err;
-    }
-  }
-}
-
-async function createMonthlyEventPartition(client: postgres.Sql, date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const partitionName = `events_${year}_${month}`;
-
-  const nextMonth = new Date(year, date.getMonth() + 1, 1);
-  const nextYear = nextMonth.getFullYear();
-  const nextMo = String(nextMonth.getMonth() + 1).padStart(2, "0");
-
-  const from = `${year}-${month}-01`;
-  const to = `${nextYear}-${nextMo}-01`;
-
-  try {
-    await client.unsafe(`
-      CREATE TABLE IF NOT EXISTS ${partitionName}
-        PARTITION OF events
-        FOR VALUES FROM ('${from}') TO ('${to}');
-    `);
-
-    await client.unsafe(`
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_ts_idx
-        ON ${partitionName} (app_id, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_level_ts_idx
-        ON ${partitionName} (app_id, level, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_user_ts_idx
-        ON ${partitionName} (app_id, user_id, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_screen_name_ts_idx
-        ON ${partitionName} (app_id, screen_name, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_client_eid_idx
-        ON ${partitionName} (app_id, client_event_id);
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_session_ts_idx
-        ON ${partitionName} (app_id, session_id, "timestamp");
-      CREATE INDEX IF NOT EXISTS ${partitionName}_app_debug_ts_idx
-        ON ${partitionName} (app_id, is_debug, "timestamp");
-    `);
+    await client.unsafe(config.indexesSql(partitionName));
 
     console.log(`Partition ${partitionName} ready.`);
   } catch (err: any) {
@@ -204,4 +138,41 @@ async function createMonthlyEventPartition(client: postgres.Sql, date: Date) {
       throw err;
     }
   }
+}
+
+// ── Events partitions ──────────────────────────────────────────────────
+
+const eventsPartitionConfig: PartitionConfig = {
+  tableName: "events",
+  prefix: "events_",
+  indexesSql: (p) => `
+    CREATE INDEX IF NOT EXISTS ${p}_app_ts_idx ON ${p} (app_id, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_level_ts_idx ON ${p} (app_id, level, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_user_ts_idx ON ${p} (app_id, user_id, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_screen_name_ts_idx ON ${p} (app_id, screen_name, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_client_eid_idx ON ${p} (app_id, client_event_id);
+    CREATE INDEX IF NOT EXISTS ${p}_app_session_ts_idx ON ${p} (app_id, session_id, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_debug_ts_idx ON ${p} (app_id, is_debug, "timestamp");
+  `,
+};
+
+export async function ensurePartitions(client: postgres.Sql, monthsAhead = 3) {
+  await ensureTablePartitions(client, eventsPartitionConfig, monthsAhead);
+}
+
+// ── Metric events partitions ───────────────────────────────────────────
+
+const metricEventsPartitionConfig: PartitionConfig = {
+  tableName: "metric_events",
+  prefix: "metric_events_",
+  indexesSql: (p) => `
+    CREATE INDEX IF NOT EXISTS ${p}_app_slug_ts_idx ON ${p} (app_id, metric_slug, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_slug_phase_ts_idx ON ${p} (app_id, metric_slug, phase, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_tracking_id_idx ON ${p} (app_id, tracking_id);
+    CREATE INDEX IF NOT EXISTS ${p}_app_client_eid_idx ON ${p} (app_id, client_event_id);
+  `,
+};
+
+export async function ensureMetricEventPartitions(client: postgres.Sql, monthsAhead = 3) {
+  await ensureTablePartitions(client, metricEventsPartitionConfig, monthsAhead);
 }

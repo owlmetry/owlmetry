@@ -88,7 +88,9 @@ export function parseMetricMessage(message: string): { slug: string; phase: Metr
   const slug = rest.slice(0, lastColon);
   const phase = rest.slice(lastColon + 1);
 
-  if (!slug || !METRIC_PHASES.includes(phase as MetricPhase)) return null;
+  // Slug must be non-empty and contain only lowercase letters, numbers, and hyphens
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) return null;
+  if (!METRIC_PHASES.includes(phase as MetricPhase)) return null;
 
   return { slug, phase: phase as MetricPhase };
 }

@@ -1,9 +1,10 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import type { MetricDefinitionResponse, MetricQueryResponse } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 
-function formatMetricsTable(metrics: any[]): string {
+function formatMetricsTable(metrics: MetricDefinitionResponse[]): string {
   if (metrics.length === 0) return chalk.dim("No metrics defined");
 
   const lines = [
@@ -17,7 +18,7 @@ function formatMetricsTable(metrics: any[]): string {
   return lines.join("\n");
 }
 
-function formatMetricDetail(metric: any): string {
+function formatMetricDetail(metric: MetricDefinitionResponse): string {
   const lines = [
     chalk.bold(metric.name),
     chalk.dim(`slug: ${metric.slug}`),
@@ -33,7 +34,7 @@ function formatMetricDetail(metric: any): string {
   return lines.join("\n");
 }
 
-function formatQueryResult(result: any): string {
+function formatQueryResult(result: MetricQueryResponse): string {
   const { slug, aggregation: agg } = result;
   const lines = [
     chalk.bold(`Metric: ${slug}`),
@@ -66,7 +67,7 @@ function formatQueryResult(result: any): string {
     }
   }
 
-  if (agg.groups?.length > 0) {
+  if (agg.groups && agg.groups.length > 0) {
     lines.push("");
     lines.push(chalk.bold(`Grouped by ${agg.groups[0].key}`));
     for (const g of agg.groups) {

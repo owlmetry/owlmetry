@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { eq, and, inArray, isNull, sql, desc, gte, lte } from "drizzle-orm";
 import { metricDefinitions, metricEvents, projects, apps } from "@owlmetry/db";
 import type {
@@ -6,10 +6,12 @@ import type {
   UpdateMetricDefinitionRequest,
   MetricQueryParams,
   MetricEventsQueryParams,
+  MetricAggregationResult,
 } from "@owlmetry/shared";
-import { SLUG_REGEX, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@owlmetry/shared";
+import { SLUG_REGEX, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
 import type { MetricPhase } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
+import type { AuthContext } from "../types.js";
 
 function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
   return {
@@ -27,14 +29,34 @@ function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
   };
 }
 
-/** Resolve project → team access and return app IDs for the project */
-async function resolveProjectApps(
-  app: FastifyInstance,
+const EMPTY_AGGREGATION: MetricAggregationResult = {
+  total_count: 0,
+  start_count: 0,
+  complete_count: 0,
+  fail_count: 0,
+  cancel_count: 0,
+  record_count: 0,
+  success_rate: null,
+  duration_avg_ms: null,
+  duration_p50_ms: null,
+  duration_p95_ms: null,
+  duration_p99_ms: null,
+  unique_users: 0,
+  error_breakdown: [],
+};
+
+/**
+ * Verify project exists and the authenticated user/key has team access.
+ * Returns the project row or sends 404 and returns null.
+ */
+async function resolveProject(
+  fastify: FastifyInstance,
   projectId: string,
-  teamIds: string[],
-  reply: any,
-): Promise<string[] | null> {
-  const [project] = await app.db
+  auth: AuthContext,
+  reply: FastifyReply,
+): Promise<{ id: string; team_id: string } | null> {
+  const teamIds = getAuthTeamIds(auth);
+  const [project] = await fastify.db
     .select({ id: projects.id, team_id: projects.team_id })
     .from(projects)
     .where(
@@ -50,8 +72,20 @@ async function resolveProjectApps(
     reply.code(404).send({ error: "Project not found" });
     return null;
   }
+  return project;
+}
 
-  const projectApps = await app.db
+/** Resolve project access and return app IDs for the project. */
+async function resolveProjectAppIds(
+  fastify: FastifyInstance,
+  projectId: string,
+  auth: AuthContext,
+  reply: FastifyReply,
+): Promise<string[] | null> {
+  const project = await resolveProject(fastify, projectId, auth, reply);
+  if (!project) return null;
+
+  const projectApps = await fastify.db
     .select({ id: apps.id })
     .from(apps)
     .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
@@ -65,29 +99,13 @@ export async function metricsRoutes(app: FastifyInstance) {
     "/metrics",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const auth = request.auth;
       const { project_id } = request.query;
-
       if (!project_id) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
       }
 
-      const teamIds = getAuthTeamIds(auth);
-      const [project] = await app.db
-        .select({ id: projects.id })
-        .from(projects)
-        .where(
-          and(
-            eq(projects.id, project_id),
-            inArray(projects.team_id, teamIds),
-            isNull(projects.deleted_at),
-          ),
-        )
-        .limit(1);
-
-      if (!project) {
-        return reply.code(404).send({ error: "Project not found" });
-      }
+      const project = await resolveProject(app, project_id, request.auth, reply);
+      if (!project) return;
 
       const rows = await app.db
         .select()
@@ -108,30 +126,14 @@ export async function metricsRoutes(app: FastifyInstance) {
     "/metrics/:slug",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const auth = request.auth;
       const { slug } = request.params;
       const { project_id } = request.query;
-
       if (!project_id) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
       }
 
-      const teamIds = getAuthTeamIds(auth);
-      const [project] = await app.db
-        .select({ id: projects.id })
-        .from(projects)
-        .where(
-          and(
-            eq(projects.id, project_id),
-            inArray(projects.team_id, teamIds),
-            isNull(projects.deleted_at),
-          ),
-        )
-        .limit(1);
-
-      if (!project) {
-        return reply.code(404).send({ error: "Project not found" });
-      }
+      const project = await resolveProject(app, project_id, request.auth, reply);
+      if (!project) return;
 
       const [metric] = await app.db
         .select()
@@ -169,22 +171,8 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
       }
 
-      const teamIds = getAuthTeamIds(auth);
-      const [project] = await app.db
-        .select({ id: projects.id, team_id: projects.team_id })
-        .from(projects)
-        .where(
-          and(
-            eq(projects.id, project_id),
-            inArray(projects.team_id, teamIds),
-            isNull(projects.deleted_at),
-          ),
-        )
-        .limit(1);
-
-      if (!project) {
-        return reply.code(404).send({ error: "Project not found" });
-      }
+      const project = await resolveProject(app, project_id, auth, reply);
+      if (!project) return;
 
       if (!hasTeamAccess(auth, project.team_id)) {
         return reply.code(403).send({ error: "Not a member of this team" });
@@ -337,7 +325,6 @@ export async function metricsRoutes(app: FastifyInstance) {
     "/metrics/:slug/query",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const auth = request.auth;
       const { slug } = request.params;
       const { project_id, since, until, app_id, app_version, device_model, os_version, user_id, is_debug, group_by } = request.query;
 
@@ -345,32 +332,13 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
       }
 
-      const teamIds = getAuthTeamIds(auth);
-      const appIds = await resolveProjectApps(app, project_id, teamIds, reply);
-      if (!appIds) return; // reply already sent
+      const appIds = await resolveProjectAppIds(app, project_id, request.auth, reply);
+      if (!appIds) return;
 
-      if (appIds.length === 0) {
-        return {
-          slug,
-          aggregation: {
-            total_count: 0, start_count: 0, complete_count: 0, fail_count: 0, cancel_count: 0, record_count: 0,
-            success_rate: null, duration_avg_ms: null, duration_p50_ms: null, duration_p95_ms: null, duration_p99_ms: null,
-            unique_users: 0, error_breakdown: [],
-          },
-        };
-      }
-
-      // Filter to project's apps
+      // Filter to specific app if requested
       const filteredAppIds = app_id ? appIds.filter((id) => id === app_id) : appIds;
       if (filteredAppIds.length === 0) {
-        return {
-          slug,
-          aggregation: {
-            total_count: 0, start_count: 0, complete_count: 0, fail_count: 0, cancel_count: 0, record_count: 0,
-            success_rate: null, duration_avg_ms: null, duration_p50_ms: null, duration_p95_ms: null, duration_p99_ms: null,
-            unique_users: 0, error_breakdown: [],
-          },
-        };
+        return { slug, aggregation: EMPTY_AGGREGATION };
       }
 
       // Build Drizzle conditions for metric_events
@@ -427,13 +395,22 @@ export async function metricsRoutes(app: FastifyInstance) {
           count: sql<number>`COUNT(*)::int`,
         })
         .from(metricEvents)
-        .where(and(...conditions, eq(metricEvents.phase, "fail" as any), sql`${metricEvents.error} IS NOT NULL`))
+        .where(and(...conditions, eq(metricEvents.phase, "fail" as MetricPhase), sql`${metricEvents.error} IS NOT NULL`))
         .groupBy(metricEvents.error)
         .orderBy(sql`COUNT(*) DESC`)
         .limit(20);
 
       // Group by (optional)
-      let groups: any[] | undefined;
+      interface GroupRow {
+        key: string;
+        value: string;
+        total_count: number;
+        complete_count: number;
+        fail_count: number;
+        success_rate: number | null;
+        duration_avg_ms: number | null;
+      }
+      let groups: GroupRow[] | undefined;
       if (group_by) {
         let groupExpr: ReturnType<typeof sql>;
         let orderAsc = false;
@@ -514,7 +491,6 @@ export async function metricsRoutes(app: FastifyInstance) {
     "/metrics/:slug/events",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const auth = request.auth;
       const { slug } = request.params;
       const { project_id, phase, tracking_id, user_id, since, until, cursor, limit: limitStr, include_debug } = request.query;
 
@@ -522,18 +498,23 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
       }
 
-      const teamIds = getAuthTeamIds(auth);
-      const appIds = await resolveProjectApps(app, project_id, teamIds, reply);
+      const appIds = await resolveProjectAppIds(app, project_id, request.auth, reply);
       if (!appIds) return;
+
+      if (appIds.length === 0) {
+        return { events: [], cursor: null, has_more: false };
+      }
 
       const limit = Math.min(Math.max(Number(limitStr) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
 
       const conditions = [
-        inArray(metricEvents.app_id, appIds.length > 0 ? appIds : ["00000000-0000-0000-0000-000000000000"]),
+        inArray(metricEvents.app_id, appIds),
         eq(metricEvents.metric_slug, slug),
       ];
 
-      if (phase) conditions.push(eq(metricEvents.phase, phase as any));
+      if (phase && METRIC_PHASES.includes(phase as MetricPhase)) {
+        conditions.push(eq(metricEvents.phase, phase as MetricPhase));
+      }
       if (tracking_id) conditions.push(eq(metricEvents.tracking_id, tracking_id));
       if (user_id) conditions.push(eq(metricEvents.user_id, user_id));
       if (since) conditions.push(gte(metricEvents.timestamp, new Date(since)));

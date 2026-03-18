@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, MetricDefinitionResponse, StoredMetricEventResponse } from "@owlmetry/shared";
@@ -68,7 +68,7 @@ export default function MetricDetailPage() {
     projectId ? `/v1/metrics/${slug}?project_id=${projectId}` : null,
   );
 
-  const since = sinceFromRange(timeRange);
+  const since = useMemo(() => sinceFromRange(timeRange), [timeRange]);
 
   // Aggregation query
   const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId || undefined, {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { validateConfiguration, type ValidatedConfig } from "./configuration.js";
 import { Transport } from "./transport.js";
 import type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
-import { Operation, _setLogFn } from "./operation.js";
+import { Operation } from "./operation.js";
 
 export type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
 export { Operation } from "./operation.js";
@@ -92,9 +92,6 @@ function log(level: LogLevel, message: string, attrs?: Record<string, unknown>, 
   }
 }
 
-// Wire up the Operation class to use our log function
-_setLogFn(log);
-
 /**
  * A scoped logger instance that automatically sets a user ID on all events.
  */
@@ -126,7 +123,7 @@ export class ScopedOwl {
   }
 
   startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
-    return new Operation(metric, attrs, this.userId);
+    return new Operation(log, metric, attrs, this.userId);
   }
 
   recordMetric(metric: string, attrs?: Record<string, unknown>): void {
@@ -191,7 +188,7 @@ export const Owl = {
   },
 
   startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
-    return new Operation(metric, attrs);
+    return new Operation(log, metric, attrs);
   },
 
   recordMetric(metric: string, attrs?: Record<string, unknown>): void {

@@ -42,10 +42,12 @@ export default function MetricsPage() {
   const [newDescription, setNewDescription] = useState("");
   const [isLifecycle, setIsLifecycle] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   async function handleCreate() {
     if (!newName || !newSlug || !selectedProjectId) return;
     setCreating(true);
+    setCreateError("");
     try {
       await api.post("/v1/metrics", {
         project_id: selectedProjectId,
@@ -60,6 +62,8 @@ export default function MetricsPage() {
       setNewDescription("");
       setIsLifecycle(false);
       mutate();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create metric");
     } finally {
       setCreating(false);
     }
@@ -132,6 +136,9 @@ export default function MetricsPage() {
                 Lifecycle metric (start/complete/fail phases)
               </label>
             </div>
+            {createError && (
+              <p className="text-xs text-red-500">{createError}</p>
+            )}
             <DialogFooter>
               <Button onClick={handleCreate} disabled={creating || !newName || !newSlug}>
                 {creating ? "Creating..." : "Create"}
