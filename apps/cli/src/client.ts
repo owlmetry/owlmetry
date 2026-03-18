@@ -11,6 +11,7 @@ import type {
   MetricDefinitionResponse,
   MetricQueryParams,
   MetricQueryResponse,
+  MetricEventsQueryParams,
   MetricEventsResponse,
   ProjectResponse,
   ProjectDetailResponse,
@@ -177,6 +178,21 @@ export class OwlMetryClient {
     return this.request<{ deleted: boolean }>("DELETE", `/v1/metrics/${slug}`, {
       params: { project_id: projectId },
     });
+  }
+
+  async queryMetricEvents(slug: string, params: Partial<MetricEventsQueryParams>): Promise<MetricEventsResponse> {
+    const stringParams: Record<string, string | undefined> = {
+      project_id: params.project_id,
+      phase: params.phase,
+      tracking_id: params.tracking_id,
+      user_id: params.user_id,
+      since: params.since,
+      until: params.until,
+      cursor: params.cursor,
+      limit: params.limit?.toString(),
+      include_debug: params.include_debug,
+    };
+    return this.request<MetricEventsResponse>("GET", `/v1/metrics/${slug}/events`, { params: stringParams });
   }
 
   async queryMetric(slug: string, projectId: string, params: Partial<MetricQueryParams> = {}): Promise<MetricQueryResponse> {

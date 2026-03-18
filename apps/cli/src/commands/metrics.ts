@@ -1,8 +1,14 @@
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import chalk from "chalk";
 import type { MetricDefinitionResponse, MetricQueryResponse } from "@owlmetry/shared";
+import { METRIC_PHASES } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
+import { formatMetricEventsTable } from "../formatters/table.js";
+import { formatMetricEventsLog } from "../formatters/log.js";
+import { parsePositiveInt } from "../utils/parse.js";
+import { parseTimeInput } from "../utils/time.js";
+import { paginationHint } from "../utils/pagination.js";
 
 function formatMetricsTable(metrics: MetricDefinitionResponse[]): string {
   if (metrics.length === 0) return chalk.dim("No metrics defined");
@@ -86,6 +92,65 @@ export const metricsCommand = new Command("metrics")
     const { client, globals } = createClient(cmd);
     const metrics = await client.listMetrics(opts.project);
     output(globals.format, metrics, () => formatMetricsTable(metrics));
+  });
+
+metricsCommand
+  .command("events <slug>")
+  .description("Query raw metric events for a metric")
+  .requiredOption("--project <id>", "Project ID")
+  .addOption(
+    new Option("--phase <phase>", "Filter by phase")
+      .choices(METRIC_PHASES as unknown as string[]),
+  )
+  .option("--tracking-id <id>", "Filter by tracking ID")
+  .option("--user <id>", "Filter by user ID")
+  .option("--since <time>", "Start time (e.g. 1h, 30m, 7d, or ISO 8601)")
+  .option("--until <time>", "End time")
+  .addOption(
+    new Option("--limit <n>", "Max events to return")
+      .argParser((v) => parsePositiveInt(v, "--limit")),
+  )
+  .option("--cursor <cursor>", "Pagination cursor")
+  .option("--include-debug", "Include debug events (hidden by default)")
+  .action(async (slug: string, opts: {
+    project: string;
+    phase?: string;
+    trackingId?: string;
+    user?: string;
+    since?: string;
+    until?: string;
+    limit?: number;
+    cursor?: string;
+    includeDebug?: boolean;
+  }, cmd) => {
+    const { client, globals } = createClient(cmd);
+
+    const since = opts.since
+      ? parseTimeInput(opts.since)
+      : !opts.until
+        ? parseTimeInput("24h")
+        : undefined;
+    const until = opts.until ? parseTimeInput(opts.until) : undefined;
+
+    const result = await client.queryMetricEvents(slug, {
+      project_id: opts.project,
+      phase: opts.phase as any,
+      tracking_id: opts.trackingId,
+      user_id: opts.user,
+      since,
+      until,
+      cursor: opts.cursor,
+      limit: opts.limit,
+      include_debug: opts.includeDebug ? "true" : undefined,
+    });
+
+    const hint = paginationHint(result);
+    output(
+      globals.format,
+      result,
+      () => formatMetricEventsTable(result.events) + hint,
+      () => formatMetricEventsLog(result.events, slug) + hint,
+    );
   });
 
 metricsCommand

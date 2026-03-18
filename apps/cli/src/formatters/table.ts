@@ -1,6 +1,6 @@
 import Table from "cli-table3";
 import chalk from "chalk";
-import type { ProjectResponse, ProjectDetailResponse, AppResponse, AppUserResponse, StoredEventResponse } from "@owlmetry/shared";
+import type { ProjectResponse, ProjectDetailResponse, AppResponse, AppUserResponse, StoredEventResponse, StoredMetricEventResponse } from "@owlmetry/shared";
 import { truncate, getTerminalWidth } from "../utils/truncate.js";
 
 export function formatProjectsTable(projects: ProjectResponse[]): string {
@@ -122,4 +122,30 @@ export function formatEventDetail(event: StoredEventResponse): string {
   }
 
   return lines.join("\n");
+}
+
+export function formatMetricEventsTable(events: StoredMetricEventResponse[]): string {
+  if (events.length === 0) return chalk.dim("No metric events found");
+
+  const table = new Table({
+    head: [
+      chalk.bold("Timestamp"),
+      chalk.bold("Phase"),
+      chalk.bold("Duration"),
+      chalk.bold("Tracking ID"),
+      chalk.bold("Error"),
+      chalk.bold("User ID"),
+    ],
+  });
+  for (const e of events) {
+    table.push([
+      e.timestamp,
+      e.phase,
+      e.duration_ms != null ? `${e.duration_ms}ms` : "",
+      truncate(e.tracking_id ?? "", 12),
+      truncate(e.error ?? "", 20),
+      truncate(e.user_id ?? "", 12),
+    ]);
+  }
+  return table.toString();
 }
