@@ -195,18 +195,6 @@ public enum Owl {
             file: file, function: function, line: line)
     }
 
-    public static func attention(
-        _ message: String,
-        screenName: String? = nil,
-        customAttributes: [String: String]? = nil,
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line
-    ) {
-        log(message, level: .attention, screenName: screenName, customAttributes: customAttributes,
-            file: file, function: function, line: line)
-    }
-
     // MARK: - Structured Metrics
 
     /// Start a tracked operation. Returns an Operation object for completion.

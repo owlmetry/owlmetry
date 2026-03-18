@@ -22,7 +22,6 @@ export const logLevelEnum = pgEnum("log_level", [
   "debug",
   "warn",
   "error",
-  "attention",
 ]);
 
 export const metricStatusEnum = pgEnum("metric_status", ["active", "paused"]);

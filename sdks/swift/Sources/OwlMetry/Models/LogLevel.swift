@@ -5,5 +5,4 @@ public enum LogLevel: String, Codable, Sendable {
     case debug
     case warn
     case error
-    case attention
 }

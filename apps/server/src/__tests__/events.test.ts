@@ -161,7 +161,7 @@ describe("GET /v1/events", () => {
   });
 
   it("returns empty array when no events match", async () => {
-    const res = await queryEvents({ level: "attention" });
+    const res = await queryEvents({ level: "warn" });
     const body = res.json();
     expect(body.events).toHaveLength(0);
     expect(body.has_more).toBe(false);

@@ -54,7 +54,6 @@ describe("Owl", () => {
     Owl.debug("debug msg");
     Owl.warn("warn msg");
     Owl.error("error msg");
-    Owl.attention("attention msg");
     Owl.recordMetric("test-metric", { source: "test" });
 
     await Owl.flush();
@@ -63,7 +62,7 @@ describe("Owl", () => {
 
     const calls = getCalls();
     const body = parseBody(calls[0].init);
-    assert.equal(body.events.length, 6);
+    assert.equal(body.events.length, 5);
     assert.equal(body.events[0].level, "info");
     assert.equal(body.events[0].message, "info msg");
     assert.equal(body.events[0].environment, "backend");

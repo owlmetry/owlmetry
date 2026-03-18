@@ -42,7 +42,7 @@ const MODULES = [
 ];
 
 type EventTemplate = {
-  level: "info" | "debug" | "warn" | "error" | "attention";
+  level: "info" | "debug" | "warn" | "error";
   weight: number;
   messages: string[];
   customAttributes?: () => Record<string, string>;
@@ -114,7 +114,7 @@ const TEMPLATES: EventTemplate[] = [
     ],
   },
   {
-    level: "attention",
+    level: "warn",
     weight: 8,
     messages: [
       "User skipped onboarding step 3",

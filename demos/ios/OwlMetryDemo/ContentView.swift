@@ -58,11 +58,6 @@ struct ContentView: View {
             }
             .tint(.red)
 
-            Button("Attention") {
-                Owl.attention(logMessage, screenName: "ContentView")
-                appendLog("[ATTENTION] \(logMessage)")
-            }
-            .tint(.purple)
         }
     }
 

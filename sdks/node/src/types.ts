@@ -1,4 +1,4 @@
-export type LogLevel = "info" | "debug" | "warn" | "error" | "attention";
+export type LogLevel = "info" | "debug" | "warn" | "error";
 
 export interface OwlConfiguration {
   /** OwlMetry server endpoint URL */

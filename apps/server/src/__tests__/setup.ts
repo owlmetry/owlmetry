@@ -201,15 +201,18 @@ export async function setupTestDb() {
     `);
   }
 
-  // Remove 'tracking' from log_level enum if present
-  const trackingCheck = await migrationClient`
-    SELECT 1 FROM pg_enum WHERE enumlabel = 'tracking'
-      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'log_level')
+  // Remove stale log_level enum values if present
+  const staleEnumCheck = await migrationClient`
+    SELECT enumlabel FROM pg_enum
+    WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'log_level')
+      AND enumlabel IN ('tracking', 'attention')
   `;
-  if (trackingCheck.length > 0) {
-    try { await migrationClient.unsafe(`UPDATE events SET level = 'info' WHERE level = 'tracking'`); } catch {}
+  if (staleEnumCheck.length > 0) {
+    for (const row of staleEnumCheck) {
+      try { await migrationClient.unsafe(`UPDATE events SET level = 'info' WHERE level = '${row.enumlabel}'`); } catch {}
+    }
     await migrationClient.unsafe(`ALTER TYPE log_level RENAME TO log_level_old`);
-    await migrationClient.unsafe(`CREATE TYPE log_level AS ENUM ('info', 'debug', 'warn', 'error', 'attention')`);
+    await migrationClient.unsafe(`CREATE TYPE log_level AS ENUM ('info', 'debug', 'warn', 'error')`);
     try { await migrationClient.unsafe(`ALTER TABLE events ALTER COLUMN level TYPE log_level USING level::text::log_level`); } catch {}
     await migrationClient.unsafe(`DROP TYPE log_level_old`);
   }

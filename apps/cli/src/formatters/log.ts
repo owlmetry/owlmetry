@@ -4,7 +4,6 @@ import type { LogLevel, StoredEventResponse } from "@owlmetry/shared";
 const LEVEL_COLORS: Record<LogLevel, ChalkInstance> = {
   error: chalk.red,
   warn: chalk.yellow,
-  attention: chalk.magenta,
   info: chalk.cyan,
   debug: chalk.gray,
 };

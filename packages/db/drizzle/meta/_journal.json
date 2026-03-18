@@ -99,6 +99,13 @@
       "when": 1773855198650,
       "tag": "0013_wandering_psylocke",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1773860960465,
+      "tag": "0014_awesome_yellow_claw",
+      "breakpoints": true
     }
   ]
 }

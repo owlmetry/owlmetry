@@ -118,10 +118,6 @@ export class ScopedOwl {
     log("error", message, attrs, this.userId);
   }
 
-  attention(message: string, attrs?: Record<string, unknown>): void {
-    log("attention", message, attrs, this.userId);
-  }
-
   startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
     return new Operation(log, metric, attrs, this.userId);
   }
@@ -181,10 +177,6 @@ export const Owl = {
 
   error(message: string, attrs?: Record<string, unknown>): void {
     log("error", message, attrs);
-  },
-
-  attention(message: string, attrs?: Record<string, unknown>): void {
-    log("attention", message, attrs);
   },
 
   startOperation(metric: string, attrs?: Record<string, unknown>): Operation {

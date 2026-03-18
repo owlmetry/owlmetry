@@ -10,8 +10,8 @@ async function main() {
   const client = postgres(url, { max: 1 });
   const db = drizzle(client);
 
-  // Remove 'tracking' from log_level enum if present (pre-production cleanup)
-  await removeTrackingFromLogLevelEnum(client);
+  // Remove stale log_level enum values (pre-production cleanup)
+  await removeStaleLogLevelEnumValues(client);
 
   console.log("Running migrations...");
   await migrate(db, { migrationsFolder: "./drizzle" });
@@ -28,24 +28,27 @@ async function main() {
   console.log("Migrations complete.");
 }
 
-async function removeTrackingFromLogLevelEnum(client: postgres.Sql) {
-  const enumCheck = await client`
-    SELECT 1 FROM pg_enum WHERE enumlabel = 'tracking'
-      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'log_level')
+async function removeStaleLogLevelEnumValues(client: postgres.Sql) {
+  const staleCheck = await client`
+    SELECT enumlabel FROM pg_enum
+    WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'log_level')
+      AND enumlabel IN ('tracking', 'attention')
   `;
-  if (enumCheck.length === 0) return;
+  if (staleCheck.length === 0) return;
 
-  console.log("Removing 'tracking' from log_level enum...");
-  // Update any existing rows that use 'tracking' to 'info'
-  try {
-    await client.unsafe(`UPDATE events SET level = 'info' WHERE level = 'tracking'`);
-  } catch {
-    // events table may not exist yet
+  const staleValues = staleCheck.map((r) => r.enumlabel as string);
+  console.log(`Removing ${staleValues.map((v) => `'${v}'`).join(', ')} from log_level enum...`);
+
+  for (const val of staleValues) {
+    try {
+      await client.unsafe(`UPDATE events SET level = 'info' WHERE level = '${val}'`);
+    } catch {
+      // events table may not exist yet
+    }
   }
 
-  // Recreate the enum without 'tracking'
   await client.unsafe(`ALTER TYPE log_level RENAME TO log_level_old`);
-  await client.unsafe(`CREATE TYPE log_level AS ENUM ('info', 'debug', 'warn', 'error', 'attention')`);
+  await client.unsafe(`CREATE TYPE log_level AS ENUM ('info', 'debug', 'warn', 'error')`);
   try {
     await client.unsafe(`ALTER TABLE events ALTER COLUMN level TYPE log_level USING level::text::log_level`);
   } catch {

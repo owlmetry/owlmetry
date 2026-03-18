@@ -8,7 +8,6 @@ export const LOG_LEVELS = [
   "debug",
   "warn",
   "error",
-  "attention",
 ] as const;
 
 export const MAX_BATCH_SIZE = 100;
