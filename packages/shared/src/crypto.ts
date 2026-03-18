@@ -18,7 +18,7 @@ export function generateApiKey(keyType: ApiKeyType): { fullKey: string; keyHash:
 }
 
 export function generateVerificationCode(): { code: string; codeHash: string } {
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = String(randomBytes(3).readUIntBE(0, 3) % 900000 + 100000);
   return { code, codeHash: hashVerificationCode(code) };
 }
 

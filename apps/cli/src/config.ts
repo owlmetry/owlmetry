@@ -16,6 +16,8 @@ export interface GlobalOptions {
   apiKey?: string;
 }
 
+export const DEFAULT_ENDPOINT = "https://api.owlmetry.com";
+
 const CONFIG_DIR = join(homedir(), ".owlmetry");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 

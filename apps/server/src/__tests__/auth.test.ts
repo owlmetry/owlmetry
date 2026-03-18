@@ -6,6 +6,7 @@ import {
   seedTestData,
   getToken,
   getTokenAndTeamId,
+  createUserAndGetToken,
   testEmailService,
   TEST_USER,
   TEST_CLIENT_KEY,
@@ -351,7 +352,7 @@ describe("DELETE /v1/auth/keys/:id", () => {
 
   it("returns 404 for key belonging to another team", async () => {
     // Create a second user (gets their own team)
-    const { token: otherToken } = await createSecondUser();
+    const { token: otherToken } = await createUserAndGetToken(app, "other@owlmetry.com");
 
     // Get a key ID from the original team
     const token = await getToken(app);
@@ -485,7 +486,7 @@ describe("GET /v1/auth/keys/:id", () => {
   });
 
   it("returns 404 for key belonging to another team", async () => {
-    const { token: otherToken } = await createSecondUser();
+    const { token: otherToken } = await createUserAndGetToken(app, "other@owlmetry.com");
 
     const token = await getToken(app);
     const listRes = await app.inject({
@@ -612,19 +613,3 @@ describe("POST /v1/auth/keys", () => {
   });
 });
 
-/** Helper: create a second user via verification code flow. */
-async function createSecondUser() {
-  await app.inject({
-    method: "POST",
-    url: "/v1/auth/send-code",
-    payload: { email: "other@owlmetry.com" },
-  });
-  const code = testEmailService.lastCode;
-  const res = await app.inject({
-    method: "POST",
-    url: "/v1/auth/verify-code",
-    payload: { email: "other@owlmetry.com", code },
-  });
-  const body = res.json();
-  return { token: body.token, userId: body.user.id, teamId: body.teams[0].id };
-}

@@ -1,8 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { saveConfig, getGlobals } from "../config.js";
-
-const DEFAULT_ENDPOINT = "https://api.owlmetry.com";
+import { saveConfig, getGlobals, DEFAULT_ENDPOINT } from "../config.js";
 
 function resolveEndpoint(globals: { endpoint?: string }): string {
   return globals.endpoint || process.env.OWLMETRY_ENDPOINT || DEFAULT_ENDPOINT;
@@ -37,7 +35,7 @@ authCommand
     );
 
     if (status !== 200) {
-      const msg = (data as any).error || "Failed to send code";
+      const msg = data.error || "Failed to send code";
       if (format === "json") {
         console.log(JSON.stringify({ error: msg, status }));
       } else {
@@ -83,13 +81,13 @@ authCommand
     if (status !== 201) {
       if (format === "json") {
         console.log(JSON.stringify(data));
-      } else if ((data as any).teams) {
+      } else if (data.teams) {
         console.error(chalk.yellow("Multiple teams found. Re-run with --team-id:"));
-        for (const t of (data as any).teams) {
+        for (const t of data.teams) {
           console.error(`  ${t.id}  ${t.name} (${t.role})`);
         }
       } else {
-        console.error(chalk.red((data as any).error || "Verification failed"));
+        console.error(chalk.red(data.error || "Verification failed"));
       }
       process.exit(1);
     }

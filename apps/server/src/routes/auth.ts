@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, gte, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte, lt, sql } from "drizzle-orm";
 import { users, teams, teamMembers, apiKeys, apps, projects, emailVerificationCodes } from "@owlmetry/db";
 import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
@@ -41,6 +41,82 @@ function generateSlugFromName(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
+/** Consume a verification code: validates, marks used, returns true. Returns false if invalid/expired. */
+async function consumeVerificationCode(db: Parameters<typeof getUserTeamMemberships>[0], email: string, code: string): Promise<boolean> {
+  const codeHash = hashVerificationCode(code);
+
+  const [match] = await db
+    .select({ id: emailVerificationCodes.id })
+    .from(emailVerificationCodes)
+    .where(
+      and(
+        eq(emailVerificationCodes.email, email),
+        eq(emailVerificationCodes.code_hash, codeHash),
+        isNull(emailVerificationCodes.used_at),
+        gte(emailVerificationCodes.expires_at, new Date()),
+      )
+    )
+    .limit(1);
+
+  if (!match) return false;
+
+  await db
+    .update(emailVerificationCodes)
+    .set({ used_at: new Date() })
+    .where(eq(emailVerificationCodes.id, match.id));
+
+  return true;
+}
+
+type MembershipTeam = Awaited<ReturnType<typeof getUserTeamMemberships>>[0];
+
+/** Find existing user or create new user + default team. Returns user, whether new, and team memberships. */
+async function findOrCreateUser(db: Parameters<typeof getUserTeamMemberships>[0], email: string): Promise<{
+  user: { id: string; email: string; name: string; created_at: Date; updated_at: Date };
+  isNewUser: boolean;
+  membershipTeams: MembershipTeam[];
+}> {
+  const [existingUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+
+  if (existingUser) {
+    return {
+      user: existingUser,
+      isNewUser: false,
+      membershipTeams: await getUserTeamMemberships(db, existingUser.id),
+    };
+  }
+
+  const localPart = email.split("@")[0];
+  const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+
+  const [newUser] = await db
+    .insert(users)
+    .values({ email, name })
+    .returning();
+
+  const slug = generateSlugFromName(name) || "team";
+  const [team] = await db
+    .insert(teams)
+    .values({ name: `${name}'s Team`, slug: `${slug}-${newUser.id.slice(0, 8)}` })
+    .returning();
+
+  await db.insert(teamMembers).values({
+    team_id: team.id,
+    user_id: newUser.id,
+    role: "owner",
+  });
+
+  return {
+    user: newUser,
+    isNewUser: true,
+    membershipTeams: [{ id: team.id, name: team.name, slug: team.slug, role: "owner" as const }],
+  };
+}
+
 export async function authRoutes(app: FastifyInstance) {
   // Send verification code
   app.post<{ Body: SendCodeRequest }>("/send-code", async (request, reply) => {
@@ -74,12 +150,31 @@ export async function authRoutes(app: FastifyInstance) {
       expires_at: new Date(Date.now() + 10 * 60 * 1000),
     });
 
-    await app.emailService.sendVerificationCode(email, code);
+    try {
+      await app.emailService.sendVerificationCode(email, code);
+    } catch (err) {
+      // Roll back the inserted code so it doesn't consume a rate-limit slot
+      await app.db
+        .delete(emailVerificationCodes)
+        .where(eq(emailVerificationCodes.code_hash, codeHash));
+      throw err;
+    }
+
+    // Lazily clean up expired codes for this email (fire-and-forget)
+    app.db
+      .delete(emailVerificationCodes)
+      .where(
+        and(
+          eq(emailVerificationCodes.email, email),
+          lt(emailVerificationCodes.expires_at, new Date()),
+        )
+      )
+      .then(() => {}, () => {});
 
     return { message: "Verification code sent" };
   });
 
-  // Verify code and authenticate
+  // Verify code and authenticate (web dashboard flow — returns JWT)
   app.post<{ Body: VerifyCodeRequest }>("/verify-code", async (request, reply) => {
     const { email, code } = request.body;
 
@@ -87,79 +182,12 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "email and code required" });
     }
 
-    const codeHash = hashVerificationCode(code);
-
-    const [match] = await app.db
-      .select()
-      .from(emailVerificationCodes)
-      .where(
-        and(
-          eq(emailVerificationCodes.email, email),
-          eq(emailVerificationCodes.code_hash, codeHash),
-          isNull(emailVerificationCodes.used_at),
-          gte(emailVerificationCodes.expires_at, new Date()),
-        )
-      )
-      .limit(1);
-
-    if (!match) {
+    const valid = await consumeVerificationCode(app.db, email, code);
+    if (!valid) {
       return reply.code(401).send({ error: "Invalid or expired code" });
     }
 
-    // Mark code as used
-    await app.db
-      .update(emailVerificationCodes)
-      .set({ used_at: new Date() })
-      .where(eq(emailVerificationCodes.id, match.id));
-
-    // Check for existing user
-    const [existingUser] = await app.db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-
-    let user: typeof existingUser;
-    let isNewUser = false;
-    let membershipTeams: Awaited<ReturnType<typeof getUserTeamMemberships>>;
-
-    if (existingUser) {
-      user = existingUser;
-      membershipTeams = await getUserTeamMemberships(app.db, user.id);
-    } else {
-      // Create new user
-      const localPart = email.split("@")[0];
-      const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
-
-      const [newUser] = await app.db
-        .insert(users)
-        .values({ email, name })
-        .returning();
-
-      // Create default team
-      const slug = generateSlugFromName(name) || "team";
-      const [team] = await app.db
-        .insert(teams)
-        .values({ name: `${name}'s Team`, slug: `${slug}-${newUser.id.slice(0, 8)}` })
-        .returning();
-
-      await app.db.insert(teamMembers).values({
-        team_id: team.id,
-        user_id: newUser.id,
-        role: "owner",
-      });
-
-      user = newUser;
-      isNewUser = true;
-      membershipTeams = [
-        {
-          id: team.id,
-          name: team.name,
-          slug: team.slug,
-          role: "owner" as const,
-        },
-      ];
-    }
+    const { user, isNewUser, membershipTeams } = await findOrCreateUser(app.db, email);
 
     const token = app.jwt.sign(
       {
@@ -514,72 +542,19 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "email and code required" });
     }
 
-    // Verify the code (same logic as verify-code)
-    const codeHash = hashVerificationCode(code);
-
-    const [match] = await app.db
-      .select()
-      .from(emailVerificationCodes)
-      .where(
-        and(
-          eq(emailVerificationCodes.email, email),
-          eq(emailVerificationCodes.code_hash, codeHash),
-          isNull(emailVerificationCodes.used_at),
-          gte(emailVerificationCodes.expires_at, new Date()),
-        )
-      )
-      .limit(1);
-
-    if (!match) {
+    const valid = await consumeVerificationCode(app.db, email, code);
+    if (!valid) {
       return reply.code(401).send({ error: "Invalid or expired code" });
     }
 
-    // Mark code as used
-    await app.db
-      .update(emailVerificationCodes)
-      .set({ used_at: new Date() })
-      .where(eq(emailVerificationCodes.id, match.id));
-
-    // Find or create user
-    let [user] = await app.db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-
-    if (!user) {
-      const localPart = email.split("@")[0];
-      const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
-
-      const [newUser] = await app.db
-        .insert(users)
-        .values({ email, name })
-        .returning();
-
-      const slug = generateSlugFromName(name) || "team";
-      const [newTeam] = await app.db
-        .insert(teams)
-        .values({ name: `${name}'s Team`, slug: `${slug}-${newUser.id.slice(0, 8)}` })
-        .returning();
-
-      await app.db.insert(teamMembers).values({
-        team_id: newTeam.id,
-        user_id: newUser.id,
-        role: "owner",
-      });
-
-      user = newUser;
-    }
-
-    // Get team memberships
-    const membershipTeams = await getUserTeamMemberships(app.db, user.id);
+    const { membershipTeams } = await findOrCreateUser(app.db, email);
 
     if (membershipTeams.length === 0) {
       return reply.code(500).send({ error: "User has no team membership" });
     }
 
     // Resolve target team
-    let targetTeam: typeof membershipTeams[0];
+    let targetTeam: MembershipTeam;
 
     if (team_id) {
       const found = membershipTeams.find((t) => t.id === team_id);
@@ -635,7 +610,7 @@ export async function authRoutes(app: FastifyInstance) {
         app_id: newApp.id,
         team_id: targetTeam.id,
         name: "My App Client Key",
-        permissions: ["events:write"],
+        permissions: DEFAULT_API_KEY_PERMISSIONS.client,
       });
 
       provisionedApp = { id: newApp.id, name: newApp.name, platform: newApp.platform };
