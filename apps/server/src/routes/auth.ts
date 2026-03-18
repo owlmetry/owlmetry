@@ -156,7 +156,7 @@ export async function authRoutes(app: FastifyInstance) {
       // Roll back the inserted code so it doesn't consume a rate-limit slot
       await app.db
         .delete(emailVerificationCodes)
-        .where(eq(emailVerificationCodes.code_hash, codeHash));
+        .where(and(eq(emailVerificationCodes.code_hash, codeHash), eq(emailVerificationCodes.email, email)));
       throw err;
     }
 
