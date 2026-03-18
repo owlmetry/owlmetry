@@ -48,12 +48,12 @@ export function resolveConfig(opts: {
 
   if (!endpoint) {
     throw new Error(
-      "Missing endpoint. Use --endpoint, OWLMETRY_ENDPOINT env var, or run `owlmetry setup`."
+      "Missing endpoint. Use --endpoint, OWLMETRY_ENDPOINT env var, or run `owlmetry auth login`."
     );
   }
   if (!api_key) {
     throw new Error(
-      "Missing API key. Use --api-key, OWLMETRY_API_KEY env var, or run `owlmetry setup`."
+      "Missing API key. Use --api-key, OWLMETRY_API_KEY env var, or run `owlmetry auth login`."
     );
   }
 

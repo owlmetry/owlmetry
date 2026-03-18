@@ -7,6 +7,7 @@ import { projectsCommand } from "./commands/projects.js";
 import { appsCommand } from "./commands/apps.js";
 import { eventsCommand, investigateCommand } from "./commands/events.js";
 import { usersCommand } from "./commands/users.js";
+import { authCommand } from "./commands/auth.js";
 
 const program = new Command()
   .name("owlmetry")
@@ -20,6 +21,7 @@ const program = new Command()
   .option("--endpoint <url>", "OwlMetry server URL")
   .option("--api-key <key>", "API key");
 
+program.addCommand(authCommand);
 program.addCommand(setupCommand);
 program.addCommand(projectsCommand);
 program.addCommand(appsCommand);

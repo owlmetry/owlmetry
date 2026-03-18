@@ -36,6 +36,21 @@ export interface AuthResponse {
   teams: AuthTeamMembership[];
 }
 
+// Agent login (CLI auth flow — no JWT, returns agent API key directly)
+export interface AgentLoginRequest {
+  email: string;
+  code: string;
+  team_id?: string; // required if user has multiple teams
+}
+
+export interface AgentLoginResponse {
+  api_key: string;
+  team: { id: string; name: string; slug: string };
+  project: { id: string; name: string; slug: string } | null;
+  app: { id: string; name: string; platform: string } | null;
+  is_new_setup: boolean;
+}
+
 // API Keys
 export interface CreateApiKeyRequest {
   name: string;

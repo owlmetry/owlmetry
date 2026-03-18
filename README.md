@@ -231,6 +231,7 @@ MAX_DATABASE_SIZE_GB=10
 | `GET` | `/health` | None | Health check |
 | `POST` | `/v1/auth/send-code` | None | Send email verification code |
 | `POST` | `/v1/auth/verify-code` | None | Verify code and get JWT token |
+| `POST` | `/v1/auth/agent-login` | None | Verify code + provision agent API key (auto-creates project/app for new users) |
 | `GET` | `/v1/auth/me` | JWT | Get current user profile + teams |
 | `PATCH` | `/v1/auth/me` | JWT | Update name |
 | `GET` | `/v1/auth/teams` | JWT | List user's teams |
@@ -279,6 +280,21 @@ node apps/cli/dist/index.js setup --endpoint http://localhost:4000 --api-key <ag
 export OWLMETRY_ENDPOINT=http://localhost:4000
 export OWLMETRY_API_KEY=<agent-key>
 ```
+
+### Authentication
+
+```bash
+# Step 1: Agent sends verification code
+owlmetry auth send-code --endpoint http://localhost:4000 --email alice@example.com
+
+# Step 2: User provides the 6-digit code (from email or server logs)
+
+# Step 3: Agent verifies code and gets agent API key
+owlmetry auth verify --endpoint http://localhost:4000 --email alice@example.com --code 847291
+# → Saves agent API key to ~/.owlmetry/config.json
+```
+
+New users automatically get a team, project, and backend app provisioned. The agent key is saved to config and used for all subsequent commands. Both commands are fully non-interactive — no prompts, all input via flags.
 
 ### Usage
 

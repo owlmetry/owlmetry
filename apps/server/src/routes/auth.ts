@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, gte, sql } from "drizzle-orm";
-import { users, teams, teamMembers, apiKeys, apps, emailVerificationCodes } from "@owlmetry/db";
+import { users, teams, teamMembers, apiKeys, apps, projects, emailVerificationCodes } from "@owlmetry/db";
 import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
   SendCodeRequest,
   VerifyCodeRequest,
+  AgentLoginRequest,
   CreateApiKeyRequest,
   UpdateApiKeyRequest,
   UpdateMeRequest,
@@ -504,4 +505,160 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
   );
+
+  // Agent login — verify code + provision agent API key in one step (no JWT)
+  app.post<{ Body: AgentLoginRequest }>("/agent-login", async (request, reply) => {
+    const { email, code, team_id } = request.body;
+
+    if (!email || !code) {
+      return reply.code(400).send({ error: "email and code required" });
+    }
+
+    // Verify the code (same logic as verify-code)
+    const codeHash = hashVerificationCode(code);
+
+    const [match] = await app.db
+      .select()
+      .from(emailVerificationCodes)
+      .where(
+        and(
+          eq(emailVerificationCodes.email, email),
+          eq(emailVerificationCodes.code_hash, codeHash),
+          isNull(emailVerificationCodes.used_at),
+          gte(emailVerificationCodes.expires_at, new Date()),
+        )
+      )
+      .limit(1);
+
+    if (!match) {
+      return reply.code(401).send({ error: "Invalid or expired code" });
+    }
+
+    // Mark code as used
+    await app.db
+      .update(emailVerificationCodes)
+      .set({ used_at: new Date() })
+      .where(eq(emailVerificationCodes.id, match.id));
+
+    // Find or create user
+    let [user] = await app.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (!user) {
+      const localPart = email.split("@")[0];
+      const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+
+      const [newUser] = await app.db
+        .insert(users)
+        .values({ email, name })
+        .returning();
+
+      const slug = generateSlugFromName(name) || "team";
+      const [newTeam] = await app.db
+        .insert(teams)
+        .values({ name: `${name}'s Team`, slug: `${slug}-${newUser.id.slice(0, 8)}` })
+        .returning();
+
+      await app.db.insert(teamMembers).values({
+        team_id: newTeam.id,
+        user_id: newUser.id,
+        role: "owner",
+      });
+
+      user = newUser;
+    }
+
+    // Get team memberships
+    const membershipTeams = await getUserTeamMemberships(app.db, user.id);
+
+    if (membershipTeams.length === 0) {
+      return reply.code(500).send({ error: "User has no team membership" });
+    }
+
+    // Resolve target team
+    let targetTeam: typeof membershipTeams[0];
+
+    if (team_id) {
+      const found = membershipTeams.find((t) => t.id === team_id);
+      if (!found) {
+        return reply.code(403).send({ error: "Not a member of this team" });
+      }
+      targetTeam = found;
+    } else if (membershipTeams.length === 1) {
+      targetTeam = membershipTeams[0];
+    } else {
+      return reply.code(400).send({
+        error: "Multiple teams found. Specify team_id.",
+        teams: membershipTeams,
+      });
+    }
+
+    // Auto-provision if no projects exist
+    const existingProjects = await app.db
+      .select()
+      .from(projects)
+      .where(and(eq(projects.team_id, targetTeam.id), isNull(projects.deleted_at)))
+      .limit(1);
+
+    let provisionedProject: { id: string; name: string; slug: string } | null = null;
+    let provisionedApp: { id: string; name: string; platform: string } | null = null;
+    const isNewSetup = existingProjects.length === 0;
+
+    if (isNewSetup) {
+      const [project] = await app.db
+        .insert(projects)
+        .values({ team_id: targetTeam.id, name: "My Project", slug: "my-project" })
+        .returning();
+
+      provisionedProject = { id: project.id, name: project.name, slug: project.slug };
+
+      const clientKeyData = generateApiKey("client");
+      const [newApp] = await app.db
+        .insert(apps)
+        .values({
+          team_id: targetTeam.id,
+          project_id: project.id,
+          name: "My App",
+          platform: "backend",
+          bundle_id: null,
+          client_key: clientKeyData.fullKey,
+        })
+        .returning();
+
+      await app.db.insert(apiKeys).values({
+        key_hash: clientKeyData.keyHash,
+        key_prefix: clientKeyData.keyPrefix,
+        key_type: "client",
+        app_id: newApp.id,
+        team_id: targetTeam.id,
+        name: "My App Client Key",
+        permissions: ["events:write"],
+      });
+
+      provisionedApp = { id: newApp.id, name: newApp.name, platform: newApp.platform };
+    }
+
+    // Create agent API key
+    const agentKeyData = generateApiKey("agent");
+    await app.db.insert(apiKeys).values({
+      key_hash: agentKeyData.keyHash,
+      key_prefix: agentKeyData.keyPrefix,
+      key_type: "agent",
+      app_id: null,
+      team_id: targetTeam.id,
+      name: "CLI Agent Key",
+      permissions: DEFAULT_API_KEY_PERMISSIONS.agent,
+    });
+
+    return reply.code(201).send({
+      api_key: agentKeyData.fullKey,
+      team: { id: targetTeam.id, name: targetTeam.name, slug: targetTeam.slug },
+      project: provisionedProject,
+      app: provisionedApp,
+      is_new_setup: isNewSetup,
+    });
+  });
 }
