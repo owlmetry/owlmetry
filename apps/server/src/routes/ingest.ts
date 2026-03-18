@@ -24,6 +24,19 @@ function validateIngestEventPayload(
   if (!payload.session_id || typeof payload.session_id !== "string") {
     return `events[${index}]: session_id is required and must be a string`;
   }
+  if (payload.timestamp) {
+    const parsed = new Date(payload.timestamp);
+    if (isNaN(parsed.getTime())) {
+      return `events[${index}]: timestamp must be a valid ISO 8601 date`;
+    }
+    const now = Date.now();
+    if (parsed.getTime() > now + 5 * 60_000) {
+      return `events[${index}]: timestamp cannot be more than 5 minutes in the future`;
+    }
+    if (parsed.getTime() < now - 30 * 24 * 60 * 60 * 1000) {
+      return `events[${index}]: timestamp cannot be more than 30 days in the past`;
+    }
+  }
   return null;
 }
 
