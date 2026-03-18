@@ -4,8 +4,14 @@ import type {
   AppUsersQueryParams,
   CreateAppRequest,
   CreateProjectRequest,
+  CreateMetricDefinitionRequest,
+  UpdateMetricDefinitionRequest,
   EventsQueryParams,
   EventsResponse,
+  MetricDefinitionResponse,
+  MetricQueryParams,
+  MetricQueryResponse,
+  MetricEventsResponse,
   ProjectResponse,
   ProjectDetailResponse,
   StoredEventResponse,
@@ -140,5 +146,52 @@ export class OwlMetryClient {
 
   async getEvent(id: string): Promise<StoredEventResponse> {
     return this.request<StoredEventResponse>("GET", `/v1/events/${id}`);
+  }
+
+  // Metrics
+  async listMetrics(projectId: string): Promise<MetricDefinitionResponse[]> {
+    const result = await this.request<{ metrics: MetricDefinitionResponse[] }>("GET", "/v1/metrics", {
+      params: { project_id: projectId },
+    });
+    return result.metrics;
+  }
+
+  async getMetric(slug: string, projectId: string): Promise<MetricDefinitionResponse> {
+    return this.request<MetricDefinitionResponse>("GET", `/v1/metrics/${slug}`, {
+      params: { project_id: projectId },
+    });
+  }
+
+  async createMetric(body: CreateMetricDefinitionRequest): Promise<MetricDefinitionResponse> {
+    return this.request<MetricDefinitionResponse>("POST", "/v1/metrics", { body });
+  }
+
+  async updateMetric(slug: string, projectId: string, body: UpdateMetricDefinitionRequest): Promise<MetricDefinitionResponse> {
+    return this.request<MetricDefinitionResponse>("PATCH", `/v1/metrics/${slug}`, {
+      params: { project_id: projectId },
+      body,
+    });
+  }
+
+  async deleteMetric(slug: string, projectId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>("DELETE", `/v1/metrics/${slug}`, {
+      params: { project_id: projectId },
+    });
+  }
+
+  async queryMetric(slug: string, projectId: string, params: Partial<MetricQueryParams> = {}): Promise<MetricQueryResponse> {
+    const stringParams: Record<string, string | undefined> = {
+      project_id: projectId,
+      since: params.since,
+      until: params.until,
+      app_id: params.app_id,
+      app_version: params.app_version,
+      device_model: params.device_model,
+      os_version: params.os_version,
+      user_id: params.user_id,
+      is_debug: params.is_debug,
+      group_by: params.group_by,
+    };
+    return this.request<MetricQueryResponse>("GET", `/v1/metrics/${slug}/query`, { params: stringParams });
   }
 }

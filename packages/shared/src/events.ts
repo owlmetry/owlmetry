@@ -3,8 +3,7 @@ export type LogLevel =
   | "debug"
   | "warn"
   | "error"
-  | "attention"
-  | "tracking";
+  | "attention";
 
 export type AppPlatform = "apple" | "android" | "web" | "backend";
 export type Environment = "ios" | "ipados" | "macos" | "android" | "web" | "backend";

@@ -1,0 +1,192 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import useSWR from "swr";
+import type { ProjectResponse } from "@owlmetry/shared";
+import { useMetricDefinitions } from "@/hooks/use-metrics";
+import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { BarChart3, Plus } from "lucide-react";
+
+export default function MetricsPage() {
+  const router = useRouter();
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
+  const projects = projectsData?.projects ?? [];
+
+  const [projectId, setProjectId] = useState("");
+  const selectedProjectId = projectId || projects[0]?.id || "";
+  const { metrics, isLoading, mutate } = useMetricDefinitions(selectedProjectId || undefined);
+
+  // Create modal state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [isLifecycle, setIsLifecycle] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  async function handleCreate() {
+    if (!newName || !newSlug || !selectedProjectId) return;
+    setCreating(true);
+    try {
+      await api.post("/v1/metrics", {
+        project_id: selectedProjectId,
+        name: newName,
+        slug: newSlug,
+        description: newDescription || undefined,
+        aggregation_rules: isLifecycle ? { lifecycle: true } : undefined,
+      });
+      setCreateOpen(false);
+      setNewName("");
+      setNewSlug("");
+      setNewDescription("");
+      setIsLifecycle(false);
+      mutate();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Project</label>
+            <Select value={selectedProjectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[220px] h-8 text-xs">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" disabled={!selectedProjectId}>
+              <Plus className="h-4 w-4 mr-1" />
+              New Metric
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Metric Definition</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Name</label>
+                <Input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Photo Conversion"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Slug</label>
+                <Input
+                  value={newSlug}
+                  onChange={(e) => setNewSlug(e.target.value)}
+                  placeholder="photo-conversion"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Description</label>
+                <Input
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="Optional description"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isLifecycle}
+                  onChange={(e) => setIsLifecycle(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Lifecycle metric (start/complete/fail phases)
+              </label>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleCreate} disabled={creating || !newName || !newSlug}>
+                {creating ? "Creating..." : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {!selectedProjectId ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <p className="text-sm">Select a project to view metrics</p>
+        </div>
+      ) : isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading metrics...</p>
+      ) : metrics.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <BarChart3 className="h-10 w-10 mb-3 opacity-40" />
+          <p className="text-sm">No metrics defined yet</p>
+          <p className="text-xs mt-1">Create a metric definition to start tracking</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {metrics.map((m) => (
+            <Card
+              key={m.id}
+              className="cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() =>
+                router.push(`/dashboard/metrics/${m.slug}?project_id=${selectedProjectId}`)
+              }
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">{m.name}</CardTitle>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                      m.status === "active"
+                        ? "bg-green-500/10 text-green-600"
+                        : "bg-yellow-500/10 text-yellow-600"
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground font-mono">{m.slug}</p>
+                {m.description && (
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.description}</p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

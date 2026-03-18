@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, ScrollText } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScrollText, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/hooks/use-user";
 import { OwlLogo } from "@/components/owl-logo";
@@ -10,6 +10,7 @@ import { OwlLogo } from "@/components/owl-logo";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/events", label: "Events", icon: ScrollText },
+  { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
   { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
 ];
 

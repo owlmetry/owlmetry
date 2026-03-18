@@ -42,7 +42,7 @@ const MODULES = [
 ];
 
 type EventTemplate = {
-  level: "info" | "debug" | "warn" | "error" | "attention" | "tracking";
+  level: "info" | "debug" | "warn" | "error" | "attention";
   weight: number;
   messages: string[];
   customAttributes?: () => Record<string, string>;
@@ -128,23 +128,23 @@ const TEMPLATES: EventTemplate[] = [
     ],
   },
   {
-    level: "tracking",
+    level: "info",
     weight: 12,
     messages: [
-      "onboarding.tutorial_begin",
-      "onboarding.tutorial_complete",
-      "purchase.checkout_begin",
-      "purchase.payment_submitted",
-      "search.query_submitted",
-      "share.content_shared",
-      "profile.avatar_updated",
-      "settings.notification_toggled",
-      "feed.pull_to_refresh",
-      "feature.first_use",
+      "metric:onboarding:record",
+      "metric:photo-conversion:start",
+      "metric:photo-conversion:complete",
+      "metric:photo-conversion:fail",
+      "metric:checkout:start",
+      "metric:checkout:complete",
+      "metric:checkout:fail",
+      "metric:search:record",
+      "metric:share:record",
+      "metric:feature-usage:record",
     ],
     customAttributes: () => ({
-      funnel_step: String(Math.floor(Math.random() * 5) + 1),
-      variant: Math.random() > 0.5 ? "A" : "B",
+      tracking_id: crypto.randomUUID(),
+      duration_ms: String(Math.floor(Math.random() * 5000)),
     }),
   },
 ];

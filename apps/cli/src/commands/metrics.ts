@@ -1,0 +1,166 @@
+import { Command } from "commander";
+import chalk from "chalk";
+import { createClient } from "../config.js";
+import { output } from "../formatters/index.js";
+
+function formatMetricsTable(metrics: any[]): string {
+  if (metrics.length === 0) return chalk.dim("No metrics defined");
+
+  const lines = [
+    chalk.bold("Slug".padEnd(30) + "Name".padEnd(30) + "Status".padEnd(10)),
+    "─".repeat(70),
+  ];
+  for (const m of metrics) {
+    const status = m.status === "active" ? chalk.green("active") : chalk.yellow("paused");
+    lines.push(`${m.slug.padEnd(30)}${m.name.padEnd(30)}${status}`);
+  }
+  return lines.join("\n");
+}
+
+function formatMetricDetail(metric: any): string {
+  const lines = [
+    chalk.bold(metric.name),
+    chalk.dim(`slug: ${metric.slug}`),
+    `Status: ${metric.status === "active" ? chalk.green("active") : chalk.yellow("paused")}`,
+  ];
+  if (metric.description) lines.push(`\n${metric.description}`);
+  if (metric.aggregation_rules) {
+    lines.push(`\nAggregation: ${JSON.stringify(metric.aggregation_rules)}`);
+  }
+  if (metric.documentation) {
+    lines.push(`\n--- Documentation ---\n${metric.documentation}`);
+  }
+  return lines.join("\n");
+}
+
+function formatQueryResult(result: any): string {
+  const { slug, aggregation: agg } = result;
+  const lines = [
+    chalk.bold(`Metric: ${slug}`),
+    "",
+    chalk.bold("Summary"),
+    `  Total events:   ${agg.total_count}`,
+    `  Start:          ${agg.start_count}`,
+    `  Complete:       ${agg.complete_count}`,
+    `  Failed:         ${agg.fail_count}`,
+    `  Cancelled:      ${agg.cancel_count}`,
+    `  Record:         ${agg.record_count}`,
+    `  Success rate:   ${agg.success_rate != null ? `${agg.success_rate}%` : "N/A"}`,
+    `  Unique users:   ${agg.unique_users}`,
+  ];
+
+  if (agg.duration_avg_ms != null) {
+    lines.push("");
+    lines.push(chalk.bold("Duration"));
+    lines.push(`  Average:  ${agg.duration_avg_ms}ms`);
+    lines.push(`  P50:      ${agg.duration_p50_ms ?? "N/A"}ms`);
+    lines.push(`  P95:      ${agg.duration_p95_ms ?? "N/A"}ms`);
+    lines.push(`  P99:      ${agg.duration_p99_ms ?? "N/A"}ms`);
+  }
+
+  if (agg.error_breakdown?.length > 0) {
+    lines.push("");
+    lines.push(chalk.bold("Errors"));
+    for (const e of agg.error_breakdown) {
+      lines.push(`  ${chalk.red(e.error)}: ${e.count}`);
+    }
+  }
+
+  if (agg.groups?.length > 0) {
+    lines.push("");
+    lines.push(chalk.bold(`Grouped by ${agg.groups[0].key}`));
+    for (const g of agg.groups) {
+      const sr = g.success_rate != null ? ` (${g.success_rate}% success)` : "";
+      lines.push(`  ${g.value}: ${g.total_count} events${sr}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+export const metricsCommand = new Command("metrics")
+  .description("List metric definitions")
+  .requiredOption("--project <id>", "Project ID")
+  .action(async (opts: { project: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    const metrics = await client.listMetrics(opts.project);
+    output(globals.format, metrics, () => formatMetricsTable(metrics));
+  });
+
+metricsCommand
+  .command("view <slug>")
+  .description("View metric definition details")
+  .requiredOption("--project <id>", "Project ID")
+  .action(async (slug: string, opts: { project: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    const metric = await client.getMetric(slug, opts.project);
+    output(globals.format, metric, () => formatMetricDetail(metric));
+  });
+
+metricsCommand
+  .command("create")
+  .description("Create a new metric definition")
+  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--name <name>", "Metric name")
+  .requiredOption("--slug <slug>", "Metric slug")
+  .option("--description <desc>", "Description")
+  .option("--docs <markdown>", "Documentation (markdown)")
+  .option("--lifecycle", "Mark as lifecycle metric (has start/complete/fail phases)")
+  .action(async (opts: { project: string; name: string; slug: string; description?: string; docs?: string; lifecycle?: boolean }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    const metric = await client.createMetric({
+      project_id: opts.project,
+      name: opts.name,
+      slug: opts.slug,
+      description: opts.description,
+      documentation: opts.docs,
+      aggregation_rules: opts.lifecycle ? { lifecycle: true } : undefined,
+    });
+    output(globals.format, metric, () => formatMetricDetail(metric));
+  });
+
+metricsCommand
+  .command("query <slug>")
+  .description("Query metric aggregation")
+  .requiredOption("--project <id>", "Project ID")
+  .option("--since <date>", "Start date (ISO)")
+  .option("--until <date>", "End date (ISO)")
+  .option("--app <id>", "Filter by app ID")
+  .option("--group-by <field>", "Group by: app_id, app_version, device_model, os_version, time:hour, time:day, time:week")
+  .action(async (slug: string, opts: { project: string; since?: string; until?: string; app?: string; groupBy?: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    const result = await client.queryMetric(slug, opts.project, {
+      since: opts.since,
+      until: opts.until,
+      app_id: opts.app,
+      group_by: opts.groupBy,
+    });
+    output(globals.format, result, () => formatQueryResult(result));
+  });
+
+metricsCommand
+  .command("update <slug>")
+  .description("Update a metric definition")
+  .requiredOption("--project <id>", "Project ID")
+  .option("--name <name>", "New name")
+  .option("--description <desc>", "New description")
+  .option("--status <status>", "active or paused")
+  .action(async (slug: string, opts: { project: string; name?: string; description?: string; status?: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    const metric = await client.updateMetric(slug, opts.project, {
+      name: opts.name,
+      description: opts.description,
+      status: opts.status as "active" | "paused" | undefined,
+    });
+    output(globals.format, metric, () => formatMetricDetail(metric));
+  });
+
+metricsCommand
+  .command("delete <slug>")
+  .description("Delete a metric definition")
+  .requiredOption("--project <id>", "Project ID")
+  .action(async (slug: string, opts: { project: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    await client.deleteMetric(slug, opts.project);
+    console.log(chalk.green(`Metric "${slug}" deleted.`));
+  });

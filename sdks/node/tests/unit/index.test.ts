@@ -55,7 +55,7 @@ describe("Owl", () => {
     Owl.warn("warn msg");
     Owl.error("error msg");
     Owl.attention("attention msg");
-    Owl.tracking("tracking msg");
+    Owl.recordMetric("test-metric", { source: "test" });
 
     await Owl.flush();
 

@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
-import { createDatabaseConnection, ensurePartitions, dropOldestEventPartitions } from "@owlmetry/db";
+import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, dropOldestEventPartitions } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
@@ -13,6 +13,7 @@ import { projectsRoutes } from "./routes/projects.js";
 import { identityRoutes } from "./routes/identity.js";
 import { appUsersRoutes } from "./routes/app-users.js";
 import { teamsRoutes } from "./routes/teams.js";
+import { metricsRoutes } from "./routes/metrics.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 import { createEmailService } from "./services/email.js";
 
@@ -25,6 +26,7 @@ const db = createDatabaseConnection(config.databaseUrl);
 try {
   const partitionClient = postgres(config.databaseUrl, { max: 1 });
   await ensurePartitions(partitionClient, 3);
+  await ensureMetricEventPartitions(partitionClient, 3);
   await partitionClient.end();
 } catch (err) {
   app.log.warn("Failed to ensure partitions on startup — partitions may need manual creation");
@@ -57,6 +59,7 @@ await app.register(projectsRoutes, { prefix: "/v1" });
 await app.register(identityRoutes, { prefix: "/v1" });
 await app.register(appUsersRoutes, { prefix: "/v1" });
 await app.register(teamsRoutes, { prefix: "/v1" });
+await app.register(metricsRoutes, { prefix: "/v1" });
 
 // Start
 try {

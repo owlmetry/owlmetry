@@ -6,17 +6,7 @@ final class OwlIntegrationTests: XCTestCase {
         // Should not crash
         Owl.info("this should be silently dropped")
         Owl.error("this too")
-        Owl.track("also.this")
-    }
-
-    func testOnceTracksOnlyOnce() {
-        let defaults = UserDefaults(suiteName: "com.owlmetry.integration.\(UUID().uuidString)")!
-        let name = "test.unique.event"
-
-        // First call should track
-        XCTAssertFalse(FunnelTracker.hasTrackedOnce(name, defaults: defaults))
-        FunnelTracker.markTrackedOnce(name, defaults: defaults)
-        XCTAssertTrue(FunnelTracker.hasTrackedOnce(name, defaults: defaults))
+        Owl.recordMetric("also.this")
     }
 
     func testConfigurationRejectsAgentKey() {

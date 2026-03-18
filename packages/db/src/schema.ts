@@ -23,8 +23,10 @@ export const logLevelEnum = pgEnum("log_level", [
   "warn",
   "error",
   "attention",
-  "tracking",
 ]);
+
+export const metricStatusEnum = pgEnum("metric_status", ["active", "paused"]);
+export const metricPhaseEnum = pgEnum("metric_phase", ["start", "complete", "fail", "cancel", "record"]);
 
 // Users
 export const users = pgTable("users", {
@@ -268,6 +270,71 @@ export const funnelDefinitions = pgTable(
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [index("funnel_definitions_app_id_idx").on(table.app_id)]
+);
+
+// Metric Definitions
+export const metricDefinitions = pgTable(
+  "metric_definitions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    description: text("description"),
+    documentation: text("documentation"),
+    schema_definition: jsonb("schema_definition"),
+    aggregation_rules: jsonb("aggregation_rules"),
+    status: metricStatusEnum("status").notNull().default("active"),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("metric_definitions_project_id_idx").on(table.project_id),
+    uniqueIndex("metric_definitions_project_slug_idx").on(table.project_id, table.slug),
+  ]
+);
+
+// Metric Events — NOTE: This table is partitioned by month on `timestamp`.
+// Same strategy as events table. See src/migrate.ts for partition creation logic.
+export const metricEvents = pgTable(
+  "metric_events",
+  {
+    id: uuid("id").defaultRandom(),
+    app_id: uuid("app_id").notNull(),
+    session_id: uuid("session_id").notNull(),
+    user_id: varchar("user_id", { length: 255 }),
+    metric_slug: varchar("metric_slug", { length: 255 }).notNull(),
+    phase: metricPhaseEnum("phase").notNull(),
+    tracking_id: uuid("tracking_id"),
+    duration_ms: integer("duration_ms"),
+    error: text("error"),
+    attributes: jsonb("attributes").$type<Record<string, string>>(),
+    environment: environmentEnum("environment"),
+    os_version: varchar("os_version", { length: 50 }),
+    app_version: varchar("app_version", { length: 50 }),
+    device_model: varchar("device_model", { length: 100 }),
+    build_number: varchar("build_number", { length: 50 }),
+    is_debug: boolean("is_debug").notNull().default(false),
+    client_event_id: uuid("client_event_id"),
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
+    received_at: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("metric_events_app_slug_timestamp_idx").on(table.app_id, table.metric_slug, table.timestamp),
+    index("metric_events_app_slug_phase_timestamp_idx").on(table.app_id, table.metric_slug, table.phase, table.timestamp),
+    index("metric_events_app_tracking_id_idx").on(table.app_id, table.tracking_id),
+    index("metric_events_app_client_event_id_idx").on(table.app_id, table.client_event_id),
+  ]
 );
 
 // Funnel Progress

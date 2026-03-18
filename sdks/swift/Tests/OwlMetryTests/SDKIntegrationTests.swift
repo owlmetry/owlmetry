@@ -70,19 +70,21 @@ final class SDKIntegrationTests: XCTestCase {
         }
     }
 
-    func testTrackingEvents() async throws {
+    func testMetricEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
-        Owl.track("onboarding.step_1", customAttributes: ["slide": "intro"])
-        Owl.track("onboarding.step_2", customAttributes: ["slide": "tutorial"])
+        Owl.recordMetric("onboarding", attributes: ["step": "intro"])
+        let op = Owl.startOperation("photo-conversion", attributes: ["format": "heic"])
+        op.complete(attributes: ["output": "jpeg"])
 
         await Owl.shutdown()
 
-        let events = try await queryEvents(level: "tracking")
+        let events = try await queryEvents(level: "info")
 
         let messages = events.map { $0["message"] as? String ?? "" }
-        XCTAssertTrue(messages.contains("onboarding.step_1"))
-        XCTAssertTrue(messages.contains("onboarding.step_2"))
+        XCTAssertTrue(messages.contains("metric:onboarding:record"))
+        XCTAssertTrue(messages.contains("metric:photo-conversion:start"))
+        XCTAssertTrue(messages.contains("metric:photo-conversion:complete"))
     }
 
     func testMetadataPreserved() async throws {
@@ -501,7 +503,7 @@ final class SDKIntegrationTests: XCTestCase {
 
         // Send 15 identical events — duplicate filter allows max 10 per 60s window
         for _ in 0..<15 {
-            Owl.tracking("dup_message", screenName: screenName)
+            Owl.info("dup_message", screenName: screenName)
         }
 
         try await Task.sleep(nanoseconds: 500_000_000)
@@ -568,34 +570,31 @@ final class SDKIntegrationTests: XCTestCase {
                        "All \(tasksCount * eventsPerTask) concurrently tracked events should arrive")
     }
 
-    // MARK: - Once-Tracking Persistence Tests
+    // MARK: - Operation Lifecycle Tests
 
-    func testOnceTrackingPersistsAcrossReset() async throws {
-        let eventName = "once_persist_\(UUID().uuidString.prefix(8))"
-
-        // Session 1: track once
+    func testOperationLifecycleEvents() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
-        Owl.trackOnce(eventName)
+
+        let screenName = "op_lifecycle_\(UUID().uuidString.prefix(8))"
+
+        // Start an operation and fail it
+        let op = Owl.startOperation("test-op", attributes: ["input": "data"])
+        op.fail(error: "timeout")
+
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        // "Restart"
-        await Owl.reset()
+        // Query events — start goes as info, fail goes as error
+        let infoEvents = try await queryEvents(level: "info")
+        let errorEvents = try await queryEvents(level: "error")
 
-        // Session 2: try to track the same event again
-        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
-        Owl.trackOnce(eventName)
-        try await Task.sleep(nanoseconds: 500_000_000)
-        await Owl.shutdown()
+        let startMessages = infoEvents.compactMap { $0["message"] as? String }
+        let failMessages = errorEvents.compactMap { $0["message"] as? String }
 
-        // Query all tracking events and filter by message
-        let events = try await queryEvents(level: "tracking")
-        let matchingEvents = events.filter { ($0["message"] as? String) == eventName }
-        XCTAssertEqual(matchingEvents.count, 1,
-                       "once() should only send the event once, even across SDK resets")
-
-        // Clean up UserDefaults to avoid polluting other test runs
-        UserDefaults.standard.removeObject(forKey: "owlmetry.once.\(eventName)")
+        XCTAssertTrue(startMessages.contains("metric:test-op:start"),
+                       "Start event should be sent as info")
+        XCTAssertTrue(failMessages.contains("metric:test-op:fail"),
+                       "Fail event should be sent as error")
     }
 
     // MARK: - Custom Attribute Trimming Tests

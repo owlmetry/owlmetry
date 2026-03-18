@@ -8,6 +8,7 @@ import { appsCommand } from "./commands/apps.js";
 import { eventsCommand, investigateCommand } from "./commands/events.js";
 import { usersCommand } from "./commands/users.js";
 import { authCommand } from "./commands/auth.js";
+import { metricsCommand } from "./commands/metrics.js";
 
 const program = new Command()
   .name("owlmetry")
@@ -28,6 +29,7 @@ program.addCommand(appsCommand);
 program.addCommand(eventsCommand);
 program.addCommand(investigateCommand);
 program.addCommand(usersCommand);
+program.addCommand(metricsCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

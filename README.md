@@ -36,6 +36,7 @@ And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres
 - **Device tracking** — environment, OS version, app version, device model, locale, build number
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
+- **Structured metrics** — define metrics, track operations with `startOperation`/`complete`/`fail`, query aggregations (counts, success rates, duration percentiles, error breakdowns) via API
 - **Funnel analytics** — define conversion funnels and let your agent query drop-off rates programmatically
 - **Dashboard optional** — Next.js web UI for when you want a visual overview. Not required for any workflow
 - **Single Postgres** — no Kafka, no ClickHouse, no Redis. One database. Monthly partitioned events handle the scale
@@ -262,6 +263,13 @@ MAX_DATABASE_SIZE_GB=10
 | `PATCH` | `/v1/apps/:id` | `apps:write` / JWT (admin+) | Update app name |
 | `DELETE` | `/v1/apps/:id` | JWT only (admin+) | Soft-delete app |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
+| `GET` | `/v1/metrics?project_id=` | `metrics:read` / JWT | List metric definitions for project |
+| `GET` | `/v1/metrics/:slug?project_id=` | `metrics:read` / JWT | Get metric definition with docs |
+| `POST` | `/v1/metrics` | `metrics:write` / JWT (admin+) | Create metric definition |
+| `PATCH` | `/v1/metrics/:slug?project_id=` | `metrics:write` / JWT (admin+) | Update metric definition |
+| `DELETE` | `/v1/metrics/:slug?project_id=` | JWT only (admin+) | Soft-delete metric definition |
+| `GET` | `/v1/metrics/:slug/query?project_id=` | `metrics:read` / JWT | Aggregation endpoint (counts, rates, percentiles) |
+| `GET` | `/v1/metrics/:slug/events?project_id=` | `metrics:read` / JWT | Raw metric events (paginated) |
 
 ## CLI
 

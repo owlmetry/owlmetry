@@ -7,7 +7,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
-import { createDatabaseConnection, ensurePartitions } from "@owlmetry/db";
+import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions } from "@owlmetry/db";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import type { Permission } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
@@ -18,6 +18,7 @@ import { projectsRoutes } from "../routes/projects.js";
 import { identityRoutes } from "../routes/identity.js";
 import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
+import { metricsRoutes } from "../routes/metrics.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
 
@@ -149,8 +150,73 @@ export async function setupTestDb() {
     `);
   }
 
+  // Set up partitioned metric_events table
+  const meResult = await migrationClient`
+    SELECT relkind FROM pg_class WHERE relname = 'metric_events'
+  `;
+
+  if (meResult.length > 0 && meResult[0].relkind !== "p") {
+    await migrationClient`DROP TABLE IF EXISTS metric_events CASCADE`;
+  }
+
+  // Ensure metric_phase enum exists
+  const metricPhaseCheck = await migrationClient`
+    SELECT 1 FROM pg_type WHERE typname = 'metric_phase'
+  `;
+  if (metricPhaseCheck.length === 0) {
+    await migrationClient.unsafe(`CREATE TYPE metric_phase AS ENUM ('start', 'complete', 'fail', 'cancel', 'record')`);
+  }
+
+  // Ensure metric_status enum exists
+  const metricStatusCheck = await migrationClient`
+    SELECT 1 FROM pg_type WHERE typname = 'metric_status'
+  `;
+  if (metricStatusCheck.length === 0) {
+    await migrationClient.unsafe(`CREATE TYPE metric_status AS ENUM ('active', 'paused')`);
+  }
+
+  if (meResult.length === 0 || meResult[0].relkind !== "p") {
+    await migrationClient.unsafe(`
+      CREATE TABLE IF NOT EXISTS metric_events (
+        id UUID DEFAULT gen_random_uuid(),
+        app_id UUID NOT NULL,
+        session_id UUID NOT NULL,
+        user_id VARCHAR(255),
+        metric_slug VARCHAR(255) NOT NULL,
+        phase metric_phase NOT NULL,
+        tracking_id UUID,
+        duration_ms INTEGER,
+        error TEXT,
+        attributes JSONB,
+        environment environment,
+        os_version VARCHAR(50),
+        app_version VARCHAR(50),
+        device_model VARCHAR(100),
+        build_number VARCHAR(50),
+        is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+        client_event_id UUID,
+        "timestamp" TIMESTAMPTZ NOT NULL,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      ) PARTITION BY RANGE ("timestamp");
+    `);
+  }
+
+  // Remove 'tracking' from log_level enum if present
+  const trackingCheck = await migrationClient`
+    SELECT 1 FROM pg_enum WHERE enumlabel = 'tracking'
+      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'log_level')
+  `;
+  if (trackingCheck.length > 0) {
+    try { await migrationClient.unsafe(`UPDATE events SET level = 'info' WHERE level = 'tracking'`); } catch {}
+    await migrationClient.unsafe(`ALTER TYPE log_level RENAME TO log_level_old`);
+    await migrationClient.unsafe(`CREATE TYPE log_level AS ENUM ('info', 'debug', 'warn', 'error', 'attention')`);
+    try { await migrationClient.unsafe(`ALTER TABLE events ALTER COLUMN level TYPE log_level USING level::text::log_level`); } catch {}
+    await migrationClient.unsafe(`DROP TYPE log_level_old`);
+  }
+
   // Create partitions using shared utility
   await ensurePartitions(migrationClient, 1);
+  await ensureMetricEventPartitions(migrationClient, 1);
 
   await migrationClient.end();
   migrationClient = null;
@@ -178,6 +244,7 @@ export async function buildApp() {
   await app.register(identityRoutes, { prefix: "/v1" });
   await app.register(appUsersRoutes, { prefix: "/v1" });
   await app.register(teamsRoutes, { prefix: "/v1" });
+  await app.register(metricsRoutes, { prefix: "/v1" });
 
   await app.ready();
   return app;
@@ -188,6 +255,8 @@ export async function truncateAll() {
   await client`DELETE FROM app_users`;
   await client`DELETE FROM funnel_progress`;
   await client`DELETE FROM funnel_definitions`;
+  await client.unsafe(`DELETE FROM metric_events`);
+  await client`DELETE FROM metric_definitions`;
   await client.unsafe(`DELETE FROM events`);
   await client`DELETE FROM api_keys`;
   await client`DELETE FROM apps`;
@@ -255,7 +324,7 @@ export async function seedTestData() {
       ${null},
       ${team.id},
       'Test Agent Key',
-      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read"])}::jsonb
+      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"])}::jsonb
     )
   `;
 

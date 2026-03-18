@@ -6,5 +6,4 @@ export const levelColors: Record<LogLevel, { text: string; bg: string; border: s
   attention: { text: "text-fuchsia-500", bg: "bg-fuchsia-500/10", border: "border-fuchsia-500/30" },
   info: { text: "text-cyan-500", bg: "bg-cyan-500/10", border: "border-cyan-500/30" },
   debug: { text: "text-gray-400", bg: "bg-gray-400/10", border: "border-gray-400/30" },
-  tracking: { text: "text-green-500", bg: "bg-green-500/10", border: "border-green-500/30" },
 };

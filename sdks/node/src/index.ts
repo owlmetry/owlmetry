@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { validateConfiguration, type ValidatedConfig } from "./configuration.js";
 import { Transport } from "./transport.js";
 import type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
+import { Operation, _setLogFn } from "./operation.js";
 
 export type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
+export { Operation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 
@@ -90,6 +92,9 @@ function log(level: LogLevel, message: string, attrs?: Record<string, unknown>, 
   }
 }
 
+// Wire up the Operation class to use our log function
+_setLogFn(log);
+
 /**
  * A scoped logger instance that automatically sets a user ID on all events.
  */
@@ -120,8 +125,12 @@ export class ScopedOwl {
     log("attention", message, attrs, this.userId);
   }
 
-  tracking(message: string, attrs?: Record<string, unknown>): void {
-    log("tracking", message, attrs, this.userId);
+  startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
+    return new Operation(metric, attrs, this.userId);
+  }
+
+  recordMetric(metric: string, attrs?: Record<string, unknown>): void {
+    log("info", `metric:${metric}:record`, attrs, this.userId);
   }
 }
 
@@ -181,8 +190,12 @@ export const Owl = {
     log("attention", message, attrs);
   },
 
-  tracking(message: string, attrs?: Record<string, unknown>): void {
-    log("tracking", message, attrs);
+  startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
+    return new Operation(metric, attrs);
+  },
+
+  recordMetric(metric: string, attrs?: Record<string, unknown>): void {
+    log("info", `metric:${metric}:record`, attrs);
   },
 
   withUser(userId: string): ScopedOwl {

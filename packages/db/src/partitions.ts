@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 
 const PARTITION_NAME_PATTERN = /^events_\d{4}_\d{2}$/;
+const METRIC_PARTITION_NAME_PATTERN = /^metric_events_\d{4}_\d{2}$/;
 
 export async function getDatabaseSizeBytes(client: postgres.Sql): Promise<number> {
   const result = await client`SELECT pg_database_size(current_database()) AS size`;
@@ -100,6 +101,62 @@ export async function ensurePartitions(client: postgres.Sql, monthsAhead = 3) {
   for (let i = 0; i < monthsAhead; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
     await createMonthlyEventPartition(client, date);
+  }
+}
+
+export async function ensureMetricEventPartitions(client: postgres.Sql, monthsAhead = 3) {
+  const result = await client`
+    SELECT relkind FROM pg_class WHERE relname = 'metric_events'
+  `;
+
+  if (result.length === 0 || result[0].relkind !== "p") {
+    return;
+  }
+
+  const now = new Date();
+  for (let i = 0; i < monthsAhead; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    await createMonthlyMetricEventPartition(client, date);
+  }
+}
+
+async function createMonthlyMetricEventPartition(client: postgres.Sql, date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const partitionName = `metric_events_${year}_${month}`;
+
+  const nextMonth = new Date(year, date.getMonth() + 1, 1);
+  const nextYear = nextMonth.getFullYear();
+  const nextMo = String(nextMonth.getMonth() + 1).padStart(2, "0");
+
+  const from = `${year}-${month}-01`;
+  const to = `${nextYear}-${nextMo}-01`;
+
+  try {
+    await client.unsafe(`
+      CREATE TABLE IF NOT EXISTS ${partitionName}
+        PARTITION OF metric_events
+        FOR VALUES FROM ('${from}') TO ('${to}');
+    `);
+
+    await client.unsafe(`
+      CREATE INDEX IF NOT EXISTS ${partitionName}_app_slug_ts_idx
+        ON ${partitionName} (app_id, metric_slug, "timestamp");
+      CREATE INDEX IF NOT EXISTS ${partitionName}_app_slug_phase_ts_idx
+        ON ${partitionName} (app_id, metric_slug, phase, "timestamp");
+      CREATE INDEX IF NOT EXISTS ${partitionName}_app_tracking_id_idx
+        ON ${partitionName} (app_id, tracking_id);
+      CREATE INDEX IF NOT EXISTS ${partitionName}_app_client_eid_idx
+        ON ${partitionName} (app_id, client_event_id);
+    `);
+
+    console.log(`Metric partition ${partitionName} ready.`);
+  } catch (err: any) {
+    if (err.code === "42P07") {
+      // relation already exists — fine
+    } else {
+      throw err;
+    }
   }
 }
 

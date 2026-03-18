@@ -15,7 +15,7 @@ struct ContentView: View {
             Form {
                 runFullDemoSection
                 loggingSection
-                trackingSection
+                metricsSection
                 identitySection
                 backendDemoSection
                 logOutputSection
@@ -23,8 +23,8 @@ struct ContentView: View {
             .navigationTitle("OwlMetry Demo")
         }
         .onAppear {
-            Owl.track("demo_app_opened")
-            appendLog("App opened — tracked demo_app_opened")
+            Owl.recordMetric("demo_app_opened")
+            appendLog("App opened — recorded demo_app_opened")
         }
     }
 
@@ -66,24 +66,37 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Tracking
+    // MARK: - Metrics
 
-    private var trackingSection: some View {
-        Section("Event Tracking") {
+    private var metricsSection: some View {
+        Section("Metrics") {
             TextField("Key", text: $customKey)
             TextField("Value", text: $customValue)
 
-            Button("Track Event") {
+            Button("Record Metric") {
                 let attrs = customKey.isEmpty ? nil : [customKey: customValue]
-                Owl.track("demo_custom_event", customAttributes: attrs)
-                appendLog("[TRACK] demo_custom_event \(attrs?.description ?? "")")
+                Owl.recordMetric("demo_custom_event", attributes: attrs)
+                appendLog("[METRIC] demo_custom_event \(attrs?.description ?? "")")
             }
 
-            Button("Track Once") {
-                let attrs = customKey.isEmpty ? nil : [customKey: customValue]
-                Owl.trackOnce("demo_one_time_event", customAttributes: attrs)
-                appendLog("[TRACK ONCE] demo_one_time_event")
+            Button("Simulate Conversion") {
+                let op = Owl.startOperation("photo-conversion", attributes: ["input_format": "heic"])
+                appendLog("[METRIC] photo-conversion:start")
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    op.complete(attributes: ["output_format": "jpeg", "output_size": "524288"])
+                    appendLog("[METRIC] photo-conversion:complete")
+                }
             }
+            .tint(.green)
+
+            Button("Simulate Failed Operation") {
+                let op = Owl.startOperation("photo-conversion", attributes: ["input_format": "raw"])
+                appendLog("[METRIC] photo-conversion:start")
+                op.fail(error: "unsupported_format")
+                appendLog("[METRIC] photo-conversion:fail")
+            }
+            .tint(.red)
         }
     }
 
@@ -123,8 +136,8 @@ struct ContentView: View {
                 .autocorrectionDisabled()
 
             Button("Greet") {
-                Owl.track("backend_greet_tapped", customAttributes: ["name": greetName])
-                appendLog("[TRACK] backend_greet_tapped")
+                Owl.recordMetric("backend_greet_tapped", attributes: ["name": greetName])
+                appendLog("[METRIC] backend_greet_tapped")
                 Task {
                     let result = await callBackend(
                         path: "/api/greet",
@@ -136,8 +149,8 @@ struct ContentView: View {
             .tint(.green)
 
             Button("Checkout (simulated failure)") {
-                Owl.track("backend_checkout_tapped", customAttributes: ["item": "Widget"])
-                appendLog("[TRACK] backend_checkout_tapped")
+                Owl.recordMetric("backend_checkout_tapped", attributes: ["item": "Widget"])
+                appendLog("[METRIC] backend_checkout_tapped")
                 Task {
                     let result = await callBackend(
                         path: "/api/checkout",
@@ -182,9 +195,16 @@ struct ContentView: View {
         Owl.info("Demo started", screenName: "ContentView")
         appendLog("[INFO] Demo started")
 
-        // 2. iOS tracking event
-        Owl.tracking("demo_full_test")
-        appendLog("[TRACK] demo_full_test")
+        // 2. Record a metric
+        Owl.recordMetric("demo_full_test")
+        appendLog("[METRIC] demo_full_test")
+
+        // 2b. Lifecycle metric
+        let op = Owl.startOperation("demo-operation")
+        appendLog("[METRIC] demo-operation:start")
+        try? await Task.sleep(for: .milliseconds(500))
+        op.complete(attributes: ["result": "success"])
+        appendLog("[METRIC] demo-operation:complete")
 
         // 3. Backend greet → 2 info events server-side
         let greetResult = await callBackend(

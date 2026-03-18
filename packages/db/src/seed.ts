@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers } from "./schema.js";
+import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, metricDefinitions } from "./schema.js";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
@@ -84,7 +84,7 @@ async function main() {
     app_id: null,
     team_id: team.id,
     name: "Demo Agent Key",
-    permissions: ["events:read", "funnels:read", "apps:read", "projects:read"],
+    permissions: ["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"],
   });
 
   // Create a demo server app with deterministic client key
@@ -121,7 +121,7 @@ async function main() {
     { session_id: session1, level: "info", message: "Dashboard rendered", screen_name: "Dashboard", user_id: "user-42", source_module: "DashboardVC", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 6 * 60000) },
     { session_id: session1, level: "warn", message: "Slow network response: 2.3s", screen_name: "Dashboard", user_id: "user-42", source_module: "NetworkManager", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 5 * 60000) },
     { session_id: session1, level: "error", message: "Failed to load profile image: 404", screen_name: "ProfileScreen", user_id: "user-42", source_module: "ImageLoader", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 4 * 60000) },
-    { session_id: session1, level: "tracking", message: "onboarding.tutorial_begin", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "FunnelTracker", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 3 * 60000) },
+    { session_id: session1, level: "info", message: "metric:onboarding:record", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "OwlMetry", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 3 * 60000), custom_attributes: { metric_slug: "onboarding", phase: "record" } },
     { session_id: session1, level: "attention", message: "User skipped onboarding step 3", screen_name: "OnboardingScreen", user_id: "user-42", source_module: "OnboardingVC", environment: "ios", os_version: "18.3", app_version: "1.0.0", device_model: "iPhone 16", locale: "en_US", timestamp: new Date(now - 2 * 60000), custom_attributes: { step: "3", reason: "skipped" } },
     { session_id: session2, level: "info", message: "App launched", screen_name: "HomeScreen", user_id: "user-99", source_module: "AppDelegate", environment: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 90000) },
     { session_id: session2, level: "info", message: "Search performed", screen_name: "SearchScreen", user_id: "user-99", source_module: "SearchVC", environment: "ios", os_version: "18.2", app_version: "1.0.0", device_model: "iPhone 15 Pro", locale: "en_US", timestamp: new Date(now - 60000), custom_attributes: { query: "weather", results_count: "12" } },
@@ -143,6 +143,27 @@ async function main() {
   await db.insert(events).values(
     serverEvents.map((e) => ({ ...e, app_id: serverApp.id }))
   );
+
+  // Seed metric definitions
+  await db.insert(metricDefinitions).values([
+    {
+      project_id: project.id,
+      name: "Photo Conversion",
+      slug: "photo-conversion",
+      description: "Tracks photo format conversion operations",
+      documentation: "## Photo Conversion\n\nTracks HEIC to JPEG conversion operations including duration and output size.",
+      aggregation_rules: { lifecycle: true, size_field: "output_size" },
+      status: "active",
+    },
+    {
+      project_id: project.id,
+      name: "Checkout",
+      slug: "checkout",
+      description: "Tracks checkout flow completion",
+      aggregation_rules: { lifecycle: true },
+      status: "active",
+    },
+  ]);
 
   // Seed app_users
   const now_ts = new Date();

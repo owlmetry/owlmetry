@@ -7,7 +7,6 @@ const LEVEL_COLORS: Record<LogLevel, ChalkInstance> = {
   attention: chalk.magenta,
   info: chalk.cyan,
   debug: chalk.gray,
-  tracking: chalk.green,
 };
 
 function formatTime(iso: string): string {

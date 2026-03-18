@@ -1,6 +1,7 @@
 import type { StoredEvent, IngestRequest, IngestResponse, AppPlatform } from "./events.js";
 import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
+import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
 
 // Serialized response types (dates as ISO strings)
 export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
@@ -229,6 +230,97 @@ export interface AppUsersQueryParams {
   limit?: number;
 }
 
+// Metrics
+export interface CreateMetricDefinitionRequest {
+  project_id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  documentation?: string;
+  schema_definition?: MetricSchemaDefinition;
+  aggregation_rules?: MetricAggregationRules;
+}
+
+export interface UpdateMetricDefinitionRequest {
+  name?: string;
+  description?: string;
+  documentation?: string;
+  schema_definition?: MetricSchemaDefinition;
+  aggregation_rules?: MetricAggregationRules;
+  status?: "active" | "paused";
+}
+
+export type MetricDefinitionResponse = Omit<MetricDefinition, "created_at" | "updated_at" | "deleted_at"> & {
+  created_at: string;
+  updated_at: string;
+};
+
+export interface MetricQueryParams {
+  project_id: string;
+  since?: string;
+  until?: string;
+  app_id?: string;
+  app_version?: string;
+  device_model?: string;
+  os_version?: string;
+  user_id?: string;
+  is_debug?: string;
+  group_by?: string; // "app_id" | "app_version" | "device_model" | "os_version" | "time:hour" | "time:day" | "time:week"
+}
+
+export interface MetricAggregationResult {
+  total_count: number;
+  start_count: number;
+  complete_count: number;
+  fail_count: number;
+  cancel_count: number;
+  record_count: number;
+  success_rate: number | null;
+  duration_avg_ms: number | null;
+  duration_p50_ms: number | null;
+  duration_p95_ms: number | null;
+  duration_p99_ms: number | null;
+  unique_users: number;
+  error_breakdown: Array<{ error: string; count: number }>;
+  groups?: Array<{
+    key: string;
+    value: string;
+    total_count: number;
+    complete_count: number;
+    fail_count: number;
+    success_rate: number | null;
+    duration_avg_ms: number | null;
+  }>;
+}
+
+export interface MetricQueryResponse {
+  slug: string;
+  aggregation: MetricAggregationResult;
+}
+
+export type StoredMetricEventResponse = Omit<StoredMetricEvent, "timestamp" | "received_at"> & {
+  timestamp: string;
+  received_at: string;
+};
+
+export interface MetricEventsResponse {
+  events: StoredMetricEventResponse[];
+  cursor: string | null;
+  has_more: boolean;
+}
+
+export interface MetricEventsQueryParams {
+  project_id: string;
+  phase?: MetricPhase;
+  tracking_id?: string;
+  user_id?: string;
+  since?: string;
+  until?: string;
+  cursor?: string;
+  limit?: number;
+  include_debug?: string;
+}
+
 // Re-export for convenience
 export type {
   StoredEvent,
@@ -244,4 +336,7 @@ export type {
   Permission,
   FunnelDefinition,
   FunnelAnalytics,
+  MetricDefinition,
+  MetricPhase,
+  StoredMetricEvent,
 };

@@ -11,7 +11,7 @@ import type {
   LogLevel,
 } from "@owlmetry/shared";
 
-const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error", "attention", "tracking"];
+const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error", "attention"];
 import { useEvents } from "@/hooks/use-events";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";

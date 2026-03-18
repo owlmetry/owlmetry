@@ -207,41 +207,32 @@ public enum Owl {
             file: file, function: function, line: line)
     }
 
-    public static func tracking(
-        _ message: String,
-        screenName: String? = nil,
-        customAttributes: [String: String]? = nil,
+    // MARK: - Structured Metrics
+
+    /// Start a tracked operation. Returns an Operation object for completion.
+    public static func startOperation(
+        _ metric: String,
+        attributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
-    ) {
-        log(message, level: .tracking, screenName: screenName, customAttributes: customAttributes,
-            file: file, function: function, line: line)
+    ) -> Operation {
+        let op = Operation(metric: metric)
+        var attrs = attributes ?? [:]
+        attrs["tracking_id"] = op.trackingId
+        info("metric:\(metric):start", customAttributes: attrs, file: file, function: function, line: line)
+        return op
     }
 
-    // MARK: - Funnel Tracking
-
-    public static func track(
-        _ name: String,
-        customAttributes: [String: String]? = nil,
+    /// Record a single-shot metric (no lifecycle).
+    public static func recordMetric(
+        _ metric: String,
+        attributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(name, level: .tracking, screenName: nil, customAttributes: customAttributes,
-            file: file, function: function, line: line)
-    }
-
-    public static func trackOnce(
-        _ name: String,
-        customAttributes: [String: String]? = nil,
-        file: String = #file,
-        function: String = #function,
-        line: Int = #line
-    ) {
-        guard !FunnelTracker.hasTrackedOnce(name) else { return }
-        FunnelTracker.markTrackedOnce(name)
-        track(name, customAttributes: customAttributes, file: file, function: function, line: line)
+        info("metric:\(metric):record", customAttributes: attributes, file: file, function: function, line: line)
     }
 
     // MARK: - Lifecycle

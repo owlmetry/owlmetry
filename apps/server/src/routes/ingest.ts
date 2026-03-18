@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { apps, events, appUsers } from "@owlmetry/db";
-import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
+import { apps, events, appUsers, metricEvents } from "@owlmetry/db";
+import { ANONYMOUS_ID_PREFIX, parseMetricMessage } from "@owlmetry/shared";
 import {
   MAX_BATCH_SIZE,
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
@@ -162,6 +162,45 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       if (valid.length > 0) {
         await app.db.insert(events).values(valid);
+
+        // Dual-write: detect metric events and insert into metric_events table
+        const metricRows: Array<typeof metricEvents.$inferInsert> = [];
+        for (const ev of valid) {
+          const parsed = parseMetricMessage(ev.message);
+          if (!parsed) continue;
+
+          const attrs = ev.custom_attributes ?? {};
+          metricRows.push({
+            app_id: ev.app_id,
+            session_id: ev.session_id,
+            user_id: ev.user_id ?? null,
+            metric_slug: parsed.slug,
+            phase: parsed.phase,
+            tracking_id: attrs.tracking_id || null,
+            duration_ms: attrs.duration_ms ? parseInt(attrs.duration_ms, 10) || null : null,
+            error: attrs.error || null,
+            attributes: attrs,
+            environment: ev.environment ?? null,
+            os_version: ev.os_version ?? null,
+            app_version: ev.app_version ?? null,
+            device_model: ev.device_model ?? null,
+            build_number: ev.build_number ?? null,
+            is_debug: ev.is_debug ?? false,
+            client_event_id: ev.client_event_id || null,
+            timestamp: ev.timestamp as Date,
+          });
+        }
+
+        if (metricRows.length > 0) {
+          // Fire-and-forget: metric_events write failure should not block event ingest
+          app.db
+            .insert(metricEvents)
+            .values(metricRows)
+            .execute()
+            .catch((err) => {
+              request.log.warn({ err }, "Failed to dual-write metric events");
+            });
+        }
 
         // Fire-and-forget: upsert app_users for each unique user_id in the batch
         const uniqueUserIds = [...new Set(valid.map((e) => e.user_id).filter((id): id is string => !!id))];

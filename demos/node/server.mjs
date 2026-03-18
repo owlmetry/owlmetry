@@ -44,10 +44,10 @@ const handleGreet = Owl.wrapHandler(async (req, res) => {
   const { name = "World", userId } = body;
 
   const owl = userId ? Owl.withUser(userId) : Owl;
-  owl.info("Greeting requested", { name });
+  const op = owl.startOperation("greet", { name });
 
   const message = `Hello, ${name}!`;
-  owl.info("Greeting sent", { name });
+  op.complete({ name });
 
   json(res, 200, { message });
 });
@@ -57,9 +57,9 @@ const handleCheckout = Owl.wrapHandler(async (req, res) => {
   const { item = "unknown", userId } = body;
 
   const owl = userId ? Owl.withUser(userId) : Owl;
-  owl.info("Checkout started", { item });
+  const op = owl.startOperation("checkout", { item });
   owl.warn("Payment gateway timeout", { item });
-  owl.error("Checkout failed: payment provider unreachable", { item });
+  op.fail("payment_provider_unreachable", { item });
 
   json(res, 500, { error: "Payment provider unreachable" });
 });
