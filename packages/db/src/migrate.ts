@@ -54,22 +54,39 @@ async function removeTrackingFromLogLevelEnum(client: postgres.Sql) {
   await client.unsafe(`DROP TYPE log_level_old`);
 }
 
-async function convertEventsTableToPartitioned(client: postgres.Sql) {
+/**
+ * Generic helper: check if a table exists and is partitioned.
+ * If it exists but isn't partitioned, drop and recreate with the given DDL.
+ * Calls `preCreateHook` before creating (e.g. to ensure enums exist).
+ */
+async function convertTableToPartitioned(
+  client: postgres.Sql,
+  tableName: string,
+  createDDL: string,
+  preCreateHook?: (client: postgres.Sql) => Promise<void>,
+) {
   const result = await client`
-    SELECT relkind FROM pg_class WHERE relname = 'events'
+    SELECT relkind FROM pg_class WHERE relname = ${tableName}
   `;
 
   if (result.length > 0 && result[0].relkind === "p") {
-    // Already partitioned
     return;
   }
 
   if (result.length > 0) {
-    console.log("Converting events table to partitioned...");
-    await client`DROP TABLE IF EXISTS events CASCADE`;
+    console.log(`Converting ${tableName} table to partitioned...`);
+    await client.unsafe(`DROP TABLE IF EXISTS ${tableName} CASCADE`);
   }
 
-  await client.unsafe(`
+  if (preCreateHook) {
+    await preCreateHook(client);
+  }
+
+  await client.unsafe(createDDL);
+}
+
+async function convertEventsTableToPartitioned(client: postgres.Sql) {
+  await convertTableToPartitioned(client, "events", `
     CREATE TABLE IF NOT EXISTS events (
       id UUID DEFAULT gen_random_uuid(),
       app_id UUID NOT NULL,
@@ -95,29 +112,10 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
 }
 
 async function convertMetricEventsTableToPartitioned(client: postgres.Sql) {
-  const result = await client`
-    SELECT relkind FROM pg_class WHERE relname = 'metric_events'
-  `;
-
-  if (result.length > 0 && result[0].relkind === "p") {
-    // Already partitioned
-    return;
-  }
-
-  if (result.length > 0) {
-    console.log("Converting metric_events table to partitioned...");
-    await client`DROP TABLE IF EXISTS metric_events CASCADE`;
-  }
-
-  // Ensure enums exist before creating table
-  const metricPhaseCheck = await client`
-    SELECT 1 FROM pg_type WHERE typname = 'metric_phase'
-  `;
-  if (metricPhaseCheck.length === 0) {
-    await client.unsafe(`CREATE TYPE metric_phase AS ENUM ('start', 'complete', 'fail', 'cancel', 'record')`);
-  }
-
-  await client.unsafe(`
+  await convertTableToPartitioned(
+    client,
+    "metric_events",
+    `
     CREATE TABLE IF NOT EXISTS metric_events (
       id UUID DEFAULT gen_random_uuid(),
       app_id UUID NOT NULL,
@@ -139,7 +137,14 @@ async function convertMetricEventsTableToPartitioned(client: postgres.Sql) {
       "timestamp" TIMESTAMPTZ NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     ) PARTITION BY RANGE ("timestamp");
-  `);
+    `,
+    async (c) => {
+      const check = await c`SELECT 1 FROM pg_type WHERE typname = 'metric_phase'`;
+      if (check.length === 0) {
+        await c.unsafe(`CREATE TYPE metric_phase AS ENUM ('start', 'complete', 'fail', 'cancel', 'record')`);
+      }
+    },
+  );
 }
 
 main().catch((err) => {
