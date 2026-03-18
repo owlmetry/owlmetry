@@ -33,7 +33,7 @@ pnpm db:seed
 
 ### Seed credentials
 
-- **Dashboard login**: `admin@owlmetry.com` / `H00tH00t`
+- **Dashboard login**: `admin@owlmetry.com` (verification code appears in server console)
 - **Agent API key**: `owl_agent_demo_000000000000000000000000000000000000000000`
 - **Server client key**: `owl_client_svr_0000000000000000000000000000000000000000`
 

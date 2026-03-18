@@ -14,6 +14,7 @@ import { identityRoutes } from "./routes/identity.js";
 import { appUsersRoutes } from "./routes/app-users.js";
 import { teamsRoutes } from "./routes/teams.js";
 import { decompressPlugin } from "./middleware/decompress.js";
+import { createEmailService } from "./services/email.js";
 
 const app = Fastify({ logger: true });
 
@@ -32,6 +33,7 @@ try {
 
 // Decorators
 app.decorate("db", db);
+app.decorate("emailService", createEmailService(config.resendApiKey, config.emailFrom));
 
 // Plugins
 await app.register(decompressPlugin);

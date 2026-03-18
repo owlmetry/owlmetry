@@ -229,10 +229,10 @@ MAX_DATABASE_SIZE_GB=10
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | `GET` | `/health` | None | Health check |
-| `POST` | `/v1/auth/register` | None | Create user + team |
-| `POST` | `/v1/auth/login` | None | Get JWT token + teams list |
+| `POST` | `/v1/auth/send-code` | None | Send email verification code |
+| `POST` | `/v1/auth/verify-code` | None | Verify code and get JWT token |
 | `GET` | `/v1/auth/me` | JWT | Get current user profile + teams |
-| `PATCH` | `/v1/auth/me` | JWT | Update name or password |
+| `PATCH` | `/v1/auth/me` | JWT | Update name |
 | `GET` | `/v1/auth/teams` | JWT | List user's teams |
 | `GET` | `/v1/auth/keys` | JWT | List API keys for user's teams |
 | `GET` | `/v1/auth/keys/:id` | JWT | Get single API key metadata |
@@ -410,3 +410,5 @@ pnpm dev:demo-node          # Terminal 2
 | `HOST` | `0.0.0.0` | API server bind address |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
 | `MAX_DATABASE_SIZE_GB` | `0` (disabled) | Max database size before pruning old events |
+| `RESEND_API_KEY` | (empty) | Resend API key for sending verification emails; if unset, codes print to server console |
+| `EMAIL_FROM` | `noreply@owlmetry.com` | From address for verification emails (requires Resend) |

@@ -11,6 +11,7 @@ import {
   seedTestData,
   getTokenAndTeamId,
   createAgentKey,
+  createUserAndGetToken,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
@@ -571,14 +572,10 @@ describe("API key team boundary enforcement", () => {
   let otherAppId: string;
 
   beforeEach(async () => {
-    // Register a second user (gets their own team)
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
-    });
-    otherTeamToken = regRes.json().token;
-    otherTeamId = regRes.json().teams[0].id;
+    // Create a second user (gets their own team)
+    const other = await createUserAndGetToken(app, "other@owlmetry.com", "Other");
+    otherTeamToken = other.token;
+    otherTeamId = other.teamId;
 
     // Create a project and app in the other team
     const projRes = await app.inject({
@@ -829,24 +826,15 @@ describe("JWT user permission bypass", () => {
   it("JWT member can read but not write", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
 
-    // Register a second user and add as member
-    await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "member@owlmetry.com", password: "pass123", name: "Member" },
-    });
+    // Create a second user and add as member
+    await createUserAndGetToken(app, "member@owlmetry.com", "Member");
     await app.inject({
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
       payload: { email: "member@owlmetry.com", role: "member" },
     });
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "member@owlmetry.com", password: "pass123" },
-    });
-    const memberToken = loginRes.json().token;
+    const { token: memberToken } = await createUserAndGetToken(app, "member@owlmetry.com");
 
     // Member can read
     const readRes = await app.inject({
@@ -872,13 +860,8 @@ describe("JWT user permission bypass", () => {
   });
 
   it("JWT user cannot access other team's resources", async () => {
-    // Register second user (gets their own team)
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "outsider@owlmetry.com", password: "pass123", name: "Outsider" },
-    });
-    const outsiderToken = regRes.json().token;
+    // Create second user (gets their own team)
+    const { token: outsiderToken } = await createUserAndGetToken(app, "outsider@owlmetry.com", "Outsider");
 
     // Cannot get test team's project
     const projRes = await app.inject({
@@ -1093,13 +1076,8 @@ describe("PATCH /v1/auth/keys/:id", () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const { keyId } = await createKeyAndGetId(token, teamId);
 
-    // Register another user (different team)
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "outsider@owlmetry.com", password: "pass123", name: "Outsider" },
-    });
-    const outsiderToken = regRes.json().token;
+    // Create another user (different team)
+    const { token: outsiderToken } = await createUserAndGetToken(app, "outsider@owlmetry.com", "Outsider");
 
     const res = await app.inject({
       method: "PATCH",
@@ -1115,24 +1093,15 @@ describe("PATCH /v1/auth/keys/:id", () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const { keyId } = await createKeyAndGetId(token, teamId);
 
-    // Register second user and add as member
-    await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "member-update@owlmetry.com", password: "pass123", name: "Member" },
-    });
+    // Create second user and add as member
+    await createUserAndGetToken(app, "member-update@owlmetry.com", "Member");
     await app.inject({
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
       headers: { authorization: `Bearer ${token}` },
       payload: { email: "member-update@owlmetry.com", role: "member" },
     });
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "member-update@owlmetry.com", password: "pass123" },
-    });
-    const memberToken = loginRes.json().token;
+    const { token: memberToken } = await createUserAndGetToken(app, "member-update@owlmetry.com");
 
     const res = await app.inject({
       method: "PATCH",

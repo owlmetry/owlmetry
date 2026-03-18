@@ -55,7 +55,7 @@ export function MarketingNav() {
               Sign In
             </Button>
           </Link>
-          <Link href="/register">
+          <Link href="/login">
             <Button
               size="sm"
               className="text-white hover:brightness-110 transition-all"
@@ -97,7 +97,7 @@ export function MarketingNav() {
                 Sign In
               </Button>
             </Link>
-            <Link href="/register" className="flex-1">
+            <Link href="/login" className="flex-1">
               <Button size="sm" className="w-full text-white" style={{ background: "oklch(0.555 0.163 48.998)" }}>
                 Get Started
               </Button>

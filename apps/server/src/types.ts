@@ -1,10 +1,12 @@
 import type { Db } from "@owlmetry/db";
 import type { FastifyInstance } from "fastify";
 import type { TeamRole, Permission, ApiKeyType } from "@owlmetry/shared";
+import type { EmailService } from "./services/email.js";
 
 declare module "fastify" {
   interface FastifyInstance {
     db: Db;
+    emailService: EmailService;
   }
 }
 

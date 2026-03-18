@@ -1,11 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull } from "drizzle-orm";
-import bcrypt from "bcrypt";
-import { users, teams, teamMembers, apiKeys, apps } from "@owlmetry/db";
-import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey } from "@owlmetry/shared";
+import { eq, and, inArray, isNull, gte, sql } from "drizzle-orm";
+import { users, teams, teamMembers, apiKeys, apps, emailVerificationCodes } from "@owlmetry/db";
+import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
-  RegisterRequest,
-  LoginRequest,
+  SendCodeRequest,
+  VerifyCodeRequest,
   CreateApiKeyRequest,
   UpdateApiKeyRequest,
   UpdateMeRequest,
@@ -42,96 +41,123 @@ function generateSlugFromName(name: string): string {
 }
 
 export async function authRoutes(app: FastifyInstance) {
-  // Register
-  app.post<{ Body: RegisterRequest }>("/register", async (request, reply) => {
-    const { email, password, name } = request.body;
+  // Send verification code
+  app.post<{ Body: SendCodeRequest }>("/send-code", async (request, reply) => {
+    const { email } = request.body;
 
-    if (!email || !password || !name) {
-      return reply.code(400).send({ error: "email, password, and name required" });
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return reply.code(400).send({ error: "Valid email is required" });
     }
 
-    // Check if user exists
-    const existing = await app.db
+    // Rate limit: max 5 codes per email per hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentCodes = await app.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(emailVerificationCodes)
+      .where(
+        and(
+          eq(emailVerificationCodes.email, email),
+          gte(emailVerificationCodes.created_at, oneHourAgo),
+        )
+      );
+
+    if (recentCodes[0].count >= 5) {
+      return reply.code(429).send({ error: "Too many verification codes requested. Try again later." });
+    }
+
+    const { code, codeHash } = generateVerificationCode();
+
+    await app.db.insert(emailVerificationCodes).values({
+      email,
+      code_hash: codeHash,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    await app.emailService.sendVerificationCode(email, code);
+
+    return { message: "Verification code sent" };
+  });
+
+  // Verify code and authenticate
+  app.post<{ Body: VerifyCodeRequest }>("/verify-code", async (request, reply) => {
+    const { email, code } = request.body;
+
+    if (!email || !code) {
+      return reply.code(400).send({ error: "email and code required" });
+    }
+
+    const codeHash = hashVerificationCode(code);
+
+    const [match] = await app.db
+      .select()
+      .from(emailVerificationCodes)
+      .where(
+        and(
+          eq(emailVerificationCodes.email, email),
+          eq(emailVerificationCodes.code_hash, codeHash),
+          isNull(emailVerificationCodes.used_at),
+          gte(emailVerificationCodes.expires_at, new Date()),
+        )
+      )
+      .limit(1);
+
+    if (!match) {
+      return reply.code(401).send({ error: "Invalid or expired code" });
+    }
+
+    // Mark code as used
+    await app.db
+      .update(emailVerificationCodes)
+      .set({ used_at: new Date() })
+      .where(eq(emailVerificationCodes.id, match.id));
+
+    // Check for existing user
+    const [existingUser] = await app.db
       .select()
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
 
-    if (existing.length > 0) {
-      return reply.code(409).send({ error: "Email already registered" });
-    }
+    let user: typeof existingUser;
+    let isNewUser = false;
+    let membershipTeams: Awaited<ReturnType<typeof getUserTeamMemberships>>;
 
-    const password_hash = await bcrypt.hash(password, 12);
+    if (existingUser) {
+      user = existingUser;
+      membershipTeams = await getUserTeamMemberships(app.db, user.id);
+    } else {
+      // Create new user
+      const localPart = email.split("@")[0];
+      const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
 
-    const [user] = await app.db
-      .insert(users)
-      .values({ email, password_hash, name })
-      .returning();
+      const [newUser] = await app.db
+        .insert(users)
+        .values({ email, name })
+        .returning();
 
-    // Create default team
-    const slug = generateSlugFromName(name) || "team";
-    const [team] = await app.db
-      .insert(teams)
-      .values({ name: `${name}'s Team`, slug: `${slug}-${user.id.slice(0, 8)}` })
-      .returning();
+      // Create default team
+      const slug = generateSlugFromName(name) || "team";
+      const [team] = await app.db
+        .insert(teams)
+        .values({ name: `${name}'s Team`, slug: `${slug}-${newUser.id.slice(0, 8)}` })
+        .returning();
 
-    await app.db.insert(teamMembers).values({
-      team_id: team.id,
-      user_id: user.id,
-      role: "owner",
-    });
+      await app.db.insert(teamMembers).values({
+        team_id: team.id,
+        user_id: newUser.id,
+        role: "owner",
+      });
 
-    const token = app.jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-      } satisfies UserJwtPayload,
-      { expiresIn: "7d" }
-    );
-
-    reply.setCookie("token", token, COOKIE_OPTIONS);
-
-    return reply.code(201).send({
-      token,
-      user: serializeUser(user),
-      teams: [
+      user = newUser;
+      isNewUser = true;
+      membershipTeams = [
         {
           id: team.id,
           name: team.name,
           slug: team.slug,
           role: "owner" as const,
         },
-      ],
-    });
-  });
-
-  // Login
-  app.post<{ Body: LoginRequest }>("/login", async (request, reply) => {
-    const { email, password } = request.body;
-
-    if (!email || !password) {
-      return reply.code(400).send({ error: "email and password required" });
-    }
-
-    const [user] = await app.db
-      .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .limit(1);
-
-    if (!user) {
-      return reply.code(401).send({ error: "Invalid credentials" });
-    }
-
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      return reply.code(401).send({ error: "Invalid credentials" });
-    }
-
-    const membershipTeams = await getUserTeamMemberships(app.db, user.id);
-
-    if (membershipTeams.length === 0) {
-      return reply.code(500).send({ error: "User has no team membership" });
+      ];
     }
 
     const token = app.jwt.sign(
@@ -144,11 +170,13 @@ export async function authRoutes(app: FastifyInstance) {
 
     reply.setCookie("token", token, COOKIE_OPTIONS);
 
-    return {
+    const statusCode = isNewUser ? 201 : 200;
+    return reply.code(statusCode).send({
       token,
       user: serializeUser(user),
       teams: membershipTeams,
-    };
+      is_new_user: isNewUser,
+    });
   });
 
   // Logout
@@ -216,19 +244,15 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can update their profile" });
       }
 
-      const { name, password } = request.body;
+      const { name } = request.body;
 
-      if (!name && !password) {
+      if (!name) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
-      const updates: Partial<{ name: string; password_hash: string }> = {};
-      if (name) updates.name = name;
-      if (password) updates.password_hash = await bcrypt.hash(password, 12);
-
       const [updated] = await app.db
         .update(users)
-        .set(updates)
+        .set({ name })
         .where(eq(users.id, auth.user_id))
         .returning({
           id: users.id,

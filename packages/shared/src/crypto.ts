@@ -16,3 +16,12 @@ export function generateApiKey(keyType: ApiKeyType): { fullKey: string; keyHash:
     keyPrefix: fullKey.slice(0, KEY_PREFIX_LENGTH),
   };
 }
+
+export function generateVerificationCode(): { code: string; codeHash: string } {
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  return { code, codeHash: hashVerificationCode(code) };
+}
+
+export function hashVerificationCode(code: string): string {
+  return createHash("sha256").update(code).digest("hex");
+}

@@ -30,7 +30,6 @@ export const logLevelEnum = pgEnum("log_level", [
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
-  password_hash: text("password_hash").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -40,6 +39,22 @@ export const users = pgTable("users", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+// Email Verification Codes
+export const emailVerificationCodes = pgTable(
+  "email_verification_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: varchar("email", { length: 255 }).notNull(),
+    code_hash: text("code_hash").notNull(),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    used_at: timestamp("used_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("email_verification_codes_email_idx").on(table.email)]
+);
 
 // Teams
 export const teams = pgTable("teams", {

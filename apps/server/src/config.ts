@@ -7,4 +7,6 @@ export const config = {
   corsOrigins: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"],
   maxDatabaseSizeGb: Number(process.env.MAX_DATABASE_SIZE_GB || 0),
   cookieSecure: process.env.NODE_ENV === "production",
+  resendApiKey: process.env.RESEND_API_KEY || "",
+  emailFrom: process.env.EMAIL_FROM || "noreply@owlmetry.com",
 };

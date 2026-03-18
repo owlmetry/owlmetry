@@ -5,6 +5,7 @@ import {
   truncateAll,
   seedTestData,
   getToken,
+  createUserAndGetToken,
   TEST_USER,
   TEST_AGENT_KEY,
   TEST_CLIENT_KEY,
@@ -101,12 +102,7 @@ describe("GET /v1/apps/:id", () => {
   });
 
   it("returns 404 for app in another team", async () => {
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
-    });
-    const otherToken = regRes.json().token;
+    const { token: otherToken } = await createUserAndGetToken(app, "other@owlmetry.com", "Other");
 
     const res = await app.inject({
       method: "GET",
@@ -470,12 +466,7 @@ describe("DELETE /v1/apps/:id", () => {
   });
 
   it("returns 404 for app belonging to another team", async () => {
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
-    });
-    const otherToken = regRes.json().token;
+    const { token: otherToken } = await createUserAndGetToken(app, "other@owlmetry.com", "Other");
 
     const res = await app.inject({
       method: "DELETE",

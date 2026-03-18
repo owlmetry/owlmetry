@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isDashboardRoute = pathname.startsWith("/dashboard");
-  const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isAuthPage = pathname === "/login";
 
   if (!token && isDashboardRoute) {
     return NextResponse.redirect(new URL("/login", request.url));

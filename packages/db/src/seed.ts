@@ -1,7 +1,6 @@
 import { createDatabaseConnection } from "./index.js";
 import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers } from "./schema.js";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
-import bcrypt from "bcrypt";
 import crypto from "node:crypto";
 import "dotenv/config";
 
@@ -17,7 +16,6 @@ async function main() {
     .insert(users)
     .values({
       email: "admin@owlmetry.com",
-      password_hash: await bcrypt.hash("H00tH00t", 12),
       name: "Admin",
     })
     .onConflictDoNothing()
@@ -173,7 +171,7 @@ async function main() {
   ]);
 
   console.log("\nSeed complete!");
-  console.log(`User:       admin@owlmetry.com / H00tH00t`);
+  console.log(`User:       admin@owlmetry.com (verification code appears in server console)`);
   console.log(`Team:       ${team.name} (${team.slug})`);
   console.log(`Project:    ${project.name} (${project.slug})`);
   console.log(`App:        ${app.name} (${app.id})`);

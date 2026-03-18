@@ -14,14 +14,12 @@
     "@fastify/jwt": "^9.0.0",
     "@owlmetry/db": "workspace:*",
     "@owlmetry/shared": "workspace:*",
-    "bcrypt": "^5.1.1",
     "drizzle-orm": "^0.39.0",
     "fastify": "^5.2.0",
     "fastify-plugin": "^5.1.0",
     "postgres": "^3.4.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
     "@types/node": "^25.4.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

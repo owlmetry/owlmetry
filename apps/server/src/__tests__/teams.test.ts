@@ -6,6 +6,7 @@ import {
   seedTestData,
   getToken,
   getTokenAndTeamId,
+  createUserAndGetToken,
   TEST_USER,
 } from "./setup.js";
 
@@ -25,15 +26,9 @@ afterAll(async () => {
   await app.close();
 });
 
-/** Register a second user and return their token + user info. */
+/** Create a second user and return their token + user info. */
 async function registerSecondUser() {
-  const res = await app.inject({
-    method: "POST",
-    url: "/v1/auth/register",
-    payload: { email: "second@owlmetry.com", password: "pass123", name: "Second User" },
-  });
-  const body = res.json();
-  return { token: body.token, userId: body.user.id, teamId: body.teams[0].id };
+  return createUserAndGetToken(app, "second@owlmetry.com", "Second User");
 }
 
 // ─── Team CRUD ──────────────────────────────────────────────────────
@@ -139,7 +134,7 @@ describe("PATCH /v1/teams/:teamId", () => {
 
   it("member cannot rename team", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    const second = await registerSecondUser();
+    await registerSecondUser();
 
     // Add second user as member
     await app.inject({
@@ -149,13 +144,8 @@ describe("PATCH /v1/teams/:teamId", () => {
       payload: { email: "second@owlmetry.com", role: "member" },
     });
 
-    // Re-login to pick up new membership
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const secondToken = loginRes.json().token;
+    // Re-authenticate to pick up new membership
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "PATCH",
@@ -180,13 +170,8 @@ describe("DELETE /v1/teams/:teamId", () => {
       payload: { name: "Backup Team", slug: "backup-team" },
     });
 
-    // Re-login to refresh memberships in JWT context
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: TEST_USER.email, password: TEST_USER.password },
-    });
-    const freshToken = loginRes.json().token;
+    // Re-authenticate to refresh memberships in JWT context
+    const { token: freshToken } = await getTokenAndTeamId(app);
 
     const res = await app.inject({
       method: "DELETE",
@@ -212,7 +197,7 @@ describe("DELETE /v1/teams/:teamId", () => {
 
   it("admin cannot delete team", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    const second = await registerSecondUser();
+    await registerSecondUser();
 
     // Add second user as admin
     await app.inject({
@@ -222,12 +207,7 @@ describe("DELETE /v1/teams/:teamId", () => {
       payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const adminToken = loginRes.json().token;
+    const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "DELETE",
@@ -259,7 +239,7 @@ describe("POST /v1/teams/:teamId/members", () => {
 
   it("admin can add a member", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    const second = await registerSecondUser();
+    await registerSecondUser();
 
     // Make second user an admin
     await app.inject({
@@ -270,19 +250,10 @@ describe("POST /v1/teams/:teamId/members", () => {
     });
 
     // Register a third user
-    await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
-    });
+    await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
 
     // Admin adds third user
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const adminToken = loginRes.json().token;
+    const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "POST",
@@ -307,18 +278,9 @@ describe("POST /v1/teams/:teamId/members", () => {
     });
 
     // Register third user
-    await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
-    });
+    await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
 
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const memberToken = loginRes.json().token;
+    const { token: memberToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "POST",
@@ -377,18 +339,9 @@ describe("POST /v1/teams/:teamId/members", () => {
     });
 
     // Register third user
-    await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
-    });
+    await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
 
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const adminToken = loginRes.json().token;
+    const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "POST",
@@ -455,7 +408,7 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
 
   it("admin cannot promote to owner", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    const second = await registerSecondUser();
+    await registerSecondUser();
 
     // Add second as admin
     await app.inject({
@@ -466,18 +419,7 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     });
 
     // Register third user and add as member
-    await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "third@owlmetry.com", password: "pass123", name: "Third User" },
-    });
-    const thirdLogin = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "third@owlmetry.com", password: "pass123" },
-    });
-    const thirdUserId = thirdLogin.json().user.id;
-
+    const third = await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
     await app.inject({
       method: "POST",
       url: `/v1/teams/${teamId}/members`,
@@ -486,16 +428,11 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     });
 
     // Admin tries to promote third to owner
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const adminToken = loginRes.json().token;
+    const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "PATCH",
-      url: `/v1/teams/${teamId}/members/${thirdUserId}`,
+      url: `/v1/teams/${teamId}/members/${third.userId}`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { role: "owner" },
     });
@@ -507,8 +444,6 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const second = await registerSecondUser();
 
-    // Add second as admin (they'll try to demote the owner)
-    // Actually, only an owner can demote another owner, so we need two owners first
     // Add second as owner
     await app.inject({
       method: "POST",
@@ -518,12 +453,7 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     });
 
     // Second owner demotes first — should succeed since there's still one owner left
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const secondToken = loginRes.json().token;
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res1 = await app.inject({
       method: "PATCH",
@@ -533,22 +463,6 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     });
     expect(res1.statusCode).toBe(200);
 
-    // Now try to demote the remaining sole owner — should fail
-    // First user (now admin) re-logs in
-    const loginRes2 = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: TEST_USER.email, password: TEST_USER.password },
-    });
-    // But admin can't demote owner, so let's check from the owner's side
-    // Second user (sole owner) tries to demote themselves — blocked by "cannot change own role"
-    // Instead, test: the system prevents the last owner from being demoted
-    // We already demoted first to admin. Now second is sole owner.
-    // Let's re-promote first to owner, then have first demote second (leaving first as sole),
-    // then try to demote first.
-
-    // Actually, the simplest scenario: start fresh with one owner, try to demote them
-    // The above already proved it works when there are 2 owners. Let's test the guard:
     // Re-promote first to owner
     const res2 = await app.inject({
       method: "PATCH",
@@ -559,12 +473,7 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     expect(res2.statusCode).toBe(200);
 
     // Now demote second, leaving first as sole owner
-    const freshLogin = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: TEST_USER.email, password: TEST_USER.password },
-    });
-    const freshToken = freshLogin.json().token;
+    const { token: freshToken } = await getTokenAndTeamId(app);
 
     const res3 = await app.inject({
       method: "PATCH",
@@ -573,12 +482,6 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
       payload: { role: "admin" },
     });
     expect(res3.statusCode).toBe(200);
-
-    // Now second (admin) cannot demote first (sole owner) — they don't have the role
-    // And first cannot demote themselves — blocked by "cannot change own role"
-    // This is effectively tested. Let's also verify via the guard directly:
-    // Add second back as owner, then make first the only one, and try from second
-    // ... the guard is covered. Moving on.
   });
 });
 
@@ -623,12 +526,7 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
       payload: { email: "second@owlmetry.com", role: "admin" },
     });
 
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const adminToken = loginRes.json().token;
+    const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "DELETE",
@@ -650,12 +548,7 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
       payload: { email: "second@owlmetry.com" },
     });
 
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    const memberToken = loginRes.json().token;
+    const { token: memberToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "DELETE",
@@ -698,12 +591,8 @@ describe("Role enforcement on existing routes", () => {
       payload: { email: "second@owlmetry.com", role },
     });
 
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: "second@owlmetry.com", password: "pass123" },
-    });
-    return loginRes.json().token;
+    const { token } = await createUserAndGetToken(app, "second@owlmetry.com");
+    return token;
   }
 
   it("member cannot create project", async () => {

@@ -6,6 +6,7 @@ import {
   seedTestData,
   getToken,
   getTokenAndTeamId,
+  testEmailService,
   TEST_USER,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
@@ -27,62 +28,72 @@ afterAll(async () => {
   await app.close();
 });
 
-describe("POST /v1/auth/register", () => {
-  it("creates user and default team", async () => {
+describe("POST /v1/auth/send-code", () => {
+  it("sends code for any email", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/v1/auth/register",
-      payload: {
-        email: "new@owlmetry.com",
-        password: "password123",
-        name: "New User",
-      },
+      url: "/v1/auth/send-code",
+      payload: { email: "anyone@owlmetry.com" },
     });
 
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.token).toBeDefined();
-    expect(body.user.email).toBe("new@owlmetry.com");
-    expect(body.user.name).toBe("New User");
-    expect(body.teams).toHaveLength(1);
-    expect(body.teams[0].role).toBe("owner");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message).toBe("Verification code sent");
+    expect(testEmailService.lastCode).toHaveLength(6);
+    expect(testEmailService.lastEmail).toBe("anyone@owlmetry.com");
   });
 
-  it("rejects duplicate email", async () => {
+  it("rejects missing email", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/v1/auth/register",
-      payload: {
-        email: TEST_USER.email,
-        password: "password123",
-        name: "Duplicate",
-      },
-    });
-
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error).toMatch(/already registered/i);
-  });
-
-  it("rejects missing fields", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "no@pass.com" },
+      url: "/v1/auth/send-code",
+      payload: {},
     });
 
     expect(res.statusCode).toBe(400);
   });
-});
 
-describe("POST /v1/auth/login", () => {
-  it("returns JWT and team list", async () => {
+  it("rejects invalid email", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/v1/auth/login",
-      payload: {
-        email: TEST_USER.email,
-        password: TEST_USER.password,
-      },
+      url: "/v1/auth/send-code",
+      payload: { email: "not-an-email" },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rate limits after 5 requests", async () => {
+    const email = "ratelimit@owlmetry.com";
+    for (let i = 0; i < 5; i++) {
+      await app.inject({
+        method: "POST",
+        url: "/v1/auth/send-code",
+        payload: { email },
+      });
+    }
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/send-code",
+      payload: { email },
+    });
+
+    expect(res.statusCode).toBe(429);
+  });
+});
+
+describe("POST /v1/auth/verify-code", () => {
+  it("authenticates existing user", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/send-code",
+      payload: { email: TEST_USER.email },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/verify-code",
+      payload: { email: TEST_USER.email, code: testEmailService.lastCode },
     });
 
     expect(res.statusCode).toBe(200);
@@ -91,33 +102,101 @@ describe("POST /v1/auth/login", () => {
     expect(body.user.email).toBe(TEST_USER.email);
     expect(body.teams).toHaveLength(1);
     expect(body.teams[0].id).toBe(testData.teamId);
+    expect(body.is_new_user).toBe(false);
+  });
+
+  it("creates new user and team for unknown email", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/send-code",
+      payload: { email: "newuser@owlmetry.com" },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/verify-code",
+      payload: { email: "newuser@owlmetry.com", code: testEmailService.lastCode },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.token).toBeDefined();
+    expect(body.user.email).toBe("newuser@owlmetry.com");
+    expect(body.user.name).toBe("Newuser");
+    expect(body.teams).toHaveLength(1);
     expect(body.teams[0].role).toBe("owner");
+    expect(body.is_new_user).toBe(true);
   });
 
-  it("rejects wrong password", async () => {
+  it("rejects invalid code", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/send-code",
+      payload: { email: TEST_USER.email },
+    });
+
     const res = await app.inject({
       method: "POST",
-      url: "/v1/auth/login",
-      payload: {
-        email: TEST_USER.email,
-        password: "wrongpassword",
-      },
+      url: "/v1/auth/verify-code",
+      payload: { email: TEST_USER.email, code: "000000" },
     });
 
     expect(res.statusCode).toBe(401);
   });
 
-  it("rejects non-existent user", async () => {
+  it("rejects already-used code", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/send-code",
+      payload: { email: TEST_USER.email },
+    });
+
+    const code = testEmailService.lastCode;
+
+    // Use it once
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/verify-code",
+      payload: { email: TEST_USER.email, code },
+    });
+
+    // Try again
     const res = await app.inject({
       method: "POST",
-      url: "/v1/auth/login",
-      payload: {
-        email: "nobody@owlmetry.com",
-        password: "password123",
-      },
+      url: "/v1/auth/verify-code",
+      payload: { email: TEST_USER.email, code },
     });
 
     expect(res.statusCode).toBe(401);
+  });
+
+  it("rejects missing fields", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/verify-code",
+      payload: { email: TEST_USER.email },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("sets JWT cookie", async () => {
+    await app.inject({
+      method: "POST",
+      url: "/v1/auth/send-code",
+      payload: { email: TEST_USER.email },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/verify-code",
+      payload: { email: TEST_USER.email, code: testEmailService.lastCode },
+    });
+
+    const cookies = res.cookies;
+    const tokenCookie = cookies.find((c: { name: string }) => c.name === "token");
+    expect(tokenCookie).toBeDefined();
+    expect(tokenCookie!.httpOnly).toBe(true);
   });
 });
 
@@ -271,13 +350,8 @@ describe("DELETE /v1/auth/keys/:id", () => {
   });
 
   it("returns 404 for key belonging to another team", async () => {
-    // Register a second user (gets their own team)
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
-    });
-    const otherToken = regRes.json().token;
+    // Create a second user (gets their own team)
+    const { token: otherToken } = await createSecondUser();
 
     // Get a key ID from the original team
     const token = await getToken(app);
@@ -340,26 +414,6 @@ describe("PATCH /v1/auth/me", () => {
     expect(new Date(res.json().user.updated_at).getTime()).toBeGreaterThanOrEqual(
       new Date(originalUpdatedAt).getTime()
     );
-  });
-
-  it("updates user password", async () => {
-    const token = await getToken(app);
-    const res = await app.inject({
-      method: "PATCH",
-      url: "/v1/auth/me",
-      headers: { authorization: `Bearer ${token}` },
-      payload: { password: "newpassword123" },
-    });
-
-    expect(res.statusCode).toBe(200);
-
-    // Verify new password works for login
-    const loginRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/login",
-      payload: { email: TEST_USER.email, password: "newpassword123" },
-    });
-    expect(loginRes.statusCode).toBe(200);
   });
 
   it("rejects empty body", async () => {
@@ -431,12 +485,7 @@ describe("GET /v1/auth/keys/:id", () => {
   });
 
   it("returns 404 for key belonging to another team", async () => {
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
-    });
-    const otherToken = regRes.json().token;
+    const { token: otherToken } = await createSecondUser();
 
     const token = await getToken(app);
     const listRes = await app.inject({
@@ -562,3 +611,20 @@ describe("POST /v1/auth/keys", () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+/** Helper: create a second user via verification code flow. */
+async function createSecondUser() {
+  await app.inject({
+    method: "POST",
+    url: "/v1/auth/send-code",
+    payload: { email: "other@owlmetry.com" },
+  });
+  const code = testEmailService.lastCode;
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/auth/verify-code",
+    payload: { email: "other@owlmetry.com", code },
+  });
+  const body = res.json();
+  return { token: body.token, userId: body.user.id, teamId: body.teams[0].id };
+}

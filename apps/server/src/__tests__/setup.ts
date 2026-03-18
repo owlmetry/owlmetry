@@ -19,7 +19,7 @@ import { identityRoutes } from "../routes/identity.js";
 import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
 import { decompressPlugin } from "../middleware/decompress.js";
-import bcrypt from "bcrypt";
+import type { EmailService } from "../services/email.js";
 
 export const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
 
@@ -33,9 +33,18 @@ export const TEST_BUNDLE_ID = "com.owlmetry.test";
 export const TEST_SESSION_ID = "00000000-0000-0000-0000-000000000001";
 export const TEST_USER = {
   email: "test@owlmetry.com",
-  password: "testpass123",
   name: "Test User",
 };
+
+export class TestEmailService implements EmailService {
+  lastCode: string = "";
+  lastEmail: string = "";
+
+  async sendVerificationCode(email: string, code: string): Promise<void> {
+    this.lastCode = code;
+    this.lastEmail = email;
+  }
+}
 
 let migrationClient: postgres.Sql | null = null;
 
@@ -147,11 +156,14 @@ export async function setupTestDb() {
   migrationClient = null;
 }
 
+export const testEmailService = new TestEmailService();
+
 export async function buildApp() {
   const app = Fastify({ logger: false });
   const db = createDatabaseConnection(TEST_DB_URL);
 
   app.decorate("db", db);
+  app.decorate("emailService", testEmailService as EmailService);
   await app.register(decompressPlugin);
   await app.register(cookie);
   await app.register(cors, { origin: true, credentials: true });
@@ -182,6 +194,7 @@ export async function truncateAll() {
   await client`DELETE FROM projects`;
   await client`DELETE FROM team_members`;
   await client`DELETE FROM teams`;
+  await client`DELETE FROM email_verification_codes`;
   await client`DELETE FROM users`;
   await client.end();
 }
@@ -189,11 +202,9 @@ export async function truncateAll() {
 export async function seedTestData() {
   const client = postgres(TEST_DB_URL, { max: 1 });
 
-  const passwordHash = await bcrypt.hash(TEST_USER.password, 4); // low rounds for speed
-
   const [user] = await client`
-    INSERT INTO users (email, password_hash, name)
-    VALUES (${TEST_USER.email}, ${passwordHash}, ${TEST_USER.name})
+    INSERT INTO users (email, name)
+    VALUES (${TEST_USER.email}, ${TEST_USER.name})
     RETURNING id
   `;
 
@@ -269,14 +280,69 @@ export async function seedTestData() {
 }
 
 /**
- * Logs in and returns the JWT token and the user's first team ID.
+ * Creates a user via the send-code/verify-code flow and returns token + user info.
  */
-export async function getTokenAndTeamId(app: FastifyInstance) {
+export async function createUserAndGetToken(
+  app: FastifyInstance,
+  email: string,
+  name?: string,
+): Promise<{ token: string; user: any; teams: any[]; userId: string; teamId: string }> {
+  // Send code
+  await app.inject({
+    method: "POST",
+    url: "/v1/auth/send-code",
+    payload: { email },
+  });
+
+  const code = testEmailService.lastCode;
+
+  // Verify code
   const res = await app.inject({
     method: "POST",
-    url: "/v1/auth/login",
-    payload: { email: TEST_USER.email, password: TEST_USER.password },
+    url: "/v1/auth/verify-code",
+    payload: { email, code },
   });
+
+  const body = res.json();
+
+  // Optionally update name if provided and different
+  if (name && body.user.name !== name) {
+    await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${body.token}` },
+      payload: { name },
+    });
+  }
+
+  return {
+    token: body.token,
+    user: body.user,
+    teams: body.teams,
+    userId: body.user.id,
+    teamId: body.teams[0].id,
+  };
+}
+
+/**
+ * Logs in the seeded test user and returns the JWT token and the user's first team ID.
+ */
+export async function getTokenAndTeamId(app: FastifyInstance) {
+  // Send code for existing test user
+  await app.inject({
+    method: "POST",
+    url: "/v1/auth/send-code",
+    payload: { email: TEST_USER.email },
+  });
+
+  const code = testEmailService.lastCode;
+
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/auth/verify-code",
+    payload: { email: TEST_USER.email, code },
+  });
+
   const body = res.json();
   return { token: body.token, teamId: body.teams[0].id };
 }

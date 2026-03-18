@@ -5,6 +5,7 @@ import {
   truncateAll,
   seedTestData,
   getToken,
+  createUserAndGetToken,
   TEST_CLIENT_KEY,
 } from "./setup.js";
 
@@ -258,12 +259,7 @@ describe("DELETE /v1/projects/:id", () => {
   });
 
   it("returns 404 for project belonging to another team", async () => {
-    const regRes = await app.inject({
-      method: "POST",
-      url: "/v1/auth/register",
-      payload: { email: "other@owlmetry.com", password: "pass123", name: "Other" },
-    });
-    const otherToken = regRes.json().token;
+    const { token: otherToken } = await createUserAndGetToken(app, "other@owlmetry.com", "Other");
 
     const res = await app.inject({
       method: "DELETE",

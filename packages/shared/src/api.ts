@@ -6,15 +6,21 @@ import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js
 export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
 
 // Auth
-export interface RegisterRequest {
+export interface SendCodeRequest {
   email: string;
-  password: string;
-  name: string;
 }
 
-export interface LoginRequest {
+export interface SendCodeResponse {
+  message: string;
+}
+
+export interface VerifyCodeRequest {
   email: string;
-  password: string;
+  code: string;
+}
+
+export interface VerifyCodeResponse extends AuthResponse {
+  is_new_user: boolean;
 }
 
 export interface AuthTeamMembership {
@@ -61,7 +67,6 @@ export interface MeResponse {
 
 export interface UpdateMeRequest {
   name?: string;
-  password?: string;
 }
 
 export interface UpdateApiKeyRequest {
