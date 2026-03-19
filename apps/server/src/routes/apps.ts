@@ -9,12 +9,22 @@ import { logAuditEvent } from "../utils/audit.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
-  app.get(
+  app.get<{ Querystring: { team_id?: string } }>(
     "/apps",
     { preHandler: requirePermission("apps:read") },
     async (request, reply) => {
       const auth = request.auth;
-      const teamIds = getAuthTeamIds(auth);
+      const allTeamIds = getAuthTeamIds(auth);
+      const { team_id } = request.query;
+
+      // If team_id is specified, validate access and scope to that team
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
+      if (teamIds.length === 0) {
+        return { apps: [] };
+      }
 
       const rows = await app.db
         .select()

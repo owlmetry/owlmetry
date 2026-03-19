@@ -13,6 +13,7 @@ function validateMetricSlug(slug: string): string | null {
   }
   return null;
 }
+import { useTeam } from "@/contexts/team-context";
 import { useMetricDefinitions } from "@/hooks/use-metrics";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,11 @@ import { BarChart3, Plus } from "lucide-react";
 
 export default function MetricsPage() {
   const router = useRouter();
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
+  const { currentTeam } = useTeam();
+  const teamId = currentTeam?.id;
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
   const projects = projectsData?.projects ?? [];
 
   const [projectId, setProjectId] = useState("");

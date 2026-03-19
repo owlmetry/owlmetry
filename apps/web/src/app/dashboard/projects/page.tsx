@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
 import { useTeam } from "@/contexts/team-context";
+import { useUser } from "@/hooks/use-user";
 import type { ProjectResponse } from "@owlmetry/shared";
 
 function slugify(name: string): string {
@@ -27,23 +28,29 @@ function slugify(name: string): string {
 
 export default function ProjectsPage() {
   const { currentTeam } = useTeam();
-  const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
+  const { isLoading: isUserLoading } = useUser();
+  const teamId = currentTeam?.id;
+  const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const projects = data?.projects ?? [];
-  const defaultTeamId = currentTeam?.id;
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!defaultTeamId) return;
+    if (!teamId) {
+      setError("No team available. Please reload the page.");
+      return;
+    }
     setError("");
     setLoading(true);
 
     try {
-      await api.post("/v1/projects", { name, slug: slugify(name), team_id: defaultTeamId });
+      await api.post("/v1/projects", { name, slug: slugify(name), team_id: teamId });
       setName("");
       setOpen(false);
       mutate();
@@ -86,8 +93,8 @@ export default function ProjectsPage() {
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <DialogFooter>
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Creating..." : "Create Project"}
+                <Button type="submit" disabled={loading || isUserLoading}>
+                  {isUserLoading ? "Loading..." : loading ? "Creating..." : "Create Project"}
                 </Button>
               </DialogFooter>
             </form>

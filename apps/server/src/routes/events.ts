@@ -13,9 +13,10 @@ export async function eventsRoutes(app: FastifyInstance) {
     { preHandler: [requirePermission("events:read"), rateLimit] },
     async (request, reply) => {
       const auth = request.auth;
-      const teamIds = getAuthTeamIds(auth);
+      const allTeamIds = getAuthTeamIds(auth);
 
       const {
+        team_id,
         project_id,
         app_id,
         level,
@@ -30,6 +31,15 @@ export async function eventsRoutes(app: FastifyInstance) {
       } = request.query;
 
       const limit = normalizeLimit(rawLimit);
+
+      // If team_id is specified, validate access and scope to that team
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
+      if (teamIds.length === 0) {
+        return { events: [], cursor: null, has_more: false };
+      }
 
       const conditions = [];
 

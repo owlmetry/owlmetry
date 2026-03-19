@@ -3,13 +3,18 @@
 import Link from "next/link";
 import useSWR from "swr";
 import { useUser } from "@/hooks/use-user";
+import { useTeam } from "@/contexts/team-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FolderOpen, Plus, ArrowRight, Activity } from "lucide-react";
 import type { ProjectResponse } from "@owlmetry/shared";
 
 export default function DashboardPage() {
   const { user, teams } = useUser();
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
+  const { currentTeam } = useTeam();
+  const teamId = currentTeam?.id;
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
 
   const teamCount = teams?.length ?? 0;
   const projectCount = projectsData?.projects?.length ?? 0;

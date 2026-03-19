@@ -177,6 +177,7 @@ export type StoredEventResponse = Omit<StoredEvent, "timestamp" | "received_at">
 
 // Events query
 export interface EventsQueryParams {
+  team_id?: string;
   project_id?: string;
   app_id?: string;
   level?: string;

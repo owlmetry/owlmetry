@@ -12,6 +12,7 @@ import type {
 } from "@owlmetry/shared";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
+import { useTeam } from "@/contexts/team-context";
 import { useEvents } from "@/hooks/use-events";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
@@ -37,6 +38,8 @@ import { X } from "lucide-react";
 export default function EventsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { currentTeam } = useTeam();
+  const teamId = currentTeam?.id;
 
   // Filters from URL
   const [projectId, setProjectId] = useState(searchParams.get("project_id") ?? "");
@@ -53,8 +56,12 @@ export default function EventsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   // Projects & apps for filter dropdowns
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
-  const { data: appsData } = useSWR<{ apps: AppResponse[] }>("/v1/apps");
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
+  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
+    teamId ? `/v1/apps?team_id=${teamId}` : null
+  );
 
   const projects = projectsData?.projects ?? [];
   const allApps = appsData?.apps ?? [];
@@ -66,6 +73,7 @@ export default function EventsPage() {
 
   // Build filter params
   const filters: EventsQueryParams = {};
+  if (teamId) filters.team_id = teamId;
   if (projectId) filters.project_id = projectId;
   if (appId) filters.app_id = appId;
   if (level) filters.level = level;
