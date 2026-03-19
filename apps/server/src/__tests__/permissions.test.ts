@@ -16,6 +16,7 @@ import {
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
   TEST_SESSION_ID,
+  addTeamMember,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -827,13 +828,8 @@ describe("JWT user permission bypass", () => {
     const { token, teamId } = await getTokenAndTeamId(app);
 
     // Create a second user and add as member
-    await createUserAndGetToken(app, "member@owlmetry.com", "Member");
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "member@owlmetry.com", role: "member" },
-    });
+    const member = await createUserAndGetToken(app, "member@owlmetry.com", "Member");
+    await addTeamMember(teamId, member.userId, "member");
     const { token: memberToken } = await createUserAndGetToken(app, "member@owlmetry.com");
 
     // Member can read
@@ -1094,13 +1090,8 @@ describe("PATCH /v1/auth/keys/:id", () => {
     const { keyId } = await createKeyAndGetId(token, teamId);
 
     // Create second user and add as member
-    await createUserAndGetToken(app, "member-update@owlmetry.com", "Member");
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "member-update@owlmetry.com", role: "member" },
-    });
+    const memberUser = await createUserAndGetToken(app, "member-update@owlmetry.com", "Member");
+    await addTeamMember(teamId, memberUser.userId, "member");
     const { token: memberToken } = await createUserAndGetToken(app, "member-update@owlmetry.com");
 
     const res = await app.inject({

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Trash2, LogOut } from "lucide-react";
+import { Trash2, LogOut, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ import {
   meetsMinimumRole,
   VALID_TEAM_ROLES,
 } from "@owlmetry/shared/auth";
-import type { TeamDetailResponse, TeamRole } from "@owlmetry/shared";
+import type { TeamDetailResponse, TeamInvitationResponse, TeamRole } from "@owlmetry/shared";
 import { useRouter } from "next/navigation";
 
 function roleBadgeVariant(role: TeamRole) {
@@ -154,6 +154,54 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
+      {/* Pending Invitations */}
+      {(teamDetail?.pending_invitations?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Invitations</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Invited By</TableHead>
+                  <TableHead>Expires</TableHead>
+                  {isAdmin && <TableHead className="w-[80px]">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teamDetail!.pending_invitations.map((inv) => (
+                  <TableRow key={inv.id}>
+                    <TableCell>{inv.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={roleBadgeVariant(inv.role)}>{inv.role}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {inv.invited_by.name}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(inv.expires_at).toLocaleDateString()}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <RevokeInvitationButton
+                          teamId={currentTeam.id}
+                          invitationId={inv.id}
+                          email={inv.email}
+                          onRevoked={() => mutate()}
+                        />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Settings section */}
       {isAdmin && (
         <TeamSettings
@@ -244,11 +292,11 @@ function InviteMemberDialog({
     setError("");
     setLoading(true);
     try {
-      await api.post(`/v1/teams/${teamId}/members`, { email, role });
+      await api.post(`/v1/teams/${teamId}/invitations`, { email, role });
       resetAndClose();
       onInvited();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to invite member");
+      setError(err instanceof ApiError ? err.message : "Failed to send invitation");
     } finally {
       setLoading(false);
     }
@@ -263,7 +311,7 @@ function InviteMemberDialog({
         <DialogHeader>
           <DialogTitle>Invite Member</DialogTitle>
           <DialogDescription>
-            Add a new member to the team by email address.
+            Send an invitation to join the team by email address.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -357,6 +405,47 @@ function RemoveMemberButton({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// --- Revoke Invitation Button ---
+
+function RevokeInvitationButton({
+  teamId,
+  invitationId,
+  email,
+  onRevoked,
+}: {
+  teamId: string;
+  invitationId: string;
+  email: string;
+  onRevoked: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleRevoke() {
+    setLoading(true);
+    try {
+      await api.delete(`/v1/teams/${teamId}/invitations/${invitationId}`);
+      onRevoked();
+    } catch {
+      // Error handling
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+      onClick={handleRevoke}
+      disabled={loading}
+      title={`Revoke invitation for ${email}`}
+    >
+      <X className="h-4 w-4" />
+    </Button>
   );
 }
 

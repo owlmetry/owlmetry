@@ -197,6 +197,42 @@ export interface TeamMemberResponse {
   joined_at: string;
 }
 
+// Team Invitations
+export interface CreateTeamInvitationRequest {
+  email: string;
+  role?: TeamRole;
+}
+
+export interface TeamInvitationResponse {
+  id: string;
+  team_id: string;
+  email: string;
+  role: TeamRole;
+  invited_by: { user_id: string; name: string; email: string };
+  expires_at: string;
+  accepted_at: string | null;
+  created_at: string;
+}
+
+export interface TeamInvitationPublicResponse {
+  team_name: string;
+  team_slug: string;
+  role: TeamRole;
+  email: string;
+  invited_by_name: string;
+  expires_at: string;
+}
+
+export interface AcceptInvitationRequest {
+  token: string;
+}
+
+export interface AcceptInvitationResponse {
+  team_id: string;
+  team_name: string;
+  role: TeamRole;
+}
+
 export interface TeamDetailResponse {
   id: string;
   name: string;
@@ -204,6 +240,7 @@ export interface TeamDetailResponse {
   created_at: string;
   updated_at: string;
   members: TeamMemberResponse[];
+  pending_invitations: TeamInvitationResponse[];
 }
 
 // App Users

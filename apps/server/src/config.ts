@@ -9,4 +9,5 @@ export const config = {
   cookieSecure: process.env.NODE_ENV === "production",
   resendApiKey: process.env.RESEND_API_KEY || "",
   emailFrom: process.env.EMAIL_FROM || "noreply@owlmetry.com",
+  webAppUrl: process.env.WEB_APP_URL || "http://localhost:3000",
 };

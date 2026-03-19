@@ -7,6 +7,8 @@ import {
   getToken,
   getTokenAndTeamId,
   createUserAndGetToken,
+  addTeamMember,
+  testEmailService,
   TEST_USER,
 } from "./setup.js";
 
@@ -86,7 +88,7 @@ describe("POST /v1/teams", () => {
 });
 
 describe("GET /v1/teams/:teamId", () => {
-  it("returns team details with members", async () => {
+  it("returns team details with members and pending_invitations", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
 
     const res = await app.inject({
@@ -101,6 +103,8 @@ describe("GET /v1/teams/:teamId", () => {
     expect(body.members).toHaveLength(1);
     expect(body.members[0].role).toBe("owner");
     expect(body.members[0].email).toBe(TEST_USER.email);
+    expect(body.pending_invitations).toBeDefined();
+    expect(body.pending_invitations).toHaveLength(0);
   });
 
   it("returns 403 for non-members", async () => {
@@ -134,15 +138,9 @@ describe("PATCH /v1/teams/:teamId", () => {
 
   it("member cannot rename team", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+    const second = await registerSecondUser();
 
-    // Add second user as member
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "member" },
-    });
+    await addTeamMember(teamId, second.userId, "member");
 
     // Re-authenticate to pick up new membership
     const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
@@ -197,15 +195,9 @@ describe("DELETE /v1/teams/:teamId", () => {
 
   it("admin cannot delete team", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+    const second = await registerSecondUser();
 
-    // Add second user as admin
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "admin" },
-    });
+    await addTeamMember(teamId, second.userId, "admin");
 
     const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
@@ -219,45 +211,41 @@ describe("DELETE /v1/teams/:teamId", () => {
   });
 });
 
-// ─── Member Management ─────────────────────────────────────────────
+// ─── Team Invitations ─────────────────────────────────────────────
 
-describe("POST /v1/teams/:teamId/members", () => {
-  it("owner can add a member", async () => {
+describe("POST /v1/teams/:teamId/invitations", () => {
+  it("owner can invite a user by email", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/teams/${teamId}/members`,
+      url: `/v1/teams/${teamId}/invitations`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com" },
+      payload: { email: "newuser@owlmetry.com" },
     });
 
     expect(res.statusCode).toBe(201);
-    expect(res.json().role).toBe("member");
+    const body = res.json();
+    expect(body.email).toBe("newuser@owlmetry.com");
+    expect(body.role).toBe("member");
+    expect(body.invited_by.email).toBe(TEST_USER.email);
+    expect(body.expires_at).toBeDefined();
+
+    // Verify email service was called
+    expect(testEmailService.lastInvitationEmail).toBe("newuser@owlmetry.com");
+    expect(testEmailService.lastInvitationParams?.team_name).toBe("Test Team");
   });
 
-  it("admin can add a member", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+  it("admin can invite a user", async () => {
+    const { teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
 
-    // Make second user an admin
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "admin" },
-    });
-
-    // Register a third user
-    await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
-
-    // Admin adds third user
+    await addTeamMember(teamId, second.userId, "admin");
     const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/teams/${teamId}/members`,
+      url: `/v1/teams/${teamId}/invitations`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { email: "third@owlmetry.com" },
     });
@@ -265,26 +253,16 @@ describe("POST /v1/teams/:teamId/members", () => {
     expect(res.statusCode).toBe(201);
   });
 
-  it("member cannot add members", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+  it("member cannot invite", async () => {
+    const { teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
 
-    // Add second as member
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "member" },
-    });
-
-    // Register third user
-    await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
-
+    await addTeamMember(teamId, second.userId, "member");
     const { token: memberToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/teams/${teamId}/members`,
+      url: `/v1/teams/${teamId}/invitations`,
       headers: { authorization: `Bearer ${memberToken}` },
       payload: { email: "third@owlmetry.com" },
     });
@@ -292,33 +270,15 @@ describe("POST /v1/teams/:teamId/members", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("returns 404 for non-existent email", async () => {
+  it("returns 409 if user is already a member", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+
+    await addTeamMember(teamId, second.userId, "member");
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "nobody@owlmetry.com" },
-    });
-
-    expect(res.statusCode).toBe(404);
-  });
-
-  it("returns 409 for existing member", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
-
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com" },
-    });
-
-    const res = await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
+      url: `/v1/teams/${teamId}/invitations`,
       headers: { authorization: `Bearer ${token}` },
       payload: { email: "second@owlmetry.com" },
     });
@@ -326,26 +286,16 @@ describe("POST /v1/teams/:teamId/members", () => {
     expect(res.statusCode).toBe(409);
   });
 
-  it("admin cannot add someone as owner", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+  it("admin cannot invite as owner", async () => {
+    const { teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
 
-    // Add second as admin
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "admin" },
-    });
-
-    // Register third user
-    await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
-
+    await addTeamMember(teamId, second.userId, "admin");
     const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/teams/${teamId}/members`,
+      url: `/v1/teams/${teamId}/invitations`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: { email: "third@owlmetry.com", role: "owner" },
     });
@@ -353,34 +303,186 @@ describe("POST /v1/teams/:teamId/members", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("owner can add someone as owner", async () => {
+  it("owner can invite as owner", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
 
     const res = await app.inject({
       method: "POST",
-      url: `/v1/teams/${teamId}/members`,
+      url: `/v1/teams/${teamId}/invitations`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "owner" },
+      payload: { email: "newuser@owlmetry.com", role: "owner" },
     });
 
     expect(res.statusCode).toBe(201);
     expect(res.json().role).toBe("owner");
   });
+
+  it("re-inviting same email regenerates token", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    const res1 = await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: "newuser@owlmetry.com" },
+    });
+
+    const res2 = await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: "newuser@owlmetry.com", role: "admin" },
+    });
+
+    expect(res1.statusCode).toBe(201);
+    expect(res2.statusCode).toBe(201);
+    // Same invitation ID but updated role
+    expect(res2.json().id).toBe(res1.json().id);
+    expect(res2.json().role).toBe("admin");
+  });
 });
+
+describe("GET /v1/invites/:token", () => {
+  it("returns public invite info", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    const createRes = await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: "newuser@owlmetry.com", role: "admin" },
+    });
+
+    // Extract token from the accept URL
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/invites/${inviteToken}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.team_name).toBe("Test Team");
+    expect(body.role).toBe("admin");
+    expect(body.email).toBe("newuser@owlmetry.com");
+    expect(body.invited_by_name).toBe(TEST_USER.name);
+  });
+
+  it("returns 404 for invalid token", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/invites/00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("POST /v1/invites/accept", () => {
+  it("accepts an invitation and adds user to team", async () => {
+    const { token: ownerToken, teamId } = await getTokenAndTeamId(app);
+
+    // Create invitation for a new user
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { email: "newuser@owlmetry.com", role: "admin" },
+    });
+
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    // Register the new user
+    const newUser = await createUserAndGetToken(app, "newuser@owlmetry.com", "New User");
+
+    // Accept the invitation
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/invites/accept",
+      headers: { authorization: `Bearer ${newUser.token}` },
+      payload: { token: inviteToken },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.team_name).toBe("Test Team");
+    expect(body.role).toBe("admin");
+
+    // Verify the user is now a member
+    const { token: freshToken } = await createUserAndGetToken(app, "newuser@owlmetry.com");
+    const teamRes = await app.inject({
+      method: "GET",
+      url: `/v1/teams/${teamId}`,
+      headers: { authorization: `Bearer ${freshToken}` },
+    });
+
+    expect(teamRes.statusCode).toBe(200);
+    expect(teamRes.json().members).toHaveLength(2);
+  });
+
+  it("rejects if email doesn't match", async () => {
+    const { token: ownerToken, teamId } = await getTokenAndTeamId(app);
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { email: "specific@owlmetry.com" },
+    });
+
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    // Different user tries to accept
+    const wrongUser = await createUserAndGetToken(app, "wrong@owlmetry.com", "Wrong User");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/invites/accept",
+      headers: { authorization: `Bearer ${wrongUser.token}` },
+      payload: { token: inviteToken },
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toContain("specific@owlmetry.com");
+  });
+});
+
+describe("DELETE /v1/teams/:teamId/invitations/:invitationId", () => {
+  it("admin can revoke an invitation", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    const createRes = await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: "newuser@owlmetry.com" },
+    });
+
+    const invitationId = createRes.json().id;
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}/invitations/${invitationId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(true);
+  });
+});
+
+// ─── Member Management ─────────────────────────────────────────────
 
 describe("PATCH /v1/teams/:teamId/members/:userId", () => {
   it("owner can change member to admin", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const second = await registerSecondUser();
 
-    // Add second as member
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com" },
-    });
+    await addTeamMember(teamId, second.userId, "member");
 
     const res = await app.inject({
       method: "PATCH",
@@ -408,24 +510,13 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
 
   it("admin cannot promote to owner", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+    const second = await registerSecondUser();
 
-    // Add second as admin
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "admin" },
-    });
+    await addTeamMember(teamId, second.userId, "admin");
 
     // Register third user and add as member
     const third = await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "third@owlmetry.com" },
-    });
+    await addTeamMember(teamId, third.userId, "member");
 
     // Admin tries to promote third to owner
     const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
@@ -445,12 +536,7 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     const second = await registerSecondUser();
 
     // Add second as owner
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "owner" },
-    });
+    await addTeamMember(teamId, second.userId, "owner");
 
     // Second owner demotes first — should succeed since there's still one owner left
     const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
@@ -490,12 +576,7 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const second = await registerSecondUser();
 
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com" },
-    });
+    await addTeamMember(teamId, second.userId, "member");
 
     const res = await app.inject({
       method: "DELETE",
@@ -517,14 +598,9 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
 
   it("admin cannot remove owner", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
-    await registerSecondUser();
+    const second = await registerSecondUser();
 
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com", role: "admin" },
-    });
+    await addTeamMember(teamId, second.userId, "admin");
 
     const { token: adminToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
@@ -541,12 +617,7 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
     const { token, teamId } = await getTokenAndTeamId(app);
     const second = await registerSecondUser();
 
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { email: "second@owlmetry.com" },
-    });
+    await addTeamMember(teamId, second.userId, "member");
 
     const { token: memberToken } = await createUserAndGetToken(app, "second@owlmetry.com");
 
@@ -578,26 +649,18 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
 
 describe("Role enforcement on existing routes", () => {
   async function addMemberAndGetToken(
-    ownerToken: string,
     teamId: string,
     role: "member" | "admin"
   ) {
-    await registerSecondUser();
-
-    await app.inject({
-      method: "POST",
-      url: `/v1/teams/${teamId}/members`,
-      headers: { authorization: `Bearer ${ownerToken}` },
-      payload: { email: "second@owlmetry.com", role },
-    });
-
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, role);
     const { token } = await createUserAndGetToken(app, "second@owlmetry.com");
     return token;
   }
 
   it("member cannot create project", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const memberToken = await addMemberAndGetToken(token, teamId, "member");
+    const { teamId } = await getTokenAndTeamId(app);
+    const memberToken = await addMemberAndGetToken(teamId, "member");
 
     const res = await app.inject({
       method: "POST",
@@ -610,8 +673,8 @@ describe("Role enforcement on existing routes", () => {
   });
 
   it("admin can create project", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const adminToken = await addMemberAndGetToken(token, teamId, "admin");
+    const { teamId } = await getTokenAndTeamId(app);
+    const adminToken = await addMemberAndGetToken(teamId, "admin");
 
     const res = await app.inject({
       method: "POST",
@@ -624,8 +687,8 @@ describe("Role enforcement on existing routes", () => {
   });
 
   it("member can read projects", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const memberToken = await addMemberAndGetToken(token, teamId, "member");
+    const { teamId } = await getTokenAndTeamId(app);
+    const memberToken = await addMemberAndGetToken(teamId, "member");
 
     const res = await app.inject({
       method: "GET",
@@ -638,8 +701,8 @@ describe("Role enforcement on existing routes", () => {
   });
 
   it("member cannot delete app", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const memberToken = await addMemberAndGetToken(token, teamId, "member");
+    const { teamId } = await getTokenAndTeamId(app);
+    const memberToken = await addMemberAndGetToken(teamId, "member");
 
     const res = await app.inject({
       method: "DELETE",
@@ -651,8 +714,8 @@ describe("Role enforcement on existing routes", () => {
   });
 
   it("member cannot create API key", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const memberToken = await addMemberAndGetToken(token, teamId, "member");
+    const { teamId } = await getTokenAndTeamId(app);
+    const memberToken = await addMemberAndGetToken(teamId, "member");
 
     const res = await app.inject({
       method: "POST",
@@ -665,8 +728,8 @@ describe("Role enforcement on existing routes", () => {
   });
 
   it("member can read API keys", async () => {
-    const { token, teamId } = await getTokenAndTeamId(app);
-    const memberToken = await addMemberAndGetToken(token, teamId, "member");
+    const { teamId } = await getTokenAndTeamId(app);
+    const memberToken = await addMemberAndGetToken(teamId, "member");
 
     const res = await app.inject({
       method: "GET",

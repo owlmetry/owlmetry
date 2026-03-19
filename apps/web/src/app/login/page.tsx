@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,17 @@ import { Label } from "@/components/ui/label";
 import { OwlLogo } from "@/components/owl-logo";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -38,7 +48,9 @@ export default function LoginPage() {
 
     try {
       await api.post("/v1/auth/verify-code", { email, code });
-      router.push("/dashboard");
+      // Redirect to the original page if present (prevent open redirect)
+      const target = redirect && redirect.startsWith("/") ? redirect : "/dashboard";
+      router.push(target);
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Verification failed");

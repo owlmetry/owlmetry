@@ -9,7 +9,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
 import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions } from "@owlmetry/db";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
-import type { Permission } from "@owlmetry/shared";
+import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { eventsRoutes } from "../routes/events.js";
@@ -18,6 +18,7 @@ import { projectsRoutes } from "../routes/projects.js";
 import { identityRoutes } from "../routes/identity.js";
 import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
+import { invitationRoutes } from "../routes/invitations.js";
 import { metricsRoutes } from "../routes/metrics.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
@@ -40,10 +41,17 @@ export const TEST_USER = {
 export class TestEmailService implements EmailService {
   lastCode: string = "";
   lastEmail: string = "";
+  lastInvitationEmail: string = "";
+  lastInvitationParams: { team_name: string; invited_by_name: string; role: string; accept_url: string } | null = null;
 
   async sendVerificationCode(email: string, code: string): Promise<void> {
     this.lastCode = code;
     this.lastEmail = email;
+  }
+
+  async sendTeamInvitation(email: string, params: { team_name: string; invited_by_name: string; role: string; accept_url: string }): Promise<void> {
+    this.lastInvitationEmail = email;
+    this.lastInvitationParams = params;
   }
 }
 
@@ -247,6 +255,7 @@ export async function buildApp() {
   await app.register(identityRoutes, { prefix: "/v1" });
   await app.register(appUsersRoutes, { prefix: "/v1" });
   await app.register(teamsRoutes, { prefix: "/v1" });
+  await app.register(invitationRoutes, { prefix: "/v1" });
   await app.register(metricsRoutes, { prefix: "/v1" });
 
   await app.ready();
@@ -264,6 +273,7 @@ export async function truncateAll() {
   await client`DELETE FROM api_keys`;
   await client`DELETE FROM apps`;
   await client`DELETE FROM projects`;
+  await client`DELETE FROM team_invitations`;
   await client`DELETE FROM team_members`;
   await client`DELETE FROM teams`;
   await client`DELETE FROM email_verification_codes`;
@@ -443,4 +453,21 @@ export async function createAgentKey(
     payload: { name: "Custom Agent Key", key_type: "agent", team_id: teamId, permissions },
   });
   return res.json().key;
+}
+
+/**
+ * Directly inserts a team member via DB (bypasses invitation flow).
+ * Useful for tests that need members without going through email invitations.
+ */
+export async function addTeamMember(
+  teamId: string,
+  userId: string,
+  role: TeamRole = "member"
+): Promise<void> {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`
+    INSERT INTO team_members (team_id, user_id, role)
+    VALUES (${teamId}, ${userId}, ${role})
+  `;
+  await client.end();
 }

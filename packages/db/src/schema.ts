@@ -247,6 +247,33 @@ export const appUsers = pgTable(
   ]
 );
 
+// Team Invitations
+export const teamInvitations = pgTable(
+  "team_invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 255 }).notNull(),
+    role: teamRoleEnum("role").notNull().default("member"),
+    token: uuid("token").notNull().defaultRandom(),
+    invited_by_user_id: uuid("invited_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    accepted_at: timestamp("accepted_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("team_invitations_team_email_idx").on(table.team_id, table.email),
+    uniqueIndex("team_invitations_token_idx").on(table.token),
+    index("team_invitations_email_idx").on(table.email),
+  ]
+);
+
 // Funnel Definitions
 export const funnelDefinitions = pgTable(
   "funnel_definitions",

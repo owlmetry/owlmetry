@@ -7,10 +7,10 @@ import type {
   TeamRole,
   CreateTeamRequest,
   UpdateTeamRequest,
-  AddTeamMemberRequest,
   UpdateTeamMemberRoleRequest,
 } from "@owlmetry/shared";
 import { requireAuth, getTeamRole, assertTeamRole } from "../middleware/auth.js";
+import { getPendingInvitations } from "./invitations.js";
 import type { UserContext } from "../types.js";
 
 async function getTeamMembers(db: Db, teamId: string) {
@@ -112,9 +112,10 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: roleError });
       }
 
-      const [teamRows, members] = await Promise.all([
+      const [teamRows, members, pendingInvitations] = await Promise.all([
         app.db.select().from(teams).where(eq(teams.id, teamId)).limit(1),
         getTeamMembers(app.db, teamId),
+        getPendingInvitations(app.db, teamId),
       ]);
 
       const team = teamRows[0];
@@ -129,6 +130,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         created_at: team.created_at.toISOString(),
         updated_at: team.updated_at.toISOString(),
         members,
+        pending_invitations: pendingInvitations,
       };
     }
   );
@@ -224,74 +226,6 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       return { members: await getTeamMembers(app.db, teamId) };
-    }
-  );
-
-  // Add member by email
-  app.post<{ Params: { teamId: string }; Body: AddTeamMemberRequest }>(
-    "/teams/:teamId/members",
-    { preHandler: requireAuth },
-    async (request, reply) => {
-      const auth = request.auth;
-      const { teamId } = request.params;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can add team members" });
-      }
-
-      const roleError = assertTeamRole(auth, teamId, "admin");
-      if (roleError) {
-        return reply.code(403).send({ error: roleError });
-      }
-
-      const { email, role: requestedRole } = request.body;
-      const targetRole: TeamRole = requestedRole || "member";
-
-      if (!email) {
-        return reply.code(400).send({ error: "email is required" });
-      }
-
-      if (!(VALID_TEAM_ROLES as readonly string[]).includes(targetRole)) {
-        return reply.code(400).send({ error: "Invalid role" });
-      }
-
-      // Only owners can add someone as owner
-      const actorRole = getTeamRole(auth, teamId)!;
-      if (targetRole === "owner" && actorRole !== "owner") {
-        return reply.code(403).send({ error: "Only owners can add members as owner" });
-      }
-
-      // Look up user by email
-      const [targetUser] = await app.db
-        .select({ id: users.id, email: users.email, name: users.name })
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (!targetUser) {
-        return reply.code(404).send({ error: "No user found with that email" });
-      }
-
-      try {
-        const [member] = await app.db.insert(teamMembers).values({
-          team_id: teamId,
-          user_id: targetUser.id,
-          role: targetRole,
-        }).returning({ joined_at: teamMembers.joined_at });
-
-        return reply.code(201).send({
-          user_id: targetUser.id,
-          email: targetUser.email,
-          name: targetUser.name,
-          role: targetRole,
-          joined_at: member.joined_at.toISOString(),
-        });
-      } catch (err: any) {
-        if (err.code === PG_UNIQUE_VIOLATION) {
-          return reply.code(409).send({ error: "User is already a member of this team" });
-        }
-        throw err;
-      }
     }
   );
 
