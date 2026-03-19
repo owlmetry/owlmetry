@@ -17,6 +17,7 @@ dist/
 
 # logs
 *.log
+.dev-verification-code
 firebase-debug.log
 
 # Next.js

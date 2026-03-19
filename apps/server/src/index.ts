@@ -65,8 +65,14 @@ await app.register(metricsRoutes, { prefix: "/v1" });
 try {
   await app.listen({ port: config.port, host: config.host });
   console.log(`Server running on ${config.host}:${config.port}`);
-} catch (err) {
-  app.log.error(err);
+} catch (err: any) {
+  if (err?.code === "EADDRINUSE") {
+    console.error(`\nPort ${config.port} is already in use. Kill the existing process:\n  lsof -ti:${config.port} | xargs kill\n`);
+  } else {
+    app.log.error(err);
+  }
+  // Kill the parent process (tsx watch) so it doesn't restart in a loop
+  if (process.ppid) process.kill(process.ppid, "SIGTERM");
   process.exit(1);
 }
 
@@ -100,11 +106,24 @@ if (config.maxDatabaseSizeGb > 0) {
 }
 
 // Graceful shutdown
-const shutdown = async () => {
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  // Force-exit if graceful shutdown takes too long (e.g. tsx watch killing us)
+  const forceTimer = setTimeout(() => process.exit(0), 3000);
+  forceTimer.unref();
+
   if (pruningInterval) clearInterval(pruningInterval);
-  await app.close();
+  try {
+    await app.close();
+  } catch {
+    // Ignore close errors during shutdown
+  }
+  clearTimeout(forceTimer);
   process.exit(0);
 };
 
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

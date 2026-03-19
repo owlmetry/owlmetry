@@ -1,12 +1,23 @@
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 export interface EmailService {
   sendVerificationCode(email: string, code: string): Promise<void>;
 }
+
+/** Project root — 4 levels up from apps/server/src/services/ */
+const DEV_CODE_PATH = resolve(import.meta.dirname, "../../../../.dev-verification-code");
 
 export class ConsoleEmailService implements EmailService {
   async sendVerificationCode(email: string, code: string): Promise<void> {
     console.log(`\n========================================`);
     console.log(`  Verification code for ${email}: ${code}`);
     console.log(`========================================\n`);
+    try {
+      writeFileSync(DEV_CODE_PATH, JSON.stringify({ email, code, timestamp: new Date().toISOString() }) + "\n");
+    } catch {
+      // Non-critical — don't break auth if file write fails
+    }
   }
 }
 
