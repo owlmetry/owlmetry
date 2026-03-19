@@ -7,6 +7,7 @@ import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useTeam } from "@/contexts/team-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -109,7 +110,7 @@ export default function AuditLogPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Resource Type</label>
           <Select value={resourceType} onValueChange={setResourceType}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectTrigger size="sm" className="w-[180px] text-xs">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
             <SelectContent>
@@ -125,7 +126,7 @@ export default function AuditLogPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Action</label>
           <Select value={action} onValueChange={setAction}>
-            <SelectTrigger className="w-[130px] h-8 text-xs">
+            <SelectTrigger size="sm" className="w-[130px] text-xs">
               <SelectValue placeholder="All actions" />
             </SelectTrigger>
             <SelectContent>
@@ -140,21 +141,21 @@ export default function AuditLogPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Since</label>
-          <input
+          <Input
             type="date"
             value={since}
             onChange={(e) => setSince(e.target.value)}
-            className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="w-[150px] h-8 text-xs"
           />
         </div>
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Until</label>
-          <input
+          <Input
             type="date"
             value={until}
             onChange={(e) => setUntil(e.target.value)}
-            className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="w-[150px] h-8 text-xs"
           />
         </div>
 

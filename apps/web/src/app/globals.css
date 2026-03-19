@@ -124,6 +124,13 @@
   }
 }
 
+/* Hide LastPass browser extension icons injected into inputs */
+div[id^="__lpform"],
+[data-lastpass-icon-root],
+[data-lastpass-root] {
+  display: none !important;
+}
+
 @keyframes fade-in-up {
   from {
     opacity: 0;

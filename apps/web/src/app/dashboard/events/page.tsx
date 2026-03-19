@@ -33,6 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 
 export default function EventsPage() {
@@ -141,7 +143,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
           <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectTrigger size="sm" className="w-[180px] text-xs">
               <SelectValue placeholder="All projects" />
             </SelectTrigger>
             <SelectContent>
@@ -157,7 +159,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">App</label>
           <Select value={appId} onValueChange={setAppId}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectTrigger size="sm" className="w-[180px] text-xs">
               <SelectValue placeholder="All apps" />
             </SelectTrigger>
             <SelectContent>
@@ -173,7 +175,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Level</label>
           <Select value={level} onValueChange={setLevel}>
-            <SelectTrigger className="w-[130px] h-8 text-xs">
+            <SelectTrigger size="sm" className="w-[130px] text-xs">
               <SelectValue placeholder="All levels" />
             </SelectTrigger>
             <SelectContent>
@@ -208,34 +210,33 @@ export default function EventsPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Since</label>
-          <input
+          <Input
             type="date"
             value={since}
             onChange={(e) => setSince(e.target.value)}
-            className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="w-[150px] h-8 text-xs"
           />
         </div>
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Until</label>
-          <input
+          <Input
             type="date"
             value={until}
             onChange={(e) => setUntil(e.target.value)}
-            className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="w-[150px] h-8 text-xs"
           />
         </div>
 
-        <div className="flex items-end">
-          <label className="flex items-center gap-1.5 h-8 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={includeDebug}
-              onChange={(e) => setIncludeDebug(e.target.checked)}
-              className="rounded border-input"
-            />
+        <div className="flex items-center gap-1.5 h-8 self-end">
+          <Checkbox
+            id="include-debug"
+            checked={includeDebug}
+            onCheckedChange={(checked) => setIncludeDebug(checked === true)}
+          />
+          <Label htmlFor="include-debug" className="text-xs cursor-pointer select-none">
             Show debug events
-          </label>
+          </Label>
         </div>
 
         {hasFilters && (
