@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Users } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Users, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeam } from "@/contexts/team-context";
 import { OwlLogo } from "@/components/owl-logo";
@@ -20,6 +20,7 @@ const navItems = [
   { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
   { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
   { href: "/dashboard/team", label: "Team", icon: Users },
+  { href: "/dashboard/audit-log", label: "Audit Log", icon: ClipboardList },
 ];
 
 export function AppSidebar() {

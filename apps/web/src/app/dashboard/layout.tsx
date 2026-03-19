@@ -14,6 +14,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard/events": "Events",
   "/dashboard/projects": "Projects",
   "/dashboard/team": "Team",
+  "/dashboard/audit-log": "Audit Log",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

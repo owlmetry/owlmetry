@@ -14,6 +14,7 @@ import type {
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 import { serializeApiKey } from "../utils/serialize.js";
+import { logAuditEvent } from "../utils/audit.js";
 import { config } from "../config.js";
 
 const COOKIE_OPTIONS = {
@@ -199,6 +200,14 @@ export async function authRoutes(app: FastifyInstance) {
 
     reply.setCookie("token", token, COOKIE_OPTIONS);
 
+    if (isNewUser && membershipTeams.length > 0) {
+      const teamId = membershipTeams[0].id;
+      const userAuth = { type: "user" as const, user_id: user.id, email: user.email, team_memberships: [{ team_id: teamId, role: "owner" as const }] };
+      logAuditEvent(app.db, userAuth, { team_id: teamId, action: "create", resource_type: "user", resource_id: user.id });
+      logAuditEvent(app.db, userAuth, { team_id: teamId, action: "create", resource_type: "team", resource_id: teamId });
+      logAuditEvent(app.db, userAuth, { team_id: teamId, action: "create", resource_type: "team_member", resource_id: user.id, metadata: { role: "owner" } });
+    }
+
     const statusCode = isNewUser ? 201 : 200;
     return reply.code(statusCode).send({
       token,
@@ -279,6 +288,13 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
+      // Fetch current name for audit diff
+      const [current] = await app.db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, auth.user_id))
+        .limit(1);
+
       const [updated] = await app.db
         .update(users)
         .set({ name })
@@ -290,6 +306,16 @@ export async function authRoutes(app: FastifyInstance) {
           created_at: users.created_at,
           updated_at: users.updated_at,
         });
+
+      if (auth.team_memberships.length > 0) {
+        logAuditEvent(app.db, auth, {
+          team_id: auth.team_memberships[0].team_id,
+          action: "update",
+          resource_type: "user",
+          resource_id: auth.user_id,
+          changes: { name: { before: current?.name, after: name } },
+        });
+      }
 
       return {
         user: serializeUser(updated),
@@ -372,6 +398,8 @@ export async function authRoutes(app: FastifyInstance) {
           id: apiKeys.id,
           team_id: apiKeys.team_id,
           key_type: apiKeys.key_type,
+          name: apiKeys.name,
+          permissions: apiKeys.permissions,
         })
         .from(apiKeys)
         .where(
@@ -404,6 +432,19 @@ export async function authRoutes(app: FastifyInstance) {
         .set(updates)
         .where(eq(apiKeys.id, request.params.id))
         .returning();
+
+      const changes: Record<string, { before?: unknown; after?: unknown }> = {};
+      if (name && name !== key.name) changes.name = { before: key.name, after: name };
+      if (permissions) changes.permissions = { before: key.permissions, after: permissions };
+      if (Object.keys(changes).length > 0) {
+        logAuditEvent(app.db, auth, {
+          team_id: key.team_id,
+          action: "update",
+          resource_type: "api_key",
+          resource_id: key.id,
+          changes,
+        });
+      }
 
       return { api_key: serializeApiKey(updated) };
     }
@@ -440,6 +481,14 @@ export async function authRoutes(app: FastifyInstance) {
         .update(apiKeys)
         .set({ deleted_at: new Date() })
         .where(eq(apiKeys.id, request.params.id));
+
+      logAuditEvent(app.db, auth, {
+        team_id: key.team_id,
+        action: "delete",
+        resource_type: "api_key",
+        resource_id: key.id,
+        metadata: { name: key.name },
+      });
 
       return { deleted: true };
     }
@@ -522,10 +571,19 @@ export async function authRoutes(app: FastifyInstance) {
           app_id: app_id || null,
           team_id: resolvedTeamId,
           name,
+          created_by: auth.user_id,
           permissions,
           expires_at,
         })
         .returning();
+
+      logAuditEvent(app.db, auth, {
+        team_id: resolvedTeamId,
+        action: "create",
+        resource_type: "api_key",
+        resource_id: apiKey.id,
+        metadata: { key_type, name },
+      });
 
       return reply.code(201).send({
         key: fullKey,
@@ -547,7 +605,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: "Invalid or expired code" });
     }
 
-    const { membershipTeams } = await findOrCreateUser(app.db, email);
+    const { user: agentUser, membershipTeams } = await findOrCreateUser(app.db, email);
 
     if (membershipTeams.length === 0) {
       return reply.code(500).send({ error: "User has no team membership" });
@@ -616,16 +674,40 @@ export async function authRoutes(app: FastifyInstance) {
       provisionedApp = { id: newApp.id, name: newApp.name, platform: newApp.platform };
     }
 
+    // Build auth context for audit logging
+    const agentLoginAuth = {
+      type: "user" as const,
+      user_id: agentUser.id,
+      email: agentUser.email,
+      team_memberships: membershipTeams.map((t) => ({ team_id: t.id, role: t.role })),
+    };
+
+    if (isNewSetup && provisionedProject) {
+      logAuditEvent(app.db, agentLoginAuth, { team_id: targetTeam.id, action: "create", resource_type: "project", resource_id: provisionedProject.id, metadata: { name: provisionedProject.name } });
+      if (provisionedApp) {
+        logAuditEvent(app.db, agentLoginAuth, { team_id: targetTeam.id, action: "create", resource_type: "app", resource_id: provisionedApp.id, metadata: { name: provisionedApp.name, platform: provisionedApp.platform } });
+      }
+    }
+
     // Create agent API key
     const agentKeyData = generateApiKey("agent");
-    await app.db.insert(apiKeys).values({
+    const [agentApiKey] = await app.db.insert(apiKeys).values({
       key_hash: agentKeyData.keyHash,
       key_prefix: agentKeyData.keyPrefix,
       key_type: "agent",
       app_id: null,
       team_id: targetTeam.id,
       name: "CLI Agent Key",
+      created_by: agentUser.id,
       permissions: DEFAULT_API_KEY_PERMISSIONS.agent,
+    }).returning({ id: apiKeys.id });
+
+    logAuditEvent(app.db, agentLoginAuth, {
+      team_id: targetTeam.id,
+      action: "create",
+      resource_type: "api_key",
+      resource_id: agentApiKey.id,
+      metadata: { key_type: "agent", name: "CLI Agent Key" },
     });
 
     return reply.code(201).send({

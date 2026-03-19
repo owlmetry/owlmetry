@@ -15,6 +15,7 @@ import { appUsersRoutes } from "./routes/app-users.js";
 import { teamsRoutes } from "./routes/teams.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { metricsRoutes } from "./routes/metrics.js";
+import { auditLogsRoutes } from "./routes/audit-logs.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 import { createEmailService } from "./services/email.js";
 
@@ -62,6 +63,7 @@ await app.register(appUsersRoutes, { prefix: "/v1" });
 await app.register(teamsRoutes, { prefix: "/v1" });
 await app.register(invitationRoutes, { prefix: "/v1" });
 await app.register(metricsRoutes, { prefix: "/v1" });
+await app.register(auditLogsRoutes, { prefix: "/v1" });
 
 // Start
 try {

@@ -77,6 +77,7 @@ async function main() {
     app_id: app.id,
     team_id: team.id,
     name: "Demo Client Key",
+    created_by: user.id,
     permissions: ["events:write"],
   });
 
@@ -89,6 +90,7 @@ async function main() {
     app_id: null,
     team_id: team.id,
     name: "Demo Agent Key",
+    created_by: user.id,
     permissions: ["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"],
   });
 
@@ -112,6 +114,7 @@ async function main() {
     app_id: serverApp.id,
     team_id: team.id,
     name: "Demo API Server Client Key",
+    created_by: user.id,
     permissions: ["events:write"],
   });
 

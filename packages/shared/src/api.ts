@@ -2,6 +2,7 @@ import type { StoredEvent, IngestRequest, IngestResponse, AppPlatform } from "./
 import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
+import type { AuditAction, AuditActorType, AuditResourceType } from "./audit.js";
 
 // Serialized response types (dates as ISO strings)
 export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
@@ -69,6 +70,38 @@ export type ApiKeyResponse = Omit<ApiKey, "created_at" | "updated_at" | "last_us
   last_used_at: string | null;
   expires_at: string | null;
 };
+
+// Audit Logs
+export interface AuditLogResponse {
+  id: string;
+  team_id: string;
+  actor_type: string;
+  actor_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  changes: Record<string, { before?: unknown; after?: unknown }> | null;
+  metadata: Record<string, unknown> | null;
+  timestamp: string;
+}
+
+export interface AuditLogsQueryParams {
+  team_id: string;
+  resource_type?: string;
+  resource_id?: string;
+  actor_id?: string;
+  action?: string;
+  since?: string;
+  until?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface AuditLogsResponse {
+  audit_logs: AuditLogResponse[];
+  cursor: string | null;
+  has_more: boolean;
+}
 
 export interface CreateApiKeyResponse {
   key: string; // full key, shown only once

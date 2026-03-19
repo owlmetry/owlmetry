@@ -129,12 +129,13 @@ describe("POST /v1/ingest", () => {
   });
 
   it("deduplicates by client_event_id", async () => {
+    const dedupId = "00000000-0000-0000-0000-000000000099";
     await ingest([
-      { level: "info", message: "First", client_event_id: "evt-1", session_id: TEST_SESSION_ID },
+      { level: "info", message: "First", client_event_id: dedupId, session_id: TEST_SESSION_ID },
     ]);
 
     const res = await ingest([
-      { level: "info", message: "Duplicate", client_event_id: "evt-1", session_id: TEST_SESSION_ID },
+      { level: "info", message: "Duplicate", client_event_id: dedupId, session_id: TEST_SESSION_ID },
     ]);
 
     expect(res.statusCode).toBe(200);

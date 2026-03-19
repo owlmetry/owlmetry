@@ -152,6 +152,7 @@ export const apiKeys = pgTable(
       .notNull()
       .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
+    created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
     permissions: jsonb("permissions").$type<string[]>().notNull(),
     last_used_at: timestamp("last_used_at", { withTimezone: true }),
     expires_at: timestamp("expires_at", { withTimezone: true }),
@@ -182,6 +183,7 @@ export const events = pgTable(
     client_event_id: uuid("client_event_id"),
     session_id: uuid("session_id").notNull(),
     user_id: varchar("user_id", { length: 255 }),
+    api_key_id: uuid("api_key_id"),
     level: logLevelEnum("level").notNull(),
     source_module: text("source_module"),
     message: text("message").notNull(),
@@ -337,6 +339,7 @@ export const metricEvents = pgTable(
     app_id: uuid("app_id").notNull(),
     session_id: uuid("session_id").notNull(),
     user_id: varchar("user_id", { length: 255 }),
+    api_key_id: uuid("api_key_id"),
     metric_slug: varchar("metric_slug", { length: 255 }).notNull(),
     phase: metricPhaseEnum("phase").notNull(),
     tracking_id: uuid("tracking_id"),
@@ -360,6 +363,31 @@ export const metricEvents = pgTable(
     index("metric_events_app_slug_phase_timestamp_idx").on(table.app_id, table.metric_slug, table.phase, table.timestamp),
     index("metric_events_app_tracking_id_idx").on(table.app_id, table.tracking_id),
     index("metric_events_app_client_event_id_idx").on(table.app_id, table.client_event_id),
+  ]
+);
+
+// Audit Logs
+export const auditActorTypeEnum = pgEnum("audit_actor_type", ["user", "api_key", "system"]);
+export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete"]);
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    actor_type: auditActorTypeEnum("actor_type").notNull(),
+    actor_id: varchar("actor_id", { length: 255 }).notNull(),
+    action: auditActionEnum("action").notNull(),
+    resource_type: varchar("resource_type", { length: 50 }).notNull(),
+    resource_id: varchar("resource_id", { length: 255 }).notNull(),
+    changes: jsonb("changes").$type<Record<string, { before?: unknown; after?: unknown }>>(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("audit_logs_team_timestamp_idx").on(table.team_id, table.timestamp),
+    index("audit_logs_resource_idx").on(table.resource_type, table.resource_id),
+    index("audit_logs_actor_idx").on(table.actor_type, table.actor_id),
   ]
 );
 

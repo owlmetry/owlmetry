@@ -5,6 +5,7 @@ import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/share
 import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import { serializeApp } from "../utils/serialize.js";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
+import { logAuditEvent } from "../utils/audit.js";
 
 export async function projectsRoutes(app: FastifyInstance) {
   // List projects for the authenticated user's teams
@@ -107,6 +108,14 @@ export async function projectsRoutes(app: FastifyInstance) {
           })
           .returning();
 
+        logAuditEvent(app.db, auth, {
+          team_id,
+          action: "create",
+          resource_type: "project",
+          resource_id: created.id,
+          metadata: { name, slug },
+        });
+
         return reply.code(201).send({
           ...created,
           created_at: created.created_at.toISOString(),
@@ -137,7 +146,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       }
 
       const [project] = await app.db
-        .select({ id: projects.id, team_id: projects.team_id })
+        .select({ id: projects.id, team_id: projects.team_id, name: projects.name })
         .from(projects)
         .where(
           and(
@@ -162,6 +171,14 @@ export async function projectsRoutes(app: FastifyInstance) {
         .set({ name })
         .where(eq(projects.id, id))
         .returning();
+
+      logAuditEvent(app.db, auth, {
+        team_id: project.team_id,
+        action: "update",
+        resource_type: "project",
+        resource_id: id,
+        changes: { name: { before: project.name, after: name } },
+      });
 
       return {
         ...updated,
@@ -218,6 +235,13 @@ export async function projectsRoutes(app: FastifyInstance) {
           .set({ deleted_at: now })
           .where(eq(projects.id, id)),
       ]);
+
+      logAuditEvent(app.db, auth, {
+        team_id: project.team_id,
+        action: "delete",
+        resource_type: "project",
+        resource_id: id,
+      });
 
       return { deleted: true };
     }

@@ -20,6 +20,7 @@ import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
 import { invitationRoutes } from "../routes/invitations.js";
 import { metricsRoutes } from "../routes/metrics.js";
+import { auditLogsRoutes } from "../routes/audit-logs.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
 
@@ -60,56 +61,74 @@ let migrationClient: postgres.Sql | null = null;
 export async function setupTestDb() {
   migrationClient = postgres(TEST_DB_URL, { max: 1 });
 
-  // Add 'server' to api_key_type enum if not present (ALTER TYPE ... ADD VALUE
-  // cannot run inside a transaction, which Drizzle's migrator uses)
-  const enumCheck = await migrationClient`
-    SELECT 1 FROM pg_enum WHERE enumlabel = 'server'
-      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
+  // Add 'server' to api_key_type enum if it exists but doesn't have the value yet.
+  // ALTER TYPE ... ADD VALUE cannot run inside a transaction, so we do it before migrate().
+  // On a completely fresh DB, the enum won't exist yet — we handle that after migrate().
+  const typeExistsBefore = await migrationClient`
+    SELECT 1 FROM pg_type WHERE typname = 'api_key_type'
   `;
-  if (enumCheck.length === 0) {
-    await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
+  if (typeExistsBefore.length > 0) {
+    const enumCheck = await migrationClient`
+      SELECT 1 FROM pg_enum WHERE enumlabel = 'server'
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
+    `;
+    if (enumCheck.length === 0) {
+      await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
+    }
   }
 
-  // Create app_platform and environment enums if not present
-  const appPlatformCheck = await migrationClient`
-    SELECT 1 FROM pg_type WHERE typname = 'app_platform'
-  `;
-  if (appPlatformCheck.length === 0) {
-    await migrationClient.unsafe(`CREATE TYPE app_platform AS ENUM ('apple', 'android', 'web', 'backend')`);
-  }
-  const environmentCheck = await migrationClient`
-    SELECT 1 FROM pg_type WHERE typname = 'environment'
-  `;
-  if (environmentCheck.length === 0) {
-    await migrationClient.unsafe(`CREATE TYPE environment AS ENUM ('ios', 'ipados', 'macos', 'android', 'web', 'backend')`);
-  }
+  // Pre-migration fixes for existing databases only (skip on fresh DB)
+  if (typeExistsBefore.length > 0) {
+    // Create app_platform and environment enums if not present
+    const appPlatformCheck = await migrationClient`
+      SELECT 1 FROM pg_type WHERE typname = 'app_platform'
+    `;
+    if (appPlatformCheck.length === 0) {
+      await migrationClient.unsafe(`CREATE TYPE app_platform AS ENUM ('apple', 'android', 'web', 'backend')`);
+    }
+    const environmentCheck = await migrationClient`
+      SELECT 1 FROM pg_type WHERE typname = 'environment'
+    `;
+    if (environmentCheck.length === 0) {
+      await migrationClient.unsafe(`CREATE TYPE environment AS ENUM ('ios', 'ipados', 'macos', 'android', 'web', 'backend')`);
+    }
 
-  // Make bundle_id nullable if not already
-  const colCheck = await migrationClient`
-    SELECT is_nullable FROM information_schema.columns
-    WHERE table_name = 'apps' AND column_name = 'bundle_id'
-  `;
-  if (colCheck.length > 0 && colCheck[0].is_nullable === 'NO') {
-    await migrationClient`ALTER TABLE apps ALTER COLUMN bundle_id DROP NOT NULL`;
-  }
+    // Make bundle_id nullable if not already
+    const colCheck = await migrationClient`
+      SELECT is_nullable FROM information_schema.columns
+      WHERE table_name = 'apps' AND column_name = 'bundle_id'
+    `;
+    if (colCheck.length > 0 && colCheck[0].is_nullable === 'NO') {
+      await migrationClient`ALTER TABLE apps ALTER COLUMN bundle_id DROP NOT NULL`;
+    }
 
-  // Convert apps.platform from varchar to app_platform enum if needed
-  const platformColCheck = await migrationClient`
-    SELECT data_type FROM information_schema.columns
-    WHERE table_name = 'apps' AND column_name = 'platform'
-  `;
-  if (platformColCheck.length > 0 && platformColCheck[0].data_type === 'character varying') {
-    await migrationClient.unsafe(`
-      UPDATE apps SET platform = 'apple' WHERE platform IN ('ios', 'ipados', 'macos');
-      UPDATE apps SET platform = 'backend' WHERE platform = 'server';
-      ALTER TABLE apps ALTER COLUMN platform TYPE app_platform USING platform::app_platform
-    `);
+    // Convert apps.platform from varchar to app_platform enum if needed
+    const platformColCheck = await migrationClient`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'apps' AND column_name = 'platform'
+    `;
+    if (platformColCheck.length > 0 && platformColCheck[0].data_type === 'character varying') {
+      await migrationClient.unsafe(`
+        UPDATE apps SET platform = 'apple' WHERE platform IN ('ios', 'ipados', 'macos');
+        UPDATE apps SET platform = 'backend' WHERE platform = 'server';
+        ALTER TABLE apps ALTER COLUMN platform TYPE app_platform USING platform::app_platform
+      `);
+    }
   }
 
   const migrationDb = drizzle(migrationClient);
   await migrate(migrationDb, {
     migrationsFolder: "../../packages/db/drizzle",
   });
+
+  // After migration, ensure 'server' exists in api_key_type
+  const serverEnumCheck = await migrationClient`
+    SELECT 1 FROM pg_enum WHERE enumlabel = 'server'
+      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
+  `;
+  if (serverEnumCheck.length === 0) {
+    await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
+  }
 
   // Set up partitioned events table
   const result = await migrationClient`
@@ -125,9 +144,10 @@ export async function setupTestDb() {
       CREATE TABLE IF NOT EXISTS events (
         id UUID DEFAULT gen_random_uuid(),
         app_id UUID NOT NULL,
-        client_event_id VARCHAR(255),
+        client_event_id UUID,
         session_id UUID NOT NULL,
         user_id VARCHAR(255),
+        api_key_id UUID,
         level log_level NOT NULL,
         source_module TEXT,
         message TEXT NOT NULL,
@@ -139,6 +159,7 @@ export async function setupTestDb() {
         device_model VARCHAR(100),
         build_number VARCHAR(50),
         locale VARCHAR(20),
+        is_debug BOOLEAN NOT NULL DEFAULT FALSE,
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       ) PARTITION BY RANGE ("timestamp");
@@ -190,6 +211,7 @@ export async function setupTestDb() {
         app_id UUID NOT NULL,
         session_id UUID NOT NULL,
         user_id VARCHAR(255),
+        api_key_id UUID,
         metric_slug VARCHAR(255) NOT NULL,
         phase metric_phase NOT NULL,
         tracking_id UUID,
@@ -257,6 +279,7 @@ export async function buildApp() {
   await app.register(teamsRoutes, { prefix: "/v1" });
   await app.register(invitationRoutes, { prefix: "/v1" });
   await app.register(metricsRoutes, { prefix: "/v1" });
+  await app.register(auditLogsRoutes, { prefix: "/v1" });
 
   await app.ready();
   return app;
@@ -264,6 +287,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM audit_logs`;
   await client`DELETE FROM app_users`;
   await client`DELETE FROM funnel_progress`;
   await client`DELETE FROM funnel_definitions`;

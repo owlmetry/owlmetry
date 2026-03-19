@@ -9,6 +9,7 @@ import type {
   TeamInvitationResponse,
 } from "@owlmetry/shared";
 import { requireAuth, getTeamRole, assertTeamRole } from "../middleware/auth.js";
+import { logAuditEvent } from "../utils/audit.js";
 import { config } from "../config.js";
 
 const INVITATION_EXPIRY_DAYS = 7;
@@ -216,6 +217,14 @@ export async function invitationRoutes(app: FastifyInstance) {
         accept_url: acceptUrl,
       });
 
+      logAuditEvent(app.db, auth, {
+        team_id: teamId,
+        action: "create",
+        resource_type: "invitation",
+        resource_id: invitation.id,
+        metadata: { email, role: targetRole },
+      });
+
       return reply.code(201).send({
         id: invitation.id,
         team_id: invitation.team_id,
@@ -280,6 +289,13 @@ export async function invitationRoutes(app: FastifyInstance) {
       if (!deleted) {
         return reply.code(404).send({ error: "Invitation not found" });
       }
+
+      logAuditEvent(app.db, auth, {
+        team_id: teamId,
+        action: "delete",
+        resource_type: "invitation",
+        resource_id: invitationId,
+      });
 
       return { deleted: true };
     }
@@ -368,6 +384,21 @@ export async function invitationRoutes(app: FastifyInstance) {
           throw err;
         }
       }
+
+      logAuditEvent(app.db, auth, {
+        team_id: inv.team_id,
+        action: "create",
+        resource_type: "team_member",
+        resource_id: auth.user_id,
+        metadata: { role: inv.role, via: "invitation" },
+      });
+      logAuditEvent(app.db, auth, {
+        team_id: inv.team_id,
+        action: "update",
+        resource_type: "invitation",
+        resource_id: inv.id,
+        changes: { accepted_at: { before: null, after: new Date().toISOString() } },
+      });
 
       return {
         team_id: inv.team_id,

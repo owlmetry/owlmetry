@@ -32,7 +32,8 @@ export type Permission =
   | "projects:read"
   | "projects:write"
   | "metrics:read"
-  | "metrics:write";
+  | "metrics:write"
+  | "audit_logs:read";
 
 export const VALID_PERMISSIONS: Permission[] = [
   "events:write",
@@ -44,11 +45,12 @@ export const VALID_PERMISSIONS: Permission[] = [
   "projects:write",
   "metrics:read",
   "metrics:write",
+  "audit_logs:read",
 ];
 
 export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
   client: ["events:write"],
-  agent: ["events:read", "funnels:read", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write"],
+  agent: ["events:read", "funnels:read", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read"],
 };
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
@@ -116,6 +118,7 @@ export interface ApiKey {
   app_id: string | null;
   team_id: string;
   name: string;
+  created_by: string | null;
   permissions: Permission[];
   last_used_at: Date | null;
   expires_at: Date | null;

@@ -1,6 +1,6 @@
 export function serializeApiKey(k: {
   id: string; key_prefix: string; key_type: string; app_id: string | null;
-  team_id: string; name: string; permissions: unknown;
+  team_id: string; name: string; created_by: string | null; permissions: unknown;
   created_at: Date; updated_at: Date; last_used_at: Date | null; expires_at: Date | null;
 }) {
   return {
@@ -10,11 +10,31 @@ export function serializeApiKey(k: {
     app_id: k.app_id,
     team_id: k.team_id,
     name: k.name,
+    created_by: k.created_by,
     permissions: k.permissions,
     created_at: k.created_at.toISOString(),
     updated_at: k.updated_at.toISOString(),
     last_used_at: k.last_used_at?.toISOString() || null,
     expires_at: k.expires_at?.toISOString() || null,
+  };
+}
+
+export function serializeAuditLog(a: {
+  id: string; team_id: string; actor_type: string; actor_id: string;
+  action: string; resource_type: string; resource_id: string;
+  changes: unknown; metadata: unknown; timestamp: Date;
+}) {
+  return {
+    id: a.id,
+    team_id: a.team_id,
+    actor_type: a.actor_type,
+    actor_id: a.actor_id,
+    action: a.action,
+    resource_type: a.resource_type,
+    resource_id: a.resource_id,
+    changes: a.changes,
+    metadata: a.metadata,
+    timestamp: a.timestamp.toISOString(),
   };
 }
 

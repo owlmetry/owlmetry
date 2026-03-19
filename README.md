@@ -270,6 +270,7 @@ MAX_DATABASE_SIZE_GB=10
 | `DELETE` | `/v1/metrics/:slug?project_id=` | JWT only (admin+) | Soft-delete metric definition |
 | `GET` | `/v1/metrics/:slug/query?project_id=` | `metrics:read` / JWT | Aggregation endpoint (counts, rates, percentiles) |
 | `GET` | `/v1/metrics/:slug/events?project_id=` | `metrics:read` / JWT | Raw metric events (paginated) |
+| `GET` | `/v1/audit-logs?team_id=` | `audit_logs:read` / JWT (admin+) | Query audit log entries (paginated, cursor-based) |
 
 ## CLI
 

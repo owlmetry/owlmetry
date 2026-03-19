@@ -5,6 +5,7 @@ import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
 import { APP_PLATFORMS, DEFAULT_API_KEY_PERMISSIONS, generateApiKey } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { serializeApp } from "../utils/serialize.js";
+import { logAuditEvent } from "../utils/audit.js";
 
 export async function appsRoutes(app: FastifyInstance) {
   // List apps for the authenticated user's teams
@@ -123,10 +124,19 @@ export async function appsRoutes(app: FastifyInstance) {
             app_id: created.id,
             team_id: project.team_id,
             name: `${name} Client Key`,
+            created_by: auth.type === "user" ? auth.user_id : null,
             permissions: DEFAULT_API_KEY_PERMISSIONS.client,
           });
 
         return created;
+      });
+
+      logAuditEvent(app.db, auth, {
+        team_id: project.team_id,
+        action: "create",
+        resource_type: "app",
+        resource_id: created.id,
+        metadata: { name, platform, bundle_id: bundle_id || null },
       });
 
       return reply.code(201).send(serializeApp(created));
@@ -147,7 +157,7 @@ export async function appsRoutes(app: FastifyInstance) {
       }
 
       const [existing] = await app.db
-        .select({ id: apps.id, team_id: apps.team_id })
+        .select({ id: apps.id, team_id: apps.team_id, name: apps.name })
         .from(apps)
         .where(
           and(
@@ -172,6 +182,14 @@ export async function appsRoutes(app: FastifyInstance) {
         .set({ name })
         .where(eq(apps.id, id))
         .returning();
+
+      logAuditEvent(app.db, auth, {
+        team_id: existing.team_id,
+        action: "update",
+        resource_type: "app",
+        resource_id: id,
+        changes: { name: { before: existing.name, after: name } },
+      });
 
       return serializeApp(updated);
     }
@@ -215,6 +233,13 @@ export async function appsRoutes(app: FastifyInstance) {
         .update(apps)
         .set({ deleted_at: new Date() })
         .where(eq(apps.id, id));
+
+      logAuditEvent(app.db, auth, {
+        team_id: existing.team_id,
+        action: "delete",
+        resource_type: "app",
+        resource_id: id,
+      });
 
       return { deleted: true };
     }

@@ -11,6 +11,7 @@ import type {
 } from "@owlmetry/shared";
 import { requireAuth, getTeamRole, assertTeamRole } from "../middleware/auth.js";
 import { getPendingInvitations } from "./invitations.js";
+import { logAuditEvent } from "../utils/audit.js";
 import type { UserContext } from "../types.js";
 
 async function getTeamMembers(db: Db, teamId: string) {
@@ -81,6 +82,21 @@ export async function teamsRoutes(app: FastifyInstance) {
           });
 
           return created;
+        });
+
+        logAuditEvent(app.db, auth, {
+          team_id: team.id,
+          action: "create",
+          resource_type: "team",
+          resource_id: team.id,
+          metadata: { name, slug },
+        });
+        logAuditEvent(app.db, auth, {
+          team_id: team.id,
+          action: "create",
+          resource_type: "team_member",
+          resource_id: auth.user_id,
+          metadata: { role: "owner" },
         });
 
         return reply.code(201).send({
@@ -157,6 +173,13 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
+      // Fetch current name for audit
+      const [current] = await app.db
+        .select({ name: teams.name })
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1);
+
       const [updated] = await app.db
         .update(teams)
         .set({ name })
@@ -166,6 +189,14 @@ export async function teamsRoutes(app: FastifyInstance) {
       if (!updated) {
         return reply.code(404).send({ error: "Team not found" });
       }
+
+      logAuditEvent(app.db, auth, {
+        team_id: teamId,
+        action: "update",
+        resource_type: "team",
+        resource_id: teamId,
+        changes: { name: { before: current?.name, after: name } },
+      });
 
       return {
         id: updated.id,
@@ -198,6 +229,14 @@ export async function teamsRoutes(app: FastifyInstance) {
       if (auth.team_memberships.length <= 1) {
         return reply.code(400).send({ error: "Cannot delete your only team" });
       }
+
+      // Log audit before cascade delete removes the audit_logs
+      logAuditEvent(app.db, auth, {
+        team_id: teamId,
+        action: "delete",
+        resource_type: "team",
+        resource_id: teamId,
+      });
 
       const [deleted] = await app.db
         .delete(teams)
@@ -292,6 +331,14 @@ export async function teamsRoutes(app: FastifyInstance) {
         .where(and(eq(teamMembers.team_id, teamId), eq(teamMembers.user_id, userId)))
         .returning();
 
+      logAuditEvent(app.db, auth, {
+        team_id: teamId,
+        action: "update",
+        resource_type: "team_member",
+        resource_id: userId,
+        changes: { role: { before: target.role, after: newRole } },
+      });
+
       return {
         user_id: updated.user_id,
         role: updated.role,
@@ -342,6 +389,13 @@ export async function teamsRoutes(app: FastifyInstance) {
       await app.db
         .delete(teamMembers)
         .where(and(eq(teamMembers.team_id, teamId), eq(teamMembers.user_id, userId)));
+
+      logAuditEvent(app.db, auth, {
+        team_id: teamId,
+        action: "delete",
+        resource_type: "team_member",
+        resource_id: userId,
+      });
 
       return { removed: true };
     }

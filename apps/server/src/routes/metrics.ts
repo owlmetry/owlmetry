@@ -11,6 +11,7 @@ import type {
 import { validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
 import type { MetricPhase } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
+import { logAuditEvent } from "../utils/audit.js";
 import type { AuthContext } from "../types.js";
 
 function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
@@ -198,6 +199,14 @@ export async function metricsRoutes(app: FastifyInstance) {
           })
           .returning();
 
+        logAuditEvent(app.db, auth, {
+          team_id: project.team_id,
+          action: "create",
+          resource_type: "metric_definition",
+          resource_id: created.id,
+          metadata: { name, slug },
+        });
+
         return reply.code(201).send(serializeMetricDefinition(created));
       } catch (err: any) {
         if (err.code === PG_UNIQUE_VIOLATION) {
@@ -265,6 +274,19 @@ export async function metricsRoutes(app: FastifyInstance) {
         .where(eq(metricDefinitions.id, metric.metric_definitions.id))
         .returning();
 
+      const changes: Record<string, { before?: unknown; after?: unknown }> = {};
+      if (name !== undefined) changes.name = { before: metric.metric_definitions.name, after: name };
+      if (status !== undefined) changes.status = { before: metric.metric_definitions.status, after: status };
+      if (Object.keys(changes).length > 0) {
+        logAuditEvent(app.db, auth, {
+          team_id: metric.projects.team_id,
+          action: "update",
+          resource_type: "metric_definition",
+          resource_id: metric.metric_definitions.id,
+          changes,
+        });
+      }
+
       return serializeMetricDefinition(updated);
     },
   );
@@ -316,6 +338,14 @@ export async function metricsRoutes(app: FastifyInstance) {
         .update(metricDefinitions)
         .set({ deleted_at: new Date() })
         .where(eq(metricDefinitions.id, metric.metric_definitions.id));
+
+      logAuditEvent(app.db, auth, {
+        team_id: metric.projects.team_id,
+        action: "delete",
+        resource_type: "metric_definition",
+        resource_id: metric.metric_definitions.id,
+        metadata: { slug },
+      });
 
       return { deleted: true };
     },
