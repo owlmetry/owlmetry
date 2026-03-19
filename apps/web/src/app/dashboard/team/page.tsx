@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Trash2, LogOut, X } from "lucide-react";
+import { Trash2, LogOut, X, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,7 @@ export default function TeamPage() {
   }
 
   const members = teamDetail?.members ?? [];
+  const pendingInvitations = teamDetail?.pending_invitations ?? [];
   const isAdmin = meetsMinimumRole(currentRole, "admin");
   const isOwner = currentRole === "owner";
 
@@ -80,7 +81,12 @@ export default function TeamPage() {
       {/* Members section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Members</CardTitle>
+          <div className="flex items-center gap-2">
+            <CardTitle>Members</CardTitle>
+            {members.length > 0 && (
+              <Badge variant="secondary" className="font-normal">{members.length}</Badge>
+            )}
+          </div>
           {isAdmin && <InviteMemberDialog teamId={currentTeam.id} currentRole={currentRole} onInvited={() => mutate()} />}
         </CardHeader>
         <CardContent>
@@ -95,96 +101,114 @@ export default function TeamPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {members.map((member) => {
-                const isSelf = member.user_id === user?.id;
-                const canManage = canManageRole(currentRole, member.role) && !isSelf;
-                const isSoleOwner =
-                  isSelf &&
-                  member.role === "owner" &&
-                  members.filter((m) => m.role === "owner").length === 1;
+              {members.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    Loading members...
+                  </TableCell>
+                </TableRow>
+              ) : (
+                members.map((member) => {
+                  const isSelf = member.user_id === user?.id;
+                  const canManage = canManageRole(currentRole, member.role) && !isSelf;
+                  const isSoleOwner =
+                    isSelf &&
+                    member.role === "owner" &&
+                    members.filter((m) => m.role === "owner").length === 1;
 
-                return (
-                  <TableRow key={member.user_id}>
-                    <TableCell>
-                      {member.name}
-                      {isSelf && (
-                        <span className="ml-1 text-muted-foreground">(you)</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{member.email}</TableCell>
-                    <TableCell>
-                      {canManage ? (
-                        <RoleSelect
-                          teamId={currentTeam.id}
-                          userId={member.user_id}
-                          currentRole={member.role}
-                          actorRole={currentRole}
-                          onChanged={() => mutate()}
-                        />
-                      ) : (
-                        <Badge variant={roleBadgeVariant(member.role)}>
-                          {member.role}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(member.joined_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      {isSelf ? (
-                        <LeaveButton
-                          teamId={currentTeam.id}
-                          disabled={isSoleOwner}
-                          onLeft={() => { mutateUser(); router.push("/dashboard"); }}
-                        />
-                      ) : canManage ? (
-                        <RemoveMemberButton
-                          teamId={currentTeam.id}
-                          userId={member.user_id}
-                          memberName={member.name || member.email}
-                          onRemoved={() => mutate()}
-                        />
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
+                  return (
+                    <TableRow key={member.user_id}>
+                      <TableCell>
+                        {member.name}
+                        {isSelf && (
+                          <span className="ml-1 text-muted-foreground">(you)</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{member.email}</TableCell>
+                      <TableCell>
+                        {canManage ? (
+                          <RoleSelect
+                            teamId={currentTeam.id}
+                            userId={member.user_id}
+                            currentRole={member.role}
+                            actorRole={currentRole}
+                            onChanged={() => mutate()}
+                          />
+                        ) : (
+                          <Badge variant={roleBadgeVariant(member.role)}>
+                            {member.role}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(member.joined_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        {isSelf ? (
+                          <LeaveButton
+                            teamId={currentTeam.id}
+                            disabled={isSoleOwner}
+                            onLeft={() => { mutateUser(); router.push("/dashboard"); }}
+                          />
+                        ) : canManage ? (
+                          <RemoveMemberButton
+                            teamId={currentTeam.id}
+                            userId={member.user_id}
+                            memberName={member.name || member.email}
+                            onRemoved={() => mutate()}
+                          />
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Pending Invitations */}
-      {(teamDetail?.pending_invitations?.length ?? 0) > 0 && (
+      {/* Pending Invitations — always visible for admins, with empty state */}
+      {isAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle>Pending Invitations</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle>Pending Invitations</CardTitle>
+              {pendingInvitations.length > 0 && (
+                <Badge variant="secondary" className="font-normal">{pendingInvitations.length}</Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Invited By</TableHead>
-                  <TableHead>Expires</TableHead>
-                  {isAdmin && <TableHead className="w-[80px]">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {teamDetail!.pending_invitations.map((inv) => (
-                  <TableRow key={inv.id}>
-                    <TableCell>{inv.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={roleBadgeVariant(inv.role)}>{inv.role}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {inv.invited_by.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {new Date(inv.expires_at).toLocaleDateString()}
-                    </TableCell>
-                    {isAdmin && (
+            {pendingInvitations.length === 0 ? (
+              <div className="text-center py-8 space-y-2">
+                <Mail className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                <p className="text-sm text-muted-foreground">No pending invitations</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Invited By</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead className="w-[80px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingInvitations.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell>{inv.email}</TableCell>
+                      <TableCell>
+                        <Badge variant={roleBadgeVariant(inv.role)}>{inv.role}</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {inv.invited_by.name}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(inv.expires_at).toLocaleDateString()}
+                      </TableCell>
                       <TableCell>
                         <RevokeInvitationButton
                           teamId={currentTeam.id}
@@ -193,11 +217,11 @@ export default function TeamPage() {
                           onRevoked={() => mutate()}
                         />
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       )}
@@ -345,7 +369,7 @@ function InviteMemberDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={loading}>
-              {loading ? "Inviting..." : "Invite"}
+              {loading ? "Sending..." : "Send Invitation"}
             </Button>
           </DialogFooter>
         </form>
@@ -421,31 +445,49 @@ function RevokeInvitationButton({
   email: string;
   onRevoked: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleRevoke() {
     setLoading(true);
     try {
       await api.delete(`/v1/teams/${teamId}/invitations/${invitationId}`);
+      setOpen(false);
       onRevoked();
     } catch {
-      // Error handling
+      // Error handling — dialog stays open
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-      onClick={handleRevoke}
-      disabled={loading}
-      title={`Revoke invitation for ${email}`}
-    >
-      <X className="h-4 w-4" />
-    </Button>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          title={`Revoke invitation for ${email}`}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Revoke Invitation</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to revoke the invitation for {email}? They will no longer be able to join the team with this link.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="destructive" onClick={handleRevoke} disabled={loading}>
+            {loading ? "Revoking..." : "Revoke"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
