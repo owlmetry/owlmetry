@@ -18,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
-import { useUser } from "@/hooks/use-user";
+import { useTeam } from "@/contexts/team-context";
 import type { ProjectResponse } from "@owlmetry/shared";
 
 function slugify(name: string): string {
@@ -26,7 +26,7 @@ function slugify(name: string): string {
 }
 
 export default function ProjectsPage() {
-  const { teams } = useUser();
+  const { currentTeam } = useTeam();
   const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>("/v1/projects");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -34,7 +34,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(false);
 
   const projects = data?.projects ?? [];
-  const defaultTeamId = teams?.[0]?.id;
+  const defaultTeamId = currentTeam?.id;
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

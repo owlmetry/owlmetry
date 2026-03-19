@@ -2,22 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, ScrollText, BarChart3 } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/hooks/use-user";
+import { useTeam } from "@/contexts/team-context";
 import { OwlLogo } from "@/components/owl-logo";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/events", label: "Events", icon: ScrollText },
   { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
   { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
+  { href: "/dashboard/team", label: "Team", icon: Users },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { teams } = useUser();
-  const currentTeam = teams?.[0];
+  const { currentTeam, teams, setCurrentTeam } = useTeam();
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -29,9 +36,24 @@ export function AppSidebar() {
       </div>
       {currentTeam && (
         <div className="border-b px-4 py-2">
-          <p className="text-xs font-medium text-muted-foreground truncate">
-            {currentTeam.name}
-          </p>
+          {teams.length >= 2 ? (
+            <Select value={currentTeam.id} onValueChange={setCurrentTeam}>
+              <SelectTrigger className="h-7 text-xs font-medium text-muted-foreground border-0 px-0 shadow-none focus:ring-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {teams.map((team) => (
+                  <SelectItem key={team.id} value={team.id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-xs font-medium text-muted-foreground truncate">
+              {currentTeam.name}
+            </p>
+          )}
         </div>
       )}
       <nav className="flex-1 space-y-1 p-3">
