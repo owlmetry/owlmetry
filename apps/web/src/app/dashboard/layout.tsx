@@ -12,6 +12,7 @@ import { TeamProvider } from "@/contexts/team-context";
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/events": "Events",
+  "/dashboard/api-keys": "API Keys",
   "/dashboard/projects": "Projects",
   "/dashboard/team": "Team",
   "/dashboard/audit-log": "Audit Log",

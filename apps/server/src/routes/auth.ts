@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, gte, lt, sql } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte, lt, sql, type SQL } from "drizzle-orm";
 import { users, teams, teamMembers, apiKeys, apps, projects, emailVerificationCodes } from "@owlmetry/db";
 import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
@@ -324,7 +324,7 @@ export async function authRoutes(app: FastifyInstance) {
   );
 
   // List API keys
-  app.get(
+  app.get<{ Querystring: { team_id?: string } }>(
     "/keys",
     { preHandler: requireAuth },
     async (request, reply) => {
@@ -333,14 +333,41 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can list API keys" });
       }
 
-      const teamIds = getAuthTeamIds(auth);
+      const allTeamIds = getAuthTeamIds(auth);
+      const { team_id } = request.query;
+
+      // If team_id is specified, validate access and scope to that team
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
       if (teamIds.length === 0) {
         return { api_keys: [] };
       }
 
+      // Alias the users table so it doesn't conflict with variable names
+      const creators = users;
+
       const rows = await app.db
-        .select()
+        .select({
+          id: apiKeys.id,
+          key_prefix: apiKeys.key_prefix,
+          key_type: apiKeys.key_type,
+          app_id: apiKeys.app_id,
+          team_id: apiKeys.team_id,
+          name: apiKeys.name,
+          created_by: apiKeys.created_by,
+          permissions: apiKeys.permissions,
+          created_at: apiKeys.created_at,
+          updated_at: apiKeys.updated_at,
+          last_used_at: apiKeys.last_used_at,
+          expires_at: apiKeys.expires_at,
+          app_name: apps.name,
+          created_by_email: creators.email,
+        })
         .from(apiKeys)
+        .leftJoin(apps, eq(apiKeys.app_id, apps.id))
+        .leftJoin(creators, eq(apiKeys.created_by, creators.id))
         .where(
           and(inArray(apiKeys.team_id, teamIds), isNull(apiKeys.deleted_at))
         );

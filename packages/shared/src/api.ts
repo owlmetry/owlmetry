@@ -69,6 +69,8 @@ export type ApiKeyResponse = Omit<ApiKey, "created_at" | "updated_at" | "last_us
   updated_at: string;
   last_used_at: string | null;
   expires_at: string | null;
+  app_name?: string | null;
+  created_by_email?: string | null;
 };
 
 // Audit Logs

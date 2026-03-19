@@ -2,6 +2,7 @@ export function serializeApiKey(k: {
   id: string; key_prefix: string; key_type: string; app_id: string | null;
   team_id: string; name: string; created_by: string | null; permissions: unknown;
   created_at: Date; updated_at: Date; last_used_at: Date | null; expires_at: Date | null;
+  app_name?: string | null; created_by_email?: string | null;
 }) {
   return {
     id: k.id,
@@ -16,6 +17,8 @@ export function serializeApiKey(k: {
     updated_at: k.updated_at.toISOString(),
     last_used_at: k.last_used_at?.toISOString() || null,
     expires_at: k.expires_at?.toISOString() || null,
+    app_name: k.app_name ?? null,
+    created_by_email: k.created_by_email ?? null,
   };
 }
 
