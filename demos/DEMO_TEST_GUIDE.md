@@ -28,7 +28,7 @@ pnpm install && pnpm build
 pnpm db:migrate
 
 # Seed dev data (admin user, team, project, apps, API keys)
-pnpm db:seed
+pnpm dev:seed
 ```
 
 ### Seed credentials

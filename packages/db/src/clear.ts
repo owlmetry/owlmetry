@@ -71,7 +71,7 @@ async function main() {
     await db.execute(sql.raw(`TRUNCATE ${table} CASCADE`)).catch(() => {});
   }
 
-  console.log("Done — all tables cleared. Run `pnpm db:seed` to re-seed.");
+  console.log("Done — all tables cleared. Run `pnpm dev:seed` to re-seed.");
   process.exit(0);
 }
 

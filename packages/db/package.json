@@ -15,8 +15,8 @@
     "dev": "tsc --watch",
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts",
-    "seed-events": "tsx src/seed-events.ts",
+    "dev:seed": "tsx src/seed.ts",
+    "dev:seed-events": "tsx src/seed-events.ts",
     "dev:unsafe-reset": "tsx src/clear.ts"
   },
   "dependencies": {

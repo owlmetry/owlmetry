@@ -83,7 +83,7 @@ cp .env.example .env
 pnpm db:migrate
 
 # Seed dev data (creates admin user, team, project, app, API keys)
-pnpm db:seed
+pnpm dev:seed
 
 # Start the API server
 pnpm dev:server
@@ -144,7 +144,7 @@ cp .env.example .env
 #   CORS_ORIGINS=https://your-domain.com
 
 pnpm db:migrate
-pnpm db:seed
+pnpm dev:seed
 ```
 
 ### 4. pm2 process management

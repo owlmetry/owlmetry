@@ -4,6 +4,11 @@ import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
 
+if (process.env.NODE_ENV === "production") {
+  console.error("Seed script is for development only. Aborting.");
+  process.exit(1);
+}
+
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
 
 async function main() {

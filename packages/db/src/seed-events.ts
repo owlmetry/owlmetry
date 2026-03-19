@@ -4,6 +4,11 @@ import { eq, isNull, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import "dotenv/config";
 
+if (process.env.NODE_ENV === "production") {
+  console.error("Seed script is for development only. Aborting.");
+  process.exit(1);
+}
+
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
 
 // ── Configuration ──────────────────────────────────────────────────────
@@ -208,7 +213,7 @@ async function main() {
     .where(isNull(apps.deleted_at));
 
   if (allApps.length === 0) {
-    console.error("No apps found. Run pnpm db:seed first.");
+    console.error("No apps found. Run pnpm dev:seed first.");
     process.exit(1);
   }
 
