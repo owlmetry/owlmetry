@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, gte, lt, sql, type SQL } from "drizzle-orm";
+import { eq, and, inArray, isNull, gte, lt, sql } from "drizzle-orm";
 import { users, teams, teamMembers, apiKeys, apps, projects, emailVerificationCodes } from "@owlmetry/db";
 import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
@@ -345,9 +345,6 @@ export async function authRoutes(app: FastifyInstance) {
         return { api_keys: [] };
       }
 
-      // Alias the users table so it doesn't conflict with variable names
-      const creators = users;
-
       const rows = await app.db
         .select({
           id: apiKeys.id,
@@ -363,11 +360,11 @@ export async function authRoutes(app: FastifyInstance) {
           last_used_at: apiKeys.last_used_at,
           expires_at: apiKeys.expires_at,
           app_name: apps.name,
-          created_by_email: creators.email,
+          created_by_email: users.email,
         })
         .from(apiKeys)
         .leftJoin(apps, eq(apiKeys.app_id, apps.id))
-        .leftJoin(creators, eq(apiKeys.created_by, creators.id))
+        .leftJoin(users, eq(apiKeys.created_by, users.id))
         .where(
           and(inArray(apiKeys.team_id, teamIds), isNull(apiKeys.deleted_at))
         );
