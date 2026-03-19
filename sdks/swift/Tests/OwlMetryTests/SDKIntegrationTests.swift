@@ -619,10 +619,9 @@ final class SDKIntegrationTests: XCTestCase {
         let attributes = event["custom_attributes"] as? [String: String] ?? [:]
         let trimmedValue = attributes["long_value"] ?? ""
 
-        // SDK trims to 200 chars + " [TRIMMED 300]" (214 total),
-        // then server slices to 200. Final result is 200 x's.
+        // SDK silently trims to 200 chars, matching server behavior
         XCTAssertEqual(trimmedValue.count, 200,
-                       "Value should be trimmed to 200 chars (server-side trim)")
+                       "Value should be trimmed to 200 chars")
         XCTAssertEqual(trimmedValue, String(repeating: "x", count: 200),
                        "Trimmed value should be the first 200 characters")
     }

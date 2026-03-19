@@ -26,7 +26,7 @@ final class CustomAttributeTrimmerTests: XCTestCase {
     func testOver200CharsTrimmed() {
         let value = String(repeating: "a", count: 250)
         let result = CustomAttributeTrimmer.trim(["key": value])
-        let expected = String(repeating: "a", count: 200) + " [TRIMMED 250]"
+        let expected = String(repeating: "a", count: 200)
         XCTAssertEqual(result?["key"], expected)
     }
 
@@ -35,6 +35,6 @@ final class CustomAttributeTrimmerTests: XCTestCase {
         let long = String(repeating: "b", count: 300)
         let result = CustomAttributeTrimmer.trim(["short": short, "long": long])
         XCTAssertEqual(result?["short"], short)
-        XCTAssertTrue(result?["long"]?.contains("[TRIMMED 300]") == true)
+        XCTAssertEqual(result?["long"]?.count, 200)
     }
 }

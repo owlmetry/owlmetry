@@ -149,6 +149,6 @@ final class EventBuilderTests: XCTestCase {
             line: 1
         )
 
-        XCTAssertTrue(event.customAttributes?["big"]?.contains("[TRIMMED") == true)
+        XCTAssertEqual(event.customAttributes?["big"]?.count, 200)
     }
 }

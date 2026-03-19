@@ -9,8 +9,7 @@ enum CustomAttributeTrimmer {
 
         return customAttributes.mapValues { value in
             if value.count > maxCustomAttributeValueLength {
-                let trimmed = String(value.prefix(maxCustomAttributeValueLength))
-                return "\(trimmed) [TRIMMED \(value.count)]"
+                return String(value.prefix(maxCustomAttributeValueLength))
             }
             return value
         }
