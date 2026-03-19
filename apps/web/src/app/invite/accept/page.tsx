@@ -33,6 +33,7 @@ function AcceptInvitationContent() {
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState("");
   const [accepted, setAccepted] = useState(false);
+  const [autoAcceptAttempted, setAutoAcceptAttempted] = useState(false);
 
   // Fetch invite info + check auth
   useEffect(() => {
@@ -60,6 +61,15 @@ function AcceptInvitationContent() {
         setAuthChecked(true);
       });
   }, [token]);
+
+  // Auto-accept when authenticated user's email matches the invite
+  useEffect(() => {
+    if (!invite || !authUser || !token || autoAcceptAttempted || accepted || accepting) return;
+    if (authUser.user.email !== invite.email) return;
+
+    setAutoAcceptAttempted(true);
+    handleAccept();
+  }, [invite, authUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAccept() {
     if (!token) return;
@@ -149,33 +159,39 @@ function AcceptInvitationContent() {
                   Checking authentication...
                 </p>
               ) : authUser ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-center text-muted-foreground">
-                    Signed in as {authUser.user.email}
+                authUser.user.email === invite.email && accepting ? (
+                  <p className="text-center text-muted-foreground text-sm">
+                    Accepting invitation...
                   </p>
-                  {authUser.user.email !== invite.email && (
-                    <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-3 py-2.5 text-sm text-yellow-600 dark:text-yellow-400 text-center">
-                      This invitation was sent to {invite.email}. You&apos;re
-                      signed in as {authUser.user.email}.
-                    </div>
-                  )}
-                  <Button
-                    className="w-full"
-                    onClick={handleAccept}
-                    disabled={accepting || authUser.user.email !== invite.email}
-                  >
-                    {accepting ? "Accepting..." : "Accept Invitation"}
-                  </Button>
-                  {authUser.user.email !== invite.email && (
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-center text-muted-foreground">
+                      Signed in as {authUser.user.email}
+                    </p>
+                    {authUser.user.email !== invite.email && (
+                      <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-3 py-2.5 text-sm text-yellow-600 dark:text-yellow-400 text-center">
+                        This invitation was sent to {invite.email}. You&apos;re
+                        signed in as {authUser.user.email}.
+                      </div>
+                    )}
                     <Button
-                      variant="outline"
                       className="w-full"
-                      onClick={handleSignInDifferent}
+                      onClick={handleAccept}
+                      disabled={accepting || authUser.user.email !== invite.email}
                     >
-                      Sign in as {invite.email}
+                      {accepting ? "Accepting..." : "Accept Invitation"}
                     </Button>
-                  )}
-                </div>
+                    {authUser.user.email !== invite.email && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleSignInDifferent}
+                      >
+                        Sign in as {invite.email}
+                      </Button>
+                    )}
+                  </div>
+                )
               ) : (
                 <Button className="w-full" onClick={handleSignIn}>
                   Sign in to accept
