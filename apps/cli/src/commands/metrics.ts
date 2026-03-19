@@ -1,7 +1,7 @@
 import { Command, Option } from "commander";
 import chalk from "chalk";
 import type { MetricDefinitionResponse, MetricQueryResponse } from "@owlmetry/shared";
-import { METRIC_PHASES } from "@owlmetry/shared";
+import { METRIC_PHASES, validateMetricSlug } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 import { formatMetricEventsTable } from "../formatters/table.js";
@@ -173,6 +173,12 @@ metricsCommand
   .option("--docs <markdown>", "Documentation (markdown)")
   .option("--lifecycle", "Mark as lifecycle metric (has start/complete/fail phases)")
   .action(async (opts: { project: string; name: string; slug: string; description?: string; docs?: string; lifecycle?: boolean }, cmd) => {
+    const slugError = validateMetricSlug(opts.slug);
+    if (slugError) {
+      console.error(chalk.red(`Error: ${slugError}`));
+      process.exitCode = 1;
+      return;
+    }
     const { client, globals } = createClient(cmd);
     const metric = await client.createMetric({
       project_id: opts.project,

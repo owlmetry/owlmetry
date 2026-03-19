@@ -4,6 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse } from "@owlmetry/shared";
+
+const SLUG_REGEX = /^[a-z0-9-]+$/;
+function validateMetricSlug(slug: string): string | null {
+  if (!slug) return "metric slug is required";
+  if (!SLUG_REGEX.test(slug)) {
+    return "metric slug must contain only lowercase letters, numbers, and hyphens";
+  }
+  return null;
+}
 import { useMetricDefinitions } from "@/hooks/use-metrics";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -44,8 +53,10 @@ export default function MetricsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
+  const slugError = newSlug ? validateMetricSlug(newSlug) : null;
+
   async function handleCreate() {
-    if (!newName || !newSlug || !selectedProjectId) return;
+    if (!newName || !newSlug || !selectedProjectId || slugError) return;
     setCreating(true);
     setCreateError("");
     try {
@@ -117,6 +128,12 @@ export default function MetricsPage() {
                   onChange={(e) => setNewSlug(e.target.value)}
                   placeholder="photo-conversion"
                 />
+                {slugError && newSlug && (
+                  <p className="text-xs text-red-500">{slugError}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Lowercase letters, numbers, and hyphens only
+                </p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">Description</label>
@@ -140,7 +157,7 @@ export default function MetricsPage() {
               <p className="text-xs text-red-500">{createError}</p>
             )}
             <DialogFooter>
-              <Button onClick={handleCreate} disabled={creating || !newName || !newSlug}>
+              <Button onClick={handleCreate} disabled={creating || !newName || !newSlug || !!slugError}>
                 {creating ? "Creating..." : "Create"}
               </Button>
             </DialogFooter>

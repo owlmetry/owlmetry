@@ -197,7 +197,32 @@ public enum Owl {
 
     // MARK: - Structured Metrics
 
-    /// Start a tracked operation. Returns an Operation object for completion.
+    /// Regex for valid metric slugs: lowercase letters, numbers, and hyphens only.
+    private static let slugRegex = try! NSRegularExpression(pattern: "^[a-z0-9-]+$")
+
+    /// Normalize a metric slug to contain only lowercase letters, numbers, and hyphens.
+    /// Logs a warning if the slug was modified.
+    private static func normalizeSlug(_ slug: String) -> String {
+        let range = NSRange(slug.startIndex..., in: slug)
+        if slugRegex.firstMatch(in: slug, range: range) != nil {
+            return slug
+        }
+        var normalized = slug.lowercased()
+        normalized = normalized.replacingOccurrences(
+            of: "[^a-z0-9-]", with: "-", options: .regularExpression)
+        normalized = normalized.replacingOccurrences(
+            of: "-{2,}", with: "-", options: .regularExpression)
+        normalized = normalized.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        logger.warning("Metric slug \"\(slug)\" was auto-corrected to \"\(normalized)\". Slugs should contain only lowercase letters, numbers, and hyphens.")
+        return normalized
+    }
+
+    /// Start a tracked operation. Returns an `Operation` object whose `complete()`, `fail()`,
+    /// or `cancel()` method should be called when the operation finishes.
+    ///
+    /// The `metric` slug should contain only lowercase letters, numbers, and hyphens
+    /// (e.g. `"photo-conversion"`, `"api-request"`). Invalid characters are auto-corrected
+    /// with a warning logged.
     public static func startOperation(
         _ metric: String,
         attributes: [String: String]? = nil,
@@ -205,14 +230,19 @@ public enum Owl {
         function: String = #function,
         line: Int = #line
     ) -> Operation {
-        let op = Operation(metric: metric)
+        let slug = normalizeSlug(metric)
+        let op = Operation(metric: slug)
         var attrs = attributes ?? [:]
         attrs["tracking_id"] = op.trackingId
-        info("metric:\(metric):start", customAttributes: attrs, file: file, function: function, line: line)
+        info("metric:\(slug):start", customAttributes: attrs, file: file, function: function, line: line)
         return op
     }
 
     /// Record a single-shot metric (no lifecycle).
+    ///
+    /// The `metric` slug should contain only lowercase letters, numbers, and hyphens
+    /// (e.g. `"onboarding"`, `"checkout"`). Invalid characters are auto-corrected
+    /// with a warning logged.
     public static func recordMetric(
         _ metric: String,
         attributes: [String: String]? = nil,
@@ -220,7 +250,8 @@ public enum Owl {
         function: String = #function,
         line: Int = #line
     ) {
-        info("metric:\(metric):record", customAttributes: attributes, file: file, function: function, line: line)
+        let slug = normalizeSlug(metric)
+        info("metric:\(slug):record", customAttributes: attributes, file: file, function: function, line: line)
     }
 
     // MARK: - Lifecycle

@@ -20,4 +20,17 @@ export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backen
 
 export const SLUG_REGEX = /^[a-z0-9-]+$/;
 
+/**
+ * Validate a metric slug. Slugs must contain only lowercase letters, numbers,
+ * and hyphens (e.g. "photo-conversion", "api-request", "onboarding").
+ * Returns null if valid, or an error message string if invalid.
+ */
+export function validateMetricSlug(slug: string): string | null {
+  if (!slug) return "metric slug is required";
+  if (!SLUG_REGEX.test(slug)) {
+    return "metric slug must contain only lowercase letters, numbers, and hyphens (e.g. \"photo-conversion\")";
+  }
+  return null;
+}
+
 export const PG_UNIQUE_VIOLATION = "23505";

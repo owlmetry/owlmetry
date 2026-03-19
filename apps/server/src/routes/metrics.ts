@@ -8,7 +8,7 @@ import type {
   MetricEventsQueryParams,
   MetricAggregationResult,
 } from "@owlmetry/shared";
-import { SLUG_REGEX, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
+import { validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
 import type { MetricPhase } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import type { AuthContext } from "../types.js";
@@ -167,8 +167,9 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "project_id, name, and slug are required" });
       }
 
-      if (!SLUG_REGEX.test(slug)) {
-        return reply.code(400).send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
+      const slugError = validateMetricSlug(slug);
+      if (slugError) {
+        return reply.code(400).send({ error: slugError });
       }
 
       const project = await resolveProject(app, project_id, auth, reply);

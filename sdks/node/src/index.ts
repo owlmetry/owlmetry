@@ -8,6 +8,26 @@ export type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
 export { Operation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
+const SLUG_REGEX = /^[a-z0-9-]+$/;
+
+/**
+ * Normalize a metric slug to contain only lowercase letters, numbers, and hyphens.
+ * Logs a warning if the slug was modified. Returns the normalized slug.
+ */
+function normalizeSlug(slug: string): string {
+  if (SLUG_REGEX.test(slug)) return slug;
+  const normalized = slug
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (config?.debug) {
+    console.error(
+      `OwlMetry: metric slug "${slug}" was auto-corrected to "${normalized}". Slugs should contain only lowercase letters, numbers, and hyphens.`,
+    );
+  }
+  return normalized;
+}
 
 function getSourceModule(): string | undefined {
   const err = new Error();
@@ -118,12 +138,22 @@ export class ScopedOwl {
     log("error", message, attrs, this.userId);
   }
 
+  /**
+   * Start a tracked operation. The `metric` slug should contain only lowercase letters,
+   * numbers, and hyphens (e.g. "photo-conversion", "api-request"). Invalid characters
+   * are auto-corrected with a warning logged in debug mode.
+   */
   startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
-    return new Operation(log, metric, attrs, this.userId);
+    return new Operation(log, normalizeSlug(metric), attrs, this.userId);
   }
 
+  /**
+   * Record a single-shot metric. The `metric` slug should contain only lowercase letters,
+   * numbers, and hyphens (e.g. "onboarding", "checkout"). Invalid characters are
+   * auto-corrected with a warning logged in debug mode.
+   */
   recordMetric(metric: string, attrs?: Record<string, unknown>): void {
-    log("info", `metric:${metric}:record`, attrs, this.userId);
+    log("info", `metric:${normalizeSlug(metric)}:record`, attrs, this.userId);
   }
 }
 
@@ -179,12 +209,22 @@ export const Owl = {
     log("error", message, attrs);
   },
 
+  /**
+   * Start a tracked operation. The `metric` slug should contain only lowercase letters,
+   * numbers, and hyphens (e.g. "photo-conversion", "api-request"). Invalid characters
+   * are auto-corrected with a warning logged in debug mode.
+   */
   startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
-    return new Operation(log, metric, attrs);
+    return new Operation(log, normalizeSlug(metric), attrs);
   },
 
+  /**
+   * Record a single-shot metric. The `metric` slug should contain only lowercase letters,
+   * numbers, and hyphens (e.g. "onboarding", "checkout"). Invalid characters are
+   * auto-corrected with a warning logged in debug mode.
+   */
   recordMetric(metric: string, attrs?: Record<string, unknown>): void {
-    log("info", `metric:${metric}:record`, attrs);
+    log("info", `metric:${normalizeSlug(metric)}:record`, attrs);
   },
 
   withUser(userId: string): ScopedOwl {
