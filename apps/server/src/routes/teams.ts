@@ -282,6 +282,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           id: apiKeys.id,
           name: apiKeys.name,
           key_prefix: apiKeys.key_prefix,
+          permissions: apiKeys.permissions,
           created_at: apiKeys.created_at,
         })
         .from(apiKeys)
@@ -299,6 +300,7 @@ export async function teamsRoutes(app: FastifyInstance) {
           id: k.id,
           name: k.name,
           key_prefix: k.key_prefix,
+          permissions: k.permissions,
           created_at: k.created_at.toISOString(),
         })),
       };

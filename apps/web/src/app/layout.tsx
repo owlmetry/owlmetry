@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
 import { SWRProvider } from "@/lib/swr";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const dmSans = DM_Sans({ subsets: ["latin"] });
 
@@ -14,7 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={dmSans.className}>
-        <SWRProvider>{children}</SWRProvider>
+        <SWRProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </SWRProvider>
       </body>
     </html>
   );

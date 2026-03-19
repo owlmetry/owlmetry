@@ -33,6 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api, ApiError } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
 import { useTeam } from "@/contexts/team-context";
@@ -385,7 +386,43 @@ interface AgentKeyInfo {
   id: string;
   name: string;
   key_prefix: string;
+  permissions: string[];
   created_at: string;
+}
+
+function AgentKeyList({ keys }: { keys: AgentKeyInfo[] }) {
+  return (
+    <div className="rounded-md border p-3 space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground mb-2">
+        {keys.length} agent {keys.length === 1 ? "key" : "keys"}
+      </p>
+      {keys.map((key) => (
+        <div key={key.id} className="flex items-center justify-between text-sm gap-3">
+          <span className="truncate font-medium">{key.name}</span>
+          <span className="flex items-center gap-2 shrink-0 text-muted-foreground text-xs">
+            <span className="font-mono">{key.key_prefix}...</span>
+            <span>&middot;</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-default underline decoration-dotted">
+                  {key.permissions.length} {key.permissions.length === 1 ? "permission" : "permissions"}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <ul className="text-xs space-y-0.5">
+                  {key.permissions.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </TooltipContent>
+            </Tooltip>
+            <span>&middot;</span>
+            <span>{new Date(key.created_at).toLocaleDateString()}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function RemoveMemberButton({
@@ -487,6 +524,7 @@ function RemoveMemberButton({
             </DialogHeader>
             {!keysLoading && agentKeys.length > 0 && (
               <div className="space-y-3">
+                <AgentKeyList keys={agentKeys} />
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="revoke-agent-keys"
@@ -497,18 +535,6 @@ function RemoveMemberButton({
                     Revoke their agent API keys
                   </label>
                 </div>
-                {revokeKeys && (
-                  <div className="rounded-md border p-3 space-y-1.5">
-                    {agentKeys.map((key) => (
-                      <div key={key.id} className="flex items-center justify-between text-sm">
-                        <span>{key.name}</span>
-                        <span className="text-muted-foreground font-mono text-xs">
-                          {key.key_prefix}... &middot; {new Date(key.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
             <DialogFooter>
@@ -684,6 +710,7 @@ function LeaveButton({
             </DialogHeader>
             {!keysLoading && agentKeys.length > 0 && (
               <div className="space-y-3">
+                <AgentKeyList keys={agentKeys} />
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="leave-revoke-agent-keys"
@@ -694,18 +721,6 @@ function LeaveButton({
                     Revoke my agent API keys
                   </label>
                 </div>
-                {revokeKeys && (
-                  <div className="rounded-md border p-3 space-y-1.5">
-                    {agentKeys.map((key) => (
-                      <div key={key.id} className="flex items-center justify-between text-sm">
-                        <span>{key.name}</span>
-                        <span className="text-muted-foreground font-mono text-xs">
-                          {key.key_prefix}... &middot; {new Date(key.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
             <DialogFooter>
