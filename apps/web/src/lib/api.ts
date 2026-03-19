@@ -9,6 +9,13 @@ export class ApiError extends Error {
   }
 }
 
+export class NetworkError extends Error {
+  constructor(message = "Unable to reach the server") {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const { headers: extraHeaders, ...rest } = options ?? {};
   const headers: Record<string, string> = { ...extraHeaders as Record<string, string> };
@@ -16,11 +23,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    credentials: "include",
-    headers,
-    ...rest,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      credentials: "include",
+      headers,
+      ...rest,
+    });
+  } catch {
+    throw new NetworkError();
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
