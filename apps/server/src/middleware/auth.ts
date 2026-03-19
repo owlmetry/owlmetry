@@ -98,6 +98,7 @@ export async function requireAuth(
       key_type: key.key_type as ApiKeyType,
       app_id: key.app_id,
       team_id: key.team_id,
+      created_by: key.created_by,
       permissions: key.permissions as Permission[],
     } satisfies ApiKeyContext;
     return;

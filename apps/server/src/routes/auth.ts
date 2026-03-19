@@ -668,6 +668,7 @@ export async function authRoutes(app: FastifyInstance) {
         app_id: newApp.id,
         team_id: targetTeam.id,
         name: "My App Client Key",
+        created_by: agentUser.id,
         permissions: DEFAULT_API_KEY_PERMISSIONS.client,
       });
 

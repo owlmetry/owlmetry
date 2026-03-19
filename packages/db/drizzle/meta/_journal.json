@@ -127,6 +127,13 @@
       "when": 1773934055101,
       "tag": "0017_cynical_spyke",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1773937838304,
+      "tag": "0018_freezing_mister_sinister",
+      "breakpoints": true
     }
   ]
 }

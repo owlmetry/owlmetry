@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { Trash2, LogOut, X, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api, ApiError } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
 import { useTeam } from "@/contexts/team-context";
@@ -380,6 +381,13 @@ function InviteMemberDialog({
 
 // --- Remove Member Button ---
 
+interface AgentKeyInfo {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+}
+
 function RemoveMemberButton({
   teamId,
   userId,
@@ -393,13 +401,58 @@ function RemoveMemberButton({
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [revokeKeys, setRevokeKeys] = useState(false);
+  const [agentKeys, setAgentKeys] = useState<AgentKeyInfo[]>([]);
+  const [keysLoading, setKeysLoading] = useState(false);
+  const [result, setResult] = useState<{ revoked_agent_keys: number } | null>(null);
+
+  useEffect(() => {
+    if (!result) return;
+    const timer = setTimeout(() => {
+      setOpen(false);
+      setResult(null);
+      onRemoved();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [result, onRemoved]);
+
+  async function handleOpenChange(isOpen: boolean) {
+    if (isOpen) {
+      setOpen(true);
+      setRevokeKeys(false);
+      setResult(null);
+      setKeysLoading(true);
+      try {
+        const res = await api.get<{ keys: AgentKeyInfo[] }>(
+          `/v1/teams/${teamId}/members/${userId}/agent-keys`
+        );
+        setAgentKeys(res.keys);
+      } catch {
+        setAgentKeys([]);
+      } finally {
+        setKeysLoading(false);
+      }
+    } else {
+      setOpen(false);
+      setAgentKeys([]);
+      setRevokeKeys(false);
+      setResult(null);
+    }
+  }
 
   async function handleRemove() {
     setLoading(true);
     try {
-      await api.delete(`/v1/teams/${teamId}/members/${userId}`);
-      setOpen(false);
-      onRemoved();
+      const qs = revokeKeys ? "?revoke_agent_keys=true" : "";
+      const res = await api.delete<{ removed: boolean; revoked_agent_keys: number }>(
+        `/v1/teams/${teamId}/members/${userId}${qs}`
+      );
+      if (res.revoked_agent_keys > 0) {
+        setResult(res);
+      } else {
+        setOpen(false);
+        onRemoved();
+      }
     } catch {
       // Error handling — dialog stays open
     } finally {
@@ -408,25 +461,64 @@ function RemoveMemberButton({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Remove Member</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to remove {memberName} from the team?
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="destructive" onClick={handleRemove} disabled={loading}>
-            {loading ? "Removing..." : "Remove"}
-          </Button>
-        </DialogFooter>
+        {result ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Member Removed</DialogTitle>
+              <DialogDescription>
+                {memberName} has been removed and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
+              </DialogDescription>
+            </DialogHeader>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Remove Member</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to remove {memberName} from the team?
+              </DialogDescription>
+            </DialogHeader>
+            {!keysLoading && agentKeys.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="revoke-agent-keys"
+                    checked={revokeKeys}
+                    onCheckedChange={(checked) => setRevokeKeys(checked === true)}
+                  />
+                  <label htmlFor="revoke-agent-keys" className="text-sm font-medium leading-none">
+                    Revoke their agent API keys
+                  </label>
+                </div>
+                {revokeKeys && (
+                  <div className="rounded-md border p-3 space-y-1.5">
+                    {agentKeys.map((key) => (
+                      <div key={key.id} className="flex items-center justify-between text-sm">
+                        <span>{key.name}</span>
+                        <span className="text-muted-foreground font-mono text-xs">
+                          {key.key_prefix}... &middot; {new Date(key.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleRemove} disabled={loading}>
+                {loading ? "Removing..." : "Remove"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -504,15 +596,60 @@ function LeaveButton({
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [revokeKeys, setRevokeKeys] = useState(false);
+  const [agentKeys, setAgentKeys] = useState<AgentKeyInfo[]>([]);
+  const [keysLoading, setKeysLoading] = useState(false);
+  const [result, setResult] = useState<{ revoked_agent_keys: number } | null>(null);
   const { user } = useUser();
+
+  useEffect(() => {
+    if (!result) return;
+    const timer = setTimeout(() => {
+      setOpen(false);
+      setResult(null);
+      onLeft();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [result, onLeft]);
+
+  async function handleOpenChange(isOpen: boolean) {
+    if (isOpen && user) {
+      setOpen(true);
+      setRevokeKeys(false);
+      setResult(null);
+      setKeysLoading(true);
+      try {
+        const res = await api.get<{ keys: AgentKeyInfo[] }>(
+          `/v1/teams/${teamId}/members/${user.id}/agent-keys`
+        );
+        setAgentKeys(res.keys);
+      } catch {
+        setAgentKeys([]);
+      } finally {
+        setKeysLoading(false);
+      }
+    } else {
+      setOpen(false);
+      setAgentKeys([]);
+      setRevokeKeys(false);
+      setResult(null);
+    }
+  }
 
   async function handleLeave() {
     if (!user) return;
     setLoading(true);
     try {
-      await api.delete(`/v1/teams/${teamId}/members/${user.id}`);
-      setOpen(false);
-      onLeft();
+      const qs = revokeKeys ? "?revoke_agent_keys=true" : "";
+      const res = await api.delete<{ removed: boolean; revoked_agent_keys: number }>(
+        `/v1/teams/${teamId}/members/${user.id}${qs}`
+      );
+      if (res.revoked_agent_keys > 0) {
+        setResult(res);
+      } else {
+        setOpen(false);
+        onLeft();
+      }
     } catch {
       // Error handling
     } finally {
@@ -521,25 +658,64 @@ function LeaveButton({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" disabled={disabled} title={disabled ? "Cannot leave — you are the sole owner" : "Leave team"}>
           <LogOut className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Leave Team</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to leave this team? You will lose access to all team resources.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant="destructive" onClick={handleLeave} disabled={loading}>
-            {loading ? "Leaving..." : "Leave"}
-          </Button>
-        </DialogFooter>
+        {result ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Left Team</DialogTitle>
+              <DialogDescription>
+                You have left the team and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
+              </DialogDescription>
+            </DialogHeader>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Leave Team</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to leave this team? You will lose access to all team resources.
+              </DialogDescription>
+            </DialogHeader>
+            {!keysLoading && agentKeys.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="leave-revoke-agent-keys"
+                    checked={revokeKeys}
+                    onCheckedChange={(checked) => setRevokeKeys(checked === true)}
+                  />
+                  <label htmlFor="leave-revoke-agent-keys" className="text-sm font-medium leading-none">
+                    Revoke my agent API keys
+                  </label>
+                </div>
+                {revokeKeys && (
+                  <div className="rounded-md border p-3 space-y-1.5">
+                    {agentKeys.map((key) => (
+                      <div key={key.id} className="flex items-center justify-between text-sm">
+                        <span>{key.name}</span>
+                        <span className="text-muted-foreground font-mono text-xs">
+                          {key.key_prefix}... &middot; {new Date(key.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleLeave} disabled={loading}>
+                {loading ? "Leaving..." : "Leave"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

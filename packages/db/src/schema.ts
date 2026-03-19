@@ -152,7 +152,7 @@ export const apiKeys = pgTable(
       .notNull()
       .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
-    created_by: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    created_by: uuid("created_by").notNull().references(() => users.id),
     permissions: jsonb("permissions").$type<string[]>().notNull(),
     last_used_at: timestamp("last_used_at", { withTimezone: true }),
     expires_at: timestamp("expires_at", { withTimezone: true }),

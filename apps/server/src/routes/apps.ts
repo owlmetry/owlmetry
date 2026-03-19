@@ -124,7 +124,7 @@ export async function appsRoutes(app: FastifyInstance) {
             app_id: created.id,
             team_id: project.team_id,
             name: `${name} Client Key`,
-            created_by: auth.type === "user" ? auth.user_id : null,
+            created_by: auth.type === "user" ? auth.user_id : auth.created_by,
             permissions: DEFAULT_API_KEY_PERMISSIONS.client,
           });
 

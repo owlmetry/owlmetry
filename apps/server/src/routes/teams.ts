@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { eq, and, count } from "drizzle-orm";
-import { teams, teamMembers, users } from "@owlmetry/db";
+import { eq, and, count, isNull } from "drizzle-orm";
+import { teams, teamMembers, users, apiKeys } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { canManageRole, VALID_TEAM_ROLES, SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import type {
@@ -251,6 +251,60 @@ export async function teamsRoutes(app: FastifyInstance) {
     }
   );
 
+  // List agent keys for a specific member
+  app.get<{ Params: { teamId: string; userId: string } }>(
+    "/teams/:teamId/members/:userId/agent-keys",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      const { teamId, userId } = request.params;
+
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can view member agent keys" });
+      }
+
+      // Allow admin+ or self
+      const isSelf = auth.user_id === userId;
+      if (!isSelf) {
+        const roleError = assertTeamRole(auth, teamId, "admin");
+        if (roleError) {
+          return reply.code(403).send({ error: roleError });
+        }
+      } else {
+        const roleError = assertTeamRole(auth, teamId, "member");
+        if (roleError) {
+          return reply.code(403).send({ error: roleError });
+        }
+      }
+
+      const keys = await app.db
+        .select({
+          id: apiKeys.id,
+          name: apiKeys.name,
+          key_prefix: apiKeys.key_prefix,
+          created_at: apiKeys.created_at,
+        })
+        .from(apiKeys)
+        .where(
+          and(
+            eq(apiKeys.team_id, teamId),
+            eq(apiKeys.created_by, userId),
+            eq(apiKeys.key_type, "agent"),
+            isNull(apiKeys.deleted_at)
+          )
+        );
+
+      return {
+        keys: keys.map((k) => ({
+          id: k.id,
+          name: k.name,
+          key_prefix: k.key_prefix,
+          created_at: k.created_at.toISOString(),
+        })),
+      };
+    }
+  );
+
   // List team members
   app.get<{ Params: { teamId: string } }>(
     "/teams/:teamId/members",
@@ -347,12 +401,13 @@ export async function teamsRoutes(app: FastifyInstance) {
   );
 
   // Remove member
-  app.delete<{ Params: { teamId: string; userId: string } }>(
+  app.delete<{ Params: { teamId: string; userId: string }; Querystring: { revoke_agent_keys?: string } }>(
     "/teams/:teamId/members/:userId",
     { preHandler: requireAuth },
     async (request, reply) => {
       const auth = request.auth;
       const { teamId, userId } = request.params;
+      const revokeAgentKeys = request.query.revoke_agent_keys === "true";
 
       if (auth.type !== "user") {
         return reply.code(403).send({ error: "Only users can remove team members" });
@@ -360,7 +415,7 @@ export async function teamsRoutes(app: FastifyInstance) {
 
       // Self-removal (leave team) — any role can do this
       if (userId === auth.user_id) {
-        return handleLeaveTeam(app, auth, teamId, reply);
+        return handleLeaveTeam(app, auth, teamId, revokeAgentKeys, reply);
       }
 
       const roleError = assertTeamRole(auth, teamId, "admin");
@@ -397,7 +452,12 @@ export async function teamsRoutes(app: FastifyInstance) {
         resource_id: userId,
       });
 
-      return { removed: true };
+      let revokedCount = 0;
+      if (revokeAgentKeys) {
+        revokedCount = await revokeUserAgentKeys(app, auth, teamId, userId);
+      }
+
+      return { removed: true, revoked_agent_keys: revokedCount };
     }
   );
 }
@@ -406,6 +466,7 @@ async function handleLeaveTeam(
   app: FastifyInstance,
   auth: UserContext,
   teamId: string,
+  revokeAgentKeys: boolean,
   reply: FastifyReply
 ) {
   const role = getTeamRole(auth, teamId);
@@ -421,5 +482,41 @@ async function handleLeaveTeam(
     .delete(teamMembers)
     .where(and(eq(teamMembers.team_id, teamId), eq(teamMembers.user_id, auth.user_id)));
 
-  return { removed: true };
+  let revokedCount = 0;
+  if (revokeAgentKeys) {
+    revokedCount = await revokeUserAgentKeys(app, auth, teamId, auth.user_id);
+  }
+
+  return { removed: true, revoked_agent_keys: revokedCount };
+}
+
+async function revokeUserAgentKeys(
+  app: FastifyInstance,
+  auth: UserContext,
+  teamId: string,
+  userId: string
+): Promise<number> {
+  const revoked = await app.db
+    .update(apiKeys)
+    .set({ deleted_at: new Date() })
+    .where(
+      and(
+        eq(apiKeys.team_id, teamId),
+        eq(apiKeys.created_by, userId),
+        eq(apiKeys.key_type, "agent"),
+        isNull(apiKeys.deleted_at)
+      )
+    )
+    .returning({ id: apiKeys.id });
+
+  for (const key of revoked) {
+    logAuditEvent(app.db, auth, {
+      team_id: teamId,
+      action: "delete",
+      resource_type: "api_key",
+      resource_id: key.id,
+    });
+  }
+
+  return revoked.length;
 }

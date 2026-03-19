@@ -339,7 +339,7 @@ export async function seedTestData() {
 
   // Client key (events:write, scoped to app)
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
+    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
       ${hashApiKey(TEST_CLIENT_KEY)},
       ${TEST_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
@@ -347,13 +347,14 @@ export async function seedTestData() {
       ${app.id},
       ${team.id},
       'Test Client Key',
+      ${user.id},
       ${JSON.stringify(["events:write"])}::jsonb
     )
   `;
 
   // Agent key (events:read, funnels:read, team-wide)
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
+    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
       ${hashApiKey(TEST_AGENT_KEY)},
       ${TEST_AGENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
@@ -361,13 +362,14 @@ export async function seedTestData() {
       ${null},
       ${team.id},
       'Test Agent Key',
+      ${user.id},
       ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"])}::jsonb
     )
   `;
 
   // Expired client key
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, expires_at)
+    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions, expires_at)
     VALUES (
       ${hashApiKey(TEST_EXPIRED_KEY)},
       ${TEST_EXPIRED_KEY.slice(0, KEY_PREFIX_LENGTH)},
@@ -375,6 +377,7 @@ export async function seedTestData() {
       ${app.id},
       ${team.id},
       'Expired Key',
+      ${user.id},
       ${JSON.stringify(["events:write"])}::jsonb,
       ${new Date("2020-01-01")}
     )

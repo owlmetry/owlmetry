@@ -10,7 +10,9 @@ import {
   addTeamMember,
   testEmailService,
   TEST_USER,
+  TEST_DB_URL,
 } from "./setup.js";
+import postgres from "postgres";
 
 let app: FastifyInstance;
 let testData: { userId: string; teamId: string; projectId: string; appId: string };
@@ -642,6 +644,182 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toContain("sole owner");
+  });
+});
+
+// ─── Agent Key Revocation on Member Removal ─────────────────────────
+
+/** Create an agent key via the API, attributed to the user whose token is provided. Returns the key ID. */
+async function createAgentKeyForUser(token: string, teamId: string, name: string): Promise<string> {
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/auth/keys",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { name, key_type: "agent", team_id: teamId },
+  });
+  return res.json().api_key.id;
+}
+
+/** Create a client key via the API, attributed to the user whose token is provided. Returns the key ID. */
+async function createClientKeyForUser(token: string, appId: string, name: string): Promise<string> {
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/auth/keys",
+    headers: { authorization: `Bearer ${token}` },
+    payload: { name, key_type: "client", app_id: appId },
+  });
+  return res.json().api_key.id;
+}
+
+/** Check if an API key is soft-deleted. */
+async function isKeyDeleted(keyId: string): Promise<boolean> {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  const [row] = await client`SELECT deleted_at FROM api_keys WHERE id = ${keyId}`;
+  await client.end();
+  return row.deleted_at !== null;
+}
+
+describe("GET /v1/teams/:teamId/members/:userId/agent-keys", () => {
+  it("returns agent keys created by the member", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "admin");
+
+    // Create key as the second user (needs admin+ to create keys)
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+    const keyId = await createAgentKeyForUser(secondToken, teamId, "Second Agent");
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/teams/${teamId}/members/${second.userId}/agent-keys`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.keys).toHaveLength(1);
+    expect(body.keys[0].id).toBe(keyId);
+    expect(body.keys[0].name).toBe("Second Agent");
+  });
+
+  it("excludes deleted keys and client keys", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "admin");
+
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+    await createAgentKeyForUser(secondToken, teamId, "Active Agent");
+    await createClientKeyForUser(secondToken, testData.appId, "Client Key");
+
+    // Soft-delete one agent key
+    const deletedId = await createAgentKeyForUser(secondToken, teamId, "Deleted Agent");
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    await client`UPDATE api_keys SET deleted_at = NOW() WHERE id = ${deletedId}`;
+    await client.end();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/teams/${teamId}/members/${second.userId}/agent-keys`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().keys).toHaveLength(1);
+    expect(res.json().keys[0].name).toBe("Active Agent");
+  });
+
+  it("allows self-access", async () => {
+    const { teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "admin");
+
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+    await createAgentKeyForUser(secondToken, teamId, "My Agent");
+
+    // Re-auth and demote to member to prove self-access works even as member
+    await app.inject({
+      method: "PATCH",
+      url: `/v1/teams/${teamId}/members/${second.userId}`,
+      headers: { authorization: `Bearer ${(await getTokenAndTeamId(app)).token}` },
+      payload: { role: "member" },
+    });
+    const { token: memberToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/teams/${teamId}/members/${second.userId}/agent-keys`,
+      headers: { authorization: `Bearer ${memberToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().keys).toHaveLength(1);
+  });
+});
+
+describe("DELETE /v1/teams/:teamId/members/:userId with revoke_agent_keys", () => {
+  it("does not revoke agent keys without the flag", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "admin");
+
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+    const keyId = await createAgentKeyForUser(secondToken, teamId, "Agent Key");
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}/members/${second.userId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().removed).toBe(true);
+    expect(res.json().revoked_agent_keys).toBe(0);
+    expect(await isKeyDeleted(keyId)).toBe(false);
+  });
+
+  it("revokes agent keys with revoke_agent_keys=true", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "admin");
+
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+    const agentKeyId = await createAgentKeyForUser(secondToken, teamId, "Agent Key");
+    const clientKeyId = await createClientKeyForUser(secondToken, testData.appId, "Client Key");
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}/members/${second.userId}?revoke_agent_keys=true`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().removed).toBe(true);
+    expect(res.json().revoked_agent_keys).toBe(1);
+    expect(await isKeyDeleted(agentKeyId)).toBe(true);
+    expect(await isKeyDeleted(clientKeyId)).toBe(false);
+  });
+
+  it("self-leave with revoke_agent_keys=true revokes own agent keys", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "admin");
+
+    const { token: secondToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+    const keyId = await createAgentKeyForUser(secondToken, teamId, "Self Agent");
+
+    // Re-auth to pick up membership
+    const { token: freshToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}/members/${second.userId}?revoke_agent_keys=true`,
+      headers: { authorization: `Bearer ${freshToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().removed).toBe(true);
+    expect(res.json().revoked_agent_keys).toBe(1);
+    expect(await isKeyDeleted(keyId)).toBe(true);
   });
 });
 

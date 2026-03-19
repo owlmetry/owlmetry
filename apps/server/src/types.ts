@@ -21,6 +21,7 @@ export interface ApiKeyContext {
   key_type: ApiKeyType;
   app_id: string | null;
   team_id: string;
+  created_by: string;
   permissions: Permission[];
 }
 
