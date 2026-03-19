@@ -13,6 +13,11 @@ export interface EmailService {
   sendTeamInvitation(email: string, params: TeamInvitationEmailParams): Promise<void>;
 }
 
+/** Escape user-controlled strings before interpolation into HTML emails. */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 /** Project root — 4 levels up from apps/server/src/services/ */
 const PROJECT_ROOT = resolve(import.meta.dirname, "../../../..");
 const DEV_CODE_PATH = resolve(PROJECT_ROOT, ".dev-verification-code");
@@ -89,8 +94,8 @@ export class ResendEmailService implements EmailService {
         to: email,
         subject: `You've been invited to join ${params.team_name} on OwlMetry`,
         html: [
-          `<p><strong>${params.invited_by_name}</strong> invited you to join <strong>${params.team_name}</strong> as <strong>${params.role}</strong>.</p>`,
-          `<p><a href="${params.accept_url}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>`,
+          `<p><strong>${escapeHtml(params.invited_by_name)}</strong> invited you to join <strong>${escapeHtml(params.team_name)}</strong> as <strong>${escapeHtml(params.role)}</strong>.</p>`,
+          `<p><a href="${escapeHtml(params.accept_url)}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>`,
           `<p style="color:#888;font-size:13px;">This invitation expires in 7 days.</p>`,
         ].join(""),
       }),
