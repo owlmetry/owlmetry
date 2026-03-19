@@ -425,17 +425,8 @@ function AgentKeyList({ keys }: { keys: AgentKeyInfo[] }) {
   );
 }
 
-function RemoveMemberButton({
-  teamId,
-  userId,
-  memberName,
-  onRemoved,
-}: {
-  teamId: string;
-  userId: string;
-  memberName: string;
-  onRemoved: () => void;
-}) {
+/** Shared hook for agent key revocation dialogs (remove member / leave team). */
+function useAgentKeyRevocation(teamId: string, userId: string | undefined, onDone: () => void) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [revokeKeys, setRevokeKeys] = useState(false);
@@ -448,13 +439,13 @@ function RemoveMemberButton({
     const timer = setTimeout(() => {
       setOpen(false);
       setResult(null);
-      onRemoved();
+      onDone();
     }, 2000);
     return () => clearTimeout(timer);
-  }, [result, onRemoved]);
+  }, [result, onDone]);
 
   async function handleOpenChange(isOpen: boolean) {
-    if (isOpen) {
+    if (isOpen && userId) {
       setOpen(true);
       setRevokeKeys(false);
       setResult(null);
@@ -477,18 +468,18 @@ function RemoveMemberButton({
     }
   }
 
-  async function handleRemove() {
+  async function performAction(deleteUrl: string) {
     setLoading(true);
     try {
       const qs = revokeKeys ? "?revoke_agent_keys=true" : "";
       const res = await api.delete<{ removed: boolean; revoked_agent_keys: number }>(
-        `/v1/teams/${teamId}/members/${userId}${qs}`
+        `${deleteUrl}${qs}`
       );
       if (res.revoked_agent_keys > 0) {
         setResult(res);
       } else {
         setOpen(false);
-        onRemoved();
+        onDone();
       }
     } catch {
       // Error handling — dialog stays open
@@ -496,6 +487,23 @@ function RemoveMemberButton({
       setLoading(false);
     }
   }
+
+  return { open, loading, revokeKeys, setRevokeKeys, agentKeys, keysLoading, result, handleOpenChange, performAction };
+}
+
+function RemoveMemberButton({
+  teamId,
+  userId,
+  memberName,
+  onRemoved,
+}: {
+  teamId: string;
+  userId: string;
+  memberName: string;
+  onRemoved: () => void;
+}) {
+  const { open, loading, revokeKeys, setRevokeKeys, agentKeys, keysLoading, result, handleOpenChange, performAction } =
+    useAgentKeyRevocation(teamId, userId, onRemoved);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -506,14 +514,12 @@ function RemoveMemberButton({
       </DialogTrigger>
       <DialogContent>
         {result ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Member Removed</DialogTitle>
-              <DialogDescription>
-                {memberName} has been removed and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
-              </DialogDescription>
-            </DialogHeader>
-          </>
+          <DialogHeader>
+            <DialogTitle>Member Removed</DialogTitle>
+            <DialogDescription>
+              {memberName} has been removed and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
+            </DialogDescription>
+          </DialogHeader>
         ) : (
           <>
             <DialogHeader>
@@ -539,7 +545,7 @@ function RemoveMemberButton({
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleRemove} disabled={loading}>
+              <Button variant="destructive" onClick={() => performAction(`/v1/teams/${teamId}/members/${userId}`)} disabled={loading}>
                 {loading ? "Removing..." : "Remove"}
               </Button>
             </DialogFooter>
@@ -620,68 +626,9 @@ function LeaveButton({
   disabled: boolean;
   onLeft: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [revokeKeys, setRevokeKeys] = useState(false);
-  const [agentKeys, setAgentKeys] = useState<AgentKeyInfo[]>([]);
-  const [keysLoading, setKeysLoading] = useState(false);
-  const [result, setResult] = useState<{ revoked_agent_keys: number } | null>(null);
   const { user } = useUser();
-
-  useEffect(() => {
-    if (!result) return;
-    const timer = setTimeout(() => {
-      setOpen(false);
-      setResult(null);
-      onLeft();
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [result, onLeft]);
-
-  async function handleOpenChange(isOpen: boolean) {
-    if (isOpen && user) {
-      setOpen(true);
-      setRevokeKeys(false);
-      setResult(null);
-      setKeysLoading(true);
-      try {
-        const res = await api.get<{ keys: AgentKeyInfo[] }>(
-          `/v1/teams/${teamId}/members/${user.id}/agent-keys`
-        );
-        setAgentKeys(res.keys);
-      } catch {
-        setAgentKeys([]);
-      } finally {
-        setKeysLoading(false);
-      }
-    } else {
-      setOpen(false);
-      setAgentKeys([]);
-      setRevokeKeys(false);
-      setResult(null);
-    }
-  }
-
-  async function handleLeave() {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const qs = revokeKeys ? "?revoke_agent_keys=true" : "";
-      const res = await api.delete<{ removed: boolean; revoked_agent_keys: number }>(
-        `/v1/teams/${teamId}/members/${user.id}${qs}`
-      );
-      if (res.revoked_agent_keys > 0) {
-        setResult(res);
-      } else {
-        setOpen(false);
-        onLeft();
-      }
-    } catch {
-      // Error handling
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { open, loading, revokeKeys, setRevokeKeys, agentKeys, keysLoading, result, handleOpenChange, performAction } =
+    useAgentKeyRevocation(teamId, user?.id, onLeft);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -692,14 +639,12 @@ function LeaveButton({
       </DialogTrigger>
       <DialogContent>
         {result ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Left Team</DialogTitle>
-              <DialogDescription>
-                You have left the team and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
-              </DialogDescription>
-            </DialogHeader>
-          </>
+          <DialogHeader>
+            <DialogTitle>Left Team</DialogTitle>
+            <DialogDescription>
+              You have left the team and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
+            </DialogDescription>
+          </DialogHeader>
         ) : (
           <>
             <DialogHeader>
@@ -725,7 +670,7 @@ function LeaveButton({
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-              <Button variant="destructive" onClick={handleLeave} disabled={loading}>
+              <Button variant="destructive" onClick={() => user && performAction(`/v1/teams/${teamId}/members/${user.id}`)} disabled={loading}>
                 {loading ? "Leaving..." : "Leave"}
               </Button>
             </DialogFooter>

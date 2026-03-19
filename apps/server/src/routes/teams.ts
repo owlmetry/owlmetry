@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { eq, and, count, isNull } from "drizzle-orm";
-import { teams, teamMembers, users, apiKeys } from "@owlmetry/db";
+import { teams, teamMembers, users, apiKeys, auditLogs } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { canManageRole, VALID_TEAM_ROLES, SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import type {
@@ -263,18 +263,11 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can view member agent keys" });
       }
 
-      // Allow admin+ or self
-      const isSelf = auth.user_id === userId;
-      if (!isSelf) {
-        const roleError = assertTeamRole(auth, teamId, "admin");
-        if (roleError) {
-          return reply.code(403).send({ error: roleError });
-        }
-      } else {
-        const roleError = assertTeamRole(auth, teamId, "member");
-        if (roleError) {
-          return reply.code(403).send({ error: roleError });
-        }
+      // Allow admin+ or self (self only needs member)
+      const requiredRole = auth.user_id === userId ? "member" : "admin";
+      const roleError = assertTeamRole(auth, teamId, requiredRole);
+      if (roleError) {
+        return reply.code(403).send({ error: roleError });
       }
 
       const keys = await app.db
@@ -511,13 +504,21 @@ async function revokeUserAgentKeys(
     )
     .returning({ id: apiKeys.id });
 
-  for (const key of revoked) {
-    logAuditEvent(app.db, auth, {
-      team_id: teamId,
-      action: "delete",
-      resource_type: "api_key",
-      resource_id: key.id,
-    });
+  if (revoked.length > 0) {
+    app.db
+      .insert(auditLogs)
+      .values(
+        revoked.map((key) => ({
+          team_id: teamId,
+          actor_type: "user" as const,
+          actor_id: auth.user_id,
+          action: "delete" as const,
+          resource_type: "api_key" as const,
+          resource_id: key.id,
+        }))
+      )
+      .execute()
+      .catch(() => {});
   }
 
   return revoked.length;
