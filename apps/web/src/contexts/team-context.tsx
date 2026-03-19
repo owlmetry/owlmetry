@@ -23,13 +23,12 @@ const TeamContext = createContext<TeamContextValue>({
 export function TeamProvider({ children }: { children: React.ReactNode }) {
   const { teams: userTeams } = useUser();
   const teams = userTeams ?? [];
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) setSelectedId(stored);
-  }, []);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(STORAGE_KEY);
+    }
+    return null;
+  });
 
   const setCurrentTeam = useCallback((id: string) => {
     setSelectedId(id);
