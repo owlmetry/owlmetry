@@ -6,6 +6,7 @@ const GZIP_THRESHOLD = 512;
 const MAX_BATCH_SIZE = 20;
 const MAX_RETRIES = 5;
 const MAX_BACKOFF_MS = 30000;
+const REQUEST_TIMEOUT_MS = 10000;
 
 export class Transport {
   private buffer: LogEvent[] = [];
@@ -88,6 +89,7 @@ export class Transport {
           method: "POST",
           headers,
           body: payload as BodyInit,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
 
         if (res.ok) return;
