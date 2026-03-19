@@ -27,6 +27,13 @@ export function AppSidebar() {
           OwlMetry
         </Link>
       </div>
+      {currentTeam && (
+        <div className="border-b px-4 py-2">
+          <p className="text-xs font-medium text-muted-foreground truncate">
+            {currentTeam.name}
+          </p>
+        </div>
+      )}
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map((item) => {
           const active =
@@ -50,13 +57,6 @@ export function AppSidebar() {
           );
         })}
       </nav>
-      {currentTeam && (
-        <div className="border-t px-4 py-3">
-          <p className="text-xs font-medium text-muted-foreground truncate">
-            {currentTeam.name}
-          </p>
-        </div>
-      )}
     </aside>
   );
 }
