@@ -11,6 +11,8 @@ import type { IngestRequest, IngestEventPayload } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function validateIngestEventPayload(
   payload: IngestEventPayload,
   index: number
@@ -187,13 +189,16 @@ export async function ingestRoutes(app: FastifyInstance) {
           if (!parsed) continue;
 
           const attrs = ev.custom_attributes ?? {};
+          const trackingId = attrs.tracking_id && UUID_REGEX.test(attrs.tracking_id)
+            ? attrs.tracking_id
+            : null;
           metricRows.push({
             app_id: ev.app_id,
             session_id: ev.session_id,
             user_id: ev.user_id ?? null,
             metric_slug: parsed.slug,
             phase: parsed.phase,
-            tracking_id: attrs.tracking_id || null,
+            tracking_id: trackingId,
             duration_ms: attrs.duration_ms ? parseInt(attrs.duration_ms, 10) || null : null,
             error: attrs.error || null,
             attributes: attrs,
