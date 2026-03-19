@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import useSWR from "swr";
-import { Trash2, LogOut, X, Mail } from "lucide-react";
+import { Trash2, LogOut, X, Mail, CheckCircle2, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -392,23 +392,24 @@ interface AgentKeyInfo {
 
 function AgentKeyList({ keys }: { keys: AgentKeyInfo[] }) {
   return (
-    <div className="rounded-md border p-3 space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground mb-2">
+    <div className="rounded-md border divide-y">
+      <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground">
+        <Key className="h-3.5 w-3.5" />
         {keys.length} agent {keys.length === 1 ? "key" : "keys"}
-      </p>
+      </div>
       {keys.map((key) => (
-        <div key={key.id} className="flex items-center justify-between text-sm gap-3">
-          <span className="truncate font-medium">{key.name}</span>
-          <span className="flex items-center gap-2 shrink-0 text-muted-foreground text-xs">
+        <div key={key.id} className="px-3 py-2 space-y-1">
+          <p className="text-sm font-medium truncate">{key.name}</p>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-mono">{key.key_prefix}...</span>
-            <span>&middot;</span>
+            <span className="text-muted-foreground/40">&middot;</span>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="cursor-default underline decoration-dotted">
+                <span className="cursor-default underline decoration-dotted decoration-muted-foreground/50">
                   {key.permissions.length} {key.permissions.length === 1 ? "permission" : "permissions"}
                 </span>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent sideOffset={4}>
                 <ul className="text-xs space-y-0.5">
                   {key.permissions.map((p) => (
                     <li key={p}>{p}</li>
@@ -416,9 +417,9 @@ function AgentKeyList({ keys }: { keys: AgentKeyInfo[] }) {
                 </ul>
               </TooltipContent>
             </Tooltip>
-            <span>&middot;</span>
+            <span className="text-muted-foreground/40">&middot;</span>
             <span>{new Date(key.created_at).toLocaleDateString()}</span>
-          </span>
+          </div>
         </div>
       ))}
     </div>
@@ -514,12 +515,15 @@ function RemoveMemberButton({
       </DialogTrigger>
       <DialogContent>
         {result ? (
-          <DialogHeader>
-            <DialogTitle>Member Removed</DialogTitle>
-            <DialogDescription>
-              {memberName} has been removed and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
-            </DialogDescription>
-          </DialogHeader>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <CheckCircle2 className="h-10 w-10 text-primary" />
+            <div className="text-center space-y-1">
+              <p className="font-semibold">Member Removed</p>
+              <p className="text-sm text-muted-foreground">
+                {memberName} has been removed and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
+              </p>
+            </div>
+          </div>
         ) : (
           <>
             <DialogHeader>
@@ -528,7 +532,11 @@ function RemoveMemberButton({
                 Are you sure you want to remove {memberName} from the team?
               </DialogDescription>
             </DialogHeader>
-            {!keysLoading && agentKeys.length > 0 && (
+            {keysLoading ? (
+              <div className="rounded-md border p-4">
+                <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+              </div>
+            ) : agentKeys.length > 0 ? (
               <div className="space-y-3">
                 <AgentKeyList keys={agentKeys} />
                 <div className="flex items-center gap-2">
@@ -542,7 +550,7 @@ function RemoveMemberButton({
                   </label>
                 </div>
               </div>
-            )}
+            ) : null}
             <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
               <Button variant="destructive" onClick={() => performAction(`/v1/teams/${teamId}/members/${userId}`)} disabled={loading}>
@@ -639,12 +647,15 @@ function LeaveButton({
       </DialogTrigger>
       <DialogContent>
         {result ? (
-          <DialogHeader>
-            <DialogTitle>Left Team</DialogTitle>
-            <DialogDescription>
-              You have left the team and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
-            </DialogDescription>
-          </DialogHeader>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <CheckCircle2 className="h-10 w-10 text-primary" />
+            <div className="text-center space-y-1">
+              <p className="font-semibold">Left Team</p>
+              <p className="text-sm text-muted-foreground">
+                You have left the team and {result.revoked_agent_keys} agent {result.revoked_agent_keys === 1 ? "key was" : "keys were"} revoked.
+              </p>
+            </div>
+          </div>
         ) : (
           <>
             <DialogHeader>
@@ -653,7 +664,11 @@ function LeaveButton({
                 Are you sure you want to leave this team? You will lose access to all team resources.
               </DialogDescription>
             </DialogHeader>
-            {!keysLoading && agentKeys.length > 0 && (
+            {keysLoading ? (
+              <div className="rounded-md border p-4">
+                <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+              </div>
+            ) : agentKeys.length > 0 ? (
               <div className="space-y-3">
                 <AgentKeyList keys={agentKeys} />
                 <div className="flex items-center gap-2">
@@ -667,7 +682,7 @@ function LeaveButton({
                   </label>
                 </div>
               </div>
-            )}
+            ) : null}
             <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
               <Button variant="destructive" onClick={() => user && performAction(`/v1/teams/${teamId}/members/${user.id}`)} disabled={loading}>
