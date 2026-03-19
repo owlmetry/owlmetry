@@ -1,0 +1,1 @@
+ALTER TABLE "events" ALTER COLUMN "client_event_id" SET DATA TYPE uuid;

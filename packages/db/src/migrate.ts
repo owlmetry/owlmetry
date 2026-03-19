@@ -93,7 +93,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
     CREATE TABLE IF NOT EXISTS events (
       id UUID DEFAULT gen_random_uuid(),
       app_id UUID NOT NULL,
-      client_event_id VARCHAR(255),
+      client_event_id UUID,
       session_id UUID NOT NULL,
       user_id VARCHAR(255),
       level log_level NOT NULL,

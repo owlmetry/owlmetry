@@ -179,7 +179,7 @@ export const events = pgTable(
   {
     id: uuid("id").defaultRandom(),
     app_id: uuid("app_id").notNull(),
-    client_event_id: varchar("client_event_id", { length: 255 }),
+    client_event_id: uuid("client_event_id"),
     session_id: uuid("session_id").notNull(),
     user_id: varchar("user_id", { length: 255 }),
     level: logLevelEnum("level").notNull(),
