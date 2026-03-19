@@ -19,6 +19,35 @@ function invitationExpiresAt(): Date {
   return d;
 }
 
+/** Looks up an invitation by token, joining team + inviter. Returns null if not found. */
+async function findInvitationByToken(db: FastifyInstance["db"], token: string) {
+  const [row] = await db
+    .select({
+      id: teamInvitations.id,
+      team_id: teamInvitations.team_id,
+      email: teamInvitations.email,
+      role: teamInvitations.role,
+      expires_at: teamInvitations.expires_at,
+      accepted_at: teamInvitations.accepted_at,
+      team_name: teams.name,
+      team_slug: teams.slug,
+      inviter_name: users.name,
+    })
+    .from(teamInvitations)
+    .innerJoin(teams, eq(teams.id, teamInvitations.team_id))
+    .innerJoin(users, eq(users.id, teamInvitations.invited_by_user_id))
+    .where(eq(teamInvitations.token, token))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Validates that an invitation is still actionable. Returns an error response tuple or null. */
+function validateInvitationStatus(inv: { accepted_at: Date | null; expires_at: Date }): { code: number; error: string } | null {
+  if (inv.accepted_at) return { code: 410, error: "This invitation has already been accepted" };
+  if (inv.expires_at < new Date()) return { code: 410, error: "This invitation has expired" };
+  return null;
+}
+
 async function getPendingInvitations(
   db: FastifyInstance["db"],
   teamId: string
@@ -112,25 +141,26 @@ export async function invitationRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: "User is already a member of this team" });
       }
 
-      // Get team name for email
-      const [team] = await app.db
-        .select({ name: teams.name })
-        .from(teams)
-        .where(eq(teams.id, teamId))
-        .limit(1);
+      // Fetch team name + inviter name in parallel
+      const [teamRows, inviterRows] = await Promise.all([
+        app.db.select({ name: teams.name }).from(teams).where(eq(teams.id, teamId)).limit(1),
+        app.db.select({ name: users.name }).from(users).where(eq(users.id, auth.user_id)).limit(1),
+      ]);
 
+      const team = teamRows[0];
       if (!team) {
         return reply.code(404).send({ error: "Team not found" });
       }
-
-      // Get inviter name
-      const [inviter] = await app.db
-        .select({ name: users.name, email: users.email })
-        .from(users)
-        .where(eq(users.id, auth.user_id))
-        .limit(1);
+      const inviterName = inviterRows[0].name;
 
       const expiresAt = invitationExpiresAt();
+      const invitationValues = {
+        team_id: teamId,
+        email,
+        role: targetRole,
+        invited_by_user_id: auth.user_id,
+        expires_at: expiresAt,
+      };
 
       // Upsert: on re-invite, regenerate token + reset expiry
       let invitation;
@@ -159,33 +189,14 @@ export async function invitationRoutes(app: FastifyInstance) {
             .where(eq(teamInvitations.id, existing.id))
             .returning();
           invitation = updated;
-        } else if (existing && existing.accepted_at) {
-          // Already accepted — they're somehow not a member but accepted before
-          // Delete stale record and create fresh
-          await app.db
-            .delete(teamInvitations)
-            .where(eq(teamInvitations.id, existing.id));
-          const [created] = await app.db
-            .insert(teamInvitations)
-            .values({
-              team_id: teamId,
-              email,
-              role: targetRole,
-              invited_by_user_id: auth.user_id,
-              expires_at: expiresAt,
-            })
-            .returning();
-          invitation = created;
         } else {
+          // New invite, or stale accepted record — delete stale if present, then insert
+          if (existing) {
+            await app.db.delete(teamInvitations).where(eq(teamInvitations.id, existing.id));
+          }
           const [created] = await app.db
             .insert(teamInvitations)
-            .values({
-              team_id: teamId,
-              email,
-              role: targetRole,
-              invited_by_user_id: auth.user_id,
-              expires_at: expiresAt,
-            })
+            .values(invitationValues)
             .returning();
           invitation = created;
         }
@@ -200,7 +211,7 @@ export async function invitationRoutes(app: FastifyInstance) {
       const acceptUrl = `${config.webAppUrl}/invite/accept?token=${invitation.token}`;
       await app.emailService.sendTeamInvitation(email, {
         team_name: team.name,
-        invited_by_name: inviter.name,
+        invited_by_name: inviterName,
         role: targetRole,
         accept_url: acceptUrl,
       });
@@ -212,8 +223,8 @@ export async function invitationRoutes(app: FastifyInstance) {
         role: invitation.role,
         invited_by: {
           user_id: auth.user_id,
-          name: inviter.name,
-          email: inviter.email,
+          name: inviterName,
+          email: auth.email,
         },
         expires_at: invitation.expires_at.toISOString(),
         accepted_at: null,
@@ -278,36 +289,14 @@ export async function invitationRoutes(app: FastifyInstance) {
   app.get<{ Params: { token: string } }>(
     "/invites/:token",
     async (request, reply) => {
-      const { token } = request.params;
-
-      const rows = await app.db
-        .select({
-          email: teamInvitations.email,
-          role: teamInvitations.role,
-          expires_at: teamInvitations.expires_at,
-          accepted_at: teamInvitations.accepted_at,
-          team_name: teams.name,
-          team_slug: teams.slug,
-          inviter_name: users.name,
-        })
-        .from(teamInvitations)
-        .innerJoin(teams, eq(teams.id, teamInvitations.team_id))
-        .innerJoin(users, eq(users.id, teamInvitations.invited_by_user_id))
-        .where(eq(teamInvitations.token, token))
-        .limit(1);
-
-      if (rows.length === 0) {
+      const inv = await findInvitationByToken(app.db, request.params.token);
+      if (!inv) {
         return reply.code(404).send({ error: "Invitation not found" });
       }
 
-      const inv = rows[0];
-
-      if (inv.accepted_at) {
-        return reply.code(410).send({ error: "This invitation has already been accepted" });
-      }
-
-      if (inv.expires_at < new Date()) {
-        return reply.code(410).send({ error: "This invitation has expired" });
+      const statusError = validateInvitationStatus(inv);
+      if (statusError) {
+        return reply.code(statusError.code).send({ error: statusError.error });
       }
 
       return {
@@ -338,33 +327,14 @@ export async function invitationRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "token is required" });
       }
 
-      const rows = await app.db
-        .select({
-          id: teamInvitations.id,
-          team_id: teamInvitations.team_id,
-          email: teamInvitations.email,
-          role: teamInvitations.role,
-          expires_at: teamInvitations.expires_at,
-          accepted_at: teamInvitations.accepted_at,
-          team_name: teams.name,
-        })
-        .from(teamInvitations)
-        .innerJoin(teams, eq(teams.id, teamInvitations.team_id))
-        .where(eq(teamInvitations.token, token))
-        .limit(1);
-
-      if (rows.length === 0) {
+      const inv = await findInvitationByToken(app.db, token);
+      if (!inv) {
         return reply.code(404).send({ error: "Invitation not found" });
       }
 
-      const inv = rows[0];
-
-      if (inv.accepted_at) {
-        return reply.code(410).send({ error: "This invitation has already been accepted" });
-      }
-
-      if (inv.expires_at < new Date()) {
-        return reply.code(410).send({ error: "This invitation has expired" });
+      const statusError = validateInvitationStatus(inv);
+      if (statusError) {
+        return reply.code(statusError.code).send({ error: statusError.error });
       }
 
       if (inv.email !== auth.email) {
