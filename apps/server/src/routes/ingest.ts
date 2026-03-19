@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { apps, events, appUsers, metricEvents } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX, parseMetricMessage } from "@owlmetry/shared";
 import {
@@ -132,13 +132,17 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       const existingIds = new Set<string>();
       if (clientEventIds.length > 0) {
+        // Bound the dedup query to the last 48 hours so Postgres can prune
+        // older partitions instead of scanning every month's index.
+        const dedupHorizon = new Date(Date.now() - 48 * 60 * 60 * 1000);
         const existing = await app.db
           .select({ client_event_id: events.client_event_id })
           .from(events)
           .where(
             and(
               eq(events.app_id, app_id),
-              inArray(events.client_event_id, clientEventIds)
+              inArray(events.client_event_id, clientEventIds),
+              gte(events.timestamp, dedupHorizon)
             )
           );
         for (const row of existing) {
