@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import type { AuditLogsQueryParams, AuditLogResponse } from "@owlmetry/shared";
+import type { AuditLogsQueryParams, AuditLogResponse, AuditResourceType, AuditAction } from "@owlmetry/shared";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useTeam } from "@/contexts/team-context";
 import { Button } from "@/components/ui/button";
@@ -30,12 +30,13 @@ import {
 } from "@/components/ui/sheet";
 import { X } from "lucide-react";
 
-const RESOURCE_TYPES = [
+// Mirrors AuditResourceType and AuditAction from @owlmetry/shared (runtime import
+// would pull in node:crypto via the barrel export, which Next.js can't bundle)
+const RESOURCE_TYPES: AuditResourceType[] = [
   "app", "project", "api_key", "team", "team_member",
   "invitation", "metric_definition", "user",
 ];
-
-const ACTIONS = ["create", "update", "delete"];
+const ACTIONS: AuditAction[] = ["create", "update", "delete"];
 
 function actionBadgeVariant(action: string) {
   switch (action) {

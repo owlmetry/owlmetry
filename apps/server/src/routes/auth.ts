@@ -674,12 +674,12 @@ export async function authRoutes(app: FastifyInstance) {
       provisionedApp = { id: newApp.id, name: newApp.name, platform: newApp.platform };
     }
 
-    // Build auth context for audit logging
+    // Build auth context for audit logging (only target team needed)
     const agentLoginAuth = {
       type: "user" as const,
       user_id: agentUser.id,
       email: agentUser.email,
-      team_memberships: membershipTeams.map((t) => ({ team_id: t.id, role: t.role })),
+      team_memberships: [{ team_id: targetTeam.id, role: targetTeam.role }],
     };
 
     if (isNewSetup && provisionedProject) {

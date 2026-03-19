@@ -10,6 +10,12 @@ export type AuditResourceType =
   | "metric_definition"
   | "user";
 
+export const AUDIT_ACTIONS: AuditAction[] = ["create", "update", "delete"];
+export const AUDIT_RESOURCE_TYPES: AuditResourceType[] = [
+  "app", "project", "api_key", "team", "team_member",
+  "invitation", "metric_definition", "user",
+];
+
 export interface AuditLogEntry {
   id: string;
   team_id: string;
