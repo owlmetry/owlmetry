@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, FunnelStep } from "@owlmetry/shared";
 import { validateFunnelSlug } from "@owlmetry/shared/constants";
@@ -40,6 +40,7 @@ function emptyStep(): StepDraft {
 
 export default function FunnelsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
   const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
@@ -47,7 +48,15 @@ export default function FunnelsPage() {
   );
   const projects = projectsData?.projects ?? [];
 
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? "");
+
+  function setProjectId(id: string) {
+    setProjectIdState(id);
+    const params = new URLSearchParams();
+    if (id) params.set("project_id", id);
+    const qs = params.toString();
+    router.replace(`/dashboard/funnels${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
   const selectedProjectId = projectId || projects[0]?.id || "";
   const { funnels, isLoading, mutate } = useFunnels(selectedProjectId || null);
 

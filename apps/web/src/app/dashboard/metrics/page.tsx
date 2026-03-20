@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse } from "@owlmetry/shared";
 
@@ -38,6 +38,7 @@ import { BarChart3, Plus } from "lucide-react";
 
 export default function MetricsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
   const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
@@ -45,7 +46,15 @@ export default function MetricsPage() {
   );
   const projects = projectsData?.projects ?? [];
 
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? "");
+  function setProjectId(id: string) {
+    setProjectIdState(id);
+    const params = new URLSearchParams();
+    if (id) params.set("project_id", id);
+    const qs = params.toString();
+    router.replace(`/dashboard/metrics${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
   const selectedProjectId = projectId || projects[0]?.id || "";
   const { metrics, isLoading, mutate } = useMetricDefinitions(selectedProjectId || undefined);
 

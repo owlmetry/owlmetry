@@ -1,22 +1,16 @@
 "use client";
 
-import { useState, useMemo, useDeferredValue } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useState, useDeferredValue } from "react";
+import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
-import type { ProjectResponse, MetricDefinitionResponse, StoredMetricEventResponse } from "@owlmetry/shared";
+import type { MetricDefinitionResponse } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
+import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
+import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -28,8 +22,7 @@ import {
 import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
-import { BookOpen, X } from "lucide-react";
-import { TIME_RANGES, ENVIRONMENTS, sinceFromRange } from "@/lib/time-ranges";
+import { BookOpen } from "lucide-react";
 
 const PHASE_COLORS: Record<string, string> = {
   start: "bg-blue-500/10 text-blue-600",
@@ -39,81 +32,58 @@ const PHASE_COLORS: Record<string, string> = {
   record: "bg-cyan-500/10 text-cyan-600",
 };
 
+const METRIC_GROUP_BY_OPTIONS = [
+  { value: "time:hour", label: "Hour" },
+  { value: "time:day", label: "Day" },
+  { value: "time:week", label: "Week" },
+  { value: "app_version", label: "App Version" },
+  { value: "device_model", label: "Device" },
+  { value: "os_version", label: "OS Version" },
+  { value: "environment", label: "Environment" },
+];
+
 export default function MetricDetailPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const projectId = searchParams.get("project_id") ?? "";
-
-  const [timeRange, setTimeRange] = useState("24h");
-  const [groupBy, setGroupBy] = useState("time:day");
-  const [docsOpen, setDocsOpen] = useState(false);
-  const [sinceInput, setSinceInput] = useState("");
-  const [untilInput, setUntilInput] = useState("");
-  const [appVersion, setAppVersion] = useState("");
-  const deferredAppVersion = useDeferredValue(appVersion);
-  const [environment, setEnvironment] = useState("");
   const { dataMode } = useDataMode();
+
+  const filters = useUrlFilters({
+    path: `/dashboard/metrics/${slug}`,
+    defaults: {
+      project_id: "",
+      time_range: "24h",
+      since: "",
+      until: "",
+      app_version: "",
+      environment: "",
+      group_by: "time:day",
+    },
+  });
+
+  const projectId = filters.get("project_id");
+  const deferredAppVersion = useDeferredValue(filters.get("app_version"));
+  const [docsOpen, setDocsOpen] = useState(false);
 
   // Fetch metric definition
   const { data: metricData } = useSWR<MetricDefinitionResponse>(
     projectId ? `/v1/metrics/${slug}?project_id=${projectId}` : null,
   );
 
-  const computedSince = useMemo(() => {
-    if (sinceInput) return new Date(sinceInput).toISOString();
-    if (timeRange === "custom") return undefined;
-    return sinceFromRange(timeRange);
-  }, [sinceInput, timeRange]);
-
-  const computedUntil = useMemo(() => {
-    if (!untilInput) return undefined;
-    // Use start of the next day so the entire selected date is included
-    const d = new Date(untilInput);
-    d.setDate(d.getDate() + 1);
-    return d.toISOString();
-  }, [untilInput]);
-
-  const hasActiveFilters = sinceInput || untilInput || appVersion || environment || timeRange !== "24h" || groupBy !== "time:day";
-
-  function clearFilters() {
-    setTimeRange("24h");
-    setGroupBy("time:day");
-    setSinceInput("");
-    setUntilInput("");
-    setAppVersion("");
-    setEnvironment("");
-  }
-
-  function handleTimeRangeChange(value: string) {
-    setTimeRange(value);
-    if (value !== "custom") {
-      setSinceInput("");
-      setUntilInput("");
-    }
-  }
-
-  function handleDateChange(field: "since" | "until", value: string) {
-    if (field === "since") setSinceInput(value);
-    else setUntilInput(value);
-    if (value) setTimeRange("custom");
-  }
-
   // Aggregation query
   const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId || undefined, {
-    since: computedSince,
-    until: computedUntil,
+    since: filters.computedSince,
+    until: filters.computedUntil,
     app_version: deferredAppVersion || undefined,
-    environment: environment || undefined,
-    group_by: groupBy,
+    environment: filters.get("environment") || undefined,
+    group_by: filters.get("group_by"),
     data_mode: dataMode,
   });
 
   // Raw events
   const { events, isLoading: eventsLoading } = useMetricEvents(slug, projectId || undefined, {
-    since: computedSince,
-    until: computedUntil,
-    environment: environment || undefined,
+    since: filters.computedSince,
+    until: filters.computedUntil,
+    environment: filters.get("environment") || undefined,
     data_mode: dataMode,
   });
 
@@ -150,90 +120,7 @@ export default function MetricDetailPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-end gap-3 flex-wrap">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Time Range</label>
-          <Select value={timeRange} onValueChange={handleTimeRangeChange}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_RANGES.map((r) => (
-                <SelectItem key={r.value} value={r.value}>
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Since</label>
-          <Input
-            type="date"
-            value={sinceInput}
-            onChange={(e) => handleDateChange("since", e.target.value)}
-            className="w-[140px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Until</label>
-          <Input
-            type="date"
-            value={untilInput}
-            onChange={(e) => handleDateChange("until", e.target.value)}
-            className="w-[140px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">App Version</label>
-          <Input
-            type="text"
-            placeholder="e.g. 1.0.0"
-            value={appVersion}
-            onChange={(e) => setAppVersion(e.target.value)}
-            className="w-[120px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Environment</label>
-          <Select value={environment || "all"} onValueChange={(v) => setEnvironment(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-[130px] h-8 text-xs">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {ENVIRONMENTS.map((env) => (
-                <SelectItem key={env} value={env}>
-                  {env}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Group By</label>
-          <Select value={groupBy} onValueChange={setGroupBy}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="time:hour">Hour</SelectItem>
-              <SelectItem value="time:day">Day</SelectItem>
-              <SelectItem value="time:week">Week</SelectItem>
-              <SelectItem value="app_version">App Version</SelectItem>
-              <SelectItem value="device_model">Device</SelectItem>
-              <SelectItem value="os_version">OS Version</SelectItem>
-              <SelectItem value="environment">Environment</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearFilters}>
-            <X className="h-3 w-3 mr-1" />
-            Clear
-          </Button>
-        )}
-      </div>
+      <AnalyticsFilterBar filters={filters} groupByOptions={METRIC_GROUP_BY_OPTIONS} />
 
       {queryLoading ? (
         <p className="text-sm text-muted-foreground">Loading metrics...</p>

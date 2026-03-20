@@ -1,110 +1,68 @@
 "use client";
 
-import { useState, useMemo, useDeferredValue } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useDeferredValue } from "react";
+import { useParams } from "next/navigation";
 import useSWR from "swr";
 import type { FunnelDefinitionResponse } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
+import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useFunnelQuery } from "@/hooks/use-funnels";
+import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
 import { FunnelChart } from "@/components/funnels/funnel-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { X } from "lucide-react";
-import { TIME_RANGES, ENVIRONMENTS, sinceFromRange } from "@/lib/time-ranges";
+
+const FUNNEL_GROUP_BY_OPTIONS = [
+  { value: "environment", label: "Environment" },
+  { value: "app_version", label: "App Version" },
+];
 
 export default function FunnelDetailPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const projectId = searchParams.get("project_id") ?? "";
-
-  const [timeRange, setTimeRange] = useState("7d");
-  const [sinceInput, setSinceInput] = useState("");
-  const [untilInput, setUntilInput] = useState("");
-  const [appVersion, setAppVersion] = useState("");
-  const deferredAppVersion = useDeferredValue(appVersion);
-  const [environment, setEnvironment] = useState("");
-  const [experiment, setExperiment] = useState("");
-  const deferredExperiment = useDeferredValue(experiment);
-  const [openMode, setOpenMode] = useState(false);
-  const [groupBy, setGroupBy] = useState("");
   const { dataMode } = useDataMode();
+
+  const filters = useUrlFilters({
+    path: `/dashboard/funnels/${slug}`,
+    defaults: {
+      project_id: "",
+      time_range: "7d",
+      since: "",
+      until: "",
+      app_version: "",
+      environment: "",
+      experiment: "",
+      group_by: "",
+      mode: "closed",
+    },
+  });
+
+  const projectId = filters.get("project_id");
+  const deferredAppVersion = useDeferredValue(filters.get("app_version"));
+  const deferredExperiment = useDeferredValue(filters.get("experiment"));
+  const openMode = filters.get("mode") === "open";
 
   // Fetch funnel definition
   const { data: funnelData } = useSWR<FunnelDefinitionResponse>(
     projectId ? `/v1/funnels/${slug}?project_id=${projectId}` : null,
   );
 
-  const computedSince = useMemo(() => {
-    if (sinceInput) return new Date(sinceInput).toISOString();
-    if (timeRange === "custom") return undefined;
-    return sinceFromRange(timeRange);
-  }, [sinceInput, timeRange]);
-
-  const computedUntil = useMemo(() => {
-    if (!untilInput) return undefined;
-    const d = new Date(untilInput);
-    d.setDate(d.getDate() + 1);
-    return d.toISOString();
-  }, [untilInput]);
-
-  const hasActiveFilters =
-    sinceInput ||
-    untilInput ||
-    appVersion ||
-    environment ||
-    experiment ||
-    timeRange !== "7d" ||
-    groupBy;
-
-  function clearFilters() {
-    setTimeRange("7d");
-    setSinceInput("");
-    setUntilInput("");
-    setAppVersion("");
-    setEnvironment("");
-    setExperiment("");
-    setGroupBy("");
-  }
-
-  function handleTimeRangeChange(value: string) {
-    setTimeRange(value);
-    if (value !== "custom") {
-      setSinceInput("");
-      setUntilInput("");
-    }
-  }
-
-  function handleDateChange(field: "since" | "until", value: string) {
-    if (field === "since") setSinceInput(value);
-    else setUntilInput(value);
-    if (value) setTimeRange("custom");
-  }
-
   // Query
   const { data: queryData, isLoading } = useFunnelQuery(slug, projectId || undefined, {
-    since: computedSince,
-    until: computedUntil,
+    since: filters.computedSince,
+    until: filters.computedUntil,
     app_version: deferredAppVersion || undefined,
-    environment: environment || undefined,
+    environment: filters.get("environment") || undefined,
     experiment: deferredExperiment || undefined,
     mode: openMode ? "open" : "closed",
-    group_by: groupBy || undefined,
+    group_by: filters.get("group_by") || undefined,
     data_mode: dataMode,
   });
 
@@ -121,94 +79,20 @@ export default function FunnelDetailPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-end gap-3 flex-wrap">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Time Range</label>
-          <Select value={timeRange} onValueChange={handleTimeRangeChange}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_RANGES.map((r) => (
-                <SelectItem key={r.value} value={r.value}>
-                  {r.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Since</label>
-          <Input
-            type="date"
-            value={sinceInput}
-            onChange={(e) => handleDateChange("since", e.target.value)}
-            className="w-[140px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Until</label>
-          <Input
-            type="date"
-            value={untilInput}
-            onChange={(e) => handleDateChange("until", e.target.value)}
-            className="w-[140px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">App Version</label>
-          <Input
-            type="text"
-            placeholder="e.g. 1.0.0"
-            value={appVersion}
-            onChange={(e) => setAppVersion(e.target.value)}
-            className="w-[120px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Environment</label>
-          <Select
-            value={environment || "all"}
-            onValueChange={(v) => setEnvironment(v === "all" ? "" : v)}
-          >
-            <SelectTrigger className="w-[130px] h-8 text-xs">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {ENVIRONMENTS.map((env) => (
-                <SelectItem key={env} value={env}>
-                  {env}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <AnalyticsFilterBar
+        filters={filters}
+        groupByOptions={FUNNEL_GROUP_BY_OPTIONS}
+        groupByAllowNone
+      >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Experiment</label>
           <Input
             type="text"
             placeholder="name:variant"
-            value={experiment}
-            onChange={(e) => setExperiment(e.target.value)}
+            value={filters.get("experiment")}
+            onChange={(e) => filters.set("experiment", e.target.value)}
             className="w-[140px] h-8 text-xs"
           />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Group By</label>
-          <Select
-            value={groupBy || "none"}
-            onValueChange={(v) => setGroupBy(v === "none" ? "" : v)}
-          >
-            <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              <SelectItem value="environment">Environment</SelectItem>
-              <SelectItem value="app_version">App Version</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Open funnel toggle */}
@@ -218,7 +102,9 @@ export default function FunnelDetailPage() {
               <label className="flex items-center gap-2 h-8 cursor-pointer select-none">
                 <Checkbox
                   checked={openMode}
-                  onCheckedChange={(checked) => setOpenMode(checked === true)}
+                  onCheckedChange={(checked) =>
+                    filters.set("mode", checked === true ? "open" : "closed")
+                  }
                 />
                 <span className="text-xs font-medium">Open</span>
               </label>
@@ -231,14 +117,7 @@ export default function FunnelDetailPage() {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearFilters}>
-            <X className="h-3 w-3 mr-1" />
-            Clear
-          </Button>
-        )}
-      </div>
+      </AnalyticsFilterBar>
 
       {/* Content */}
       {isLoading ? (

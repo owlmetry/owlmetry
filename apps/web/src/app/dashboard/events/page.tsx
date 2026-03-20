@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import type {
   EventsQueryParams,
@@ -14,6 +13,7 @@ import type {
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
+import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
@@ -37,20 +37,22 @@ import {
 import { X } from "lucide-react";
 
 export default function EventsPage() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const { currentTeam } = useTeam();
   const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
 
-  // Filters from URL
-  const [projectId, setProjectId] = useState(searchParams.get("project_id") ?? "");
-  const [appId, setAppId] = useState(searchParams.get("app_id") ?? "");
-  const [level, setLevel] = useState(searchParams.get("level") ?? "");
-  const [userId, setUserId] = useState(searchParams.get("user_id") ?? "");
-  const [screenName, setScreenName] = useState(searchParams.get("screen_name") ?? "");
-  const [since, setSince] = useState(searchParams.get("since") ?? "");
-  const [until, setUntil] = useState(searchParams.get("until") ?? "");
+  const filters = useUrlFilters({
+    path: "/dashboard/events",
+    defaults: {
+      project_id: "",
+      app_id: "",
+      level: "",
+      user_id: "",
+      screen_name: "",
+      since: "",
+      until: "",
+    },
+  });
 
   // Selected event for detail sheet
   const [selectedEvent, setSelectedEvent] = useState<StoredEventResponse | null>(null);
@@ -67,62 +69,40 @@ export default function EventsPage() {
   const projects = projectsData?.projects ?? [];
   const allApps = appsData?.apps ?? [];
 
+  const projectId = filters.get("project_id");
+  const appId = filters.get("app_id");
+
   // Derive available apps based on selected project
   const availableApps = projectId
     ? allApps.filter((a) => a.project_id === projectId)
     : allApps;
 
   // Build filter params
-  const filters: EventsQueryParams = {};
-  if (teamId) filters.team_id = teamId;
-  if (projectId) filters.project_id = projectId;
-  if (appId) filters.app_id = appId;
-  if (level) filters.level = level;
-  if (userId) filters.user_id = userId;
-  if (screenName) filters.screen_name = screenName;
-  if (since) filters.since = new Date(since).toISOString();
-  if (until) filters.until = new Date(until + "T23:59:59").toISOString();
-  filters.data_mode = dataMode;
+  const filterParams: EventsQueryParams = {};
+  if (teamId) filterParams.team_id = teamId;
+  if (projectId) filterParams.project_id = projectId;
+  if (appId) filterParams.app_id = appId;
+  const level = filters.get("level");
+  if (level) filterParams.level = level;
+  const userId = filters.get("user_id");
+  if (userId) filterParams.user_id = userId;
+  const screenName = filters.get("screen_name");
+  if (screenName) filterParams.screen_name = screenName;
+  const since = filters.get("since");
+  if (since) filterParams.since = new Date(since).toISOString();
+  const until = filters.get("until");
+  if (until) filterParams.until = new Date(until + "T23:59:59").toISOString();
+  filterParams.data_mode = dataMode;
 
-  const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filters);
-
-  // Sync filters to URL
-  const updateUrl = useCallback(() => {
-    const params = new URLSearchParams();
-    if (projectId) params.set("project_id", projectId);
-    if (appId) params.set("app_id", appId);
-    if (level) params.set("level", level);
-    if (userId) params.set("user_id", userId);
-    if (screenName) params.set("screen_name", screenName);
-    if (since) params.set("since", since);
-    if (until) params.set("until", until);
-    const qs = params.toString();
-    router.replace(`/dashboard/events${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [projectId, appId, level, userId, screenName, since, until, router]);
-
-  useEffect(() => {
-    updateUrl();
-  }, [updateUrl]);
+  const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filterParams);
 
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
     if (projectId && appId) {
       const belongs = availableApps.some((a) => a.id === appId);
-      if (!belongs) setAppId("");
+      if (!belongs) filters.set("app_id", "");
     }
-  }, [projectId, appId, availableApps]);
-
-  function clearFilters() {
-    setProjectId("");
-    setAppId("");
-    setLevel("");
-    setUserId("");
-    setScreenName("");
-    setSince("");
-    setUntil("");
-  }
-
-  const hasFilters = projectId || appId || level || userId || screenName || since || until;
+  }, [projectId, appId, availableApps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);
@@ -139,7 +119,7 @@ export default function EventsPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
-          <Select value={projectId} onValueChange={setProjectId}>
+          <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
             <SelectTrigger size="sm" className="w-[180px] text-xs">
               <SelectValue placeholder="All projects" />
             </SelectTrigger>
@@ -155,7 +135,7 @@ export default function EventsPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">App</label>
-          <Select value={appId} onValueChange={setAppId}>
+          <Select value={appId} onValueChange={(v) => filters.set("app_id", v)}>
             <SelectTrigger size="sm" className="w-[180px] text-xs">
               <SelectValue placeholder="All apps" />
             </SelectTrigger>
@@ -171,7 +151,7 @@ export default function EventsPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Level</label>
-          <Select value={level} onValueChange={setLevel}>
+          <Select value={level} onValueChange={(v) => filters.set("level", v)}>
             <SelectTrigger size="sm" className="w-[130px] text-xs">
               <SelectValue placeholder="All levels" />
             </SelectTrigger>
@@ -189,7 +169,7 @@ export default function EventsPage() {
           <label className="text-xs text-muted-foreground">User ID</label>
           <Input
             value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            onChange={(e) => filters.set("user_id", e.target.value)}
             placeholder="Filter by user"
             className="w-[160px] h-8 text-xs"
           />
@@ -199,7 +179,7 @@ export default function EventsPage() {
           <label className="text-xs text-muted-foreground">Screen</label>
           <Input
             value={screenName}
-            onChange={(e) => setScreenName(e.target.value)}
+            onChange={(e) => filters.set("screen_name", e.target.value)}
             placeholder="Filter by screen"
             className="w-[160px] h-8 text-xs"
           />
@@ -210,7 +190,7 @@ export default function EventsPage() {
           <Input
             type="date"
             value={since}
-            onChange={(e) => setSince(e.target.value)}
+            onChange={(e) => filters.set("since", e.target.value)}
             className="w-[150px] h-8 text-xs"
           />
         </div>
@@ -220,13 +200,13 @@ export default function EventsPage() {
           <Input
             type="date"
             value={until}
-            onChange={(e) => setUntil(e.target.value)}
+            onChange={(e) => filters.set("until", e.target.value)}
             className="w-[150px] h-8 text-xs"
           />
         </div>
 
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
+        {filters.hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={filters.clearFilters} className="h-8">
             <X className="h-3.5 w-3.5 mr-1" />
             Clear
           </Button>
@@ -248,7 +228,7 @@ export default function EventsPage() {
       ) : events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No events found</p>
-          {hasFilters && (
+          {filters.hasActiveFilters && (
             <p className="text-xs mt-1">Try adjusting your filters</p>
           )}
         </div>

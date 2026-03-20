@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import type { AuditLogsQueryParams, AuditLogResponse, AuditResourceType, AuditAction } from "@owlmetry/shared";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useTeam } from "@/contexts/team-context";
+import { useUrlFilters } from "@/hooks/use-url-filters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -49,50 +49,35 @@ function actionBadgeVariant(action: string) {
 }
 
 export default function AuditLogPage() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const { currentTeam } = useTeam();
 
-  const [resourceType, setResourceType] = useState(searchParams.get("resource_type") ?? "");
-  const [action, setAction] = useState(searchParams.get("action") ?? "");
-  const [since, setSince] = useState(searchParams.get("since") ?? "");
-  const [until, setUntil] = useState(searchParams.get("until") ?? "");
+  const filters = useUrlFilters({
+    path: "/dashboard/audit-log",
+    defaults: {
+      resource_type: "",
+      action: "",
+      since: "",
+      until: "",
+    },
+  });
 
   const [selectedLog, setSelectedLog] = useState<AuditLogResponse | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const filters: AuditLogsQueryParams = {
+  const resourceType = filters.get("resource_type");
+  const action = filters.get("action");
+  const since = filters.get("since");
+  const until = filters.get("until");
+
+  const queryFilters: AuditLogsQueryParams = {
     team_id: currentTeam?.id ?? "",
   };
-  if (resourceType) filters.resource_type = resourceType;
-  if (action) filters.action = action;
-  if (since) filters.since = new Date(since).toISOString();
-  if (until) filters.until = new Date(until + "T23:59:59").toISOString();
+  if (resourceType) queryFilters.resource_type = resourceType;
+  if (action) queryFilters.action = action;
+  if (since) queryFilters.since = new Date(since).toISOString();
+  if (until) queryFilters.until = new Date(until + "T23:59:59").toISOString();
 
-  const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(filters);
-
-  const updateUrl = useCallback(() => {
-    const params = new URLSearchParams();
-    if (resourceType) params.set("resource_type", resourceType);
-    if (action) params.set("action", action);
-    if (since) params.set("since", since);
-    if (until) params.set("until", until);
-    const qs = params.toString();
-    router.replace(`/dashboard/audit-log${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [resourceType, action, since, until, router]);
-
-  useEffect(() => {
-    updateUrl();
-  }, [updateUrl]);
-
-  function clearFilters() {
-    setResourceType("");
-    setAction("");
-    setSince("");
-    setUntil("");
-  }
-
-  const hasFilters = resourceType || action || since || until;
+  const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(queryFilters);
 
   function handleRowClick(log: AuditLogResponse) {
     setSelectedLog(log);
@@ -109,7 +94,7 @@ export default function AuditLogPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Resource Type</label>
-          <Select value={resourceType} onValueChange={setResourceType}>
+          <Select value={resourceType} onValueChange={(v) => filters.set("resource_type", v)}>
             <SelectTrigger size="sm" className="w-[180px] text-xs">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
@@ -125,7 +110,7 @@ export default function AuditLogPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Action</label>
-          <Select value={action} onValueChange={setAction}>
+          <Select value={action} onValueChange={(v) => filters.set("action", v)}>
             <SelectTrigger size="sm" className="w-[130px] text-xs">
               <SelectValue placeholder="All actions" />
             </SelectTrigger>
@@ -144,7 +129,7 @@ export default function AuditLogPage() {
           <Input
             type="date"
             value={since}
-            onChange={(e) => setSince(e.target.value)}
+            onChange={(e) => filters.set("since", e.target.value)}
             className="w-[150px] h-8 text-xs"
           />
         </div>
@@ -154,13 +139,13 @@ export default function AuditLogPage() {
           <Input
             type="date"
             value={until}
-            onChange={(e) => setUntil(e.target.value)}
+            onChange={(e) => filters.set("until", e.target.value)}
             className="w-[150px] h-8 text-xs"
           />
         </div>
 
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
+        {filters.hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={filters.clearFilters} className="h-8">
             <X className="h-3.5 w-3.5 mr-1" />
             Clear
           </Button>
@@ -173,7 +158,7 @@ export default function AuditLogPage() {
       ) : auditLogs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No audit logs found</p>
-          {hasFilters && (
+          {filters.hasActiveFilters && (
             <p className="text-xs mt-1">Try adjusting your filters</p>
           )}
         </div>
