@@ -10,7 +10,8 @@ import type {
   LogLevel,
 } from "@owlmetry/shared";
 import { TIME_RANGES, ENVIRONMENTS } from "@/lib/time-ranges";
-import { FilterSheet, type FilterChip } from "@/components/filter-sheet";
+import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
+import { formatTimeRangeChip } from "@/lib/time-ranges";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
@@ -110,35 +111,22 @@ export default function EventsPage() {
     }
   }, [projectId, appId, availableApps]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const timeRange = filters.get("time_range");
+  const sinceInput = filters.get("since");
+  const untilInput = filters.get("until");
+
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) {
-      const name = projects.find((p) => p.id === projectId)?.name ?? projectId.slice(0, 8) + "...";
-      c.push({ label: "Project", value: name });
-    }
-    if (appId) {
-      const name = allApps.find((a) => a.id === appId)?.name ?? appId.slice(0, 8) + "...";
-      c.push({ label: "App", value: name });
-    }
-    const tr = filters.get("time_range");
-    if (tr && tr !== "24h") {
-      if (tr === "custom") {
-        const s = filters.get("since");
-        const u = filters.get("until");
-        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
-      } else {
-        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
-        c.push({ label: "Time", value: label });
-      }
-    }
+    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId) });
+    if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId) });
+    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
     if (level) c.push({ label: "Level", value: level });
     if (environment) c.push({ label: "Env", value: environment });
-    if (userId) c.push({ label: "User", value: userId.length > 16 ? userId.slice(0, 13) + "..." : userId });
-    if (sessionId) c.push({ label: "Session", value: sessionId.length > 16 ? sessionId.slice(0, 13) + "..." : sessionId });
+    if (userId) c.push({ label: "User", value: truncateId(userId) });
+    if (sessionId) c.push({ label: "Session", value: truncateId(sessionId) });
     if (screenName) c.push({ label: "Screen", value: screenName });
     return c;
-  }, [projectId, appId, level, environment, userId, sessionId, screenName, projects, allApps, filters]);
+  }, [projectId, appId, timeRange, sinceInput, untilInput, level, environment, userId, sessionId, screenName, projects, allApps]);
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);

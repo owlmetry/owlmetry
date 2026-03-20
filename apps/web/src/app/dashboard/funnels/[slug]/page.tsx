@@ -9,8 +9,8 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useFunnelQuery } from "@/hooks/use-funnels";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
-import type { FilterChip } from "@/components/filter-sheet";
-import { TIME_RANGES } from "@/lib/time-ranges";
+import { type FilterChip, resolveEntityName } from "@/components/filter-sheet";
+import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
 import { FunnelChart } from "@/components/funnels/funnel-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -94,38 +94,25 @@ export default function FunnelDetailPage() {
 
   const analytics = queryData?.analytics;
 
+  const appIdVal = filters.get("app_id");
+  const timeRange = filters.get("time_range");
+  const sinceInput = filters.get("since");
+  const untilInput = filters.get("until");
+  const environmentVal = filters.get("environment");
+  const appVersionVal = filters.get("app_version");
+  const experimentVal = filters.get("experiment");
+
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) {
-      const name = projects.find((p) => p.id === projectId)?.name ?? projectId.slice(0, 8) + "...";
-      c.push({ label: "Project", value: name });
-    }
-    const appIdVal = filters.get("app_id");
-    if (appIdVal) {
-      const name = apps.find((a) => a.id === appIdVal)?.name ?? appIdVal.slice(0, 8) + "...";
-      c.push({ label: "App", value: name });
-    }
-    const tr = filters.get("time_range");
-    if (tr && tr !== "7d") {
-      if (tr === "custom") {
-        const s = filters.get("since");
-        const u = filters.get("until");
-        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
-      } else {
-        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
-        c.push({ label: "Time", value: label });
-      }
-    }
-    const env = filters.get("environment");
-    if (env) c.push({ label: "Env", value: env });
-    const av = filters.get("app_version");
-    if (av) c.push({ label: "Version", value: av });
-    const exp = filters.get("experiment");
-    if (exp) c.push({ label: "Experiment", value: exp });
+    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId) });
+    if (appIdVal) c.push({ label: "App", value: resolveEntityName(apps, appIdVal) });
+    if (timeRange && timeRange !== "7d") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
+    if (environmentVal) c.push({ label: "Env", value: environmentVal });
+    if (appVersionVal) c.push({ label: "Version", value: appVersionVal });
+    if (experimentVal) c.push({ label: "Experiment", value: experimentVal });
     if (openMode) c.push({ label: "Mode", value: "Open" });
     return c;
-  }, [projectId, projects, apps, openMode, filters]);
+  }, [projectId, appIdVal, timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, openMode, projects, apps]);
 
   return (
     <div className="space-y-6">

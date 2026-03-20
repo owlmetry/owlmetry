@@ -18,3 +18,16 @@ const RANGE_MS: Record<string, number> = {
 export function sinceFromRange(range: string): string {
   return new Date(Date.now() - (RANGE_MS[range] ?? RANGE_MS["24h"])).toISOString();
 }
+
+/** Format a time range value + optional custom dates into a human-readable chip string. */
+export function formatTimeRangeChip(value: string, since?: string, until?: string): string {
+  if (value === "custom") {
+    const fmt = (d: string) =>
+      new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (since && until) return `${fmt(since)} – ${fmt(until)}`;
+    if (since) return `Since ${fmt(since)}`;
+    if (until) return `Until ${fmt(until)}`;
+    return "Custom";
+  }
+  return TIME_RANGES.find((r) => r.value === value)?.label ?? value;
+}

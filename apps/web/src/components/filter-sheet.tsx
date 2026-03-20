@@ -18,6 +18,19 @@ export interface FilterChip {
   value: string;
 }
 
+/** Truncate a long ID string for chip display. */
+export function truncateId(value: string, max = 16): string {
+  return value.length > max ? value.slice(0, max - 3) + "..." : value;
+}
+
+/** Resolve an entity ID to its name, with a truncated-ID fallback. */
+export function resolveEntityName(
+  entities: { id: string; name: string }[],
+  id: string,
+): string {
+  return entities.find((e) => e.id === id)?.name ?? truncateId(id, 11);
+}
+
 interface FilterSheetProps {
   hasActiveFilters: boolean;
   onClear: () => void;

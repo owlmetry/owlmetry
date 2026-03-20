@@ -10,8 +10,8 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
-import type { FilterChip } from "@/components/filter-sheet";
-import { TIME_RANGES } from "@/lib/time-ranges";
+import { type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
+import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -131,39 +131,26 @@ export default function MetricDetailPage() {
   const agg = queryData?.aggregation;
   const isLifecycle = (agg?.start_count ?? 0) > 0 || (agg?.complete_count ?? 0) > 0;
 
+  const appIdVal = filters.get("app_id");
+  const timeRange = filters.get("time_range");
+  const sinceInput = filters.get("since");
+  const untilInput = filters.get("until");
+  const environmentVal = filters.get("environment");
+  const appVersionVal = filters.get("app_version");
+  const userIdVal = filters.get("user_id");
+  const osVersionVal = filters.get("os_version");
+
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) {
-      const name = projects.find((p) => p.id === projectId)?.name ?? projectId.slice(0, 8) + "...";
-      c.push({ label: "Project", value: name });
-    }
-    const appIdVal = filters.get("app_id");
-    if (appIdVal) {
-      const name = apps.find((a) => a.id === appIdVal)?.name ?? appIdVal.slice(0, 8) + "...";
-      c.push({ label: "App", value: name });
-    }
-    const tr = filters.get("time_range");
-    if (tr && tr !== "24h") {
-      if (tr === "custom") {
-        const s = filters.get("since");
-        const u = filters.get("until");
-        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
-      } else {
-        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
-        c.push({ label: "Time", value: label });
-      }
-    }
-    const env = filters.get("environment");
-    if (env) c.push({ label: "Env", value: env });
-    const av = filters.get("app_version");
-    if (av) c.push({ label: "Version", value: av });
-    const uid = filters.get("user_id");
-    if (uid) c.push({ label: "User", value: uid.length > 16 ? uid.slice(0, 13) + "..." : uid });
-    const osv = filters.get("os_version");
-    if (osv) c.push({ label: "OS", value: osv });
+    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId) });
+    if (appIdVal) c.push({ label: "App", value: resolveEntityName(apps, appIdVal) });
+    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
+    if (environmentVal) c.push({ label: "Env", value: environmentVal });
+    if (appVersionVal) c.push({ label: "Version", value: appVersionVal });
+    if (userIdVal) c.push({ label: "User", value: truncateId(userIdVal) });
+    if (osVersionVal) c.push({ label: "OS", value: osVersionVal });
     return c;
-  }, [projectId, projects, apps, filters]);
+  }, [projectId, appIdVal, timeRange, sinceInput, untilInput, environmentVal, appVersionVal, userIdVal, osVersionVal, projects, apps]);
 
   return (
     <div className="space-y-6">

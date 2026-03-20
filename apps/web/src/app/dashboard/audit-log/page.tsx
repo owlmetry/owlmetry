@@ -5,7 +5,8 @@ import type { AuditLogsQueryParams, AuditLogResponse, AuditResourceType, AuditAc
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useTeam } from "@/contexts/team-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
-import { FilterSheet, type FilterChip } from "@/components/filter-sheet";
+import { FilterSheet, type FilterChip, truncateId } from "@/components/filter-sheet";
+import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -85,26 +86,19 @@ export default function AuditLogPage() {
 
   const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(queryFilters);
 
+  const timeRange = filters.get("time_range");
+  const sinceInput = filters.get("since");
+  const untilInput = filters.get("until");
+
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    const tr = filters.get("time_range");
-    if (tr && tr !== "24h") {
-      if (tr === "custom") {
-        const s = filters.get("since");
-        const u = filters.get("until");
-        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
-      } else {
-        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
-        c.push({ label: "Time", value: label });
-      }
-    }
+    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
     if (resourceType) c.push({ label: "Resource", value: resourceType.replace(/_/g, " ") });
     if (action) c.push({ label: "Action", value: action });
-    if (resourceId) c.push({ label: "Resource ID", value: resourceId.length > 16 ? resourceId.slice(0, 13) + "..." : resourceId });
-    if (actorId) c.push({ label: "Actor ID", value: actorId.length > 16 ? actorId.slice(0, 13) + "..." : actorId });
+    if (resourceId) c.push({ label: "Resource ID", value: truncateId(resourceId) });
+    if (actorId) c.push({ label: "Actor ID", value: truncateId(actorId) });
     return c;
-  }, [resourceType, action, resourceId, actorId, filters]);
+  }, [timeRange, sinceInput, untilInput, resourceType, action, resourceId, actorId]);
 
   function handleRowClick(log: AuditLogResponse) {
     setSelectedLog(log);
