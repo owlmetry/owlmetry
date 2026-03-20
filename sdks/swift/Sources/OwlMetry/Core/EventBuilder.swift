@@ -1,7 +1,7 @@
 import Foundation
 
 enum EventBuilder {
-    static let systemMetaKeys: Set<String> = ["_file", "_function", "_line"]
+    static let systemMetaKeys: Set<String> = ["_file", "_function", "_line", "_connection"]
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -18,6 +18,7 @@ enum EventBuilder {
         sessionId: String,
         deviceInfo: DeviceInfo,
         isDebug: Bool,
+        networkStatus: String,
         file: String,
         function: String,
         line: Int
@@ -33,6 +34,7 @@ enum EventBuilder {
         mergedAttributes["_file"] = fileName
         mergedAttributes["_function"] = function
         mergedAttributes["_line"] = String(line)
+        mergedAttributes["_connection"] = networkStatus
 
         return LogEvent(
             clientEventId: UUID().uuidString,

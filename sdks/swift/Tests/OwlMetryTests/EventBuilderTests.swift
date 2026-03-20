@@ -21,6 +21,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "/path/to/MyFile.swift",
             function: "doStuff()",
             line: 42
@@ -48,6 +49,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "/Users/dev/project/Sources/ViewModel.swift",
             function: "loadData()",
             line: 99
@@ -66,6 +68,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "/path/File.swift",
             function: "func()",
             line: 1
@@ -74,6 +77,7 @@ final class EventBuilderTests: XCTestCase {
         XCTAssertEqual(event.customAttributes?["_file"], "File.swift")
         XCTAssertEqual(event.customAttributes?["_function"], "func()")
         XCTAssertEqual(event.customAttributes?["_line"], "1")
+        XCTAssertEqual(event.customAttributes?["_connection"], "wifi")
     }
 
     func testUserCustomAttributesMergedWithSystemAttributes() {
@@ -86,6 +90,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "/path/File.swift",
             function: "f()",
             line: 1
@@ -105,6 +110,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "F.swift",
             function: "f()",
             line: 1
@@ -123,6 +129,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "F.swift",
             function: "f()",
             line: 1
@@ -144,6 +151,7 @@ final class EventBuilderTests: XCTestCase {
             sessionId: "test-session-id",
             deviceInfo: deviceInfo,
             isDebug: true,
+            networkStatus: "wifi",
             file: "F.swift",
             function: "f()",
             line: 1

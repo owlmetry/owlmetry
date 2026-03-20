@@ -188,10 +188,7 @@ public enum Owl {
         function: String = #function,
         line: Int = #line
     ) {
-        let connected = state.withLock { $0.networkMonitor?.isConnected == true }
-        var updatedAttributes = customAttributes ?? [:]
-        updatedAttributes["_connection"] = connected ? "connected" : "disconnected"
-        log(message, level: .error, screenName: screenName, customAttributes: updatedAttributes,
+        log(message, level: .error, screenName: screenName, customAttributes: customAttributes,
             file: file, function: function, line: line)
     }
 
@@ -294,7 +291,7 @@ public enum Owl {
         function: String,
         line: Int
     ) {
-        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?, String?)? in
+        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?, String?, String)? in
             guard let deviceInfo = s.deviceInfo,
                   let transport = s.transport,
                   let filter = s.duplicateFilter else {
@@ -304,10 +301,11 @@ public enum Owl {
                 }
                 return nil
             }
-            return (deviceInfo, transport, filter, s.defaultUserId, s.sessionId)
+            let networkStatus = s.networkMonitor?.status.rawValue ?? "unknown"
+            return (deviceInfo, transport, filter, s.defaultUserId, s.sessionId, networkStatus)
         }
 
-        guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId) = snapshot else { return }
+        guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId, networkStatus) = snapshot else { return }
 
         #if DEBUG
         let isDebug = true
@@ -324,6 +322,7 @@ public enum Owl {
             sessionId: sessionId ?? UUID().uuidString,
             deviceInfo: deviceInfo,
             isDebug: isDebug,
+            networkStatus: networkStatus,
             file: file,
             function: function,
             line: line

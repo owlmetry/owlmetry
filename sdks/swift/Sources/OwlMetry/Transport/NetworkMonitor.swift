@@ -3,33 +3,47 @@ import Network
 import os
 
 final class NetworkMonitor: Sendable {
+    enum NetworkStatus: String, Sendable {
+        case wifi
+        case cellular
+        case ethernet
+        case offline
+        case unknown
+    }
+
     private let monitor: NWPathMonitor
     private let monitorQueue = DispatchQueue(label: "owlmetry.network", qos: .utility)
 
-    private let _isConnected: OSAllocatedUnfairLock<Bool>
-    private let _continuation: OSAllocatedUnfairLock<AsyncStream<Bool>.Continuation?>
+    private let _status: OSAllocatedUnfairLock<NetworkStatus>
 
-    let connectivityStream: AsyncStream<Bool>
+    var status: NetworkStatus {
+        _status.withLock { $0 }
+    }
 
     var isConnected: Bool {
-        _isConnected.withLock { $0 }
+        status != .offline
     }
 
     init() {
         let monitor = NWPathMonitor()
         self.monitor = monitor
 
-        _isConnected = OSAllocatedUnfairLock(initialState: true)
-        _continuation = OSAllocatedUnfairLock<AsyncStream<Bool>.Continuation?>(initialState: nil)
+        _status = OSAllocatedUnfairLock(initialState: .unknown)
 
-        let (stream, continuation) = AsyncStream.makeStream(of: Bool.self)
-        self.connectivityStream = stream
-        _continuation.withLock { $0 = continuation }
-
-        monitor.pathUpdateHandler = { [_isConnected, _continuation] path in
-            let connected = path.status == .satisfied
-            _isConnected.withLock { $0 = connected }
-            _ = _continuation.withLock { $0?.yield(connected) }
+        monitor.pathUpdateHandler = { [_status] path in
+            let newStatus: NetworkStatus
+            if path.status != .satisfied {
+                newStatus = .offline
+            } else if path.usesInterfaceType(.wifi) {
+                newStatus = .wifi
+            } else if path.usesInterfaceType(.cellular) {
+                newStatus = .cellular
+            } else if path.usesInterfaceType(.wiredEthernet) {
+                newStatus = .ethernet
+            } else {
+                newStatus = .unknown
+            }
+            _status.withLock { $0 = newStatus }
         }
 
         monitor.start(queue: monitorQueue)
@@ -37,6 +51,5 @@ final class NetworkMonitor: Sendable {
 
     deinit {
         monitor.cancel()
-        _continuation.withLock { $0?.finish() }
     }
 }
