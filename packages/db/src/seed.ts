@@ -12,17 +12,28 @@ if (process.env.NODE_ENV === "production") {
 
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
 
-/** Insert a row if it doesn't exist, otherwise select the existing one. */
-async function findOrCreate<T extends Record<string, unknown>>(
-  db: ReturnType<typeof createDatabaseConnection>,
-  table: Parameters<ReturnType<typeof createDatabaseConnection>["insert"]>[0],
-  values: Record<string, unknown>,
-  selectWhere: Parameters<typeof db.select>[] extends never[] ? never : any,
-): Promise<T> {
+type Db = ReturnType<typeof createDatabaseConnection>;
+
+/** Insert a row if it doesn't exist, otherwise select the existing one. Requires a unique constraint on the lookup column(s). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle's table/where types are not easily expressed generically
+async function findOrCreate<T>(db: Db, table: any, values: Record<string, unknown>, where: any): Promise<T> {
   const [inserted] = await db.insert(table).values(values).onConflictDoNothing().returning();
   if (inserted) return inserted as T;
-  const [existing] = await db.select().from(table).where(selectWhere);
+  const [existing] = await db.select().from(table).where(where);
   return existing as T;
+}
+
+/** Insert an API key if one with the same key_hash doesn't already exist. */
+async function ensureApiKey(db: Db, rawKey: string, values: Omit<typeof apiKeys.$inferInsert, "key_hash" | "key_prefix">) {
+  const keyHash = hashApiKey(rawKey);
+  const [existing] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, keyHash));
+  if (!existing) {
+    await db.insert(apiKeys).values({
+      ...values,
+      key_hash: keyHash,
+      key_prefix: rawKey.slice(0, KEY_PREFIX_LENGTH),
+    });
+  }
 }
 
 async function main() {
@@ -63,7 +74,6 @@ async function main() {
 
   // --- Demo app (apple) ---
   const clientKey = "owl_client_demo_000000000000000000000000000000000000000000";
-  const clientKeyHash = hashApiKey(clientKey);
 
   let [app] = await db.select().from(apps).where(eq(apps.client_key, clientKey));
   if (!app) {
@@ -78,41 +88,21 @@ async function main() {
   }
   console.log(`  App:     ${app.name} (${app.id})`);
 
-  // Client API key for demo app
-  const [existingClientApiKey] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, clientKeyHash));
-  if (!existingClientApiKey) {
-    await db.insert(apiKeys).values({
-      key_hash: clientKeyHash,
-      key_prefix: clientKey.slice(0, KEY_PREFIX_LENGTH),
-      key_type: "client",
-      app_id: app.id,
-      team_id: team.id,
-      name: "Demo Client Key",
-      created_by: user.id,
-      permissions: ["events:write"],
-    });
-  }
+  await ensureApiKey(db, clientKey, {
+    key_type: "client", app_id: app.id, team_id: team.id,
+    name: "Demo Client Key", created_by: user.id, permissions: ["events:write"],
+  });
 
   // --- Agent API key ---
   const agentKey = "owl_agent_demo_000000000000000000000000000000000000000000";
-  const agentKeyHash = hashApiKey(agentKey);
-  const [existingAgentKey] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, agentKeyHash));
-  if (!existingAgentKey) {
-    await db.insert(apiKeys).values({
-      key_hash: agentKeyHash,
-      key_prefix: agentKey.slice(0, KEY_PREFIX_LENGTH),
-      key_type: "agent",
-      app_id: null,
-      team_id: team.id,
-      name: "Demo Agent Key",
-      created_by: user.id,
-      permissions: ["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"],
-    });
-  }
+  await ensureApiKey(db, agentKey, {
+    key_type: "agent", app_id: null, team_id: team.id,
+    name: "Demo Agent Key", created_by: user.id,
+    permissions: ["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"],
+  });
 
   // --- Demo server app (backend) ---
   const serverAppKey = "owl_client_svr_0000000000000000000000000000000000000000";
-  const serverAppKeyHash = hashApiKey(serverAppKey);
 
   let [serverApp] = await db.select().from(apps).where(eq(apps.client_key, serverAppKey));
   if (!serverApp) {
@@ -127,20 +117,10 @@ async function main() {
   }
   console.log(`  Server:  ${serverApp.name} (${serverApp.id})`);
 
-  // Client API key for server app
-  const [existingServerApiKey] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, serverAppKeyHash));
-  if (!existingServerApiKey) {
-    await db.insert(apiKeys).values({
-      key_hash: serverAppKeyHash,
-      key_prefix: serverAppKey.slice(0, KEY_PREFIX_LENGTH),
-      key_type: "client",
-      app_id: serverApp.id,
-      team_id: team.id,
-      name: "Demo API Server Client Key",
-      created_by: user.id,
-      permissions: ["events:write"],
-    });
-  }
+  await ensureApiKey(db, serverAppKey, {
+    key_type: "client", app_id: serverApp.id, team_id: team.id,
+    name: "Demo API Server Client Key", created_by: user.id, permissions: ["events:write"],
+  });
 
   // --- Seed demo events (always fresh) ---
   const session1 = crypto.randomUUID();
