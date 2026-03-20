@@ -142,15 +142,15 @@ export default function MetricDetailPage() {
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId) });
-    if (appIdVal) c.push({ label: "App", value: resolveEntityName(apps, appIdVal) });
-    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
-    if (environmentVal) c.push({ label: "Env", value: environmentVal });
-    if (appVersionVal) c.push({ label: "Version", value: appVersionVal });
-    if (userIdVal) c.push({ label: "User", value: truncateId(userIdVal) });
-    if (osVersionVal) c.push({ label: "OS", value: osVersionVal });
+    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId), onDismiss: () => filters.set("project_id", "") });
+    if (appIdVal) c.push({ label: "App", value: resolveEntityName(apps, appIdVal), onDismiss: () => filters.set("app_id", "") });
+    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "24h", since: "", until: "" }) });
+    if (environmentVal) c.push({ label: "Env", value: environmentVal, onDismiss: () => filters.set("environment", "") });
+    if (appVersionVal) c.push({ label: "Version", value: appVersionVal, onDismiss: () => filters.set("app_version", "") });
+    if (userIdVal) c.push({ label: "User", value: truncateId(userIdVal), onDismiss: () => filters.set("user_id", "") });
+    if (osVersionVal) c.push({ label: "OS", value: osVersionVal, onDismiss: () => filters.set("os_version", "") });
     return c;
-  }, [projectId, appIdVal, timeRange, sinceInput, untilInput, environmentVal, appVersionVal, userIdVal, osVersionVal, projects, apps]);
+  }, [projectId, appIdVal, timeRange, sinceInput, untilInput, environmentVal, appVersionVal, userIdVal, osVersionVal, projects, apps, filters]);
 
   return (
     <div className="space-y-6">

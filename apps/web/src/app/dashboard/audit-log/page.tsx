@@ -92,13 +92,13 @@ export default function AuditLogPage() {
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
-    if (resourceType) c.push({ label: "Resource", value: resourceType.replace(/_/g, " ") });
-    if (action) c.push({ label: "Action", value: action });
-    if (resourceId) c.push({ label: "Resource ID", value: truncateId(resourceId) });
-    if (actorId) c.push({ label: "Actor ID", value: truncateId(actorId) });
+    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "24h", since: "", until: "" }) });
+    if (resourceType) c.push({ label: "Resource", value: resourceType.replace(/_/g, " "), onDismiss: () => filters.set("resource_type", "") });
+    if (action) c.push({ label: "Action", value: action, onDismiss: () => filters.set("action", "") });
+    if (resourceId) c.push({ label: "Resource ID", value: truncateId(resourceId), onDismiss: () => filters.set("resource_id", "") });
+    if (actorId) c.push({ label: "Actor ID", value: truncateId(actorId), onDismiss: () => filters.set("actor_id", "") });
     return c;
-  }, [timeRange, sinceInput, untilInput, resourceType, action, resourceId, actorId]);
+  }, [timeRange, sinceInput, untilInput, resourceType, action, resourceId, actorId, filters]);
 
   function handleRowClick(log: AuditLogResponse) {
     setSelectedLog(log);

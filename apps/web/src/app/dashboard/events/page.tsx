@@ -117,16 +117,16 @@ export default function EventsPage() {
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId) });
-    if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId) });
-    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput) });
-    if (level) c.push({ label: "Level", value: level });
-    if (environment) c.push({ label: "Env", value: environment });
-    if (userId) c.push({ label: "User", value: truncateId(userId) });
-    if (sessionId) c.push({ label: "Session", value: truncateId(sessionId) });
-    if (screenName) c.push({ label: "Screen", value: screenName });
+    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId), onDismiss: () => filters.set("project_id", "") });
+    if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId), onDismiss: () => filters.set("app_id", "") });
+    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "24h", since: "", until: "" }) });
+    if (level) c.push({ label: "Level", value: level, onDismiss: () => filters.set("level", "") });
+    if (environment) c.push({ label: "Env", value: environment, onDismiss: () => filters.set("environment", "") });
+    if (userId) c.push({ label: "User", value: truncateId(userId), onDismiss: () => filters.set("user_id", "") });
+    if (sessionId) c.push({ label: "Session", value: truncateId(sessionId), onDismiss: () => filters.set("session_id", "") });
+    if (screenName) c.push({ label: "Screen", value: screenName, onDismiss: () => filters.set("screen_name", "") });
     return c;
-  }, [projectId, appId, timeRange, sinceInput, untilInput, level, environment, userId, sessionId, screenName, projects, allApps]);
+  }, [projectId, appId, timeRange, sinceInput, untilInput, level, environment, userId, sessionId, screenName, projects, allApps, filters]);
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);

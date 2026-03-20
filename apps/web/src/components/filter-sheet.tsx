@@ -16,6 +16,8 @@ import { SlidersHorizontal, X } from "lucide-react";
 export interface FilterChip {
   label: string;
   value: string;
+  /** Called when the user taps the chip to dismiss this individual filter. */
+  onDismiss?: () => void;
 }
 
 /** Truncate a long ID string for chip display. */
@@ -59,14 +61,16 @@ export function FilterSheet({
         {visibleChips.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {visibleChips.map((chip) => (
-              <Badge
+              <button
                 key={`${chip.label}:${chip.value}`}
-                variant="outline"
-                className="text-[10px] px-2 py-0.5 font-normal"
+                type="button"
+                onClick={chip.onDismiss}
+                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-normal transition-colors hover:bg-muted/50 cursor-pointer"
               >
-                <span className="text-muted-foreground mr-1">{chip.label}:</span>
-                {chip.value}
-              </Badge>
+                <span className="text-muted-foreground">{chip.label}:</span>
+                <span>{chip.value}</span>
+                <X className="h-2.5 w-2.5 text-muted-foreground" />
+              </button>
             ))}
             {overflowCount > 0 && (
               <span className="text-[10px] text-muted-foreground">+{overflowCount} more</span>
@@ -75,10 +79,14 @@ export function FilterSheet({
         )}
 
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onClear}>
-            <X className="h-3 w-3 mr-1" />
-            Clear
-          </Button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-normal transition-colors hover:bg-muted/50 cursor-pointer"
+          >
+            <X className="h-2.5 w-2.5 text-muted-foreground" />
+            <span>Clear</span>
+          </button>
         )}
 
         <Button
