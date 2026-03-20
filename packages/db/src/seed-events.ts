@@ -1,6 +1,7 @@
 import { createDatabaseConnection } from "./index.js";
-import { apps, events, appUsers } from "./schema.js";
+import { apps, events, appUsers, metricEvents } from "./schema.js";
 import { eq, isNull, and } from "drizzle-orm";
+import { parseMetricMessage } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
 
@@ -285,6 +286,39 @@ async function main() {
     const batch = rows.slice(i, i + BATCH_SIZE);
     await db.insert(events).values(batch);
     inserted += batch.length;
+  }
+
+  // Dual-write metric events into metric_events table
+  const metricRows: Array<typeof metricEvents.$inferInsert> = [];
+  for (const row of rows) {
+    const parsed = parseMetricMessage(row.message);
+    if (!parsed) continue;
+    const attrs = (row.custom_attributes ?? {}) as Record<string, string>;
+    metricRows.push({
+      app_id: row.app_id,
+      session_id: row.session_id!,
+      user_id: row.user_id ?? null,
+      metric_slug: parsed.slug,
+      phase: parsed.phase,
+      tracking_id: attrs.tracking_id ?? null,
+      duration_ms: attrs.duration_ms ? parseInt(attrs.duration_ms, 10) || null : null,
+      error: parsed.phase === "fail" ? "Something went wrong" : null,
+      attributes: row.custom_attributes as Record<string, string> | null,
+      environment: row.environment ?? null,
+      os_version: row.os_version ?? null,
+      app_version: row.app_version ?? null,
+      device_model: row.device_model ?? null,
+      build_number: row.build_number ?? null,
+      is_debug: row.is_debug ?? false,
+      timestamp: row.timestamp as Date,
+    });
+  }
+
+  if (metricRows.length > 0) {
+    for (let i = 0; i < metricRows.length; i += BATCH_SIZE) {
+      await db.insert(metricEvents).values(metricRows.slice(i, i + BATCH_SIZE));
+    }
+    console.log(`Dual-wrote ${metricRows.length} metric events\n`);
   }
 
   // Upsert app_users for any user_ids we generated
