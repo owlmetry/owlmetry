@@ -91,7 +91,6 @@ export interface AuditLogResponse {
 }
 
 export interface AuditLogsQueryParams {
-  team_id: string;
   resource_type?: string;
   resource_id?: string;
   actor_id?: string;

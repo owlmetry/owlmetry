@@ -42,8 +42,7 @@ auditLogCommand
     const since = opts.since ? parseTimeInput(opts.since) : undefined;
     const until = opts.until ? parseTimeInput(opts.until) : undefined;
 
-    const result = await client.queryAuditLogs({
-      team_id: opts.team,
+    const result = await client.queryAuditLogs(opts.team, {
       resource_type: opts.resourceType,
       resource_id: opts.resourceId,
       actor_id: opts.actor,

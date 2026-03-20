@@ -8,24 +8,21 @@ import { serializeAuditLog } from "../utils/serialize.js";
 import { normalizeLimit } from "../utils/pagination.js";
 
 export async function auditLogsRoutes(app: FastifyInstance) {
-  app.get<{ Querystring: AuditLogsQueryParams }>(
+  app.get<{ Params: { teamId: string }; Querystring: AuditLogsQueryParams }>(
     "/audit-logs",
     { preHandler: requirePermission("audit_logs:read") },
     async (request, reply) => {
       const auth = request.auth;
-      const { team_id, resource_type, resource_id, actor_id, action, since, until, cursor, limit: limitStr } = request.query;
+      const { teamId } = request.params;
+      const { resource_type, resource_id, actor_id, action, since, until, cursor, limit: limitStr } = request.query;
 
-      if (!team_id) {
-        return reply.code(400).send({ error: "team_id query parameter is required" });
-      }
-
-      if (!hasTeamAccess(auth, team_id)) {
+      if (!hasTeamAccess(auth, teamId)) {
         return reply.code(403).send({ error: "Not a member of this team" });
       }
 
       // Users need admin role minimum
       if (auth.type === "user") {
-        const roleError = assertTeamRole(auth, team_id, "admin");
+        const roleError = assertTeamRole(auth, teamId, "admin");
         if (roleError) {
           return reply.code(403).send({ error: roleError });
         }
@@ -33,7 +30,7 @@ export async function auditLogsRoutes(app: FastifyInstance) {
 
       const limit = normalizeLimit(limitStr);
 
-      const conditions = [eq(auditLogs.team_id, team_id)];
+      const conditions = [eq(auditLogs.team_id, teamId)];
 
       if (resource_type) conditions.push(eq(auditLogs.resource_type, resource_type));
       if (resource_id) conditions.push(eq(auditLogs.resource_id, resource_id));

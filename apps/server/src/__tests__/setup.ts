@@ -325,7 +325,7 @@ export async function buildApp() {
   await app.register(metricByIdRoutes, { prefix: "/v1" });
   await app.register(funnelsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(funnelByIdRoutes, { prefix: "/v1" });
-  await app.register(auditLogsRoutes, { prefix: "/v1" });
+  await app.register(auditLogsRoutes, { prefix: "/v1/teams/:teamId" });
 
   await app.ready();
   return app;

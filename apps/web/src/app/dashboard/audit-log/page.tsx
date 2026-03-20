@@ -74,9 +74,7 @@ export default function AuditLogPage() {
   const resourceId = filters.get("resource_id");
   const actorId = filters.get("actor_id");
 
-  const queryFilters: AuditLogsQueryParams = {
-    team_id: currentTeam?.id ?? "",
-  };
+  const queryFilters: AuditLogsQueryParams = {};
   if (resourceType) queryFilters.resource_type = resourceType;
   if (action) queryFilters.action = action;
   if (resourceId) queryFilters.resource_id = resourceId;
@@ -84,7 +82,7 @@ export default function AuditLogPage() {
   if (filters.computedSince) queryFilters.since = filters.computedSince;
   if (filters.computedUntil) queryFilters.until = filters.computedUntil;
 
-  const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(queryFilters);
+  const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(currentTeam?.id, queryFilters);
 
   const timeRange = filters.get("time_range");
   const sinceInput = filters.get("since");

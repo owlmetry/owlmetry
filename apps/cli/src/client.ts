@@ -246,9 +246,8 @@ export class OwlMetryClient {
   }
 
   // Audit Logs
-  async queryAuditLogs(params: AuditLogsQueryParams): Promise<AuditLogsResponse> {
+  async queryAuditLogs(teamId: string, params: AuditLogsQueryParams): Promise<AuditLogsResponse> {
     const stringParams: Record<string, string | undefined> = {
-      team_id: params.team_id,
       resource_type: params.resource_type,
       resource_id: params.resource_id,
       actor_id: params.actor_id,
@@ -258,6 +257,6 @@ export class OwlMetryClient {
       cursor: params.cursor,
       limit: params.limit?.toString(),
     };
-    return this.request<AuditLogsResponse>("GET", "/v1/audit-logs", { params: stringParams });
+    return this.request<AuditLogsResponse>("GET", `/v1/teams/${teamId}/audit-logs`, { params: stringParams });
   }
 }
