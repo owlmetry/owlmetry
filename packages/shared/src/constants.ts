@@ -21,22 +21,28 @@ export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backen
 export const SLUG_REGEX = /^[a-z0-9-]+$/;
 
 /**
- * Validate a metric slug. Slugs must contain only lowercase letters, numbers,
- * and hyphens (e.g. "photo-conversion", "api-request", "onboarding").
+ * Validate a slug (metric, funnel, etc.). Slugs must contain only lowercase
+ * letters, numbers, and hyphens (e.g. "photo-conversion", "onboarding").
  * Returns null if valid, or an error message string if invalid.
  */
-export function validateMetricSlug(slug: string): string | null {
-  if (!slug) return "metric slug is required";
+export function validateSlug(slug: string, label = "slug"): string | null {
+  if (!slug) return `${label} is required`;
   if (!SLUG_REGEX.test(slug)) {
-    return "metric slug must contain only lowercase letters, numbers, and hyphens (e.g. \"photo-conversion\")";
+    return `${label} must contain only lowercase letters, numbers, and hyphens (e.g. "onboarding")`;
   }
   return null;
 }
 
+export function validateMetricSlug(slug: string): string | null {
+  return validateSlug(slug, "metric slug");
+}
+
+export function validateFunnelSlug(slug: string): string | null {
+  return validateSlug(slug, "funnel slug");
+}
+
 /**
  * Format a duration in milliseconds to a human-readable string.
- * < 1ms → "0.12ms", 1–999ms → "123ms", 1–59.99s → "3.1s",
- * 1–59.99min → "2m 15s", ≥ 1h → "1h 23m"
  */
 export function formatDuration(ms: number): string {
   if (ms < 1) return `${ms.toFixed(2)}ms`;
@@ -49,17 +55,6 @@ export function formatDuration(ms: number): string {
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
   return `${hours}h ${remainingMinutes}m`;
-}
-
-/**
- * Validate a funnel slug. Same rules as metric slugs: lowercase letters, numbers, hyphens only.
- */
-export function validateFunnelSlug(slug: string): string | null {
-  if (!slug) return "funnel slug is required";
-  if (!SLUG_REGEX.test(slug)) {
-    return "funnel slug must contain only lowercase letters, numbers, and hyphens (e.g. \"onboarding\")";
-  }
-  return null;
 }
 
 export const PG_UNIQUE_VIOLATION = "23505";

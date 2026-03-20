@@ -1,7 +1,7 @@
 import { createDatabaseConnection } from "./index.js";
 import { apps, events, appUsers, metricEvents, funnelEvents } from "./schema.js";
 import { eq, isNull, and } from "drizzle-orm";
-import { parseMetricMessage, parseTrackMessage } from "@owlmetry/shared";
+import { parseMetricMessage } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
 

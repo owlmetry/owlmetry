@@ -47,8 +47,6 @@ function formatQueryResult(result: FunnelQueryResponse): string {
   const { slug, analytics } = result;
   const { funnel, mode, steps } = analytics;
 
-  // Header
-  const sinceStr = steps.length > 0 ? "" : "";
   const lines = [
     chalk.bold(`Funnel: ${slug} (${mode})`),
     "",

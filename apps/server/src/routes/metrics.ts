@@ -13,7 +13,7 @@ import type { MetricPhase } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
-import type { AuthContext } from "../types.js";
+import { resolveProject, resolveProjectAppIds } from "../utils/project.js";
 
 function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
   return {
@@ -46,54 +46,6 @@ const EMPTY_AGGREGATION: MetricAggregationResult = {
   unique_users: 0,
   error_breakdown: [],
 };
-
-/**
- * Verify project exists and the authenticated user/key has team access.
- * Returns the project row or sends 404 and returns null.
- */
-async function resolveProject(
-  fastify: FastifyInstance,
-  projectId: string,
-  auth: AuthContext,
-  reply: FastifyReply,
-): Promise<{ id: string; team_id: string } | null> {
-  const teamIds = getAuthTeamIds(auth);
-  const [project] = await fastify.db
-    .select({ id: projects.id, team_id: projects.team_id })
-    .from(projects)
-    .where(
-      and(
-        eq(projects.id, projectId),
-        inArray(projects.team_id, teamIds),
-        isNull(projects.deleted_at),
-      ),
-    )
-    .limit(1);
-
-  if (!project) {
-    reply.code(404).send({ error: "Project not found" });
-    return null;
-  }
-  return project;
-}
-
-/** Resolve project access and return app IDs for the project. */
-async function resolveProjectAppIds(
-  fastify: FastifyInstance,
-  projectId: string,
-  auth: AuthContext,
-  reply: FastifyReply,
-): Promise<string[] | null> {
-  const project = await resolveProject(fastify, projectId, auth, reply);
-  if (!project) return null;
-
-  const projectApps = await fastify.db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
-
-  return projectApps.map((a) => a.id);
-}
 
 export async function metricsRoutes(app: FastifyInstance) {
   // List metric definitions for a project

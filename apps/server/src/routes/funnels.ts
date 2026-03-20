@@ -1,6 +1,6 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, gte, lte, type SQL } from "drizzle-orm";
-import { funnelDefinitions, funnelEvents, projects, apps } from "@owlmetry/db";
+import { funnelDefinitions, funnelEvents, projects } from "@owlmetry/db";
 import type {
   CreateFunnelRequest,
   UpdateFunnelRequest,
@@ -11,7 +11,7 @@ import { validateFunnelSlug, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
-import type { AuthContext } from "../types.js";
+import { resolveProject, resolveProjectAppIds } from "../utils/project.js";
 
 const MAX_FUNNEL_STEPS = 20;
 
@@ -26,49 +26,6 @@ function serializeFunnelDefinition(row: typeof funnelDefinitions.$inferSelect) {
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
   };
-}
-
-async function resolveProject(
-  fastify: FastifyInstance,
-  projectId: string,
-  auth: AuthContext,
-  reply: FastifyReply,
-): Promise<{ id: string; team_id: string } | null> {
-  const teamIds = getAuthTeamIds(auth);
-  const [project] = await fastify.db
-    .select({ id: projects.id, team_id: projects.team_id })
-    .from(projects)
-    .where(
-      and(
-        eq(projects.id, projectId),
-        inArray(projects.team_id, teamIds),
-        isNull(projects.deleted_at),
-      ),
-    )
-    .limit(1);
-
-  if (!project) {
-    reply.code(404).send({ error: "Project not found" });
-    return null;
-  }
-  return project;
-}
-
-async function resolveProjectAppIds(
-  fastify: FastifyInstance,
-  projectId: string,
-  auth: AuthContext,
-  reply: FastifyReply,
-): Promise<string[] | null> {
-  const project = await resolveProject(fastify, projectId, auth, reply);
-  if (!project) return null;
-
-  const projectApps = await fastify.db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
-
-  return projectApps.map((a) => a.id);
 }
 
 function validateSteps(steps: unknown): string | null {
@@ -424,20 +381,18 @@ export async function funnelsRoutes(app: FastifyInstance) {
       const sinceDate = since ? new Date(since) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const untilDate = until ? new Date(until) : new Date();
 
-      // Build the funnel query using raw SQL with dynamic CTEs
-      const result = await buildFunnelQuery(
-        app,
-        filteredAppIds,
+      const result = await buildFunnelQuery(app, {
+        appIds: filteredAppIds,
         steps,
         sinceDate,
         untilDate,
-        mode as "closed" | "open",
-        data_mode,
+        mode: mode as "closed" | "open",
+        dataMode: data_mode,
         environment,
-        app_version,
+        appVersion: app_version,
         experiment,
-        group_by,
-      );
+        groupBy: group_by,
+      });
 
       return {
         slug,
@@ -464,19 +419,25 @@ interface FunnelQueryResult {
   }>;
 }
 
+interface FunnelQueryOptions {
+  appIds: string[];
+  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>;
+  sinceDate: Date;
+  untilDate: Date;
+  mode: "closed" | "open";
+  dataMode?: string;
+  environment?: string;
+  appVersion?: string;
+  experiment?: string;
+  groupBy?: string;
+}
+
 async function buildFunnelQuery(
-  app: FastifyInstance,
-  appIds: string[],
-  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>,
-  sinceDate: Date,
-  untilDate: Date,
-  mode: "closed" | "open",
-  dataMode: string | undefined,
-  environment: string | undefined,
-  appVersion: string | undefined,
-  experiment: string | undefined,
-  groupBy: string | undefined,
+  fastify: FastifyInstance,
+  opts: FunnelQueryOptions,
 ): Promise<FunnelQueryResult> {
+  const { appIds, steps, sinceDate, untilDate, mode, dataMode, environment, appVersion, experiment, groupBy } = opts;
+
   // Build base Drizzle conditions on funnelEvents
   const baseConditions: SQL[] = [
     inArray(funnelEvents.app_id, appIds),
@@ -485,11 +446,8 @@ async function buildFunnelQuery(
     sql`${funnelEvents.user_id} IS NOT NULL`,
   ];
 
-  if (dataMode === "debug") {
-    baseConditions.push(eq(funnelEvents.is_debug, true));
-  } else if (dataMode !== "all") {
-    baseConditions.push(eq(funnelEvents.is_debug, false));
-  }
+  const debugCondition = dataModeToDrizzle(funnelEvents.is_debug, dataMode as any);
+  if (debugCondition) baseConditions.push(debugCondition);
 
   if (environment) {
     baseConditions.push(sql`${funnelEvents.environment} = ${environment}`);
@@ -509,19 +467,51 @@ async function buildFunnelQuery(
   }
 
   if (groupBy) {
-    return buildGroupedFunnelQuery(app, steps, baseConditions, mode, groupBy);
+    return buildGroupedFunnelQuery(fastify, steps, baseConditions, mode, groupBy);
   }
 
-  // Execute step queries sequentially — each closed step depends on previous
-  const stepUserSets: Map<string, Date>[] = []; // user_id -> earliest step_ts
+  const stepCounts = await computeStepCounts(fastify, steps, baseConditions, mode);
+  const stepAnalytics = computeStepAnalytics(steps, stepCounts);
+
+  return {
+    totalUsers: stepAnalytics.length > 0 ? stepAnalytics[0].unique_users : 0,
+    steps: stepAnalytics,
+  };
+}
+
+/**
+ * Compute user counts for each funnel step. Closed mode runs sequentially
+ * (each step depends on the previous). Open mode runs in parallel.
+ */
+async function computeStepCounts(
+  fastify: FastifyInstance,
+  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>,
+  baseConditions: SQL[],
+  mode: "closed" | "open",
+): Promise<number[]> {
+  if (mode === "open") {
+    // Open: all steps are independent — run in parallel
+    const results = await Promise.all(
+      steps.map(async (step) => {
+        const stepFilter = buildStepFilterSql(step.event_filter);
+        const rows = await fastify.db
+          .select({ count: sql<number>`COUNT(DISTINCT ${funnelEvents.user_id})::int` })
+          .from(funnelEvents)
+          .where(and(...baseConditions, stepFilter));
+        return rows[0]?.count ?? 0;
+      }),
+    );
+    return results;
+  }
+
+  // Closed: sequential, each step filters to users from previous step
+  const stepUserSets: Map<string, Date>[] = [];
 
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const stepFilter = buildStepFilterSql(step.event_filter);
+    const stepFilter = buildStepFilterSql(steps[i].event_filter);
     const conditions = [...baseConditions, stepFilter];
 
-    if (mode === "closed" && i > 0) {
-      // Get users from previous step and filter
+    if (i > 0) {
       const prevUsers = stepUserSets[i - 1];
       if (prevUsers.size === 0) {
         stepUserSets.push(new Map());
@@ -529,7 +519,7 @@ async function buildFunnelQuery(
       }
 
       const prevUserIds = [...prevUsers.keys()];
-      const rows = await app.db
+      const rows = await fastify.db
         .select({
           user_id: funnelEvents.user_id,
           step_ts: sql<Date>`MIN(${funnelEvents.timestamp})`,
@@ -548,8 +538,8 @@ async function buildFunnelQuery(
       }
       stepUserSets.push(userMap);
     } else {
-      // Open or first step: independent
-      const rows = await app.db
+      // First step
+      const rows = await fastify.db
         .select({
           user_id: funnelEvents.user_id,
           step_ts: sql<Date>`MIN(${funnelEvents.timestamp})`,
@@ -566,17 +556,11 @@ async function buildFunnelQuery(
     }
   }
 
-  const stepCounts = stepUserSets.map((m) => m.size);
-  const stepAnalytics = computeStepAnalytics(steps, stepCounts);
-
-  return {
-    totalUsers: stepAnalytics.length > 0 ? stepAnalytics[0].unique_users : 0,
-    steps: stepAnalytics,
-  };
+  return stepUserSets.map((m) => m.size);
 }
 
 async function buildGroupedFunnelQuery(
-  app: FastifyInstance,
+  fastify: FastifyInstance,
   steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>,
   baseConditions: SQL[],
   mode: "closed" | "open",
@@ -600,82 +584,34 @@ async function buildGroupedFunnelQuery(
   }
 
   // Get distinct group values
-  const groupRows = await app.db
+  const groupRows = await fastify.db
     .selectDistinct({ grp: sql<string>`${groupExpr}` })
     .from(funnelEvents)
     .where(and(...baseConditions, sql`${groupExpr} IS NOT NULL`));
 
   const groupValues = groupRows.map((r) => r.grp).filter(Boolean);
 
-  const breakdown: FunnelQueryResult["breakdown"] = [];
+  // Run groups in parallel — each group is independent
+  const groupResults = await Promise.all(
+    groupValues.map(async (groupValue) => {
+      const groupConditions = [...baseConditions, sql`${groupExpr} = ${groupValue}`];
+      const stepCounts = await computeStepCounts(fastify, steps, groupConditions, mode);
+      const groupSteps = computeStepAnalytics(steps, stepCounts);
+      return { groupValue, stepCounts, groupSteps };
+    }),
+  );
+
   const overallStepCounts: number[] = new Array(steps.length).fill(0);
+  const breakdown: FunnelQueryResult["breakdown"] = [];
 
-  for (const groupValue of groupValues) {
-    const groupConditions = [...baseConditions, sql`${groupExpr} = ${groupValue}`];
-
-    // Run the same step-by-step logic per group
-    const stepUserSets: Map<string, Date>[] = [];
-
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const stepFilter = buildStepFilterSql(step.event_filter);
-      const conditions = [...groupConditions, stepFilter];
-
-      if (mode === "closed" && i > 0) {
-        const prevUsers = stepUserSets[i - 1];
-        if (prevUsers.size === 0) {
-          stepUserSets.push(new Map());
-          continue;
-        }
-
-        const prevUserIds = [...prevUsers.keys()];
-        const rows = await app.db
-          .select({
-            user_id: funnelEvents.user_id,
-            step_ts: sql<Date>`MIN(${funnelEvents.timestamp})`,
-          })
-          .from(funnelEvents)
-          .where(and(...conditions, inArray(funnelEvents.user_id, prevUserIds)))
-          .groupBy(funnelEvents.user_id);
-
-        const userMap = new Map<string, Date>();
-        for (const row of rows) {
-          if (!row.user_id) continue;
-          const prevTs = prevUsers.get(row.user_id);
-          if (prevTs && row.step_ts > prevTs) {
-            userMap.set(row.user_id, row.step_ts);
-          }
-        }
-        stepUserSets.push(userMap);
-      } else {
-        const rows = await app.db
-          .select({
-            user_id: funnelEvents.user_id,
-            step_ts: sql<Date>`MIN(${funnelEvents.timestamp})`,
-          })
-          .from(funnelEvents)
-          .where(and(...conditions))
-          .groupBy(funnelEvents.user_id);
-
-        const userMap = new Map<string, Date>();
-        for (const row of rows) {
-          if (row.user_id) userMap.set(row.user_id, row.step_ts);
-        }
-        stepUserSets.push(userMap);
-      }
-    }
-
-    const stepCounts = stepUserSets.map((m) => m.size);
-    const groupSteps = computeStepAnalytics(steps, stepCounts);
+  for (const { groupValue, stepCounts, groupSteps } of groupResults) {
     const groupTotalUsers = groupSteps.length > 0 ? groupSteps[0].unique_users : 0;
-
     breakdown.push({
       key: groupKey,
       value: groupValue,
       total_users: groupTotalUsers,
       steps: groupSteps,
     });
-
     stepCounts.forEach((c, i) => { overallStepCounts[i] += c; });
   }
 

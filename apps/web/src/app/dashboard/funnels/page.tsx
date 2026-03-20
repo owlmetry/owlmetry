@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, FunnelStep } from "@owlmetry/shared";
+import { validateFunnelSlug } from "@owlmetry/shared/constants";
 import { useTeam } from "@/contexts/team-context";
 import { useFunnels } from "@/hooks/use-funnels";
 import { api } from "@/lib/api";
@@ -26,15 +27,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Filter, Plus, Trash2 } from "lucide-react";
-
-const SLUG_REGEX = /^[a-z0-9-]+$/;
-function validateFunnelSlug(slug: string): string | null {
-  if (!slug) return "funnel slug is required";
-  if (!SLUG_REGEX.test(slug)) {
-    return "funnel slug must contain only lowercase letters, numbers, and hyphens";
-  }
-  return null;
-}
 
 interface StepDraft {
   name: string;

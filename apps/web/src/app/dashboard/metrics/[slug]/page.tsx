@@ -29,27 +29,7 @@ import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
 import { BookOpen, X } from "lucide-react";
-
-const TIME_RANGES = [
-  { label: "Last hour", value: "1h" },
-  { label: "Last 24h", value: "24h" },
-  { label: "Last 7 days", value: "7d" },
-  { label: "Last 30 days", value: "30d" },
-  { label: "Custom", value: "custom" },
-];
-
-const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
-
-function sinceFromRange(range: string): string {
-  const now = Date.now();
-  const ms: Record<string, number> = {
-    "1h": 3600_000,
-    "24h": 86400_000,
-    "7d": 604800_000,
-    "30d": 2592000_000,
-  };
-  return new Date(now - (ms[range] ?? ms["24h"])).toISOString();
-}
+import { TIME_RANGES, ENVIRONMENTS, sinceFromRange } from "@/lib/time-ranges";
 
 const PHASE_COLORS: Record<string, string> = {
   start: "bg-blue-500/10 text-blue-600",
