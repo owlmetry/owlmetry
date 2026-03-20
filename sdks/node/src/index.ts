@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { validateConfiguration, type ValidatedConfig } from "./configuration.js";
 import { Transport } from "./transport.js";
 import type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
@@ -9,6 +12,36 @@ export { Operation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 const SLUG_REGEX = /^[a-z0-9-]+$/;
+const TRACK_MESSAGE_PREFIX = "track:";
+
+const EXPERIMENTS_DIR = join(homedir(), ".owlmetry");
+const EXPERIMENTS_FILE = join(EXPERIMENTS_DIR, "experiments.json");
+
+let experiments: Record<string, string> = {};
+
+function loadExperiments(): void {
+  try {
+    const data = readFileSync(EXPERIMENTS_FILE, "utf-8");
+    const parsed = JSON.parse(data);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      experiments = parsed as Record<string, string>;
+    }
+  } catch {
+    // File doesn't exist or is invalid — start with empty experiments
+    experiments = {};
+  }
+}
+
+function saveExperiments(): void {
+  try {
+    mkdirSync(EXPERIMENTS_DIR, { recursive: true });
+    writeFileSync(EXPERIMENTS_FILE, JSON.stringify(experiments, null, 2), "utf-8");
+  } catch (err) {
+    if (config?.debug) {
+      console.error("OwlMetry: failed to save experiments:", err);
+    }
+  }
+}
 
 /**
  * Normalize a metric slug to contain only lowercase letters, numbers, and hyphens.
@@ -93,6 +126,7 @@ function createEvent(
     source_module: getSourceModule(),
     message,
     custom_attributes: normalizeAttributes(attrs),
+    ...(Object.keys(experiments).length > 0 ? { experiments: { ...experiments } } : {}),
     environment: "backend",
     ...(ctx.config.appVersion ? { app_version: ctx.config.appVersion } : {}),
     is_debug: ctx.config.isDebug,
@@ -136,6 +170,14 @@ export class ScopedOwl {
 
   error(message: string, attrs?: Record<string, unknown>): void {
     log("error", message, attrs, this.userId);
+  }
+
+  /**
+   * Track a named step (e.g. funnel step, user action). Sends an info-level event
+   * with message `track:<stepName>`.
+   */
+  track(stepName: string, attributes?: Record<string, string>): void {
+    log("info", `${TRACK_MESSAGE_PREFIX}${stepName}`, attributes, this.userId);
   }
 
   /**
@@ -183,6 +225,8 @@ export const Owl = {
     transport = new Transport(config);
     sessionId = randomUUID();
 
+    loadExperiments();
+
     if (!beforeExitRegistered) {
       beforeExitRegistered = true;
       process.on("beforeExit", async () => {
@@ -207,6 +251,48 @@ export const Owl = {
 
   error(message: string, attrs?: Record<string, unknown>): void {
     log("error", message, attrs);
+  },
+
+  /**
+   * Track a named step (e.g. funnel step, user action). Sends an info-level event
+   * with message `track:<stepName>`.
+   */
+  track(stepName: string, attributes?: Record<string, string>): void {
+    log("info", `${TRACK_MESSAGE_PREFIX}${stepName}`, attributes);
+  },
+
+  /**
+   * Get the assigned variant for an experiment. On first call, picks a random variant
+   * from `options` and persists the assignment. Future calls return the stored variant
+   * (the `options` parameter is ignored after the first assignment).
+   */
+  getVariant(name: string, options: string[]): string {
+    if (experiments[name]) {
+      return experiments[name];
+    }
+    if (options.length === 0) {
+      throw new Error(`OwlMetry: getVariant("${name}") called with empty options array.`);
+    }
+    const variant = options[Math.floor(Math.random() * options.length)];
+    experiments[name] = variant;
+    saveExperiments();
+    return variant;
+  },
+
+  /**
+   * Force a specific variant for an experiment. Persists immediately.
+   */
+  setExperiment(name: string, variant: string): void {
+    experiments[name] = variant;
+    saveExperiments();
+  },
+
+  /**
+   * Reset all experiment assignments. Persists immediately.
+   */
+  clearExperiments(): void {
+    experiments = {};
+    saveExperiments();
   },
 
   /**

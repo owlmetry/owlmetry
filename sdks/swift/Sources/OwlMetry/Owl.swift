@@ -192,6 +192,39 @@ public enum Owl {
             file: file, function: function, line: line)
     }
 
+    // MARK: - Funnel Tracking
+
+    /// Track a funnel step. Sends an info-level event with message `"track:<stepName>"`.
+    public static func track(
+        _ stepName: String,
+        attributes: [String: String]? = nil,
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line
+    ) {
+        info("track:\(stepName)", customAttributes: attributes, file: file, function: function, line: line)
+    }
+
+    // MARK: - Experiments
+
+    /// Returns the variant assigned for the given experiment name. On the first call for a given
+    /// name, a random variant is picked from `options` and persisted to the Keychain. Subsequent
+    /// calls return the stored variant — the `options` parameter is ignored after assignment.
+    @discardableResult
+    public static func getVariant(_ name: String, options: [String]) -> String {
+        ExperimentManager.shared.getVariant(name, options: options)
+    }
+
+    /// Force a specific variant for an experiment (e.g. from a server-side assignment).
+    public static func setExperiment(_ name: String, variant: String) {
+        ExperimentManager.shared.setExperiment(name, variant: variant)
+    }
+
+    /// Reset all experiment assignments, clearing them from the Keychain.
+    public static func clearExperiments() {
+        ExperimentManager.shared.clearAll()
+    }
+
     // MARK: - Structured Metrics
 
     /// Regex for valid metric slugs: lowercase letters, numbers, and hyphens only.

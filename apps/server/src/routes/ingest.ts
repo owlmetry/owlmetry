@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
-import { apps, events, appUsers, metricEvents } from "@owlmetry/db";
-import { ANONYMOUS_ID_PREFIX, parseMetricMessage } from "@owlmetry/shared";
+import { apps, events, appUsers, metricEvents, funnelEvents } from "@owlmetry/db";
+import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseTrackMessage } from "@owlmetry/shared";
 import {
   MAX_BATCH_SIZE,
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
@@ -176,6 +176,7 @@ export async function ingestRoutes(app: FastifyInstance) {
           build_number: e.build_number || null,
           locale: e.locale || null,
           is_debug: e.is_debug ?? false,
+          experiments: e.experiments || null,
           timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
         });
       }
@@ -223,6 +224,44 @@ export async function ingestRoutes(app: FastifyInstance) {
             .execute()
             .catch((err) => {
               request.log.warn({ err }, "Failed to dual-write metric events");
+            });
+        }
+
+        // Dual-write: detect track events and insert into funnel_events table
+        const funnelRows: Array<typeof funnelEvents.$inferInsert> = [];
+        for (const ev of valid) {
+          const stepName = parseTrackMessage(ev.message);
+          if (!stepName) continue;
+
+          funnelRows.push({
+            app_id: ev.app_id,
+            session_id: ev.session_id,
+            user_id: ev.user_id ?? null,
+            api_key_id: auth.type === "api_key" ? auth.key_id : null,
+            step_name: stepName,
+            message: ev.message,
+            screen_name: ev.screen_name ?? null,
+            custom_attributes: ev.custom_attributes ?? null,
+            experiments: ev.experiments ?? null,
+            environment: ev.environment ?? null,
+            os_version: ev.os_version ?? null,
+            app_version: ev.app_version ?? null,
+            device_model: ev.device_model ?? null,
+            build_number: ev.build_number ?? null,
+            is_debug: ev.is_debug ?? false,
+            client_event_id: ev.client_event_id || null,
+            timestamp: ev.timestamp as Date,
+          });
+        }
+
+        if (funnelRows.length > 0) {
+          // Fire-and-forget: funnel_events write failure should not block event ingest
+          app.db
+            .insert(funnelEvents)
+            .values(funnelRows)
+            .execute()
+            .catch((err) => {
+              request.log.warn({ err }, "Failed to dual-write funnel events");
             });
         }
 

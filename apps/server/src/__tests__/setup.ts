@@ -7,7 +7,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
-import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions } from "@owlmetry/db";
+import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions } from "@owlmetry/db";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
@@ -20,6 +20,7 @@ import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
 import { invitationRoutes } from "../routes/invitations.js";
 import { metricsRoutes } from "../routes/metrics.js";
+import { funnelsRoutes } from "../routes/funnels.js";
 import { auditLogsRoutes } from "../routes/audit-logs.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
@@ -160,6 +161,7 @@ export async function setupTestDb() {
         build_number VARCHAR(50),
         locale VARCHAR(20),
         is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+        experiments JSONB,
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       ) PARTITION BY RANGE ("timestamp");
@@ -247,9 +249,45 @@ export async function setupTestDb() {
     await migrationClient.unsafe(`DROP TYPE log_level_old`);
   }
 
+  // Set up partitioned funnel_events table
+  const feResult = await migrationClient`
+    SELECT relkind FROM pg_class WHERE relname = 'funnel_events'
+  `;
+
+  if (feResult.length > 0 && feResult[0].relkind !== "p") {
+    await migrationClient`DROP TABLE IF EXISTS funnel_events CASCADE`;
+  }
+
+  if (feResult.length === 0 || feResult[0].relkind !== "p") {
+    await migrationClient.unsafe(`
+      CREATE TABLE IF NOT EXISTS funnel_events (
+        id UUID DEFAULT gen_random_uuid(),
+        app_id UUID NOT NULL,
+        session_id UUID NOT NULL,
+        user_id VARCHAR(255),
+        api_key_id UUID,
+        step_name VARCHAR(255) NOT NULL,
+        message TEXT NOT NULL,
+        screen_name VARCHAR(255),
+        custom_attributes JSONB,
+        experiments JSONB,
+        environment environment,
+        os_version VARCHAR(50),
+        app_version VARCHAR(50),
+        device_model VARCHAR(100),
+        build_number VARCHAR(50),
+        is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+        client_event_id UUID,
+        "timestamp" TIMESTAMPTZ NOT NULL,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      ) PARTITION BY RANGE ("timestamp");
+    `);
+  }
+
   // Create partitions using shared utility
   await ensurePartitions(migrationClient, 1);
   await ensureMetricEventPartitions(migrationClient, 1);
+  await ensureFunnelEventPartitions(migrationClient, 1);
 
   await migrationClient.end();
   migrationClient = null;
@@ -279,6 +317,7 @@ export async function buildApp() {
   await app.register(teamsRoutes, { prefix: "/v1" });
   await app.register(invitationRoutes, { prefix: "/v1" });
   await app.register(metricsRoutes, { prefix: "/v1" });
+  await app.register(funnelsRoutes, { prefix: "/v1" });
   await app.register(auditLogsRoutes, { prefix: "/v1" });
 
   await app.ready();
@@ -289,7 +328,7 @@ export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
   await client`DELETE FROM audit_logs`;
   await client`DELETE FROM app_users`;
-  await client`DELETE FROM funnel_progress`;
+  await client.unsafe(`DELETE FROM funnel_events`);
   await client`DELETE FROM funnel_definitions`;
   await client.unsafe(`DELETE FROM metric_events`);
   await client`DELETE FROM metric_definitions`;

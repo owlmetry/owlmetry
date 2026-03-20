@@ -51,4 +51,15 @@ export function formatDuration(ms: number): string {
   return `${hours}h ${remainingMinutes}m`;
 }
 
+/**
+ * Validate a funnel slug. Same rules as metric slugs: lowercase letters, numbers, hyphens only.
+ */
+export function validateFunnelSlug(slug: string): string | null {
+  if (!slug) return "funnel slug is required";
+  if (!SLUG_REGEX.test(slug)) {
+    return "funnel slug must contain only lowercase letters, numbers, and hyphens (e.g. \"onboarding\")";
+  }
+  return null;
+}
+
 export const PG_UNIQUE_VIOLATION = "23505";

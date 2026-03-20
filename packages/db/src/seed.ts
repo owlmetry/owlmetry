@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, metricDefinitions } from "./schema.js";
+import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, metricDefinitions, funnelDefinitions } from "./schema.js";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
@@ -170,6 +170,22 @@ async function main() {
       description: "Tracks checkout flow completion",
       aggregation_rules: { lifecycle: true },
       status: "active",
+    },
+  ]);
+
+  // Seed funnel definitions
+  await db.insert(funnelDefinitions).values([
+    {
+      project_id: project.id,
+      name: "Onboarding",
+      slug: "onboarding",
+      description: "Tracks user progression through the onboarding flow",
+      steps: [
+        { name: "Welcome Screen", event_filter: { message: "track:welcome-screen" } },
+        { name: "Create Account", event_filter: { message: "track:create-account" } },
+        { name: "Complete Profile", event_filter: { message: "track:complete-profile" } },
+        { name: "First Post", event_filter: { message: "track:first-post" } },
+      ],
     },
   ]);
 

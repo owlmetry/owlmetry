@@ -27,6 +27,7 @@ export type Permission =
   | "events:write"
   | "events:read"
   | "funnels:read"
+  | "funnels:write"
   | "apps:read"
   | "apps:write"
   | "projects:read"
@@ -39,6 +40,7 @@ export const VALID_PERMISSIONS: Permission[] = [
   "events:write",
   "events:read",
   "funnels:read",
+  "funnels:write",
   "apps:read",
   "apps:write",
   "projects:read",
@@ -50,7 +52,7 @@ export const VALID_PERMISSIONS: Permission[] = [
 
 export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
   client: ["events:write"],
-  agent: ["events:read", "funnels:read", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read"],
 };
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {

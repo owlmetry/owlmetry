@@ -134,6 +134,13 @@
       "when": 1773937838304,
       "tag": "0018_freezing_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1774003578792,
+      "tag": "0019_funnels-and-experiments",
+      "breakpoints": true
     }
   ]
 }

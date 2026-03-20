@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
-import { ensurePartitions, ensureMetricEventPartitions } from "./partitions.js";
+import { ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions } from "./partitions.js";
 import "dotenv/config";
 
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
@@ -19,10 +19,12 @@ async function main() {
   // Convert Drizzle's regular tables to partitioned
   await convertEventsTableToPartitioned(client);
   await convertMetricEventsTableToPartitioned(client);
+  await convertFunnelEventsTableToPartitioned(client);
 
   // Create partitions for current month + next 2 months
   await ensurePartitions(client, 3);
   await ensureMetricEventPartitions(client, 3);
+  await ensureFunnelEventPartitions(client, 3);
 
   await client.end();
   console.log("Migrations complete.");
@@ -109,6 +111,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       build_number VARCHAR(50),
       locale VARCHAR(20),
       is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+      experiments JSONB,
       "timestamp" TIMESTAMPTZ NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     ) PARTITION BY RANGE ("timestamp");
@@ -150,6 +153,32 @@ async function convertMetricEventsTableToPartitioned(client: postgres.Sql) {
       }
     },
   );
+}
+
+async function convertFunnelEventsTableToPartitioned(client: postgres.Sql) {
+  await convertTableToPartitioned(client, "funnel_events", `
+    CREATE TABLE IF NOT EXISTS funnel_events (
+      id UUID DEFAULT gen_random_uuid(),
+      app_id UUID NOT NULL,
+      session_id UUID NOT NULL,
+      user_id VARCHAR(255),
+      api_key_id UUID,
+      step_name VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      screen_name VARCHAR(255),
+      custom_attributes JSONB,
+      experiments JSONB,
+      environment environment,
+      os_version VARCHAR(50),
+      app_version VARCHAR(50),
+      device_model VARCHAR(100),
+      build_number VARCHAR(50),
+      is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+      client_event_id UUID,
+      "timestamp" TIMESTAMPTZ NOT NULL,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    ) PARTITION BY RANGE ("timestamp");
+  `);
 }
 
 main().catch((err) => {

@@ -36,6 +36,8 @@ enum EventBuilder {
         mergedAttributes["_line"] = String(line)
         mergedAttributes["_connection"] = networkStatus
 
+        let allExperiments = ExperimentManager.shared.allExperiments()
+
         return LogEvent(
             clientEventId: UUID().uuidString,
             sessionId: sessionId,
@@ -52,6 +54,7 @@ enum EventBuilder {
             deviceModel: deviceInfo.deviceModel,
             locale: deviceInfo.locale,
             isDebug: isDebug,
+            experiments: allExperiments.isEmpty ? nil : allExperiments,
             timestamp: isoFormatter.string(from: Date())
         )
     }

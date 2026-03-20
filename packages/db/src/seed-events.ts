@@ -1,7 +1,7 @@
 import { createDatabaseConnection } from "./index.js";
-import { apps, events, appUsers, metricEvents } from "./schema.js";
+import { apps, events, appUsers, metricEvents, funnelEvents } from "./schema.js";
 import { eq, isNull, and } from "drizzle-orm";
-import { parseMetricMessage } from "@owlmetry/shared";
+import { parseMetricMessage, parseTrackMessage } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
 
@@ -154,6 +154,20 @@ const TEMPLATES: EventTemplate[] = [
     }),
   },
 ];
+
+// ── Funnel track events ──────────────────────────────────────────────
+
+// Onboarding funnel steps in order — users progress through these with drop-off
+const ONBOARDING_STEPS = [
+  "track:welcome-screen",
+  "track:create-account",
+  "track:complete-profile",
+  "track:first-post",
+];
+
+const EXPERIMENT_VARIANTS: Record<string, string[]> = {
+  onboarding: ["A", "B"],
+};
 
 type DeviceProfile = {
   environment: "ios" | "ipados" | "macos" | "android" | "web" | "backend";
@@ -318,12 +332,101 @@ async function main() {
     for (let i = 0; i < metricRows.length; i += BATCH_SIZE) {
       await db.insert(metricEvents).values(metricRows.slice(i, i + BATCH_SIZE));
     }
-    console.log(`Dual-wrote ${metricRows.length} metric events\n`);
+    console.log(`Dual-wrote ${metricRows.length} metric events`);
+  }
+
+  // ── Generate funnel track events ────────────────────────────────────
+  // Simulate realistic onboarding funnel: ~60 users start, with drop-off at each step
+  const funnelUserCount = Math.max(20, Math.ceil(EVENT_COUNT / 4));
+  const funnelTrackRows: Array<typeof events.$inferInsert> = [];
+  const funnelDualRows: Array<typeof funnelEvents.$inferInsert> = [];
+
+  // Use only non-backend apps for funnel events
+  const clientApps = allApps.filter((a) => a.platform !== "backend");
+  if (clientApps.length > 0) {
+    // Drop-off probabilities: 100% → 70% → 50% → 30%
+    const STEP_RETENTION = [1.0, 0.7, 0.5, 0.3];
+
+    for (let u = 0; u < funnelUserCount; u++) {
+      const userId = `user-${u + 1}`;
+      const session = {
+        id: crypto.randomUUID(),
+        appId: pick(clientApps).id,
+        device: pick(DEVICE_PROFILES.filter((d) => d.environment !== "backend")),
+        appVersion: pick(APP_VERSIONS),
+        buildNumber: pick(BUILD_NUMBERS),
+      };
+      // Assign experiment variant
+      const experiments: Record<string, string> = {};
+      for (const [name, variants] of Object.entries(EXPERIMENT_VARIANTS)) {
+        experiments[name] = pick(variants);
+      }
+
+      const baseTime = now - Math.floor(Math.random() * spanMs);
+
+      for (let s = 0; s < ONBOARDING_STEPS.length; s++) {
+        // Check if user reaches this step
+        if (Math.random() > STEP_RETENTION[s]) break;
+
+        const stepMessage = ONBOARDING_STEPS[s];
+        const stepName = stepMessage.slice("track:".length);
+        const ts = new Date(baseTime + s * 30_000); // 30s between steps
+
+        const eventRow: typeof events.$inferInsert = {
+          app_id: session.appId,
+          session_id: session.id,
+          user_id: userId,
+          level: "info",
+          message: stepMessage,
+          screen_name: "OnboardingScreen",
+          source_module: "OwlMetry",
+          environment: session.device.environment,
+          os_version: session.device.os_version,
+          app_version: session.appVersion,
+          build_number: session.buildNumber,
+          device_model: session.device.device_model,
+          locale: session.device.locale,
+          experiments,
+          timestamp: ts,
+        };
+        funnelTrackRows.push(eventRow);
+
+        funnelDualRows.push({
+          app_id: session.appId,
+          session_id: session.id,
+          user_id: userId,
+          step_name: stepName,
+          message: stepMessage,
+          screen_name: "OnboardingScreen",
+          experiments,
+          environment: session.device.environment,
+          os_version: session.device.os_version,
+          app_version: session.appVersion,
+          build_number: session.buildNumber,
+          device_model: session.device.device_model,
+          is_debug: false,
+          timestamp: ts,
+        });
+      }
+    }
+
+    // Insert track events into events table
+    for (let i = 0; i < funnelTrackRows.length; i += BATCH_SIZE) {
+      await db.insert(events).values(funnelTrackRows.slice(i, i + BATCH_SIZE));
+    }
+    inserted += funnelTrackRows.length;
+
+    // Dual-write into funnel_events table
+    for (let i = 0; i < funnelDualRows.length; i += BATCH_SIZE) {
+      await db.insert(funnelEvents).values(funnelDualRows.slice(i, i + BATCH_SIZE));
+    }
+    console.log(`Generated ${funnelTrackRows.length} track events for ${funnelUserCount} funnel users`);
+    console.log(`Dual-wrote ${funnelDualRows.length} funnel events\n`);
   }
 
   // Upsert app_users for any user_ids we generated
   const userAppPairs = new Map<string, { appId: string; isAnon: boolean; earliest: Date; latest: Date }>();
-  for (const row of rows) {
+  for (const row of [...rows, ...funnelTrackRows]) {
     if (!row.user_id) continue;
     const key = `${row.app_id}:${row.user_id}`;
     const ts = row.timestamp as Date;

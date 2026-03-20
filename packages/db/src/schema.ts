@@ -196,6 +196,7 @@ export const events = pgTable(
     build_number: varchar("build_number", { length: 50 }),
     locale: varchar("locale", { length: 20 }),
     is_debug: boolean("is_debug").notNull().default(false),
+    experiments: jsonb("experiments").$type<Record<string, string>>(),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     received_at: timestamp("received_at", { withTimezone: true })
       .notNull()
@@ -281,12 +282,14 @@ export const funnelDefinitions = pgTable(
   "funnel_definitions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    app_id: uuid("app_id")
+    project_id: uuid("project_id")
       .notNull()
-      .references(() => apps.id, { onDelete: "cascade" }),
+      .references(() => projects.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    description: text("description"),
     steps: jsonb("steps")
-      .$type<Array<{ name: string; event_message: string; event_screen_name?: string }>>()
+      .$type<Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>>()
       .notNull(),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -297,7 +300,10 @@ export const funnelDefinitions = pgTable(
       .$onUpdate(() => new Date()),
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
-  (table) => [index("funnel_definitions_app_id_idx").on(table.app_id)]
+  (table) => [
+    index("funnel_definitions_project_id_idx").on(table.project_id),
+    uniqueIndex("funnel_definitions_project_slug_idx").on(table.project_id, table.slug),
+  ]
 );
 
 // Metric Definitions
@@ -391,25 +397,37 @@ export const auditLogs = pgTable(
   ]
 );
 
-// Funnel Progress
-export const funnelProgress = pgTable(
-  "funnel_progress",
+// Funnel Events — NOTE: This table is partitioned by month on `timestamp`.
+// Same strategy as events and metric_events tables. See src/migrate.ts for partition creation logic.
+export const funnelEvents = pgTable(
+  "funnel_events",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    funnel_id: uuid("funnel_id")
-      .notNull()
-      .references(() => funnelDefinitions.id, { onDelete: "cascade" }),
-    user_id: varchar("user_id", { length: 255 }).notNull(),
-    completed_step_name: text("completed_step_name").notNull(),
-    triggering_event_id: uuid("triggering_event_id"),
-    completed_at: timestamp("completed_at", { withTimezone: true })
+    id: uuid("id").defaultRandom(),
+    app_id: uuid("app_id").notNull(),
+    session_id: uuid("session_id").notNull(),
+    user_id: varchar("user_id", { length: 255 }),
+    api_key_id: uuid("api_key_id"),
+    step_name: varchar("step_name", { length: 255 }).notNull(),
+    message: text("message").notNull(),
+    screen_name: varchar("screen_name", { length: 255 }),
+    custom_attributes: jsonb("custom_attributes").$type<Record<string, string>>(),
+    experiments: jsonb("experiments").$type<Record<string, string>>(),
+    environment: environmentEnum("environment"),
+    os_version: varchar("os_version", { length: 50 }),
+    app_version: varchar("app_version", { length: 50 }),
+    device_model: varchar("device_model", { length: 100 }),
+    build_number: varchar("build_number", { length: 50 }),
+    is_debug: boolean("is_debug").notNull().default(false),
+    client_event_id: uuid("client_event_id"),
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
+    received_at: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    index("funnel_progress_funnel_user_idx").on(
-      table.funnel_id,
-      table.user_id
-    ),
+    index("funnel_events_app_step_timestamp_idx").on(table.app_id, table.step_name, table.timestamp),
+    index("funnel_events_app_user_timestamp_idx").on(table.app_id, table.user_id, table.timestamp),
+    index("funnel_events_app_step_user_timestamp_idx").on(table.app_id, table.step_name, table.user_id, table.timestamp),
+    index("funnel_events_app_client_event_id_idx").on(table.app_id, table.client_event_id),
   ]
 );

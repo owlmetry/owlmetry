@@ -1,6 +1,6 @@
 import type { StoredEvent, IngestRequest, IngestResponse, AppPlatform } from "./events.js";
 import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
-import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js";
+import type { FunnelDefinition, FunnelStep, FunnelAnalytics, FunnelDefinitionResponse, FunnelStepAnalytics, FunnelBreakdownGroup } from "./funnels.js";
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
 import type { AuditAction, AuditActorType, AuditResourceType } from "./audit.js";
 
@@ -204,9 +204,37 @@ export interface EventsResponse {
 
 // Funnels
 export interface CreateFunnelRequest {
-  app_id: string;
+  project_id: string;
   name: string;
+  slug: string;
+  description?: string;
   steps: FunnelStep[];
+}
+
+export interface UpdateFunnelRequest {
+  name?: string;
+  description?: string;
+  steps?: FunnelStep[];
+}
+
+export { FunnelDefinitionResponse };
+
+export interface FunnelQueryParams {
+  project_id: string;
+  since?: string;
+  until?: string;
+  app_id?: string;
+  app_version?: string;
+  environment?: string;
+  experiment?: string;
+  mode?: "closed" | "open";
+  group_by?: string;
+  data_mode?: DataMode;
+}
+
+export interface FunnelQueryResponse {
+  slug: string;
+  analytics: FunnelAnalytics;
 }
 
 // Teams
@@ -413,7 +441,10 @@ export type {
   TeamRole,
   Permission,
   FunnelDefinition,
+  FunnelStep,
   FunnelAnalytics,
+  FunnelStepAnalytics,
+  FunnelBreakdownGroup,
   MetricDefinition,
   MetricPhase,
   StoredMetricEvent,

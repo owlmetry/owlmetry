@@ -176,3 +176,20 @@ const metricEventsPartitionConfig: PartitionConfig = {
 export async function ensureMetricEventPartitions(client: postgres.Sql, monthsAhead = 3) {
   await ensureTablePartitions(client, metricEventsPartitionConfig, monthsAhead);
 }
+
+// ── Funnel events partitions ────────────────────────────────────────────
+
+const funnelEventsPartitionConfig: PartitionConfig = {
+  tableName: "funnel_events",
+  prefix: "funnel_events_",
+  indexesSql: (p) => `
+    CREATE INDEX IF NOT EXISTS ${p}_app_step_ts_idx ON ${p} (app_id, step_name, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_user_ts_idx ON ${p} (app_id, user_id, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_step_user_ts_idx ON ${p} (app_id, step_name, user_id, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_client_eid_idx ON ${p} (app_id, client_event_id);
+  `,
+};
+
+export async function ensureFunnelEventPartitions(client: postgres.Sql, monthsAhead = 3) {
+  await ensureTablePartitions(client, funnelEventsPartitionConfig, monthsAhead);
+}

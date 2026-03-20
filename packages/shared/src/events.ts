@@ -23,6 +23,7 @@ export interface IngestEventPayload {
   device_model?: string;
   locale?: string;
   is_debug?: boolean;
+  experiments?: Record<string, string>;
   timestamp?: string; // ISO 8601
 }
 
@@ -43,6 +44,7 @@ export interface StoredEvent {
   device_model: string | null;
   locale: string | null;
   is_debug: boolean;
+  experiments: Record<string, string> | null;
   timestamp: Date;
   received_at: Date;
 }

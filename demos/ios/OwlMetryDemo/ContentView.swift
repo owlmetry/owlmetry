@@ -16,6 +16,7 @@ struct ContentView: View {
                 runFullDemoSection
                 loggingSection
                 metricsSection
+                funnelDemoSection
                 identitySection
                 backendDemoSection
                 logOutputSection
@@ -92,6 +93,48 @@ struct ContentView: View {
                 appendLog("[METRIC] photo-conversion:fail")
             }
             .tint(.red)
+        }
+    }
+
+    // MARK: - Funnel Demo
+
+    private var funnelDemoSection: some View {
+        Section("Funnel Demo") {
+            Button("1. Welcome Screen") {
+                Owl.track("welcome-screen")
+                appendLog("[TRACK] welcome-screen")
+            }
+            .tint(.purple)
+
+            Button("2. Create Account") {
+                Owl.track("create-account")
+                appendLog("[TRACK] create-account")
+            }
+            .tint(.purple)
+
+            Button("3. Complete Profile") {
+                Owl.track("complete-profile")
+                appendLog("[TRACK] complete-profile")
+            }
+            .tint(.purple)
+
+            Button("4. First Post") {
+                Owl.track("first-post")
+                appendLog("[TRACK] first-post")
+            }
+            .tint(.purple)
+
+            Button("Set Experiment: onboarding=B") {
+                Owl.setExperiment("onboarding", variant: "B")
+                appendLog("[EXPERIMENT] onboarding = B")
+            }
+            .tint(.indigo)
+
+            Button("Clear Experiments") {
+                Owl.clearExperiments()
+                appendLog("[EXPERIMENT] cleared all")
+            }
+            .tint(.gray)
         }
     }
 
@@ -218,7 +261,19 @@ struct ContentView: View {
         )
         appendLog("[BACKEND] checkout: \(checkoutResult)")
 
-        // 6. iOS error event for investigation
+        // 6. Funnel demo: simulate onboarding flow
+        Owl.setExperiment("onboarding", variant: "A")
+        appendLog("[EXPERIMENT] onboarding = A")
+        Owl.track("welcome-screen")
+        appendLog("[TRACK] welcome-screen")
+        try? await Task.sleep(for: .milliseconds(300))
+        Owl.track("create-account")
+        appendLog("[TRACK] create-account")
+        try? await Task.sleep(for: .milliseconds(300))
+        Owl.track("complete-profile")
+        appendLog("[TRACK] complete-profile")
+
+        // 7. iOS error event for investigation
         Owl.error("Simulated client crash", screenName: "ContentView")
         appendLog("[ERROR] Simulated client crash")
 

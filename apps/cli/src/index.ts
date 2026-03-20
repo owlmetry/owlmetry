@@ -9,6 +9,7 @@ import { eventsCommand, investigateCommand } from "./commands/events.js";
 import { usersCommand } from "./commands/users.js";
 import { authCommand } from "./commands/auth.js";
 import { metricsCommand } from "./commands/metrics.js";
+import { funnelsCommand } from "./commands/funnels.js";
 import { auditLogCommand } from "./commands/audit-logs.js";
 
 const program = new Command()
@@ -31,6 +32,7 @@ program.addCommand(eventsCommand);
 program.addCommand(investigateCommand);
 program.addCommand(usersCommand);
 program.addCommand(metricsCommand);
+program.addCommand(funnelsCommand);
 program.addCommand(auditLogCommand);
 
 program.parseAsync().catch((err: unknown) => {

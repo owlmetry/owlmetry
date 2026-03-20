@@ -8,8 +8,13 @@ import type {
   CreateProjectRequest,
   CreateMetricDefinitionRequest,
   UpdateMetricDefinitionRequest,
+  CreateFunnelRequest,
+  UpdateFunnelRequest,
   EventsQueryParams,
   EventsResponse,
+  FunnelDefinitionResponse,
+  FunnelQueryParams,
+  FunnelQueryResponse,
   MetricDefinitionResponse,
   MetricQueryParams,
   MetricQueryResponse,
@@ -213,6 +218,52 @@ export class OwlMetryClient {
       group_by: params.group_by,
     };
     return this.request<MetricQueryResponse>("GET", `/v1/metrics/${slug}/query`, { params: stringParams });
+  }
+
+  // Funnels
+  async listFunnels(projectId: string): Promise<{ funnels: FunnelDefinitionResponse[] }> {
+    return this.request<{ funnels: FunnelDefinitionResponse[] }>("GET", "/v1/funnels", {
+      params: { project_id: projectId },
+    });
+  }
+
+  async getFunnel(slug: string, projectId: string): Promise<FunnelDefinitionResponse> {
+    return this.request<FunnelDefinitionResponse>("GET", `/v1/funnels/${slug}`, {
+      params: { project_id: projectId },
+    });
+  }
+
+  async createFunnel(body: CreateFunnelRequest): Promise<FunnelDefinitionResponse> {
+    return this.request<FunnelDefinitionResponse>("POST", "/v1/funnels", { body });
+  }
+
+  async updateFunnel(slug: string, projectId: string, body: UpdateFunnelRequest): Promise<FunnelDefinitionResponse> {
+    return this.request<FunnelDefinitionResponse>("PATCH", `/v1/funnels/${slug}`, {
+      params: { project_id: projectId },
+      body,
+    });
+  }
+
+  async deleteFunnel(slug: string, projectId: string): Promise<{ deleted: true }> {
+    return this.request<{ deleted: true }>("DELETE", `/v1/funnels/${slug}`, {
+      params: { project_id: projectId },
+    });
+  }
+
+  async queryFunnel(slug: string, projectId: string, params: Partial<Omit<FunnelQueryParams, "project_id">> = {}): Promise<FunnelQueryResponse> {
+    const stringParams: Record<string, string | undefined> = {
+      project_id: projectId,
+      since: params.since,
+      until: params.until,
+      app_id: params.app_id,
+      app_version: params.app_version,
+      environment: params.environment,
+      experiment: params.experiment,
+      mode: params.mode,
+      group_by: params.group_by,
+      data_mode: params.data_mode,
+    };
+    return this.request<FunnelQueryResponse>("GET", `/v1/funnels/${slug}/query`, { params: stringParams });
   }
 
   // Audit Logs

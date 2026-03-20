@@ -16,6 +16,7 @@ struct LogEvent: Codable, Sendable {
     let deviceModel: String?
     let locale: String?
     let isDebug: Bool
+    let experiments: [String: String]?
     let timestamp: String
 
     enum CodingKeys: String, CodingKey {
@@ -34,6 +35,7 @@ struct LogEvent: Codable, Sendable {
         case deviceModel = "device_model"
         case locale
         case isDebug = "is_debug"
+        case experiments
         case timestamp
     }
 }

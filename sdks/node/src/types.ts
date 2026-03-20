@@ -29,6 +29,7 @@ export interface LogEvent {
   source_module?: string;
   message: string;
   custom_attributes?: Record<string, string>;
+  experiments?: Record<string, string>;
   environment: "backend";
   app_version?: string;
   is_debug?: boolean;

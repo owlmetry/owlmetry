@@ -1,10 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   events,
   appUsers,
-  funnelDefinitions,
-  funnelProgress,
+  funnelEvents,
 } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
@@ -81,25 +80,16 @@ export async function identityRoutes(app: FastifyInstance) {
           return 0;
         }
 
-        // Scope funnel progress update to funnels belonging to this app
-        const appFunnelIds = await tx
-          .select({ id: funnelDefinitions.id })
-          .from(funnelDefinitions)
-          .where(eq(funnelDefinitions.app_id, app_id));
-
-        const funnelIds = appFunnelIds.map((f) => f.id);
-
-        if (funnelIds.length > 0) {
-          await tx
-            .update(funnelProgress)
-            .set({ user_id: user_id })
-            .where(
-              and(
-                eq(funnelProgress.user_id, anonymous_id),
-                inArray(funnelProgress.funnel_id, funnelIds)
-              )
-            );
-        }
+        // Reassign funnel_events user_id from anonymous to real
+        await tx
+          .update(funnelEvents)
+          .set({ user_id: user_id })
+          .where(
+            and(
+              eq(funnelEvents.app_id, app_id),
+              eq(funnelEvents.user_id, anonymous_id)
+            )
+          );
 
         // Merge app_users: fetch anonymous row
         const [anonRow] = await tx
