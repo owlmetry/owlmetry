@@ -65,25 +65,29 @@ export function AnalyticsFilterBar({
         </Select>
       </div>
 
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Since</label>
-        <Input
-          type="date"
-          value={sinceInput}
-          onChange={(e) => filters.handleDateChange("since", e.target.value)}
-          className="w-[160px] h-8 text-xs"
-        />
-      </div>
+      {timeRange === "custom" && (
+        <>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Since</label>
+            <Input
+              type="date"
+              value={sinceInput}
+              onChange={(e) => filters.handleDateChange("since", e.target.value)}
+              className="w-[160px] h-8 text-xs"
+            />
+          </div>
 
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Until</label>
-        <Input
-          type="date"
-          value={untilInput}
-          onChange={(e) => filters.handleDateChange("until", e.target.value)}
-          className="w-[160px] h-8 text-xs"
-        />
-      </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Until</label>
+            <Input
+              type="date"
+              value={untilInput}
+              onChange={(e) => filters.handleDateChange("until", e.target.value)}
+              className="w-[160px] h-8 text-xs"
+            />
+          </div>
+        </>
+      )}
 
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">App Version</label>

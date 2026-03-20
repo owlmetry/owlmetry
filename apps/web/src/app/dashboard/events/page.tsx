@@ -9,7 +9,7 @@ import type {
   AppResponse,
   LogLevel,
 } from "@owlmetry/shared";
-import { ENVIRONMENTS } from "@/lib/time-ranges";
+import { TIME_RANGES, ENVIRONMENTS } from "@/lib/time-ranges";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
@@ -52,6 +52,7 @@ export default function EventsPage() {
       session_id: "",
       environment: "",
       screen_name: "",
+      time_range: "24h",
       since: "",
       until: "",
     },
@@ -95,10 +96,8 @@ export default function EventsPage() {
   if (environment) filterParams.environment = environment;
   const screenName = filters.get("screen_name");
   if (screenName) filterParams.screen_name = screenName;
-  const since = filters.get("since");
-  if (since) filterParams.since = new Date(since).toISOString();
-  const until = filters.get("until");
-  if (until) filterParams.until = new Date(until + "T23:59:59").toISOString();
+  if (filters.computedSince) filterParams.since = filters.computedSince;
+  if (filters.computedUntil) filterParams.until = filters.computedUntil;
   filterParams.data_mode = dataMode;
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filterParams);
@@ -223,24 +222,44 @@ export default function EventsPage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Since</label>
-          <Input
-            type="date"
-            value={since}
-            onChange={(e) => filters.set("since", e.target.value)}
-            className="w-[160px] h-8 text-xs"
-          />
+          <label className="text-xs text-muted-foreground">Time Range</label>
+          <Select value={filters.get("time_range")} onValueChange={filters.handleTimeRangeChange}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_RANGES.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Until</label>
-          <Input
-            type="date"
-            value={until}
-            onChange={(e) => filters.set("until", e.target.value)}
-            className="w-[160px] h-8 text-xs"
-          />
-        </div>
+        {filters.get("time_range") === "custom" && (
+          <>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Since</label>
+              <Input
+                type="date"
+                value={filters.get("since")}
+                onChange={(e) => filters.handleDateChange("since", e.target.value)}
+                className="w-[160px] h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Until</label>
+              <Input
+                type="date"
+                value={filters.get("until")}
+                onChange={(e) => filters.handleDateChange("until", e.target.value)}
+                className="w-[160px] h-8 text-xs"
+              />
+            </div>
+          </>
+        )}
 
         {filters.hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={filters.clearFilters} className="h-8">

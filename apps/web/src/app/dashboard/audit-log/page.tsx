@@ -30,6 +30,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { X } from "lucide-react";
+import { TIME_RANGES } from "@/lib/time-ranges";
 
 // Mirrors AuditResourceType and AuditAction from @owlmetry/shared (runtime import
 // would pull in node:crypto via the barrel export, which Next.js can't bundle)
@@ -58,6 +59,7 @@ export default function AuditLogPage() {
       action: "",
       resource_id: "",
       actor_id: "",
+      time_range: "24h",
       since: "",
       until: "",
     },
@@ -70,8 +72,6 @@ export default function AuditLogPage() {
   const action = filters.get("action");
   const resourceId = filters.get("resource_id");
   const actorId = filters.get("actor_id");
-  const since = filters.get("since");
-  const until = filters.get("until");
 
   const queryFilters: AuditLogsQueryParams = {
     team_id: currentTeam?.id ?? "",
@@ -80,8 +80,8 @@ export default function AuditLogPage() {
   if (action) queryFilters.action = action;
   if (resourceId) queryFilters.resource_id = resourceId;
   if (actorId) queryFilters.actor_id = actorId;
-  if (since) queryFilters.since = new Date(since).toISOString();
-  if (until) queryFilters.until = new Date(until + "T23:59:59").toISOString();
+  if (filters.computedSince) queryFilters.since = filters.computedSince;
+  if (filters.computedUntil) queryFilters.until = filters.computedUntil;
 
   const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(queryFilters);
 
@@ -151,24 +151,44 @@ export default function AuditLogPage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Since</label>
-          <Input
-            type="date"
-            value={since}
-            onChange={(e) => filters.set("since", e.target.value)}
-            className="w-[160px] h-8 text-xs"
-          />
+          <label className="text-xs text-muted-foreground">Time Range</label>
+          <Select value={filters.get("time_range")} onValueChange={filters.handleTimeRangeChange}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_RANGES.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Until</label>
-          <Input
-            type="date"
-            value={until}
-            onChange={(e) => filters.set("until", e.target.value)}
-            className="w-[160px] h-8 text-xs"
-          />
-        </div>
+        {filters.get("time_range") === "custom" && (
+          <>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Since</label>
+              <Input
+                type="date"
+                value={filters.get("since")}
+                onChange={(e) => filters.handleDateChange("since", e.target.value)}
+                className="w-[160px] h-8 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Until</label>
+              <Input
+                type="date"
+                value={filters.get("until")}
+                onChange={(e) => filters.handleDateChange("until", e.target.value)}
+                className="w-[160px] h-8 text-xs"
+              />
+            </div>
+          </>
+        )}
 
         {filters.hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={filters.clearFilters} className="h-8">
