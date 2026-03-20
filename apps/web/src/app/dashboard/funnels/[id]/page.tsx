@@ -56,7 +56,7 @@ export default function FunnelDetailPage() {
       environment: "",
       experiment: "",
       group_by: "",
-      mode: "closed",
+      mode: "open",
       app_id: "",
     },
   });
@@ -99,7 +99,7 @@ export default function FunnelDetailPage() {
     if (environmentVal) c.push({ label: "Env", value: environmentVal, onDismiss: () => filters.set("environment", "") });
     if (appVersionVal) c.push({ label: "Version", value: appVersionVal, onDismiss: () => filters.set("app_version", "") });
     if (experimentVal) c.push({ label: "Experiment", value: experimentVal, onDismiss: () => filters.set("experiment", "") });
-    if (openMode) c.push({ label: "Mode", value: "Open", onDismiss: () => filters.set("mode", "closed") });
+    if (!openMode) c.push({ label: "Mode", value: "Closed", onDismiss: () => filters.set("mode", "open") });
     return c;
   }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, openMode, filters]);
 
