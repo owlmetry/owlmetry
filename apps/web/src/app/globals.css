@@ -155,6 +155,29 @@ div[id^="__lpform"],
   animation: fade-in 0.3s ease-out both;
 }
 
+/* Filter chip animations */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes chip-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+}
+
 /* Landing page animations */
 @keyframes landing-float {
   0%, 100% { transform: translateY(0); }

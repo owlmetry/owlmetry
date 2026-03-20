@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useCallback, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,6 +41,7 @@ interface FilterSheetProps {
 }
 
 const MAX_VISIBLE_CHIPS = 5;
+const DISMISS_DURATION = 150;
 
 export function FilterSheet({
   hasActiveFilters,
@@ -49,31 +50,68 @@ export function FilterSheet({
   children,
 }: FilterSheetProps) {
   const [open, setOpen] = useState(false);
+  const [dismissing, setDismissing] = useState<Set<string>>(new Set());
+  const dismissTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const activeChips = hasActiveFilters ? chips : [];
   const visibleChips = activeChips.slice(0, MAX_VISIBLE_CHIPS);
   const overflowCount = activeChips.length - MAX_VISIBLE_CHIPS;
 
+  const handleDismiss = useCallback((chip: FilterChip) => {
+    if (!chip.onDismiss) return;
+    const key = `${chip.label}:${chip.value}`;
+    setDismissing((prev) => new Set(prev).add(key));
+    const timer = setTimeout(() => {
+      chip.onDismiss!();
+      setDismissing((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      dismissTimers.current.delete(key);
+    }, DISMISS_DURATION);
+    dismissTimers.current.set(key, timer);
+  }, []);
+
+  const handleClearAll = useCallback(() => {
+    const keys = visibleChips.map((c) => `${c.label}:${c.value}`);
+    setDismissing(new Set(keys));
+    setTimeout(() => {
+      onClear();
+      setDismissing(new Set());
+    }, DISMISS_DURATION);
+  }, [visibleChips, onClear]);
+
   return (
     <>
       {/* Trigger row — right-aligned */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-1.5">
         {visibleChips.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {visibleChips.map((chip) => (
-              <button
-                key={`${chip.label}:${chip.value}`}
-                type="button"
-                onClick={chip.onDismiss}
-                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-normal transition-colors hover:bg-muted/50 cursor-pointer"
-              >
-                <span className="text-muted-foreground">{chip.label}:</span>
-                <span>{chip.value}</span>
-                <X className="h-2.5 w-2.5 text-muted-foreground" />
-              </button>
-            ))}
+            {visibleChips.map((chip) => {
+              const key = `${chip.label}:${chip.value}`;
+              const isDismissing = dismissing.has(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleDismiss(chip)}
+                  disabled={isDismissing}
+                  style={{
+                    animation: isDismissing
+                      ? `chip-out ${DISMISS_DURATION}ms ease-in forwards`
+                      : "chip-in 200ms ease-out both",
+                  }}
+                  className="group inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 pl-2 pr-1.5 py-0.5 text-[11px] transition-colors hover:bg-muted/60 hover:border-border cursor-pointer"
+                >
+                  <span className="text-muted-foreground">{chip.label}:</span>
+                  <span className="text-foreground/90">{chip.value}</span>
+                  <X className="h-3 w-3 ml-0.5 text-muted-foreground/50 group-hover:text-foreground/70 transition-colors" />
+                </button>
+              );
+            })}
             {overflowCount > 0 && (
-              <span className="text-[10px] text-muted-foreground">+{overflowCount} more</span>
+              <span className="text-[10px] text-muted-foreground ml-0.5">+{overflowCount} more</span>
             )}
           </div>
         )}
@@ -81,10 +119,10 @@ export function FilterSheet({
         {hasActiveFilters && (
           <button
             type="button"
-            onClick={onClear}
-            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-normal transition-colors hover:bg-muted/50 cursor-pointer"
+            onClick={handleClearAll}
+            className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px] transition-colors hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive cursor-pointer"
           >
-            <X className="h-2.5 w-2.5 text-muted-foreground" />
+            <X className="h-3 w-3" />
             <span>Clear</span>
           </button>
         )}
@@ -92,7 +130,7 @@ export function FilterSheet({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 text-xs"
+          className="h-8 text-xs ml-0.5"
           onClick={() => setOpen(true)}
         >
           <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
