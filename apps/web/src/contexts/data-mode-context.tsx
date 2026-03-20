@@ -20,7 +20,7 @@ export function DataModeProvider({ children }: { children: React.ReactNode }) {
   const [dataMode, setDataModeState] = useState<DataMode>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "production" || stored === "debug" || stored === "all") return stored;
+      if (stored === "production" || stored === "development" || stored === "all") return stored;
     }
     return DEFAULT_MODE;
   });

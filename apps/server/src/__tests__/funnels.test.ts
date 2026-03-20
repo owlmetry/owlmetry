@@ -315,13 +315,13 @@ describe("Funnel Analytics", () => {
     await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
-    // Ingest debug events
+    // Ingest development events
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-debug", is_debug: true, timestamp: new Date(now - 5000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-dev", is_dev: true, timestamp: new Date(now - 5000).toISOString() },
     ]);
     // Ingest production events
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-prod", is_debug: false, timestamp: new Date(now - 4000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-prod", is_dev: false, timestamp: new Date(now - 4000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -334,13 +334,13 @@ describe("Funnel Analytics", () => {
     });
     expect(prodRes.json().analytics.steps[0].unique_users).toBe(1);
 
-    // Debug only
-    const debugRes = await app.inject({
+    // Development only
+    const devRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=debug`,
+      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=development`,
       headers: { authorization: `Bearer ${token}` },
     });
-    expect(debugRes.json().analytics.steps[0].unique_users).toBe(1);
+    expect(devRes.json().analytics.steps[0].unique_users).toBe(1);
 
     // All
     const allRes = await app.inject({
@@ -641,8 +641,8 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("backend", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "debug-user", environment: "backend", is_debug: true, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user", environment: "backend", is_debug: false, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "dev-user", environment: "backend", is_dev: true, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user", environment: "backend", is_dev: false, timestamp: new Date(now - 50000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -654,12 +654,12 @@ describe("Funnel Cross-Platform Environment", () => {
     });
     expect(prodRes.json().analytics.steps[0].unique_users).toBe(1);
 
-    const debugRes = await app.inject({
+    const devRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=debug`,
+      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=development`,
       headers: { authorization: `Bearer ${token}` },
     });
-    expect(debugRes.json().analytics.steps[0].unique_users).toBe(1);
+    expect(devRes.json().analytics.steps[0].unique_users).toBe(1);
 
     const allRes = await app.inject({
       method: "GET",
@@ -735,9 +735,9 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("android", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "debug-user", environment: "android", is_debug: true, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-1", environment: "android", is_debug: false, timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-2", environment: "android", is_debug: false, timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "dev-user", environment: "android", is_dev: true, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-1", environment: "android", is_dev: false, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-2", environment: "android", is_dev: false, timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -749,12 +749,12 @@ describe("Funnel Cross-Platform Environment", () => {
     });
     expect(prodRes.json().analytics.steps[0].unique_users).toBe(2);
 
-    const debugRes = await app.inject({
+    const devRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/android-dm/query?project_id=${androidProjectId}&data_mode=debug`,
+      url: `/v1/funnels/android-dm/query?project_id=${androidProjectId}&data_mode=development`,
       headers: { authorization: `Bearer ${token}` },
     });
-    expect(debugRes.json().analytics.steps[0].unique_users).toBe(1);
+    expect(devRes.json().analytics.steps[0].unique_users).toBe(1);
   });
 
   it("android funnel rejects non-android environment events", async () => {

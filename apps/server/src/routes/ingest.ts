@@ -186,7 +186,7 @@ export async function ingestRoutes(app: FastifyInstance) {
           device_model: e.device_model || null,
           build_number: e.build_number || null,
           locale: e.locale || null,
-          is_debug: e.is_debug ?? false,
+          is_dev: e.is_dev ?? false,
           experiments: e.experiments || null,
           timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
         });
@@ -221,7 +221,7 @@ export async function ingestRoutes(app: FastifyInstance) {
             app_version: ev.app_version ?? null,
             device_model: ev.device_model ?? null,
             build_number: ev.build_number ?? null,
-            is_debug: ev.is_debug ?? false,
+            is_dev: ev.is_dev ?? false,
             client_event_id: ev.client_event_id || null,
             timestamp: ev.timestamp as Date,
           });
@@ -259,7 +259,7 @@ export async function ingestRoutes(app: FastifyInstance) {
             app_version: ev.app_version ?? null,
             device_model: ev.device_model ?? null,
             build_number: ev.build_number ?? null,
-            is_debug: ev.is_debug ?? false,
+            is_dev: ev.is_dev ?? false,
             client_event_id: ev.client_event_id || null,
             timestamp: ev.timestamp as Date,
           });

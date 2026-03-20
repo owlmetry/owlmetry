@@ -129,7 +129,7 @@ function createEvent(
     ...(Object.keys(experiments).length > 0 ? { experiments: { ...experiments } } : {}),
     environment: "backend",
     ...(ctx.config.appVersion ? { app_version: ctx.config.appVersion } : {}),
-    is_debug: ctx.config.isDebug,
+    is_dev: ctx.config.isDev,
     timestamp: new Date().toISOString(),
   };
 }

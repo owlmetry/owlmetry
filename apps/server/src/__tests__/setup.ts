@@ -165,7 +165,7 @@ export async function setupTestDb() {
         device_model VARCHAR(100),
         build_number VARCHAR(50),
         locale VARCHAR(20),
-        is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+        is_dev BOOLEAN NOT NULL DEFAULT FALSE,
         experiments JSONB,
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -230,7 +230,7 @@ export async function setupTestDb() {
         app_version VARCHAR(50),
         device_model VARCHAR(100),
         build_number VARCHAR(50),
-        is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+        is_dev BOOLEAN NOT NULL DEFAULT FALSE,
         client_event_id UUID,
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -281,7 +281,7 @@ export async function setupTestDb() {
         app_version VARCHAR(50),
         device_model VARCHAR(100),
         build_number VARCHAR(50),
-        is_debug BOOLEAN NOT NULL DEFAULT FALSE,
+        is_dev BOOLEAN NOT NULL DEFAULT FALSE,
         client_event_id UUID,
         "timestamp" TIMESTAMPTZ NOT NULL,
         received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

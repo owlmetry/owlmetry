@@ -113,8 +113,8 @@ metricsCommand
   .option("--cursor <cursor>", "Pagination cursor")
   .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
   .addOption(
-    new Option("--data-mode <mode>", "Data mode: production, debug, or all")
-      .choices(["production", "debug", "all"])
+    new Option("--data-mode <mode>", "Data mode: production, development, or all")
+      .choices(["production", "development", "all"])
       .default("production"),
   )
   .action(async (slug: string, opts: {
@@ -212,8 +212,8 @@ metricsCommand
   .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
   .option("--group-by <field>", "Group by: app_id, app_version, device_model, os_version, environment, time:hour, time:day, time:week")
   .addOption(
-    new Option("--data-mode <mode>", "Data mode: production, debug, or all")
-      .choices(["production", "debug", "all"])
+    new Option("--data-mode <mode>", "Data mode: production, development, or all")
+      .choices(["production", "development", "all"])
       .default("production"),
   )
   .action(async (slug: string, opts: {

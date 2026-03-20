@@ -222,8 +222,8 @@ funnelsCommand
   .option("--experiment <name:variant>", "Filter by experiment (format: name:variant)")
   .option("--group-by <field>", "Group by: environment, app_version, or experiment:<name>")
   .addOption(
-    new Option("--data-mode <mode>", "Data mode: production, debug, or all")
-      .choices(["production", "debug", "all"])
+    new Option("--data-mode <mode>", "Data mode: production, development, or all")
+      .choices(["production", "development", "all"])
       .default("production"),
   )
   .action(async (slug: string, opts: {

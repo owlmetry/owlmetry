@@ -341,9 +341,9 @@ public enum Owl {
         guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId, networkStatus) = snapshot else { return }
 
         #if DEBUG
-        let isDebug = true
+        let isDev = true
         #else
-        let isDebug = false
+        let isDev = false
         #endif
 
         let event = EventBuilder.build(
@@ -354,7 +354,7 @@ public enum Owl {
             userId: defaultUser,
             sessionId: sessionId ?? UUID().uuidString,
             deviceInfo: deviceInfo,
-            isDebug: isDebug,
+            isDev: isDev,
             networkStatus: networkStatus,
             file: file,
             function: function,

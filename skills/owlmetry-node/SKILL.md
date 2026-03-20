@@ -49,7 +49,7 @@ Owl.configure({
   apiKey: 'owl_client_...',
   serviceName: 'my-api',          // optional, default: "unknown"
   appVersion: '1.2.0',            // optional
-  isDebug: false,                 // optional, default: process.env.NODE_ENV !== "production"
+  isDev: false,                   // optional, default: process.env.NODE_ENV !== "production"
   flushIntervalMs: 5000,          // optional, default: 5000
   flushThreshold: 20,             // optional, default: 20
   maxBufferSize: 10000,           // optional, default: 10000
@@ -57,7 +57,7 @@ Owl.configure({
 ```
 
 - `apiKey` must start with `owl_client_`
-- `isDebug` defaults to `true` when `NODE_ENV !== "production"`
+- `isDev` defaults to `true` when `NODE_ENV !== "production"`
 - Generates a fresh `sessionId` (UUID) on each `configure()` call
 - Registers a `beforeExit` handler to auto-flush on graceful shutdown
 

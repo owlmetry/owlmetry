@@ -264,7 +264,7 @@ describe("Metric Query Filters", () => {
     device_model?: string;
     os_version?: string;
     user_id?: string;
-    is_debug?: boolean;
+    is_dev?: boolean;
     tracking_id?: string;
     duration_ms?: string;
     error?: string;
@@ -286,7 +286,7 @@ describe("Metric Query Filters", () => {
             device_model: attrs.device_model,
             os_version: attrs.os_version,
             user_id: attrs.user_id,
-            is_debug: attrs.is_debug,
+            is_dev: attrs.is_dev,
             custom_attributes: {
               tracking_id: trackingId,
               ...(attrs.duration_ms ? { duration_ms: attrs.duration_ms } : {}),
@@ -489,20 +489,20 @@ describe("Metric Query Filters", () => {
   // --- data_mode ---
 
   it("filters query results by data_mode", async () => {
-    const slug = "debug-filter";
-    await ingestMetric(slug, "record", { is_debug: true });
-    await ingestMetric(slug, "record", { is_debug: false });
-    await ingestMetric(slug, "record", { is_debug: false });
+    const slug = "dev-filter";
+    await ingestMetric(slug, "record", { is_dev: true });
+    await ingestMetric(slug, "record", { is_dev: false });
+    await ingestMetric(slug, "record", { is_dev: false });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
 
-    const debugRes = await app.inject({
+    const devRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=debug`,
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=development`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
-    expect(debugRes.json().aggregation.total_count).toBe(1);
+    expect(devRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",
@@ -667,7 +667,7 @@ describe("Metric Cross-Platform Environment", () => {
       environment?: string;
       app_version?: string;
       user_id?: string;
-      is_debug?: boolean;
+      is_dev?: boolean;
       tracking_id?: string;
       duration_ms?: string;
       error?: string;
@@ -694,7 +694,7 @@ describe("Metric Cross-Platform Environment", () => {
             environment: attrs.environment,
             app_version: attrs.app_version,
             user_id: attrs.user_id,
-            is_debug: attrs.is_debug,
+            is_dev: attrs.is_dev,
             custom_attributes: {
               tracking_id: trackingId,
               ...(attrs.duration_ms ? { duration_ms: attrs.duration_ms } : {}),
@@ -904,19 +904,19 @@ describe("Metric Cross-Platform Environment", () => {
 
   it("data_mode filter works for backend metrics", async () => {
     const slug = "backend-data-mode";
-    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_debug: true });
-    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_debug: false });
-    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_debug: false });
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_dev: true });
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_dev: false });
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_dev: false });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
 
-    const debugRes = await app.inject({
+    const devRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=debug`,
+      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=development`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
-    expect(debugRes.json().aggregation.total_count).toBe(1);
+    expect(devRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",
@@ -935,18 +935,18 @@ describe("Metric Cross-Platform Environment", () => {
 
   it("data_mode filter works for android metrics", async () => {
     const slug = "android-data-mode";
-    await ingestMetricForPlatform("android", slug, "record", { environment: "android", is_debug: true });
-    await ingestMetricForPlatform("android", slug, "record", { environment: "android", is_debug: false });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", is_dev: true });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", is_dev: false });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
 
-    const debugRes = await app.inject({
+    const devRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&data_mode=debug`,
+      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&data_mode=development`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
-    expect(debugRes.json().aggregation.total_count).toBe(1);
+    expect(devRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",

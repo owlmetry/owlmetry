@@ -10,7 +10,7 @@ function makeConfig(overrides?: Partial<ValidatedConfig>): ValidatedConfig {
     apiKey: "owl_client_test_1234567890123456789012345678",
     serviceName: "test",
     debug: false,
-    isDebug: true,
+    isDev: true,
     flushIntervalMs: 60000,
     flushThreshold: 5,
     maxBufferSize: 100,

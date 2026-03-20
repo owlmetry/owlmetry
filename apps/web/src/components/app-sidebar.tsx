@@ -73,8 +73,8 @@ export function AppSidebar() {
           <ToggleGroupItem value="production" className="flex-1 text-xs h-7 px-2">
             Prod
           </ToggleGroupItem>
-          <ToggleGroupItem value="debug" className="flex-1 text-xs h-7 px-2">
-            🐛 Debug
+          <ToggleGroupItem value="development" className="flex-1 text-xs h-7 px-2">
+            Dev
           </ToggleGroupItem>
           <ToggleGroupItem value="all" className="flex-1 text-xs h-7 px-2">
             All

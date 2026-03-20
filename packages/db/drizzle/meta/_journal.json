@@ -148,6 +148,13 @@
       "when": 1774015432018,
       "tag": "0020_condemned_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1774023556591,
+      "tag": "0021_rename-is-debug-to-is-dev",
+      "breakpoints": true
     }
   ]
 }

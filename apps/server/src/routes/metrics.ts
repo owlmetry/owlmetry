@@ -342,8 +342,8 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (user_id) conditions.push(eq(metricEvents.user_id, user_id));
       if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
 
-      const debugCondition = dataModeToDrizzle(metricEvents.is_debug, data_mode);
-      if (debugCondition) conditions.push(debugCondition);
+      const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
 
       const whereExpr = and(...conditions);
 
@@ -507,8 +507,8 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
       if (since) conditions.push(gte(metricEvents.timestamp, new Date(since)));
       if (until) conditions.push(lte(metricEvents.timestamp, new Date(until)));
-      const eventsDebugCondition = dataModeToDrizzle(metricEvents.is_debug, data_mode);
-      if (eventsDebugCondition) conditions.push(eventsDebugCondition);
+      const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
       if (cursor) conditions.push(lte(metricEvents.timestamp, new Date(cursor)));
 
       const rows = await app.db

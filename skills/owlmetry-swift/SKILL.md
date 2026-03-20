@@ -263,7 +263,7 @@ Every event automatically includes:
 - `session_id` — fresh UUID per `configure()` call
 - Device model, OS version, locale
 - `app_version`, `build_number` (from bundle)
-- `is_debug` — `true` in DEBUG builds
+- `is_dev` — `true` in DEBUG builds
 - `_connection` — network type (wifi, cellular, ethernet, offline) via `NWPathMonitor`
 - `experiments` — current A/B experiment assignments
 - `environment` — specific runtime (ios, ipados, macos)

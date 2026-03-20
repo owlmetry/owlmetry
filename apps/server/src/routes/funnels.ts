@@ -446,8 +446,8 @@ async function buildFunnelQuery(
     sql`${funnelEvents.user_id} IS NOT NULL`,
   ];
 
-  const debugCondition = dataModeToDrizzle(funnelEvents.is_debug, dataMode as any);
-  if (debugCondition) baseConditions.push(debugCondition);
+  const devCondition = dataModeToDrizzle(funnelEvents.is_dev, dataMode as any);
+  if (devCondition) baseConditions.push(devCondition);
 
   if (environment) {
     baseConditions.push(sql`${funnelEvents.environment} = ${environment}`);

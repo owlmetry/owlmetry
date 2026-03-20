@@ -263,9 +263,9 @@ describe("POST /v1/ingest", () => {
     expect(res.json().error).toMatch(/bundle_id/);
   });
 
-  it("stores is_debug flag from event payload", async () => {
+  it("stores is_dev flag from event payload", async () => {
     const res = await ingest([
-      { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
+      { level: "info", message: "Dev event", session_id: TEST_SESSION_ID, is_dev: true },
     ]);
 
     expect(res.statusCode).toBe(200);
@@ -279,10 +279,10 @@ describe("POST /v1/ingest", () => {
     });
     const events = eventsRes.json().events;
     expect(events).toHaveLength(1);
-    expect(events[0].is_debug).toBe(true);
+    expect(events[0].is_dev).toBe(true);
   });
 
-  it("defaults is_debug to false when not provided", async () => {
+  it("defaults is_dev to false when not provided", async () => {
     const res = await ingest([
       { level: "info", message: "Normal event", session_id: TEST_SESSION_ID },
     ]);
@@ -296,7 +296,7 @@ describe("POST /v1/ingest", () => {
     });
     const events = eventsRes.json().events;
     expect(events).toHaveLength(1);
-    expect(events[0].is_debug).toBe(false);
+    expect(events[0].is_dev).toBe(false);
   });
 
   it("rejects invalid gzip data", async () => {

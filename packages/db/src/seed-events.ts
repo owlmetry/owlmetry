@@ -323,7 +323,7 @@ async function main() {
       app_version: row.app_version ?? null,
       device_model: row.device_model ?? null,
       build_number: row.build_number ?? null,
-      is_debug: row.is_debug ?? false,
+      is_dev: row.is_dev ?? false,
       timestamp: row.timestamp as Date,
     });
   }
@@ -404,7 +404,7 @@ async function main() {
           app_version: session.appVersion,
           build_number: session.buildNumber,
           device_model: session.device.device_model,
-          is_debug: false,
+          is_dev: false,
           timestamp: ts,
         });
       }

@@ -84,8 +84,8 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(inArray(events.app_id, teamAppIds));
       }
 
-      const debugCondition = dataModeToDrizzle(events.is_debug, data_mode);
-      if (debugCondition) conditions.push(debugCondition);
+      const devCondition = dataModeToDrizzle(events.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
 
       if (level) {
         conditions.push(eq(events.level, level as any));

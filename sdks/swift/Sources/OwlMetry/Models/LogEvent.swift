@@ -15,7 +15,7 @@ struct LogEvent: Codable, Sendable {
     let buildNumber: String?
     let deviceModel: String?
     let locale: String?
-    let isDebug: Bool
+    let isDev: Bool
     let experiments: [String: String]?
     let timestamp: String
 
@@ -34,7 +34,7 @@ struct LogEvent: Codable, Sendable {
         case buildNumber = "build_number"
         case deviceModel = "device_model"
         case locale
-        case isDebug = "is_debug"
+        case isDev = "is_dev"
         case experiments
         case timestamp
     }

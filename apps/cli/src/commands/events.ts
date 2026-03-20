@@ -27,8 +27,8 @@ export const eventsCommand = new Command("events")
   )
   .option("--cursor <cursor>", "Pagination cursor")
   .addOption(
-    new Option("--data-mode <mode>", "Data mode: production, debug, or all")
-      .choices(["production", "debug", "all"])
+    new Option("--data-mode <mode>", "Data mode: production, development, or all")
+      .choices(["production", "development", "all"])
       .default("production"),
   )
   .action(async (opts: {

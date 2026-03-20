@@ -17,7 +17,7 @@ enum EventBuilder {
         userId: String?,
         sessionId: String,
         deviceInfo: DeviceInfo,
-        isDebug: Bool,
+        isDev: Bool,
         networkStatus: String,
         file: String,
         function: String,
@@ -53,7 +53,7 @@ enum EventBuilder {
             buildNumber: deviceInfo.buildNumber,
             deviceModel: deviceInfo.deviceModel,
             locale: deviceInfo.locale,
-            isDebug: isDebug,
+            isDev: isDev,
             experiments: allExperiments.isEmpty ? nil : allExperiments,
             timestamp: isoFormatter.string(from: Date())
         )

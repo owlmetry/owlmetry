@@ -137,10 +137,10 @@ describe("GET /v1/events", () => {
     expect(ids1.filter((id: string) => ids2.includes(id))).toHaveLength(0);
   });
 
-  it("excludes debug events by default", async () => {
+  it("excludes development events by default", async () => {
     await ingestEvents([
       { level: "info", message: "Production event", session_id: TEST_SESSION_ID },
-      { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
+      { level: "info", message: "Dev event", session_id: TEST_SESSION_ID, is_dev: true },
     ]);
 
     const res = await queryEvents();
@@ -149,10 +149,10 @@ describe("GET /v1/events", () => {
     expect(body.events[0].message).toBe("Production event");
   });
 
-  it("includes debug events when data_mode=all", async () => {
+  it("includes development events when data_mode=all", async () => {
     await ingestEvents([
       { level: "info", message: "Production event", session_id: TEST_SESSION_ID },
-      { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
+      { level: "info", message: "Dev event", session_id: TEST_SESSION_ID, is_dev: true },
     ]);
 
     const res = await queryEvents({ data_mode: "all" });

@@ -140,7 +140,7 @@ Steps JSON format: `[{"name":"Step Name","event_filter":{"message":"track:step-n
 Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.track()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window.
 
 ```bash
-owlmetry events [--project <id>] [--app <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user <id>] [--session <id>] [--screen <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|debug|all] --format json
+owlmetry events [--project <id>] [--app <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user <id>] [--session <id>] [--screen <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] --format json
 owlmetry events view <id> --format json
 ```
 

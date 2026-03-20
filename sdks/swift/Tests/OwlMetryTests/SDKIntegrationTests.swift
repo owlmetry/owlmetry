@@ -445,7 +445,7 @@ final class SDKIntegrationTests: XCTestCase {
                 buildNumber: "1",
                 deviceModel: "Mac",
                 locale: "en_US",
-                isDebug: true,
+                isDev: true,
                 experiments: nil,
                 timestamp: ISO8601DateFormatter().string(from: Date())
             )

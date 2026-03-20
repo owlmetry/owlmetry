@@ -4,8 +4,8 @@ import type { FunnelDefinition, FunnelStep, FunnelAnalytics, FunnelDefinitionRes
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
 import type { AuditAction, AuditActorType, AuditResourceType } from "./audit.js";
 
-// Data mode for global debug/production filtering
-export type DataMode = "production" | "debug" | "all";
+// Data mode for global development/production filtering
+export type DataMode = "production" | "development" | "all";
 
 // Serialized response types (dates as ISO strings)
 export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };

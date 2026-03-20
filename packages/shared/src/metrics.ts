@@ -64,7 +64,7 @@ export interface StoredMetricEvent {
   app_version: string | null;
   device_model: string | null;
   build_number: string | null;
-  is_debug: boolean;
+  is_dev: boolean;
   client_event_id: string | null;
   timestamp: Date;
   received_at: Date;

@@ -152,7 +152,7 @@ const eventsPartitionConfig: PartitionConfig = {
     CREATE INDEX IF NOT EXISTS ${p}_app_screen_name_ts_idx ON ${p} (app_id, screen_name, "timestamp");
     CREATE INDEX IF NOT EXISTS ${p}_client_eid_idx ON ${p} (app_id, client_event_id);
     CREATE INDEX IF NOT EXISTS ${p}_app_session_ts_idx ON ${p} (app_id, session_id, "timestamp");
-    CREATE INDEX IF NOT EXISTS ${p}_app_debug_ts_idx ON ${p} (app_id, is_debug, "timestamp");
+    CREATE INDEX IF NOT EXISTS ${p}_app_dev_ts_idx ON ${p} (app_id, is_dev, "timestamp");
   `,
 };
 
