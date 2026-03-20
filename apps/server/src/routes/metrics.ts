@@ -12,6 +12,7 @@ import { validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SI
 import type { MetricPhase } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
+import { dataModeToDrizzle } from "../utils/data-mode.js";
 import type { AuthContext } from "../types.js";
 
 function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
@@ -357,7 +358,7 @@ export async function metricsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
       const { slug } = request.params;
-      const { project_id, since, until, app_id, app_version, device_model, os_version, user_id, is_debug, environment, group_by } = request.query;
+      const { project_id, since, until, app_id, app_version, device_model, os_version, user_id, environment, group_by, data_mode } = request.query;
 
       if (!project_id) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
@@ -388,9 +389,9 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (os_version) conditions.push(eq(metricEvents.os_version, os_version));
       if (user_id) conditions.push(eq(metricEvents.user_id, user_id));
       if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
-      if (is_debug !== undefined && is_debug !== "") {
-        conditions.push(eq(metricEvents.is_debug, is_debug === "true"));
-      }
+
+      const debugCondition = dataModeToDrizzle(metricEvents.is_debug, data_mode);
+      if (debugCondition) conditions.push(debugCondition);
 
       const whereExpr = and(...conditions);
 
@@ -526,7 +527,7 @@ export async function metricsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
       const { slug } = request.params;
-      const { project_id, phase, tracking_id, user_id, environment, since, until, cursor, limit: limitStr, include_debug } = request.query;
+      const { project_id, phase, tracking_id, user_id, environment, since, until, cursor, limit: limitStr, data_mode } = request.query;
 
       if (!project_id) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
@@ -554,7 +555,8 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
       if (since) conditions.push(gte(metricEvents.timestamp, new Date(since)));
       if (until) conditions.push(lte(metricEvents.timestamp, new Date(until)));
-      if (include_debug !== "true") conditions.push(eq(metricEvents.is_debug, false));
+      const eventsDebugCondition = dataModeToDrizzle(metricEvents.is_debug, data_mode);
+      if (eventsDebugCondition) conditions.push(eventsDebugCondition);
       if (cursor) conditions.push(lte(metricEvents.timestamp, new Date(cursor)));
 
       const rows = await app.db

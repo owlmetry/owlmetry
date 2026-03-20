@@ -142,7 +142,7 @@ export class OwlMetryClient {
       until: params.until,
       cursor: params.cursor,
       limit: params.limit?.toString(),
-      include_debug: params.include_debug,
+      data_mode: params.data_mode,
     };
     return this.request<EventsResponse>("GET", "/v1/events", { params: stringParams });
   }
@@ -193,7 +193,7 @@ export class OwlMetryClient {
       until: params.until,
       cursor: params.cursor,
       limit: params.limit?.toString(),
-      include_debug: params.include_debug,
+      data_mode: params.data_mode,
     };
     return this.request<MetricEventsResponse>("GET", `/v1/metrics/${slug}/events`, { params: stringParams });
   }
@@ -208,8 +208,8 @@ export class OwlMetryClient {
       device_model: params.device_model,
       os_version: params.os_version,
       user_id: params.user_id,
-      is_debug: params.is_debug,
       environment: params.environment,
+      data_mode: params.data_mode,
       group_by: params.group_by,
     };
     return this.request<MetricQueryResponse>("GET", `/v1/metrics/${slug}/query`, { params: stringParams });

@@ -4,6 +4,7 @@ import { useState, useMemo, useDeferredValue } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, MetricDefinitionResponse, StoredMetricEventResponse } from "@owlmetry/shared";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ export default function MetricDetailPage() {
   const [appVersion, setAppVersion] = useState("");
   const deferredAppVersion = useDeferredValue(appVersion);
   const [environment, setEnvironment] = useState("");
+  const { dataMode } = useDataMode();
 
   // Fetch metric definition
   const { data: metricData } = useSWR<MetricDefinitionResponse>(
@@ -123,6 +125,7 @@ export default function MetricDetailPage() {
     app_version: deferredAppVersion || undefined,
     environment: environment || undefined,
     group_by: groupBy,
+    data_mode: dataMode,
   });
 
   // Raw events
@@ -130,7 +133,7 @@ export default function MetricDetailPage() {
     since: computedSince,
     until: computedUntil,
     environment: environment || undefined,
-    include_debug: "true",
+    data_mode: dataMode,
   });
 
   const agg = queryData?.aggregation;

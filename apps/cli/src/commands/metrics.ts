@@ -112,7 +112,11 @@ metricsCommand
   )
   .option("--cursor <cursor>", "Pagination cursor")
   .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
-  .option("--include-debug", "Include debug events (hidden by default)")
+  .addOption(
+    new Option("--data-mode <mode>", "Data mode: production, debug, or all")
+      .choices(["production", "debug", "all"])
+      .default("production"),
+  )
   .action(async (slug: string, opts: {
     project: string;
     phase?: string;
@@ -123,7 +127,7 @@ metricsCommand
     until?: string;
     limit?: number;
     cursor?: string;
-    includeDebug?: boolean;
+    dataMode: string;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
@@ -144,7 +148,7 @@ metricsCommand
       until,
       cursor: opts.cursor,
       limit: opts.limit,
-      include_debug: opts.includeDebug ? "true" : undefined,
+      data_mode: opts.dataMode as any,
     });
 
     const hint = paginationHint(result);
@@ -205,9 +209,13 @@ metricsCommand
   .option("--device-model <model>", "Filter by device model")
   .option("--os-version <version>", "Filter by OS version")
   .option("--user <id>", "Filter by user ID")
-  .option("--is-debug", "Filter to debug events only")
   .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
   .option("--group-by <field>", "Group by: app_id, app_version, device_model, os_version, environment, time:hour, time:day, time:week")
+  .addOption(
+    new Option("--data-mode <mode>", "Data mode: production, debug, or all")
+      .choices(["production", "debug", "all"])
+      .default("production"),
+  )
   .action(async (slug: string, opts: {
     project: string;
     since?: string;
@@ -217,9 +225,9 @@ metricsCommand
     deviceModel?: string;
     osVersion?: string;
     user?: string;
-    isDebug?: boolean;
     environment?: string;
     groupBy?: string;
+    dataMode: string;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
     const result = await client.queryMetric(slug, opts.project, {
@@ -230,8 +238,8 @@ metricsCommand
       device_model: opts.deviceModel,
       os_version: opts.osVersion,
       user_id: opts.user,
-      is_debug: opts.isDebug ? "true" : undefined,
       environment: opts.environment,
+      data_mode: opts.dataMode as any,
       group_by: opts.groupBy,
     });
     output(globals.format, result, () => formatQueryResult(result));

@@ -31,7 +31,7 @@ describe("Node SDK integration", () => {
     await new Promise((r) => setTimeout(r, 500));
 
     // Query events back via agent key
-    const res = await fetch(`${ENDPOINT}/v1/events?limit=10&include_debug=true`, {
+    const res = await fetch(`${ENDPOINT}/v1/events?limit=10&data_mode=all`, {
       headers: { Authorization: `Bearer ${AGENT_KEY}` },
     });
 
@@ -52,7 +52,7 @@ describe("Node SDK integration", () => {
 
     await new Promise((r) => setTimeout(r, 500));
 
-    const res = await fetch(`${ENDPOINT}/v1/events?user_id=integration-user-42&limit=10&include_debug=true`, {
+    const res = await fetch(`${ENDPOINT}/v1/events?user_id=integration-user-42&limit=10&data_mode=all`, {
       headers: { Authorization: `Bearer ${AGENT_KEY}` },
     });
 
@@ -76,7 +76,7 @@ describe("Node SDK integration", () => {
 
     await new Promise((r) => setTimeout(r, 500));
 
-    const res = await fetch(`${ENDPOINT}/v1/events?limit=50&include_debug=true`, {
+    const res = await fetch(`${ENDPOINT}/v1/events?limit=50&data_mode=all`, {
       headers: { Authorization: `Bearer ${AGENT_KEY}` },
     });
 

@@ -13,6 +13,7 @@ import type {
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { useEvents } from "@/hooks/use-events";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
@@ -33,14 +34,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 
 export default function EventsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { currentTeam } = useTeam();
+  const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
 
   // Filters from URL
@@ -51,7 +51,6 @@ export default function EventsPage() {
   const [screenName, setScreenName] = useState(searchParams.get("screen_name") ?? "");
   const [since, setSince] = useState(searchParams.get("since") ?? "");
   const [until, setUntil] = useState(searchParams.get("until") ?? "");
-  const [includeDebug, setIncludeDebug] = useState(searchParams.get("include_debug") === "true");
 
   // Selected event for detail sheet
   const [selectedEvent, setSelectedEvent] = useState<StoredEventResponse | null>(null);
@@ -83,7 +82,7 @@ export default function EventsPage() {
   if (screenName) filters.screen_name = screenName;
   if (since) filters.since = new Date(since).toISOString();
   if (until) filters.until = new Date(until + "T23:59:59").toISOString();
-  if (includeDebug) filters.include_debug = "true";
+  filters.data_mode = dataMode;
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filters);
 
@@ -97,10 +96,9 @@ export default function EventsPage() {
     if (screenName) params.set("screen_name", screenName);
     if (since) params.set("since", since);
     if (until) params.set("until", until);
-    if (includeDebug) params.set("include_debug", "true");
     const qs = params.toString();
     router.replace(`/dashboard/events${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [projectId, appId, level, userId, screenName, since, until, includeDebug, router]);
+  }, [projectId, appId, level, userId, screenName, since, until, router]);
 
   useEffect(() => {
     updateUrl();
@@ -122,10 +120,9 @@ export default function EventsPage() {
     setScreenName("");
     setSince("");
     setUntil("");
-    setIncludeDebug(false);
   }
 
-  const hasFilters = projectId || appId || level || userId || screenName || since || until || includeDebug;
+  const hasFilters = projectId || appId || level || userId || screenName || since || until;
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);
@@ -226,17 +223,6 @@ export default function EventsPage() {
             onChange={(e) => setUntil(e.target.value)}
             className="w-[150px] h-8 text-xs"
           />
-        </div>
-
-        <div className="flex items-center gap-1.5 h-8 self-end">
-          <Checkbox
-            id="include-debug"
-            checked={includeDebug}
-            onCheckedChange={(checked) => setIncludeDebug(checked === true)}
-          />
-          <Label htmlFor="include-debug" className="text-xs cursor-pointer select-none">
-            Show debug events
-          </Label>
         </div>
 
         {hasFilters && (

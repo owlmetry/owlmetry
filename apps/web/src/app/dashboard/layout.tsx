@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
 import { TeamProvider } from "@/contexts/team-context";
+import { DataModeProvider } from "@/contexts/data-mode-context";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -69,20 +70,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <TeamProvider>
-      <div className="dark min-h-screen bg-background text-foreground">
-        <div className="flex min-h-screen">
-          <AppSidebar />
-          <div className="flex flex-1 flex-col">
-            <header className="flex h-14 items-center justify-between border-b px-6">
-              <h2 className="text-sm font-medium text-muted-foreground">
-                {pageTitle}
-              </h2>
-              <UserMenu />
-            </header>
-            <main className="flex-1 p-6">{children}</main>
+      <DataModeProvider>
+        <div className="dark min-h-screen bg-background text-foreground">
+          <div className="flex min-h-screen">
+            <AppSidebar />
+            <div className="flex flex-1 flex-col">
+              <header className="flex h-14 items-center justify-between border-b px-6">
+                <h2 className="text-sm font-medium text-muted-foreground">
+                  {pageTitle}
+                </h2>
+                <UserMenu />
+              </header>
+              <main className="flex-1 p-6">{children}</main>
+            </div>
           </div>
         </div>
-      </div>
+      </DataModeProvider>
     </TeamProvider>
   );
 }

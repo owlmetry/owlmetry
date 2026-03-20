@@ -4,6 +4,9 @@ import type { FunnelDefinition, FunnelStep, FunnelAnalytics } from "./funnels.js
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
 import type { AuditAction, AuditActorType, AuditResourceType } from "./audit.js";
 
+// Data mode for global debug/production filtering
+export type DataMode = "production" | "debug" | "all";
+
 // Serialized response types (dates as ISO strings)
 export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };
 
@@ -190,7 +193,7 @@ export interface EventsQueryParams {
   until?: string;
   cursor?: string;
   limit?: number;
-  include_debug?: string;
+  data_mode?: DataMode;
 }
 
 export interface EventsResponse {
@@ -337,9 +340,9 @@ export interface MetricQueryParams {
   device_model?: string;
   os_version?: string;
   user_id?: string;
-  is_debug?: string;
   environment?: string;
   group_by?: string; // "app_id" | "app_version" | "device_model" | "os_version" | "environment" | "time:hour" | "time:day" | "time:week"
+  data_mode?: DataMode;
 }
 
 export interface MetricAggregationResult {
@@ -393,7 +396,7 @@ export interface MetricEventsQueryParams {
   until?: string;
   cursor?: string;
   limit?: number;
-  include_debug?: string;
+  data_mode?: DataMode;
 }
 
 // Re-export for convenience

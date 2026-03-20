@@ -203,7 +203,7 @@ describe("Metric Dual-Write via Ingest", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const eventsRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/photo-conversion/events?project_id=${projectId}&include_debug=true`,
+      url: `/v1/metrics/photo-conversion/events?project_id=${projectId}&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -241,7 +241,7 @@ describe("Metric Dual-Write via Ingest", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const eventsRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/regular-log-message/events?project_id=${projectId}&include_debug=true`,
+      url: `/v1/metrics/regular-log-message/events?project_id=${projectId}&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -359,14 +359,14 @@ describe("Metric Query Filters", () => {
 
     const macosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=macos&include_debug=true`,
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=macos&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(macosRes.json().events).toHaveLength(1);
 
     const backendRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=backend&include_debug=true`,
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=backend&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(backendRes.json().events).toHaveLength(2);
@@ -479,9 +479,9 @@ describe("Metric Query Filters", () => {
     expect(bobRes.json().aggregation.total_count).toBe(1);
   });
 
-  // --- is_debug ---
+  // --- data_mode ---
 
-  it("filters query results by is_debug", async () => {
+  it("filters query results by data_mode", async () => {
     const slug = "debug-filter";
     await ingestMetric(slug, "record", { is_debug: true });
     await ingestMetric(slug, "record", { is_debug: false });
@@ -492,17 +492,24 @@ describe("Metric Query Filters", () => {
 
     const debugRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&is_debug=true`,
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=debug`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(debugRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&is_debug=false`,
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=production`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(prodRes.json().aggregation.total_count).toBe(2);
+
+    const allRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(allRes.json().aggregation.total_count).toBe(3);
   });
 
   // --- phase filter on events endpoint ---
@@ -519,7 +526,7 @@ describe("Metric Query Filters", () => {
 
     const startRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=start&include_debug=true`,
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=start&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(startRes.json().events).toHaveLength(1);
@@ -527,7 +534,7 @@ describe("Metric Query Filters", () => {
 
     const completeRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=complete&include_debug=true`,
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=complete&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(completeRes.json().events).toHaveLength(1);
@@ -535,7 +542,7 @@ describe("Metric Query Filters", () => {
 
     const recordRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=record&include_debug=true`,
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=record&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(recordRes.json().events).toHaveLength(1);

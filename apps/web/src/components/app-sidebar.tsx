@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, KeyRound, Users, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { OwlLogo } from "@/components/owl-logo";
 import {
   Select,
@@ -13,6 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type { DataMode } from "@owlmetry/shared";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +30,7 @@ const navItems = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { currentTeam, teams, setCurrentTeam } = useTeam();
+  const { dataMode, setDataMode } = useDataMode();
 
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -58,6 +62,24 @@ export function AppSidebar() {
           )}
         </div>
       )}
+      <div className="border-b px-4 py-2">
+        <ToggleGroup
+          type="single"
+          value={dataMode}
+          onValueChange={(v) => { if (v) setDataMode(v as DataMode); }}
+          className="w-full"
+        >
+          <ToggleGroupItem value="production" className="flex-1 text-xs h-7 px-2">
+            Prod
+          </ToggleGroupItem>
+          <ToggleGroupItem value="debug" className="flex-1 text-xs h-7 px-2">
+            Debug
+          </ToggleGroupItem>
+          <ToggleGroupItem value="all" className="flex-1 text-xs h-7 px-2">
+            All
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map((item) => {
           const active =

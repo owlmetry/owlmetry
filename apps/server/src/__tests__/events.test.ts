@@ -149,13 +149,13 @@ describe("GET /v1/events", () => {
     expect(body.events[0].message).toBe("Production event");
   });
 
-  it("includes debug events when include_debug=true", async () => {
+  it("includes debug events when data_mode=all", async () => {
     await ingestEvents([
       { level: "info", message: "Production event", session_id: TEST_SESSION_ID },
       { level: "info", message: "Debug event", session_id: TEST_SESSION_ID, is_debug: true },
     ]);
 
-    const res = await queryEvents({ include_debug: "true" });
+    const res = await queryEvents({ data_mode: "all" });
     const body = res.json();
     expect(body.events).toHaveLength(2);
   });

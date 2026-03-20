@@ -653,7 +653,7 @@ final class SDKIntegrationTests: XCTestCase {
     ) async throws -> [[String: Any]] {
         var components = URLComponents(string: "\(Self.testEndpoint)/v1/events")!
         var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "include_debug", value: "true"),
+            URLQueryItem(name: "data_mode", value: "all"),
         ]
         if let level { queryItems.append(URLQueryItem(name: "level", value: level)) }
         if let screenName { queryItems.append(URLQueryItem(name: "screen_name", value: screenName)) }

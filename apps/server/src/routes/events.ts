@@ -5,6 +5,7 @@ import type { EventsQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { normalizeLimit } from "../utils/pagination.js";
+import { dataModeToDrizzle } from "../utils/data-mode.js";
 
 export async function eventsRoutes(app: FastifyInstance) {
   // Query events
@@ -27,7 +28,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         until,
         cursor,
         limit: rawLimit,
-        include_debug,
+        data_mode,
       } = request.query;
 
       const limit = normalizeLimit(rawLimit);
@@ -82,10 +83,8 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(inArray(events.app_id, teamAppIds));
       }
 
-      // Exclude debug events by default
-      if (include_debug !== "true") {
-        conditions.push(eq(events.is_debug, false));
-      }
+      const debugCondition = dataModeToDrizzle(events.is_debug, data_mode);
+      if (debugCondition) conditions.push(debugCondition);
 
       if (level) {
         conditions.push(eq(events.level, level as any));

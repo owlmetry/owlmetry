@@ -268,10 +268,10 @@ describe("POST /v1/ingest", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
 
-    // Query with include_debug to find the event
+    // Query with data_mode=all to find the event
     const eventsRes = await app.inject({
       method: "GET",
-      url: "/v1/events?include_debug=true",
+      url: "/v1/events?data_mode=all",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
     });
     const events = eventsRes.json().events;
