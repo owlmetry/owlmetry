@@ -1,4 +1,5 @@
 import chalk, { type ChalkInstance } from "chalk";
+import { formatDuration } from "@owlmetry/shared";
 import type { LogLevel, MetricPhase, StoredEventResponse, StoredMetricEventResponse } from "@owlmetry/shared";
 
 const LEVEL_COLORS: Record<LogLevel, ChalkInstance> = {
@@ -55,7 +56,7 @@ function formatMetricEventLog(event: StoredMetricEventResponse, slug: string): s
   const color = PHASE_COLORS[event.phase as MetricPhase] ?? chalk.white;
   const time = chalk.dim(`[${formatTime(event.timestamp)}]`);
   const phase = color(event.phase.toUpperCase().padEnd(9));
-  const duration = event.duration_ms != null ? chalk.white(`${event.duration_ms}ms`) : "";
+  const duration = event.duration_ms != null ? chalk.white(formatDuration(event.duration_ms)) : "";
 
   const meta: string[] = [];
   if (event.tracking_id) meta.push(`tid=${event.tracking_id.slice(0, 8)}`);

@@ -3,6 +3,7 @@
 import { useState, useMemo, useDeferredValue } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
+import { formatDuration } from "@owlmetry/shared/constants";
 import type { ProjectResponse, MetricDefinitionResponse, StoredMetricEventResponse } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
@@ -276,7 +277,7 @@ export default function MetricDetailPage() {
             )}
             {!isLifecycle && <StatCard label="Records" value={agg.record_count} />}
             {agg.duration_avg_ms != null && (
-              <StatCard label="Avg Duration" value={`${agg.duration_avg_ms}ms`} />
+              <StatCard label="Avg Duration" value={formatDuration(agg.duration_avg_ms)} />
             )}
             <StatCard label="Unique Users" value={agg.unique_users} />
           </div>
@@ -284,9 +285,9 @@ export default function MetricDetailPage() {
           {/* Duration percentiles */}
           {agg.duration_p50_ms != null && (
             <div className="grid gap-3 grid-cols-3">
-              <StatCard label="P50" value={`${agg.duration_p50_ms}ms`} />
-              <StatCard label="P95" value={`${agg.duration_p95_ms ?? "N/A"}ms`} />
-              <StatCard label="P99" value={`${agg.duration_p99_ms ?? "N/A"}ms`} />
+              <StatCard label="P50" value={formatDuration(agg.duration_p50_ms)} />
+              <StatCard label="P95" value={agg.duration_p95_ms != null ? formatDuration(agg.duration_p95_ms) : "N/A"} />
+              <StatCard label="P99" value={agg.duration_p99_ms != null ? formatDuration(agg.duration_p99_ms) : "N/A"} />
             </div>
           )}
 
@@ -376,7 +377,7 @@ export default function MetricDetailPage() {
                         </span>
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5">
-                        {event.duration_ms != null ? `${event.duration_ms}ms` : "—"}
+                        {event.duration_ms != null ? formatDuration(event.duration_ms) : "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5 truncate max-w-[140px]">
                         {event.user_id ?? "—"}

@@ -33,4 +33,22 @@ export function validateMetricSlug(slug: string): string | null {
   return null;
 }
 
+/**
+ * Format a duration in milliseconds to a human-readable string.
+ * < 1ms → "0.12ms", 1–999ms → "123ms", 1–59.99s → "3.1s",
+ * 1–59.99min → "2m 15s", ≥ 1h → "1h 23m"
+ */
+export function formatDuration(ms: number): string {
+  if (ms < 1) return `${ms.toFixed(2)}ms`;
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
 export const PG_UNIQUE_VIOLATION = "23505";
