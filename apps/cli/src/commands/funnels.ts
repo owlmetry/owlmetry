@@ -158,8 +158,7 @@ funnelsCommand
     }
 
     const { client, globals } = createClient(cmd);
-    const funnel = await client.createFunnel({
-      project_id: opts.project,
+    const funnel = await client.createFunnel(opts.project, {
       name: opts.name,
       slug: opts.slug,
       description: opts.description,

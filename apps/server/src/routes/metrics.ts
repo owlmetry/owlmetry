@@ -47,18 +47,16 @@ const EMPTY_AGGREGATION: MetricAggregationResult = {
   error_breakdown: [],
 };
 
+/** Routes nested under /v1/projects/:projectId */
 export async function metricsRoutes(app: FastifyInstance) {
   // List metric definitions for a project
-  app.get<{ Querystring: { project_id?: string } }>(
+  app.get<{ Params: { projectId: string } }>(
     "/metrics",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const { project_id } = request.query;
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
+      const { projectId } = request.params;
 
-      const project = await resolveProject(app, project_id, request.auth, reply);
+      const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
       const rows = await app.db
@@ -66,7 +64,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         .from(metricDefinitions)
         .where(
           and(
-            eq(metricDefinitions.project_id, project_id),
+            eq(metricDefinitions.project_id, projectId),
             isNull(metricDefinitions.deleted_at),
           ),
         );
@@ -76,17 +74,13 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 
   // Get single metric definition by slug
-  app.get<{ Params: { slug: string }; Querystring: { project_id?: string } }>(
+  app.get<{ Params: { projectId: string; slug: string } }>(
     "/metrics/:slug",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const { slug } = request.params;
-      const { project_id } = request.query;
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
+      const { projectId, slug } = request.params;
 
-      const project = await resolveProject(app, project_id, request.auth, reply);
+      const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
       const [metric] = await app.db
@@ -94,7 +88,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         .from(metricDefinitions)
         .where(
           and(
-            eq(metricDefinitions.project_id, project_id),
+            eq(metricDefinitions.project_id, projectId),
             eq(metricDefinitions.slug, slug),
             isNull(metricDefinitions.deleted_at),
           ),
@@ -110,15 +104,16 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 
   // Create metric definition
-  app.post<{ Body: CreateMetricDefinitionRequest }>(
+  app.post<{ Params: { projectId: string }; Body: CreateMetricDefinitionRequest }>(
     "/metrics",
     { preHandler: requirePermission("metrics:write") },
     async (request, reply) => {
       const auth = request.auth;
-      const { project_id, name, slug, description, documentation, schema_definition, aggregation_rules } = request.body;
+      const { projectId } = request.params;
+      const { name, slug, description, documentation, schema_definition, aggregation_rules } = request.body;
 
-      if (!project_id || !name || !slug) {
-        return reply.code(400).send({ error: "project_id, name, and slug are required" });
+      if (!name || !slug) {
+        return reply.code(400).send({ error: "name and slug are required" });
       }
 
       const slugError = validateMetricSlug(slug);
@@ -126,7 +121,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: slugError });
       }
 
-      const project = await resolveProject(app, project_id, auth, reply);
+      const project = await resolveProject(app, projectId, auth, reply);
       if (!project) return;
 
       if (!hasTeamAccess(auth, project.team_id)) {
@@ -142,7 +137,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         const [created] = await app.db
           .insert(metricDefinitions)
           .values({
-            project_id,
+            project_id: projectId,
             name,
             slug,
             description: description ?? null,
@@ -171,18 +166,13 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 
   // Update metric definition
-  app.patch<{ Params: { slug: string }; Querystring: { project_id?: string }; Body: UpdateMetricDefinitionRequest }>(
+  app.patch<{ Params: { projectId: string; slug: string }; Body: UpdateMetricDefinitionRequest }>(
     "/metrics/:slug",
     { preHandler: requirePermission("metrics:write") },
     async (request, reply) => {
       const auth = request.auth;
-      const { slug } = request.params;
-      const { project_id } = request.query;
+      const { projectId, slug } = request.params;
       const { name, description, documentation, schema_definition, aggregation_rules, status } = request.body;
-
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
 
       const teamIds = getAuthTeamIds(auth);
       const [metric] = await app.db
@@ -191,7 +181,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         .innerJoin(projects, eq(projects.id, metricDefinitions.project_id))
         .where(
           and(
-            eq(metricDefinitions.project_id, project_id),
+            eq(metricDefinitions.project_id, projectId),
             eq(metricDefinitions.slug, slug),
             isNull(metricDefinitions.deleted_at),
             inArray(projects.team_id, teamIds),
@@ -245,7 +235,7 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 
   // Delete metric definition (soft delete, user-only)
-  app.delete<{ Params: { slug: string }; Querystring: { project_id?: string } }>(
+  app.delete<{ Params: { projectId: string; slug: string } }>(
     "/metrics/:slug",
     { preHandler: requirePermission("metrics:write") },
     async (request, reply) => {
@@ -255,12 +245,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can delete metrics" });
       }
 
-      const { slug } = request.params;
-      const { project_id } = request.query;
-
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
+      const { projectId, slug } = request.params;
 
       const teamIds = getAuthTeamIds(auth);
       const [metric] = await app.db
@@ -269,7 +254,7 @@ export async function metricsRoutes(app: FastifyInstance) {
         .innerJoin(projects, eq(projects.id, metricDefinitions.project_id))
         .where(
           and(
-            eq(metricDefinitions.project_id, project_id),
+            eq(metricDefinitions.project_id, projectId),
             eq(metricDefinitions.slug, slug),
             isNull(metricDefinitions.deleted_at),
             inArray(projects.team_id, teamIds),
@@ -305,18 +290,14 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 
   // Aggregation endpoint
-  app.get<{ Params: { slug: string }; Querystring: MetricQueryParams }>(
+  app.get<{ Params: { projectId: string; slug: string }; Querystring: MetricQueryParams }>(
     "/metrics/:slug/query",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const { slug } = request.params;
-      const { project_id, since, until, app_id, app_version, device_model, os_version, user_id, environment, group_by, data_mode } = request.query;
+      const { projectId, slug } = request.params;
+      const { since, until, app_id, app_version, device_model, os_version, user_id, environment, group_by, data_mode } = request.query;
 
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
-
-      const appIds = await resolveProjectAppIds(app, project_id, request.auth, reply);
+      const appIds = await resolveProjectAppIds(app, projectId, request.auth, reply);
       if (!appIds) return;
 
       // Filter to specific app if requested
@@ -474,18 +455,14 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 
   // Raw metric events endpoint (paginated)
-  app.get<{ Params: { slug: string }; Querystring: MetricEventsQueryParams }>(
+  app.get<{ Params: { projectId: string; slug: string }; Querystring: MetricEventsQueryParams }>(
     "/metrics/:slug/events",
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
-      const { slug } = request.params;
-      const { project_id, phase, tracking_id, user_id, environment, since, until, cursor, limit: limitStr, data_mode } = request.query;
+      const { projectId, slug } = request.params;
+      const { phase, tracking_id, user_id, environment, since, until, cursor, limit: limitStr, data_mode } = request.query;
 
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
-
-      const appIds = await resolveProjectAppIds(app, project_id, request.auth, reply);
+      const appIds = await resolveProjectAppIds(app, projectId, request.auth, reply);
       if (!appIds) return;
 
       if (appIds.length === 0) {
@@ -531,6 +508,38 @@ export async function metricsRoutes(app: FastifyInstance) {
         cursor: nextCursor,
         has_more: hasMore,
       };
+    },
+  );
+}
+
+/** Standalone by-id endpoint registered at /v1 prefix */
+export async function metricByIdRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string } }>(
+    "/metrics/by-id/:id",
+    { preHandler: requirePermission("metrics:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const teamIds = getAuthTeamIds(request.auth);
+
+      const [result] = await app.db
+        .select()
+        .from(metricDefinitions)
+        .innerJoin(projects, eq(projects.id, metricDefinitions.project_id))
+        .where(
+          and(
+            eq(metricDefinitions.id, id),
+            isNull(metricDefinitions.deleted_at),
+            inArray(projects.team_id, teamIds),
+            isNull(projects.deleted_at),
+          ),
+        )
+        .limit(1);
+
+      if (!result) {
+        return reply.code(404).send({ error: "Metric not found" });
+      }
+
+      return serializeMetricDefinition(result.metric_definitions);
     },
   );
 }

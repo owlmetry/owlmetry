@@ -74,8 +74,7 @@ export default function MetricsPage() {
     setCreating(true);
     setCreateError("");
     try {
-      await api.post("/v1/metrics", {
-        project_id: selectedProjectId,
+      await api.post(`/v1/projects/${selectedProjectId}/metrics`, {
         name: newName,
         slug: newSlug,
         description: newDescription || undefined,
@@ -198,7 +197,7 @@ export default function MetricsPage() {
               key={m.id}
               className="cursor-pointer hover:border-primary/50 transition-colors"
               onClick={() =>
-                router.push(`/dashboard/metrics/${m.slug}?project_id=${selectedProjectId}`)
+                router.push(`/dashboard/metrics/${m.id}`)
               }
             >
               <CardHeader className="pb-2">

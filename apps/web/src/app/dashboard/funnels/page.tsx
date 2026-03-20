@@ -114,8 +114,7 @@ export default function FunnelsPage() {
     setCreating(true);
     setCreateError("");
     try {
-      await api.post("/v1/funnels", {
-        project_id: selectedProjectId,
+      await api.post(`/v1/projects/${selectedProjectId}/funnels`, {
         name: newName,
         slug: newSlug,
         description: newDescription || undefined,
@@ -297,9 +296,7 @@ export default function FunnelsPage() {
               key={f.id}
               className="cursor-pointer hover:border-primary/50 transition-colors"
               onClick={() =>
-                router.push(
-                  `/dashboard/funnels/${f.slug}?project_id=${selectedProjectId}`
-                )
+                router.push(`/dashboard/funnels/${f.id}`)
               }
             >
               <CardHeader className="pb-2">

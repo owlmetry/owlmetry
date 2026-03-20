@@ -47,10 +47,9 @@ describe("Metric Definitions CRUD", () => {
   it("creates a metric definition", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
       payload: {
-        project_id: projectId,
         name: "Photo Conversion",
         slug: "photo-conversion",
         description: "Tracks photo conversions",
@@ -68,16 +67,16 @@ describe("Metric Definitions CRUD", () => {
   it("rejects duplicate slug in same project", async () => {
     await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Test", slug: "test-metric" },
+      payload: { name: "Test", slug: "test-metric" },
     });
 
     const res = await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Test 2", slug: "test-metric" },
+      payload: { name: "Test 2", slug: "test-metric" },
     });
 
     expect(res.statusCode).toBe(409);
@@ -86,21 +85,21 @@ describe("Metric Definitions CRUD", () => {
   it("lists metric definitions for a project", async () => {
     await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Metric A", slug: "metric-a" },
+      payload: { name: "Metric A", slug: "metric-a" },
     });
     await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Metric B", slug: "metric-b" },
+      payload: { name: "Metric B", slug: "metric-b" },
     });
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -111,15 +110,15 @@ describe("Metric Definitions CRUD", () => {
   it("gets a single metric definition by slug", async () => {
     await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Checkout", slug: "checkout" },
+      payload: { name: "Checkout", slug: "checkout" },
     });
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/checkout?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics/checkout`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -127,17 +126,38 @@ describe("Metric Definitions CRUD", () => {
     expect(res.json().slug).toBe("checkout");
   });
 
+  it("gets a metric by UUID via by-id endpoint", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Test", slug: "test-metric" },
+    });
+    const metricId = createRes.json().id;
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/by-id/${metricId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().slug).toBe("test-metric");
+    expect(res.json().id).toBe(metricId);
+  });
+
   it("updates a metric definition", async () => {
     await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Old Name", slug: "update-test" },
+      payload: { name: "Old Name", slug: "update-test" },
     });
 
     const res = await app.inject({
       method: "PATCH",
-      url: `/v1/metrics/update-test?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics/update-test`,
       headers: { authorization: `Bearer ${token}` },
       payload: { name: "New Name", status: "paused" },
     });
@@ -150,14 +170,14 @@ describe("Metric Definitions CRUD", () => {
   it("soft-deletes a metric definition (user-only)", async () => {
     await app.inject({
       method: "POST",
-      url: "/v1/metrics",
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { project_id: projectId, name: "Delete Me", slug: "delete-me" },
+      payload: { name: "Delete Me", slug: "delete-me" },
     });
 
     const res = await app.inject({
       method: "DELETE",
-      url: `/v1/metrics/delete-me?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics/delete-me`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -167,7 +187,7 @@ describe("Metric Definitions CRUD", () => {
     // Should no longer appear in list
     const listRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(listRes.json().metrics).toHaveLength(0);
@@ -210,7 +230,7 @@ describe("Metric Dual-Write via Ingest", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const eventsRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/photo-conversion/events?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/photo-conversion/events?data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -248,7 +268,7 @@ describe("Metric Dual-Write via Ingest", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const eventsRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/regular-log-message/events?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/regular-log-message/events?data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -311,7 +331,7 @@ describe("Metric Query Filters", () => {
 
     const iosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=ios`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?environment=ios`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(iosRes.statusCode).toBe(200);
@@ -319,14 +339,14 @@ describe("Metric Query Filters", () => {
 
     const macosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=macos`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?environment=macos`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(macosRes.json().aggregation.total_count).toBe(1);
 
     const allRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(allRes.json().aggregation.total_count).toBe(3);
@@ -342,7 +362,7 @@ describe("Metric Query Filters", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&group_by=environment`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=environment`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -366,14 +386,14 @@ describe("Metric Query Filters", () => {
 
     const macosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=macos&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?environment=macos&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(macosRes.json().events).toHaveLength(1);
 
     const ipadosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=ipados&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?environment=ipados&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(ipadosRes.json().events).toHaveLength(2);
@@ -392,7 +412,7 @@ describe("Metric Query Filters", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&app_version=1.0.0`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?app_version=1.0.0`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.statusCode).toBe(200);
@@ -409,7 +429,7 @@ describe("Metric Query Filters", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&group_by=app_version`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=app_version`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -435,7 +455,7 @@ describe("Metric Query Filters", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&device_model=${encodeURIComponent("iPhone 15")}`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?device_model=${encodeURIComponent("iPhone 15")}`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.json().aggregation.total_count).toBe(2);
@@ -454,7 +474,7 @@ describe("Metric Query Filters", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&os_version=18.0`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?os_version=18.0`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.json().aggregation.total_count).toBe(2);
@@ -473,14 +493,14 @@ describe("Metric Query Filters", () => {
 
     const aliceRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&user_id=user-alice`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?user_id=user-alice`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(aliceRes.json().aggregation.total_count).toBe(2);
 
     const bobRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&user_id=user-bob`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?user_id=user-bob`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(bobRes.json().aggregation.total_count).toBe(1);
@@ -499,21 +519,21 @@ describe("Metric Query Filters", () => {
 
     const devRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=development`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?data_mode=development`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(devRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=production`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?data_mode=production`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(prodRes.json().aggregation.total_count).toBe(2);
 
     const allRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(allRes.json().aggregation.total_count).toBe(3);
@@ -533,7 +553,7 @@ describe("Metric Query Filters", () => {
 
     const startRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=start&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?phase=start&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(startRes.json().events).toHaveLength(1);
@@ -541,7 +561,7 @@ describe("Metric Query Filters", () => {
 
     const completeRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=complete&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?phase=complete&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(completeRes.json().events).toHaveLength(1);
@@ -549,7 +569,7 @@ describe("Metric Query Filters", () => {
 
     const recordRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=record&data_mode=all`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?phase=record&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(recordRes.json().events).toHaveLength(1);
@@ -568,7 +588,7 @@ describe("Metric Query Filters", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&group_by=time:day`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=time:day`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -585,7 +605,7 @@ describe("Metric Query Filters", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/any-slug/query?project_id=${projectId}&group_by=invalid_field`,
+      url: `/v1/projects/${projectId}/metrics/any-slug/query?group_by=invalid_field`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.statusCode).toBe(400);
@@ -605,7 +625,7 @@ describe("Metric Query Filters", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=ios&app_version=1.0.0`,
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?environment=ios&app_version=1.0.0`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.json().aggregation.total_count).toBe(1);
@@ -638,7 +658,7 @@ describe("Metric Aggregation", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/checkout/query?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/metrics/checkout/query`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -719,7 +739,7 @@ describe("Metric Cross-Platform Environment", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const eventsRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${backendProjectId}&data_mode=all`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/events?data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(eventsRes.json().events).toHaveLength(1);
@@ -736,7 +756,7 @@ describe("Metric Cross-Platform Environment", () => {
 
     const backendRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${backendProjectId}&environment=backend&data_mode=all`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/events?environment=backend&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(backendRes.json().events).toHaveLength(2);
@@ -744,7 +764,7 @@ describe("Metric Cross-Platform Environment", () => {
     // ios should return nothing for a backend project
     const iosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${backendProjectId}&environment=ios&data_mode=all`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/events?environment=ios&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(iosRes.json().events).toHaveLength(0);
@@ -763,7 +783,7 @@ describe("Metric Cross-Platform Environment", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/query`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -799,7 +819,7 @@ describe("Metric Cross-Platform Environment", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const eventsRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${androidProjectId}&data_mode=all`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/events?data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(eventsRes.json().events).toHaveLength(1);
@@ -816,7 +836,7 @@ describe("Metric Cross-Platform Environment", () => {
 
     const androidRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${androidProjectId}&environment=android&data_mode=all`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/events?environment=android&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(androidRes.json().events).toHaveLength(2);
@@ -824,7 +844,7 @@ describe("Metric Cross-Platform Environment", () => {
     // ios should return nothing for an android project
     const iosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${androidProjectId}&environment=ios&data_mode=all`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/events?environment=ios&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(iosRes.json().events).toHaveLength(0);
@@ -841,7 +861,7 @@ describe("Metric Cross-Platform Environment", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/query`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -874,7 +894,7 @@ describe("Metric Cross-Platform Environment", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&group_by=app_version`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/query?group_by=app_version`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -896,7 +916,7 @@ describe("Metric Cross-Platform Environment", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&environment=android&app_version=1.0.0`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/query?environment=android&app_version=1.0.0`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.json().aggregation.total_count).toBe(1);
@@ -913,21 +933,21 @@ describe("Metric Cross-Platform Environment", () => {
 
     const devRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=development`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/query?data_mode=development`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(devRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=production`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/query?data_mode=production`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(prodRes.json().aggregation.total_count).toBe(2);
 
     const allRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=all`,
+      url: `/v1/projects/${backendProjectId}/metrics/${slug}/query?data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(allRes.json().aggregation.total_count).toBe(3);
@@ -943,14 +963,14 @@ describe("Metric Cross-Platform Environment", () => {
 
     const devRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&data_mode=development`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/query?data_mode=development`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(devRes.json().aggregation.total_count).toBe(1);
 
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&data_mode=production`,
+      url: `/v1/projects/${androidProjectId}/metrics/${slug}/query?data_mode=production`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(prodRes.json().aggregation.total_count).toBe(1);

@@ -9,7 +9,7 @@ import type {
 } from "@owlmetry/shared";
 
 export function useFunnels(projectId: string | null) {
-  const key = projectId ? `/v1/funnels?project_id=${projectId}` : null;
+  const key = projectId ? `/v1/projects/${projectId}/funnels` : null;
   const { data, isLoading, error, mutate } = useSWR<{ funnels: FunnelDefinitionResponse[] }>(key);
 
   return {
@@ -23,12 +23,12 @@ export function useFunnels(projectId: string | null) {
 export function useFunnelQuery(
   slug: string | undefined,
   projectId: string | undefined,
-  params: Partial<Omit<FunnelQueryParams, "project_id">> = {},
+  params: Partial<FunnelQueryParams> = {},
 ) {
   const qs = slug && projectId
-    ? buildQueryString({ project_id: projectId, ...params })
+    ? buildQueryString(params)
     : null;
-  const key = qs ? `/v1/funnels/${slug}/query?${qs}` : null;
+  const key = qs !== null && slug && projectId ? `/v1/projects/${projectId}/funnels/${slug}/query${qs ? `?${qs}` : ""}` : null;
 
   const { data, isLoading, error } = useSWR<FunnelQueryResponse>(key, {
     refreshInterval: 30_000,

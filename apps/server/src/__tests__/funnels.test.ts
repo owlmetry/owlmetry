@@ -43,10 +43,10 @@ afterAll(async () => {
   await app.close();
 });
 
-function createFunnel(payload: any, authToken = token) {
+function createFunnel(payload: any, authToken = token, pId = projectId) {
   return app.inject({
     method: "POST",
-    url: "/v1/funnels",
+    url: `/v1/projects/${pId}/funnels`,
     headers: { authorization: `Bearer ${authToken}` },
     payload,
   });
@@ -70,7 +70,6 @@ const ONBOARDING_STEPS = [
 describe("Funnel Definitions CRUD", () => {
   it("creates a funnel definition", async () => {
     const res = await createFunnel({
-      project_id: projectId,
       name: "Onboarding",
       slug: "onboarding",
       description: "Tracks onboarding flow",
@@ -88,14 +87,12 @@ describe("Funnel Definitions CRUD", () => {
 
   it("rejects duplicate slug in same project", async () => {
     await createFunnel({
-      project_id: projectId,
       name: "Funnel A",
       slug: "test-funnel",
       steps: ONBOARDING_STEPS,
     });
 
     const res = await createFunnel({
-      project_id: projectId,
       name: "Funnel B",
       slug: "test-funnel",
       steps: ONBOARDING_STEPS,
@@ -106,7 +103,6 @@ describe("Funnel Definitions CRUD", () => {
 
   it("rejects invalid slug", async () => {
     const res = await createFunnel({
-      project_id: projectId,
       name: "Test",
       slug: "Invalid Slug!",
       steps: ONBOARDING_STEPS,
@@ -117,7 +113,6 @@ describe("Funnel Definitions CRUD", () => {
 
   it("rejects empty steps", async () => {
     const res = await createFunnel({
-      project_id: projectId,
       name: "Test",
       slug: "test",
       steps: [],
@@ -127,13 +122,13 @@ describe("Funnel Definitions CRUD", () => {
   });
 
   it("lists funnel definitions for a project", async () => {
-    await createFunnel({ project_id: projectId, name: "Funnel A", slug: "funnel-a", steps: ONBOARDING_STEPS });
-    await createFunnel({ project_id: projectId, name: "Funnel B", slug: "funnel-b", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Funnel A", slug: "funnel-a", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Funnel B", slug: "funnel-b", steps: ONBOARDING_STEPS });
 
     const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -142,12 +137,12 @@ describe("Funnel Definitions CRUD", () => {
   });
 
   it("gets a single funnel by slug", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
 
     const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test-funnel?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels/test-funnel`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -155,12 +150,28 @@ describe("Funnel Definitions CRUD", () => {
     expect(res.json().slug).toBe("test-funnel");
   });
 
+  it("gets a funnel by UUID via by-id endpoint", async () => {
+    const createRes = await createFunnel({ name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
+    const funnelId = createRes.json().id;
+
+    const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/by-id/${funnelId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().slug).toBe("test-funnel");
+    expect(res.json().id).toBe(funnelId);
+  });
+
   it("updates a funnel definition", async () => {
-    await createFunnel({ project_id: projectId, name: "Original", slug: "test-funnel", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Original", slug: "test-funnel", steps: ONBOARDING_STEPS });
 
     const res = await app.inject({
       method: "PATCH",
-      url: `/v1/funnels/test-funnel?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels/test-funnel`,
       headers: { authorization: `Bearer ${token}` },
       payload: { name: "Updated Name", description: "New description" },
     });
@@ -171,11 +182,11 @@ describe("Funnel Definitions CRUD", () => {
   });
 
   it("soft deletes a funnel (user-only)", async () => {
-    await createFunnel({ project_id: projectId, name: "To Delete", slug: "to-delete", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "To Delete", slug: "to-delete", steps: ONBOARDING_STEPS });
 
     const res = await app.inject({
       method: "DELETE",
-      url: `/v1/funnels/to-delete?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels/to-delete`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -185,19 +196,19 @@ describe("Funnel Definitions CRUD", () => {
     // Verify it's gone from listings
     const listRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(listRes.json().funnels).toHaveLength(0);
   });
 
   it("rejects agent key delete with 403", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
 
     const agentKey = await createAgentKey(app, token, teamId, ["funnels:read", "funnels:write"]);
     const res = await app.inject({
       method: "DELETE",
-      url: `/v1/funnels/test-funnel?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels/test-funnel`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -208,7 +219,7 @@ describe("Funnel Definitions CRUD", () => {
     const agentKey = await createAgentKey(app, token, teamId, ["events:read"]);
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels?project_id=${projectId}`,
+      url: `/v1/projects/${projectId}/funnels`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
@@ -218,7 +229,7 @@ describe("Funnel Definitions CRUD", () => {
   it("enforces funnels:write permission for create", async () => {
     const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
     const res = await createFunnel(
-      { project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS },
+      { name: "Test", slug: "test", steps: ONBOARDING_STEPS },
       agentKey,
     );
 
@@ -250,12 +261,12 @@ describe("Funnel Analytics", () => {
   }
 
   it("computes closed funnel analytics correctly", async () => {
-    await createFunnel({ project_id: projectId, name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
     await seedFunnelEvents();
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/onboarding/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/onboarding/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -277,12 +288,12 @@ describe("Funnel Analytics", () => {
   });
 
   it("computes open funnel analytics correctly", async () => {
-    await createFunnel({ project_id: projectId, name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
     await seedFunnelEvents();
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/onboarding/query?project_id=${projectId}&mode=open&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/onboarding/query?mode=open&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -297,11 +308,11 @@ describe("Funnel Analytics", () => {
   });
 
   it("returns zeros for empty funnel", async () => {
-    await createFunnel({ project_id: projectId, name: "Empty", slug: "empty", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Empty", slug: "empty", steps: ONBOARDING_STEPS });
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/empty/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/empty/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -312,7 +323,7 @@ describe("Funnel Analytics", () => {
   });
 
   it("filters by data_mode", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
     // Ingest development events
@@ -329,7 +340,7 @@ describe("Funnel Analytics", () => {
     // Production only (default)
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=production`,
+      url: `/v1/projects/${projectId}/funnels/test/query?data_mode=production`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(prodRes.json().analytics.steps[0].unique_users).toBe(1);
@@ -337,7 +348,7 @@ describe("Funnel Analytics", () => {
     // Development only
     const devRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=development`,
+      url: `/v1/projects/${projectId}/funnels/test/query?data_mode=development`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(devRes.json().analytics.steps[0].unique_users).toBe(1);
@@ -345,14 +356,14 @@ describe("Funnel Analytics", () => {
     // All
     const allRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(allRes.json().analytics.steps[0].unique_users).toBe(2);
   });
 
   it("filters by environment", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
     await ingest([
@@ -364,7 +375,7 @@ describe("Funnel Analytics", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&environment=ios&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?environment=ios&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -372,7 +383,7 @@ describe("Funnel Analytics", () => {
   });
 
   it("filters by experiment", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
     await ingest([
@@ -384,7 +395,7 @@ describe("Funnel Analytics", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&experiment=onboarding:A&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?experiment=onboarding:A&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -392,7 +403,7 @@ describe("Funnel Analytics", () => {
   });
 
   it("excludes NULL user_id from analytics", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
     // Event without user_id
@@ -404,7 +415,7 @@ describe("Funnel Analytics", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -412,12 +423,12 @@ describe("Funnel Analytics", () => {
   });
 
   it("computes correct drop-off math", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
     await seedFunnelEvents();
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -435,7 +446,7 @@ describe("Funnel Analytics", () => {
   });
 
   it("groups by environment", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
     await ingest([
@@ -448,7 +459,7 @@ describe("Funnel Analytics", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&group_by=environment&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?group_by=environment&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -467,7 +478,7 @@ describe("Funnel Analytics", () => {
   });
 
   it("groups by experiment variant", async () => {
-    await createFunnel({ project_id: projectId, name: "Test", slug: "test", steps: ONBOARDING_STEPS });
+    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 
     const now = Date.now();
     await ingest([
@@ -480,7 +491,7 @@ describe("Funnel Analytics", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&group_by=experiment:onboarding&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?group_by=experiment:onboarding&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -533,7 +544,6 @@ describe("Ingest: track events dual-write to funnel_events", () => {
 
     // Create a funnel and query it to verify funnel_events has data
     await createFunnel({
-      project_id: projectId,
       name: "Test",
       slug: "test",
       steps: [{ name: "Welcome", event_filter: { message: "track:welcome" } }],
@@ -541,7 +551,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -562,7 +572,6 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     await new Promise((r) => setTimeout(r, 200));
 
     await createFunnel({
-      project_id: projectId,
       name: "Test",
       slug: "test",
       steps: [{ name: "Welcome", event_filter: { message: "track:welcome" } }],
@@ -571,7 +580,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     // Query with experiment filter
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&experiment=onboarding:B&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?experiment=onboarding:B&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -580,7 +589,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     // Query with wrong variant should return 0
     const res2 = await app.inject({
       method: "GET",
-      url: `/v1/funnels/test/query?project_id=${projectId}&experiment=onboarding:A&data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/test/query?experiment=onboarding:A&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -614,7 +623,7 @@ describe("Funnel Cross-Platform Environment", () => {
   // --- backend platform ---
 
   it("tracks funnel steps ingested via backend app", async () => {
-    await createFunnel({ project_id: backendProjectId, name: "Backend Funnel", slug: "backend-funnel", steps: STEPS });
+    await createFunnel({ name: "Backend Funnel", slug: "backend-funnel", steps: STEPS }, token, backendProjectId);
 
     const now = Date.now();
     await ingestForPlatform("backend", [
@@ -626,7 +635,7 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/backend-funnel/query?project_id=${backendProjectId}&data_mode=all`,
+      url: `/v1/projects/${backendProjectId}/funnels/backend-funnel/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -637,7 +646,7 @@ describe("Funnel Cross-Platform Environment", () => {
   });
 
   it("backend funnel filters by data_mode", async () => {
-    await createFunnel({ project_id: backendProjectId, name: "Backend DM", slug: "backend-dm", steps: STEPS });
+    await createFunnel({ name: "Backend DM", slug: "backend-dm", steps: STEPS }, token, backendProjectId);
 
     const now = Date.now();
     await ingestForPlatform("backend", [
@@ -649,21 +658,21 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=production`,
+      url: `/v1/projects/${backendProjectId}/funnels/backend-dm/query?data_mode=production`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(prodRes.json().analytics.steps[0].unique_users).toBe(1);
 
     const devRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=development`,
+      url: `/v1/projects/${backendProjectId}/funnels/backend-dm/query?data_mode=development`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(devRes.json().analytics.steps[0].unique_users).toBe(1);
 
     const allRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=all`,
+      url: `/v1/projects/${backendProjectId}/funnels/backend-dm/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(allRes.json().analytics.steps[0].unique_users).toBe(2);
@@ -680,7 +689,7 @@ describe("Funnel Cross-Platform Environment", () => {
   // --- android platform ---
 
   it("tracks funnel steps ingested via android app", async () => {
-    await createFunnel({ project_id: androidProjectId, name: "Android Funnel", slug: "android-funnel", steps: STEPS });
+    await createFunnel({ name: "Android Funnel", slug: "android-funnel", steps: STEPS }, token, androidProjectId);
 
     const now = Date.now();
     await ingestForPlatform("android", [
@@ -693,7 +702,7 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/android-funnel/query?project_id=${androidProjectId}&data_mode=all`,
+      url: `/v1/projects/${androidProjectId}/funnels/android-funnel/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -705,7 +714,7 @@ describe("Funnel Cross-Platform Environment", () => {
   });
 
   it("android funnel computes correct drop-off math", async () => {
-    await createFunnel({ project_id: androidProjectId, name: "Android Drop", slug: "android-drop", steps: STEPS });
+    await createFunnel({ name: "Android Drop", slug: "android-drop", steps: STEPS }, token, androidProjectId);
 
     const now = Date.now();
     await ingestForPlatform("android", [
@@ -719,7 +728,7 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/android-drop/query?project_id=${androidProjectId}&data_mode=all`,
+      url: `/v1/projects/${androidProjectId}/funnels/android-drop/query?data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 
@@ -731,7 +740,7 @@ describe("Funnel Cross-Platform Environment", () => {
   });
 
   it("android funnel filters by data_mode", async () => {
-    await createFunnel({ project_id: androidProjectId, name: "Android DM", slug: "android-dm", steps: STEPS });
+    await createFunnel({ name: "Android DM", slug: "android-dm", steps: STEPS }, token, androidProjectId);
 
     const now = Date.now();
     await ingestForPlatform("android", [
@@ -744,14 +753,14 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const prodRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/android-dm/query?project_id=${androidProjectId}&data_mode=production`,
+      url: `/v1/projects/${androidProjectId}/funnels/android-dm/query?data_mode=production`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(prodRes.json().analytics.steps[0].unique_users).toBe(2);
 
     const devRes = await app.inject({
       method: "GET",
-      url: `/v1/funnels/android-dm/query?project_id=${androidProjectId}&data_mode=development`,
+      url: `/v1/projects/${androidProjectId}/funnels/android-dm/query?data_mode=development`,
       headers: { authorization: `Bearer ${token}` },
     });
     expect(devRes.json().analytics.steps[0].unique_users).toBe(1);
@@ -768,7 +777,7 @@ describe("Funnel Cross-Platform Environment", () => {
   });
 
   it("android funnel supports experiment grouping", async () => {
-    await createFunnel({ project_id: androidProjectId, name: "Android Exp", slug: "android-exp", steps: STEPS });
+    await createFunnel({ name: "Android Exp", slug: "android-exp", steps: STEPS }, token, androidProjectId);
 
     const now = Date.now();
     await ingestForPlatform("android", [
@@ -781,7 +790,7 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/funnels/android-exp/query?project_id=${androidProjectId}&group_by=experiment:checkout&data_mode=all`,
+      url: `/v1/projects/${androidProjectId}/funnels/android-exp/query?group_by=experiment:checkout&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 

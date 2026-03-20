@@ -54,18 +54,16 @@ function validateSteps(steps: unknown): string | null {
   return null;
 }
 
+/** Routes nested under /v1/projects/:projectId */
 export async function funnelsRoutes(app: FastifyInstance) {
   // List funnel definitions for a project
-  app.get<{ Querystring: { project_id?: string } }>(
+  app.get<{ Params: { projectId: string } }>(
     "/funnels",
     { preHandler: requirePermission("funnels:read") },
     async (request, reply) => {
-      const { project_id } = request.query;
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
+      const { projectId } = request.params;
 
-      const project = await resolveProject(app, project_id, request.auth, reply);
+      const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
       const rows = await app.db
@@ -73,7 +71,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         .from(funnelDefinitions)
         .where(
           and(
-            eq(funnelDefinitions.project_id, project_id),
+            eq(funnelDefinitions.project_id, projectId),
             isNull(funnelDefinitions.deleted_at),
           ),
         );
@@ -83,17 +81,13 @@ export async function funnelsRoutes(app: FastifyInstance) {
   );
 
   // Get single funnel definition by slug
-  app.get<{ Params: { slug: string }; Querystring: { project_id?: string } }>(
+  app.get<{ Params: { projectId: string; slug: string } }>(
     "/funnels/:slug",
     { preHandler: requirePermission("funnels:read") },
     async (request, reply) => {
-      const { slug } = request.params;
-      const { project_id } = request.query;
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
+      const { projectId, slug } = request.params;
 
-      const project = await resolveProject(app, project_id, request.auth, reply);
+      const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
       const [funnel] = await app.db
@@ -101,7 +95,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         .from(funnelDefinitions)
         .where(
           and(
-            eq(funnelDefinitions.project_id, project_id),
+            eq(funnelDefinitions.project_id, projectId),
             eq(funnelDefinitions.slug, slug),
             isNull(funnelDefinitions.deleted_at),
           ),
@@ -117,15 +111,16 @@ export async function funnelsRoutes(app: FastifyInstance) {
   );
 
   // Create funnel definition
-  app.post<{ Body: CreateFunnelRequest }>(
+  app.post<{ Params: { projectId: string }; Body: CreateFunnelRequest }>(
     "/funnels",
     { preHandler: requirePermission("funnels:write") },
     async (request, reply) => {
       const auth = request.auth;
-      const { project_id, name, slug, description, steps } = request.body;
+      const { projectId } = request.params;
+      const { name, slug, description, steps } = request.body;
 
-      if (!project_id || !name || !slug) {
-        return reply.code(400).send({ error: "project_id, name, and slug are required" });
+      if (!name || !slug) {
+        return reply.code(400).send({ error: "name and slug are required" });
       }
 
       const slugError = validateFunnelSlug(slug);
@@ -138,7 +133,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: stepsError });
       }
 
-      const project = await resolveProject(app, project_id, auth, reply);
+      const project = await resolveProject(app, projectId, auth, reply);
       if (!project) return;
 
       if (!hasTeamAccess(auth, project.team_id)) {
@@ -154,7 +149,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         const [created] = await app.db
           .insert(funnelDefinitions)
           .values({
-            project_id,
+            project_id: projectId,
             name,
             slug,
             description: description ?? null,
@@ -181,18 +176,13 @@ export async function funnelsRoutes(app: FastifyInstance) {
   );
 
   // Update funnel definition
-  app.patch<{ Params: { slug: string }; Querystring: { project_id?: string }; Body: UpdateFunnelRequest }>(
+  app.patch<{ Params: { projectId: string; slug: string }; Body: UpdateFunnelRequest }>(
     "/funnels/:slug",
     { preHandler: requirePermission("funnels:write") },
     async (request, reply) => {
       const auth = request.auth;
-      const { slug } = request.params;
-      const { project_id } = request.query;
+      const { projectId, slug } = request.params;
       const { name, description, steps } = request.body;
-
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
 
       if (steps !== undefined) {
         const stepsError = validateSteps(steps);
@@ -208,7 +198,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         .innerJoin(projects, eq(projects.id, funnelDefinitions.project_id))
         .where(
           and(
-            eq(funnelDefinitions.project_id, project_id),
+            eq(funnelDefinitions.project_id, projectId),
             eq(funnelDefinitions.slug, slug),
             isNull(funnelDefinitions.deleted_at),
             inArray(projects.team_id, teamIds),
@@ -258,7 +248,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
   );
 
   // Delete funnel definition (soft delete, user-only)
-  app.delete<{ Params: { slug: string }; Querystring: { project_id?: string } }>(
+  app.delete<{ Params: { projectId: string; slug: string } }>(
     "/funnels/:slug",
     { preHandler: requirePermission("funnels:write") },
     async (request, reply) => {
@@ -268,12 +258,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can delete funnels" });
       }
 
-      const { slug } = request.params;
-      const { project_id } = request.query;
-
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
+      const { projectId, slug } = request.params;
 
       const teamIds = getAuthTeamIds(auth);
       const [funnel] = await app.db
@@ -282,7 +267,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         .innerJoin(projects, eq(projects.id, funnelDefinitions.project_id))
         .where(
           and(
-            eq(funnelDefinitions.project_id, project_id),
+            eq(funnelDefinitions.project_id, projectId),
             eq(funnelDefinitions.slug, slug),
             isNull(funnelDefinitions.deleted_at),
             inArray(projects.team_id, teamIds),
@@ -318,13 +303,12 @@ export async function funnelsRoutes(app: FastifyInstance) {
   );
 
   // Analytics query endpoint
-  app.get<{ Params: { slug: string }; Querystring: FunnelQueryParams }>(
+  app.get<{ Params: { projectId: string; slug: string }; Querystring: FunnelQueryParams }>(
     "/funnels/:slug/query",
     { preHandler: requirePermission("funnels:read") },
     async (request, reply) => {
-      const { slug } = request.params;
+      const { projectId, slug } = request.params;
       const {
-        project_id,
         since,
         until,
         app_id,
@@ -336,12 +320,8 @@ export async function funnelsRoutes(app: FastifyInstance) {
         data_mode,
       } = request.query;
 
-      if (!project_id) {
-        return reply.code(400).send({ error: "project_id query parameter is required" });
-      }
-
       // Resolve project and get app IDs
-      const appIds = await resolveProjectAppIds(app, project_id, request.auth, reply);
+      const appIds = await resolveProjectAppIds(app, projectId, request.auth, reply);
       if (!appIds) return;
 
       const filteredAppIds = app_id ? appIds.filter((id) => id === app_id) : appIds;
@@ -353,7 +333,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         .from(funnelDefinitions)
         .where(
           and(
-            eq(funnelDefinitions.project_id, project_id),
+            eq(funnelDefinitions.project_id, projectId),
             eq(funnelDefinitions.slug, slug),
             isNull(funnelDefinitions.deleted_at),
           ),
@@ -404,6 +384,38 @@ export async function funnelsRoutes(app: FastifyInstance) {
           ...(result.breakdown ? { breakdown: result.breakdown } : {}),
         },
       };
+    },
+  );
+}
+
+/** Standalone by-id endpoint registered at /v1 prefix */
+export async function funnelByIdRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string } }>(
+    "/funnels/by-id/:id",
+    { preHandler: requirePermission("funnels:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const teamIds = getAuthTeamIds(request.auth);
+
+      const [result] = await app.db
+        .select()
+        .from(funnelDefinitions)
+        .innerJoin(projects, eq(projects.id, funnelDefinitions.project_id))
+        .where(
+          and(
+            eq(funnelDefinitions.id, id),
+            isNull(funnelDefinitions.deleted_at),
+            inArray(projects.team_id, teamIds),
+            isNull(projects.deleted_at),
+          ),
+        )
+        .limit(1);
+
+      if (!result) {
+        return reply.code(404).send({ error: "Funnel not found" });
+      }
+
+      return serializeFunnelDefinition(result.funnel_definitions);
     },
   );
 }

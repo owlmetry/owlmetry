@@ -3,8 +3,7 @@
 import { useMemo, useDeferredValue } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
-import type { FunnelDefinitionResponse, AppResponse, ProjectResponse } from "@owlmetry/shared";
-import { useTeam } from "@/contexts/team-context";
+import type { FunnelDefinitionResponse, AppResponse } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useFunnelQuery } from "@/hooks/use-funnels";
@@ -36,14 +35,20 @@ const FUNNEL_GROUP_BY_OPTIONS = [
 
 export default function FunnelDetailPage() {
   const params = useParams();
-  const slug = params.slug as string;
-  const { currentTeam } = useTeam();
+  const id = params.id as string;
   const { dataMode } = useDataMode();
 
+  // Fetch funnel definition by UUID
+  const { data: funnelData } = useSWR<FunnelDefinitionResponse>(
+    `/v1/funnels/by-id/${id}`,
+  );
+
+  const slug = funnelData?.slug;
+  const projectId = funnelData?.project_id;
+
   const filters = useUrlFilters({
-    path: `/dashboard/funnels/${slug}`,
+    path: `/dashboard/funnels/${id}`,
     defaults: {
-      project_id: "",
       time_range: "7d",
       since: "",
       until: "",
@@ -54,16 +59,8 @@ export default function FunnelDetailPage() {
       mode: "closed",
       app_id: "",
     },
-    persistKeys: ["project_id"],
   });
 
-  // Fetch projects for the project selector
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
-    currentTeam?.id ? `/v1/projects?team_id=${currentTeam.id}` : null,
-  );
-  const projects = projectsData?.projects ?? [];
-
-  const projectId = filters.get("project_id");
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
   const deferredExperiment = useDeferredValue(filters.get("experiment"));
   const openMode = filters.get("mode") === "open";
@@ -74,13 +71,8 @@ export default function FunnelDetailPage() {
   );
   const apps = appsData?.apps ?? [];
 
-  // Fetch funnel definition
-  const { data: funnelData } = useSWR<FunnelDefinitionResponse>(
-    projectId ? `/v1/funnels/${slug}?project_id=${projectId}` : null,
-  );
-
   // Query
-  const { data: queryData, isLoading } = useFunnelQuery(slug, projectId || undefined, {
+  const { data: queryData, isLoading } = useFunnelQuery(slug, projectId, {
     since: filters.computedSince,
     until: filters.computedUntil,
     app_id: filters.get("app_id") || undefined,
@@ -94,7 +86,6 @@ export default function FunnelDetailPage() {
 
   const analytics = queryData?.analytics;
 
-  const appIdVal = filters.get("app_id");
   const timeRange = filters.get("time_range");
   const sinceInput = filters.get("since");
   const untilInput = filters.get("until");
@@ -116,7 +107,7 @@ export default function FunnelDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold">{funnelData?.name ?? slug}</h1>
+        <h1 className="text-xl font-semibold">{funnelData?.name ?? "Loading..."}</h1>
         {funnelData?.description && (
           <p className="text-sm text-muted-foreground mt-1">{funnelData.description}</p>
         )}
@@ -129,42 +120,25 @@ export default function FunnelDetailPage() {
         groupByAllowNone
         chips={chips}
         leadingChildren={
-          <>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Project</label>
-              <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">App</label>
-              <Select
-                value={filters.get("app_id") || "all"}
-                onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="All apps" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All apps</SelectItem>
-                  {apps.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">App</label>
+            <Select
+              value={filters.get("app_id") || "all"}
+              onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="All apps" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All apps</SelectItem>
+                {apps.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       >
         <div className="space-y-1">

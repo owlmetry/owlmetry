@@ -205,7 +205,6 @@ export interface EventsResponse {
 
 // Funnels
 export interface CreateFunnelRequest {
-  project_id: string;
   name: string;
   slug: string;
   description?: string;
@@ -221,7 +220,6 @@ export interface UpdateFunnelRequest {
 export { FunnelDefinitionResponse };
 
 export interface FunnelQueryParams {
-  project_id: string;
   since?: string;
   until?: string;
   app_id?: string;
@@ -337,7 +335,6 @@ export interface AppUsersQueryParams {
 
 // Metrics
 export interface CreateMetricDefinitionRequest {
-  project_id: string;
   name: string;
   slug: string;
   description?: string;
@@ -361,7 +358,6 @@ export type MetricDefinitionResponse = Omit<MetricDefinition, "created_at" | "up
 };
 
 export interface MetricQueryParams {
-  project_id: string;
   since?: string;
   until?: string;
   app_id?: string;
@@ -416,7 +412,6 @@ export interface MetricEventsResponse {
 }
 
 export interface MetricEventsQueryParams {
-  project_id: string;
   phase?: MetricPhase;
   tracking_id?: string;
   user_id?: string;

@@ -158,38 +158,28 @@ export class OwlMetryClient {
 
   // Metrics
   async listMetrics(projectId: string): Promise<MetricDefinitionResponse[]> {
-    const result = await this.request<{ metrics: MetricDefinitionResponse[] }>("GET", "/v1/metrics", {
-      params: { project_id: projectId },
-    });
+    const result = await this.request<{ metrics: MetricDefinitionResponse[] }>("GET", `/v1/projects/${projectId}/metrics`);
     return result.metrics;
   }
 
   async getMetric(slug: string, projectId: string): Promise<MetricDefinitionResponse> {
-    return this.request<MetricDefinitionResponse>("GET", `/v1/metrics/${slug}`, {
-      params: { project_id: projectId },
-    });
+    return this.request<MetricDefinitionResponse>("GET", `/v1/projects/${projectId}/metrics/${slug}`);
   }
 
-  async createMetric(body: CreateMetricDefinitionRequest): Promise<MetricDefinitionResponse> {
-    return this.request<MetricDefinitionResponse>("POST", "/v1/metrics", { body });
+  async createMetric(projectId: string, body: CreateMetricDefinitionRequest): Promise<MetricDefinitionResponse> {
+    return this.request<MetricDefinitionResponse>("POST", `/v1/projects/${projectId}/metrics`, { body });
   }
 
   async updateMetric(slug: string, projectId: string, body: UpdateMetricDefinitionRequest): Promise<MetricDefinitionResponse> {
-    return this.request<MetricDefinitionResponse>("PATCH", `/v1/metrics/${slug}`, {
-      params: { project_id: projectId },
-      body,
-    });
+    return this.request<MetricDefinitionResponse>("PATCH", `/v1/projects/${projectId}/metrics/${slug}`, { body });
   }
 
   async deleteMetric(slug: string, projectId: string): Promise<{ deleted: boolean }> {
-    return this.request<{ deleted: boolean }>("DELETE", `/v1/metrics/${slug}`, {
-      params: { project_id: projectId },
-    });
+    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/metrics/${slug}`);
   }
 
-  async queryMetricEvents(slug: string, params: Partial<MetricEventsQueryParams>): Promise<MetricEventsResponse> {
+  async queryMetricEvents(slug: string, projectId: string, params: Partial<MetricEventsQueryParams> = {}): Promise<MetricEventsResponse> {
     const stringParams: Record<string, string | undefined> = {
-      project_id: params.project_id,
       phase: params.phase,
       tracking_id: params.tracking_id,
       user_id: params.user_id,
@@ -200,12 +190,11 @@ export class OwlMetryClient {
       limit: params.limit?.toString(),
       data_mode: params.data_mode,
     };
-    return this.request<MetricEventsResponse>("GET", `/v1/metrics/${slug}/events`, { params: stringParams });
+    return this.request<MetricEventsResponse>("GET", `/v1/projects/${projectId}/metrics/${slug}/events`, { params: stringParams });
   }
 
   async queryMetric(slug: string, projectId: string, params: Partial<MetricQueryParams> = {}): Promise<MetricQueryResponse> {
     const stringParams: Record<string, string | undefined> = {
-      project_id: projectId,
       since: params.since,
       until: params.until,
       app_id: params.app_id,
@@ -217,42 +206,32 @@ export class OwlMetryClient {
       data_mode: params.data_mode,
       group_by: params.group_by,
     };
-    return this.request<MetricQueryResponse>("GET", `/v1/metrics/${slug}/query`, { params: stringParams });
+    return this.request<MetricQueryResponse>("GET", `/v1/projects/${projectId}/metrics/${slug}/query`, { params: stringParams });
   }
 
   // Funnels
   async listFunnels(projectId: string): Promise<{ funnels: FunnelDefinitionResponse[] }> {
-    return this.request<{ funnels: FunnelDefinitionResponse[] }>("GET", "/v1/funnels", {
-      params: { project_id: projectId },
-    });
+    return this.request<{ funnels: FunnelDefinitionResponse[] }>("GET", `/v1/projects/${projectId}/funnels`);
   }
 
   async getFunnel(slug: string, projectId: string): Promise<FunnelDefinitionResponse> {
-    return this.request<FunnelDefinitionResponse>("GET", `/v1/funnels/${slug}`, {
-      params: { project_id: projectId },
-    });
+    return this.request<FunnelDefinitionResponse>("GET", `/v1/projects/${projectId}/funnels/${slug}`);
   }
 
-  async createFunnel(body: CreateFunnelRequest): Promise<FunnelDefinitionResponse> {
-    return this.request<FunnelDefinitionResponse>("POST", "/v1/funnels", { body });
+  async createFunnel(projectId: string, body: CreateFunnelRequest): Promise<FunnelDefinitionResponse> {
+    return this.request<FunnelDefinitionResponse>("POST", `/v1/projects/${projectId}/funnels`, { body });
   }
 
   async updateFunnel(slug: string, projectId: string, body: UpdateFunnelRequest): Promise<FunnelDefinitionResponse> {
-    return this.request<FunnelDefinitionResponse>("PATCH", `/v1/funnels/${slug}`, {
-      params: { project_id: projectId },
-      body,
-    });
+    return this.request<FunnelDefinitionResponse>("PATCH", `/v1/projects/${projectId}/funnels/${slug}`, { body });
   }
 
   async deleteFunnel(slug: string, projectId: string): Promise<{ deleted: true }> {
-    return this.request<{ deleted: true }>("DELETE", `/v1/funnels/${slug}`, {
-      params: { project_id: projectId },
-    });
+    return this.request<{ deleted: true }>("DELETE", `/v1/projects/${projectId}/funnels/${slug}`);
   }
 
-  async queryFunnel(slug: string, projectId: string, params: Partial<Omit<FunnelQueryParams, "project_id">> = {}): Promise<FunnelQueryResponse> {
+  async queryFunnel(slug: string, projectId: string, params: Partial<FunnelQueryParams> = {}): Promise<FunnelQueryResponse> {
     const stringParams: Record<string, string | undefined> = {
-      project_id: projectId,
       since: params.since,
       until: params.until,
       app_id: params.app_id,
@@ -263,7 +242,7 @@ export class OwlMetryClient {
       group_by: params.group_by,
       data_mode: params.data_mode,
     };
-    return this.request<FunnelQueryResponse>("GET", `/v1/funnels/${slug}/query`, { params: stringParams });
+    return this.request<FunnelQueryResponse>("GET", `/v1/projects/${projectId}/funnels/${slug}/query`, { params: stringParams });
   }
 
   // Audit Logs

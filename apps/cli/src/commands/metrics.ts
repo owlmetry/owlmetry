@@ -138,8 +138,7 @@ metricsCommand
         : undefined;
     const until = opts.until ? parseTimeInput(opts.until) : undefined;
 
-    const result = await client.queryMetricEvents(slug, {
-      project_id: opts.project,
+    const result = await client.queryMetricEvents(slug, opts.project, {
       phase: opts.phase as any,
       tracking_id: opts.trackingId,
       user_id: opts.user,
@@ -187,8 +186,7 @@ metricsCommand
       return;
     }
     const { client, globals } = createClient(cmd);
-    const metric = await client.createMetric({
-      project_id: opts.project,
+    const metric = await client.createMetric(opts.project, {
       name: opts.name,
       slug: opts.slug,
       description: opts.description,

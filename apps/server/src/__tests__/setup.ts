@@ -19,8 +19,8 @@ import { identityRoutes } from "../routes/identity.js";
 import { appUsersRoutes } from "../routes/app-users.js";
 import { teamsRoutes } from "../routes/teams.js";
 import { invitationRoutes } from "../routes/invitations.js";
-import { metricsRoutes } from "../routes/metrics.js";
-import { funnelsRoutes } from "../routes/funnels.js";
+import { metricsRoutes, metricByIdRoutes } from "../routes/metrics.js";
+import { funnelsRoutes, funnelByIdRoutes } from "../routes/funnels.js";
 import { auditLogsRoutes } from "../routes/audit-logs.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
@@ -321,8 +321,10 @@ export async function buildApp() {
   await app.register(appUsersRoutes, { prefix: "/v1" });
   await app.register(teamsRoutes, { prefix: "/v1" });
   await app.register(invitationRoutes, { prefix: "/v1" });
-  await app.register(metricsRoutes, { prefix: "/v1" });
-  await app.register(funnelsRoutes, { prefix: "/v1" });
+  await app.register(metricsRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(metricByIdRoutes, { prefix: "/v1" });
+  await app.register(funnelsRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(funnelByIdRoutes, { prefix: "/v1" });
   await app.register(auditLogsRoutes, { prefix: "/v1" });
 
   await app.ready();

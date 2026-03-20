@@ -11,7 +11,7 @@ import type {
 } from "@owlmetry/shared";
 
 export function useMetricDefinitions(projectId: string | undefined) {
-  const key = projectId ? `/v1/metrics?project_id=${projectId}` : null;
+  const key = projectId ? `/v1/projects/${projectId}/metrics` : null;
   const { data, isLoading, error, mutate } = useSWR<{ metrics: MetricDefinitionResponse[] }>(key);
 
   return {
@@ -24,9 +24,9 @@ export function useMetricDefinitions(projectId: string | undefined) {
 
 export function useMetricQuery(slug: string | undefined, projectId: string | undefined, params: Partial<MetricQueryParams> = {}) {
   const qs = slug && projectId
-    ? buildQueryString({ project_id: projectId, ...params })
+    ? buildQueryString(params)
     : null;
-  const key = qs ? `/v1/metrics/${slug}/query?${qs}` : null;
+  const key = qs !== null && slug && projectId ? `/v1/projects/${projectId}/metrics/${slug}/query${qs ? `?${qs}` : ""}` : null;
 
   const { data, isLoading, error } = useSWR<MetricQueryResponse>(key, {
     refreshInterval: 30_000,
@@ -41,9 +41,9 @@ export function useMetricQuery(slug: string | undefined, projectId: string | und
 
 export function useMetricEvents(slug: string | undefined, projectId: string | undefined, params: Partial<MetricEventsQueryParams> = {}) {
   const qs = slug && projectId
-    ? buildQueryString({ project_id: projectId, ...params })
+    ? buildQueryString(params)
     : null;
-  const key = qs ? `/v1/metrics/${slug}/events?${qs}` : null;
+  const key = qs !== null && slug && projectId ? `/v1/projects/${projectId}/metrics/${slug}/events${qs ? `?${qs}` : ""}` : null;
 
   const { data, isLoading, error } = useSWR<MetricEventsResponse>(key, {
     refreshInterval: 30_000,

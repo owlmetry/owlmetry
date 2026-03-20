@@ -4,8 +4,7 @@ import { useState, useMemo, useDeferredValue } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
-import type { MetricDefinitionResponse, AppResponse, MetricPhase, ProjectResponse } from "@owlmetry/shared";
-import { useTeam } from "@/contexts/team-context";
+import type { MetricDefinitionResponse, AppResponse, MetricPhase } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
@@ -57,14 +56,20 @@ const METRIC_GROUP_BY_OPTIONS = [
 
 export default function MetricDetailPage() {
   const params = useParams();
-  const slug = params.slug as string;
-  const { currentTeam } = useTeam();
+  const id = params.id as string;
   const { dataMode } = useDataMode();
 
+  // Fetch metric definition by UUID
+  const { data: metricData } = useSWR<MetricDefinitionResponse>(
+    `/v1/metrics/by-id/${id}`,
+  );
+
+  const slug = metricData?.slug;
+  const projectId = metricData?.project_id;
+
   const filters = useUrlFilters({
-    path: `/dashboard/metrics/${slug}`,
+    path: `/dashboard/metrics/${id}`,
     defaults: {
-      project_id: "",
       time_range: "24h",
       since: "",
       until: "",
@@ -77,16 +82,8 @@ export default function MetricDetailPage() {
       phase: "",
       tracking_id: "",
     },
-    persistKeys: ["project_id"],
   });
 
-  // Fetch projects for the project selector
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
-    currentTeam?.id ? `/v1/projects?team_id=${currentTeam.id}` : null,
-  );
-  const projects = projectsData?.projects ?? [];
-
-  const projectId = filters.get("project_id");
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
   const deferredOsVersion = useDeferredValue(filters.get("os_version"));
   const deferredUserId = useDeferredValue(filters.get("user_id"));
@@ -99,13 +96,8 @@ export default function MetricDetailPage() {
   );
   const apps = appsData?.apps ?? [];
 
-  // Fetch metric definition
-  const { data: metricData } = useSWR<MetricDefinitionResponse>(
-    projectId ? `/v1/metrics/${slug}?project_id=${projectId}` : null,
-  );
-
   // Aggregation query
-  const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId || undefined, {
+  const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId, {
     since: filters.computedSince,
     until: filters.computedUntil,
     app_id: filters.get("app_id") || undefined,
@@ -118,7 +110,7 @@ export default function MetricDetailPage() {
   });
 
   // Raw events
-  const { events, isLoading: eventsLoading } = useMetricEvents(slug, projectId || undefined, {
+  const { events, isLoading: eventsLoading } = useMetricEvents(slug, projectId, {
     since: filters.computedSince,
     until: filters.computedUntil,
     phase: (filters.get("phase") as MetricPhase) || undefined,
@@ -131,7 +123,6 @@ export default function MetricDetailPage() {
   const agg = queryData?.aggregation;
   const isLifecycle = (agg?.start_count ?? 0) > 0 || (agg?.complete_count ?? 0) > 0;
 
-  const appIdVal = filters.get("app_id");
   const timeRange = filters.get("time_range");
   const sinceInput = filters.get("since");
   const untilInput = filters.get("until");
@@ -155,7 +146,7 @@ export default function MetricDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{metricData?.name ?? slug}</h1>
+          <h1 className="text-xl font-semibold">{metricData?.name ?? "Loading..."}</h1>
           {metricData?.description && (
             <p className="text-sm text-muted-foreground mt-1">{metricData.description}</p>
           )}
@@ -185,42 +176,25 @@ export default function MetricDetailPage() {
         groupByOptions={METRIC_GROUP_BY_OPTIONS}
         chips={chips}
         leadingChildren={
-          <>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Project</label>
-              <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">App</label>
-              <Select
-                value={filters.get("app_id") || "all"}
-                onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="All apps" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All apps</SelectItem>
-                  {apps.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">App</label>
+            <Select
+              value={filters.get("app_id") || "all"}
+              onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="All apps" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All apps</SelectItem>
+                {apps.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       >
         <div className="space-y-1">
