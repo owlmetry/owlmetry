@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import postgres from "postgres";
+import { randomUUID } from "node:crypto";
 import {
   buildApp,
   truncateAll,
@@ -57,6 +58,13 @@ function queryEvents(params: Record<string, string> = {}) {
 async function getAppUsers(appId: string) {
   const client = postgres(TEST_DB_URL, { max: 1 });
   const rows = await client`SELECT * FROM app_users WHERE app_id = ${appId}`;
+  await client.end();
+  return rows;
+}
+
+async function getMetricEvents(appId: string) {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  const rows = await client`SELECT * FROM metric_events WHERE app_id = ${appId}`;
   await client.end();
   return rows;
 }
@@ -257,5 +265,54 @@ describe("POST /v1/identity/claim", () => {
     // Anonymous row should be deleted
     const anonUser = users.find((u: any) => u.user_id === anonId);
     expect(anonUser).toBeUndefined();
+  });
+
+  it("reassigns metric_events user_id on claim", async () => {
+    const anonId = "owl_anon_test-metric-claim";
+    const trackingId = randomUUID();
+
+    // Ingest metric events with anonymous user_id
+    await ingest([
+      {
+        level: "info",
+        message: "metric:load-time:start",
+        user_id: anonId,
+        session_id: TEST_SESSION_ID,
+        custom_attributes: { tracking_id: trackingId },
+      },
+      {
+        level: "info",
+        message: "metric:load-time:complete",
+        user_id: anonId,
+        session_id: TEST_SESSION_ID,
+        custom_attributes: { tracking_id: trackingId, duration_ms: "250" },
+      },
+    ]);
+
+    // Get app_id
+    const seedData = await app.inject({
+      method: "GET",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    const appId = seedData.json().apps[0].id;
+
+    // Verify metric_events exist with anonymous user_id
+    let metricRows = await getMetricEvents(appId);
+    const anonMetrics = metricRows.filter((r: any) => r.user_id === anonId);
+    expect(anonMetrics.length).toBe(2);
+
+    // Claim identity
+    const res = await claim({ anonymous_id: anonId, user_id: "metric-real-user" });
+    expect(res.statusCode).toBe(200);
+
+    // Verify metric_events were reassigned
+    metricRows = await getMetricEvents(appId);
+    const reassigned = metricRows.filter((r: any) => r.user_id === "metric-real-user");
+    expect(reassigned.length).toBe(2);
+
+    // No metric_events should remain with the anonymous user_id
+    const stillAnon = metricRows.filter((r: any) => r.user_id === anonId);
+    expect(stillAnon.length).toBe(0);
   });
 });

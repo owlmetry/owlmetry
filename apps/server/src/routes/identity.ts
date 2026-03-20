@@ -4,6 +4,7 @@ import {
   events,
   appUsers,
   funnelEvents,
+  metricEvents,
 } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
@@ -88,6 +89,17 @@ export async function identityRoutes(app: FastifyInstance) {
             and(
               eq(funnelEvents.app_id, app_id),
               eq(funnelEvents.user_id, anonymous_id)
+            )
+          );
+
+        // Reassign metric_events user_id from anonymous to real
+        await tx
+          .update(metricEvents)
+          .set({ user_id: user_id })
+          .where(
+            and(
+              eq(metricEvents.app_id, app_id),
+              eq(metricEvents.user_id, anonymous_id)
             )
           );
 
