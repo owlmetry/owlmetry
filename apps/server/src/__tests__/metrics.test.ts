@@ -249,6 +249,355 @@ describe("Metric Dual-Write via Ingest", () => {
   });
 });
 
+describe("Metric Query Filters", () => {
+  /** Ingest a metric event with optional attributes. */
+  async function ingestMetric(slug: string, phase: string, attrs: {
+    environment?: string;
+    app_version?: string;
+    device_model?: string;
+    os_version?: string;
+    user_id?: string;
+    is_debug?: boolean;
+    tracking_id?: string;
+    duration_ms?: string;
+    error?: string;
+  } = {}) {
+    const trackingId = attrs.tracking_id ?? crypto.randomUUID();
+    await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        bundle_id: TEST_BUNDLE_ID,
+        events: [
+          {
+            session_id: TEST_SESSION_ID,
+            level: "info",
+            message: `metric:${slug}:${phase}`,
+            environment: attrs.environment,
+            app_version: attrs.app_version,
+            device_model: attrs.device_model,
+            os_version: attrs.os_version,
+            user_id: attrs.user_id,
+            is_debug: attrs.is_debug,
+            custom_attributes: {
+              tracking_id: trackingId,
+              ...(attrs.duration_ms ? { duration_ms: attrs.duration_ms } : {}),
+              ...(attrs.error ? { error: attrs.error } : {}),
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  // --- environment ---
+
+  it("filters query results by environment", async () => {
+    const slug = "env-filter-query";
+    await ingestMetric(slug, "record", { environment: "ios" });
+    await ingestMetric(slug, "record", { environment: "ios" });
+    await ingestMetric(slug, "record", { environment: "android" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const iosRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=ios`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(iosRes.statusCode).toBe(200);
+    expect(iosRes.json().aggregation.total_count).toBe(2);
+
+    const androidRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=android`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(androidRes.json().aggregation.total_count).toBe(1);
+
+    const allRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(allRes.json().aggregation.total_count).toBe(3);
+  });
+
+  it("groups query results by environment", async () => {
+    const slug = "env-group-query";
+    await ingestMetric(slug, "record", { environment: "ios" });
+    await ingestMetric(slug, "record", { environment: "ios" });
+    await ingestMetric(slug, "record", { environment: "web" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&group_by=environment`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(2);
+    const iosGroup = groups.find((g: any) => g.value === "ios");
+    const webGroup = groups.find((g: any) => g.value === "web");
+    expect(iosGroup.total_count).toBe(2);
+    expect(webGroup.total_count).toBe(1);
+  });
+
+  it("filters raw metric events by environment", async () => {
+    const slug = "env-filter-events";
+    await ingestMetric(slug, "record", { environment: "macos" });
+    await ingestMetric(slug, "record", { environment: "backend" });
+    await ingestMetric(slug, "record", { environment: "backend" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const macosRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=macos&include_debug=true`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(macosRes.json().events).toHaveLength(1);
+
+    const backendRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=backend&include_debug=true`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(backendRes.json().events).toHaveLength(2);
+  });
+
+  // --- app_version ---
+
+  it("filters query results by app_version", async () => {
+    const slug = "ver-filter";
+    await ingestMetric(slug, "record", { app_version: "1.0.0" });
+    await ingestMetric(slug, "record", { app_version: "1.0.0" });
+    await ingestMetric(slug, "record", { app_version: "2.0.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&app_version=1.0.0`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().aggregation.total_count).toBe(2);
+  });
+
+  it("groups query results by app_version", async () => {
+    const slug = "ver-group";
+    await ingestMetric(slug, "record", { app_version: "1.0.0" });
+    await ingestMetric(slug, "record", { app_version: "2.0.0" });
+    await ingestMetric(slug, "record", { app_version: "2.0.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&group_by=app_version`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(2);
+    const v1 = groups.find((g: any) => g.value === "1.0.0");
+    const v2 = groups.find((g: any) => g.value === "2.0.0");
+    expect(v1.total_count).toBe(1);
+    expect(v2.total_count).toBe(2);
+  });
+
+  // --- device_model ---
+
+  it("filters query results by device_model", async () => {
+    const slug = "device-filter";
+    await ingestMetric(slug, "record", { device_model: "iPhone 15" });
+    await ingestMetric(slug, "record", { device_model: "iPhone 15" });
+    await ingestMetric(slug, "record", { device_model: "Pixel 8" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&device_model=${encodeURIComponent("iPhone 15")}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.json().aggregation.total_count).toBe(2);
+  });
+
+  // --- os_version ---
+
+  it("filters query results by os_version", async () => {
+    const slug = "os-filter";
+    await ingestMetric(slug, "record", { os_version: "17.4" });
+    await ingestMetric(slug, "record", { os_version: "18.0" });
+    await ingestMetric(slug, "record", { os_version: "18.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&os_version=18.0`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.json().aggregation.total_count).toBe(2);
+  });
+
+  // --- user_id ---
+
+  it("filters query results by user_id", async () => {
+    const slug = "user-filter";
+    await ingestMetric(slug, "record", { user_id: "user-alice" });
+    await ingestMetric(slug, "record", { user_id: "user-alice" });
+    await ingestMetric(slug, "record", { user_id: "user-bob" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const aliceRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&user_id=user-alice`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(aliceRes.json().aggregation.total_count).toBe(2);
+
+    const bobRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&user_id=user-bob`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(bobRes.json().aggregation.total_count).toBe(1);
+  });
+
+  // --- is_debug ---
+
+  it("filters query results by is_debug", async () => {
+    const slug = "debug-filter";
+    await ingestMetric(slug, "record", { is_debug: true });
+    await ingestMetric(slug, "record", { is_debug: false });
+    await ingestMetric(slug, "record", { is_debug: false });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const debugRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&is_debug=true`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(debugRes.json().aggregation.total_count).toBe(1);
+
+    const prodRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&is_debug=false`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(prodRes.json().aggregation.total_count).toBe(2);
+  });
+
+  // --- phase filter on events endpoint ---
+
+  it("filters raw metric events by phase", async () => {
+    const slug = "phase-filter";
+    const tid = crypto.randomUUID();
+    await ingestMetric(slug, "start", { tracking_id: tid });
+    await ingestMetric(slug, "complete", { tracking_id: tid, duration_ms: "100" });
+    await ingestMetric(slug, "record");
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const startRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=start&include_debug=true`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(startRes.json().events).toHaveLength(1);
+    expect(startRes.json().events[0].phase).toBe("start");
+
+    const completeRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=complete&include_debug=true`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(completeRes.json().events).toHaveLength(1);
+    expect(completeRes.json().events[0].phase).toBe("complete");
+
+    const recordRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&phase=record&include_debug=true`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(recordRes.json().events).toHaveLength(1);
+    expect(recordRes.json().events[0].phase).toBe("record");
+  });
+
+  // --- group_by time:day ---
+
+  it("groups query results by time:day", async () => {
+    const slug = "time-group";
+    // All events are ingested ~now, so they land in the same day bucket
+    await ingestMetric(slug, "record");
+    await ingestMetric(slug, "record");
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&group_by=time:day`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe("time:day");
+    expect(groups[0].total_count).toBe(2);
+  });
+
+  // --- invalid group_by ---
+
+  it("rejects invalid group_by value", async () => {
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/any-slug/query?project_id=${projectId}&group_by=invalid_field`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("Invalid group_by");
+  });
+
+  // --- combined filters ---
+
+  it("combines multiple filters", async () => {
+    const slug = "multi-filter";
+    await ingestMetric(slug, "record", { environment: "ios", app_version: "1.0.0" });
+    await ingestMetric(slug, "record", { environment: "ios", app_version: "2.0.0" });
+    await ingestMetric(slug, "record", { environment: "android", app_version: "1.0.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=ios&app_version=1.0.0`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.json().aggregation.total_count).toBe(1);
+  });
+});
+
 describe("Metric Aggregation", () => {
   it("returns aggregation results", async () => {
     const trackingId1 = "22222222-2222-2222-2222-222222222221";
