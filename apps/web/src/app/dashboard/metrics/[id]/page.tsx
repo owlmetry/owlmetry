@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo, useDeferredValue } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useMemo, useDeferredValue } from "react";
+import { useParams, usePathname } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
 import type { MetricDefinitionResponse, AppResponse, MetricPhase } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
+import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
@@ -57,7 +58,9 @@ const METRIC_GROUP_BY_OPTIONS = [
 export default function MetricDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const pathname = usePathname();
   const { dataMode } = useDataMode();
+  const { setBreadcrumbs } = useBreadcrumbs();
 
   // Fetch metric definition by UUID
   const { data: metricData } = useSWR<MetricDefinitionResponse>(
@@ -66,6 +69,15 @@ export default function MetricDetailPage() {
 
   const slug = metricData?.slug;
   const projectId = metricData?.project_id;
+
+  useEffect(() => {
+    if (metricData?.name) {
+      setBreadcrumbs(
+        [{ label: "Metrics", href: "/dashboard/metrics" }, { label: metricData.name }],
+        pathname,
+      );
+    }
+  }, [metricData?.name, pathname, setBreadcrumbs]);
 
   const filters = useUrlFilters({
     path: `/dashboard/metrics/${id}`,

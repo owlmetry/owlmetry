@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useDeferredValue } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useDeferredValue } from "react";
+import { useParams, usePathname } from "next/navigation";
 import useSWR from "swr";
 import type { FunnelDefinitionResponse, AppResponse } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
+import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useFunnelQuery } from "@/hooks/use-funnels";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
@@ -36,7 +37,9 @@ const FUNNEL_GROUP_BY_OPTIONS = [
 export default function FunnelDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const pathname = usePathname();
   const { dataMode } = useDataMode();
+  const { setBreadcrumbs } = useBreadcrumbs();
 
   // Fetch funnel definition by UUID
   const { data: funnelData } = useSWR<FunnelDefinitionResponse>(
@@ -45,6 +48,15 @@ export default function FunnelDetailPage() {
 
   const slug = funnelData?.slug;
   const projectId = funnelData?.project_id;
+
+  useEffect(() => {
+    if (funnelData?.name) {
+      setBreadcrumbs(
+        [{ label: "Funnels", href: "/dashboard/funnels" }, { label: funnelData.name }],
+        pathname,
+      );
+    }
+  }, [funnelData?.name, pathname, setBreadcrumbs]);
 
   const filters = useUrlFilters({
     path: `/dashboard/funnels/${id}`,

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useMemo } from "react";
+import { useParams, usePathname } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
-import { ArrowLeft, Search, Users } from "lucide-react";
+import { Search, Users } from "lucide-react";
+import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,7 +30,25 @@ import type { AppResponse, AppUsersQueryParams } from "@owlmetry/shared";
 
 export default function AppDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const pathname = usePathname();
+  const { setBreadcrumbs } = useBreadcrumbs();
   const { data: app } = useSWR<AppResponse>(`/v1/apps/${id}`);
+  const { data: project } = useSWR<{ name: string }>(
+    app?.project_id ? `/v1/projects/${app.project_id}` : null,
+  );
+
+  useEffect(() => {
+    if (app?.name && project?.name) {
+      setBreadcrumbs(
+        [
+          { label: "Projects", href: "/dashboard/projects" },
+          { label: project.name, href: `/dashboard/projects/${app.project_id}` },
+          { label: app.name },
+        ],
+        pathname,
+      );
+    }
+  }, [app?.name, app?.project_id, project?.name, pathname, setBreadcrumbs]);
 
   const [search, setSearch] = useState("");
   const [anonymousFilter, setAnonymousFilter] = useState("");
@@ -50,18 +69,11 @@ export default function AppDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href={`/dashboard/projects/${app.project_id}`}>
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-semibold">{app.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {app.platform}{app.bundle_id ? ` \u00B7 ${app.bundle_id}` : ""}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-semibold">{app.name}</h1>
+        <p className="text-sm text-muted-foreground">
+          {app.platform}{app.bundle_id ? ` \u00B7 ${app.bundle_id}` : ""}
+        </p>
       </div>
 
       {/* App info */}

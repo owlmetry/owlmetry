@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/use-user";
 import { NetworkError } from "@/lib/api";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -9,21 +9,12 @@ import { UserMenu } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
 import { TeamProvider } from "@/contexts/team-context";
 import { DataModeProvider } from "@/contexts/data-mode-context";
-
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/dashboard/events": "Events",
-  "/dashboard/api-keys": "API Keys",
-  "/dashboard/projects": "Projects",
-  "/dashboard/team": "Team",
-  "/dashboard/audit-log": "Audit Log",
-  "/dashboard/profile": "Profile",
-};
+import { BreadcrumbProvider } from "@/contexts/breadcrumb-context";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, error, mutate } = useUser();
   const router = useRouter();
-  const pathname = usePathname();
   const isNetworkError = error instanceof NetworkError;
 
   useEffect(() => {
@@ -64,27 +55,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const pageTitle =
-    pageTitles[pathname] ??
-    (pathname.startsWith("/dashboard/projects/") ? "Project Details" : "");
-
   return (
     <TeamProvider>
       <DataModeProvider>
+        <BreadcrumbProvider>
         <div className="dark min-h-screen bg-background text-foreground">
           <div className="flex min-h-screen">
             <AppSidebar />
             <div className="flex flex-1 flex-col">
               <header className="flex h-14 items-center justify-between border-b px-6">
-                <h2 className="text-sm font-medium text-muted-foreground">
-                  {pageTitle}
-                </h2>
+                <Breadcrumbs />
                 <UserMenu />
               </header>
               <main className="flex-1 p-6">{children}</main>
             </div>
           </div>
         </div>
+        </BreadcrumbProvider>
       </DataModeProvider>
     </TeamProvider>
   );
