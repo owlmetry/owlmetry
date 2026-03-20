@@ -9,7 +9,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useFunnelQuery } from "@/hooks/use-funnels";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
-import { type FilterChip, resolveEntityName } from "@/components/filter-sheet";
+import type { FilterChip } from "@/components/filter-sheet";
 import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
 import { FunnelChart } from "@/components/funnels/funnel-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -104,15 +104,13 @@ export default function FunnelDetailPage() {
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId), onDismiss: () => filters.set("project_id", "") });
-    if (appIdVal) c.push({ label: "App", value: resolveEntityName(apps, appIdVal), onDismiss: () => filters.set("app_id", "") });
     if (timeRange && timeRange !== "7d") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "7d", since: "", until: "" }) });
     if (environmentVal) c.push({ label: "Env", value: environmentVal, onDismiss: () => filters.set("environment", "") });
     if (appVersionVal) c.push({ label: "Version", value: appVersionVal, onDismiss: () => filters.set("app_version", "") });
     if (experimentVal) c.push({ label: "Experiment", value: experimentVal, onDismiss: () => filters.set("experiment", "") });
     if (openMode) c.push({ label: "Mode", value: "Open", onDismiss: () => filters.set("mode", "closed") });
     return c;
-  }, [projectId, appIdVal, timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, openMode, projects, apps, filters]);
+  }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, openMode, filters]);
 
   return (
     <div className="space-y-6">

@@ -10,7 +10,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
-import { type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
+import { type FilterChip, truncateId } from "@/components/filter-sheet";
 import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -142,15 +142,13 @@ export default function MetricDetailPage() {
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId), onDismiss: () => filters.set("project_id", "") });
-    if (appIdVal) c.push({ label: "App", value: resolveEntityName(apps, appIdVal), onDismiss: () => filters.set("app_id", "") });
     if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "24h", since: "", until: "" }) });
     if (environmentVal) c.push({ label: "Env", value: environmentVal, onDismiss: () => filters.set("environment", "") });
     if (appVersionVal) c.push({ label: "Version", value: appVersionVal, onDismiss: () => filters.set("app_version", "") });
     if (userIdVal) c.push({ label: "User", value: truncateId(userIdVal), onDismiss: () => filters.set("user_id", "") });
     if (osVersionVal) c.push({ label: "OS", value: osVersionVal, onDismiss: () => filters.set("os_version", "") });
     return c;
-  }, [projectId, appIdVal, timeRange, sinceInput, untilInput, environmentVal, appVersionVal, userIdVal, osVersionVal, projects, apps, filters]);
+  }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, userIdVal, osVersionVal, filters]);
 
   return (
     <div className="space-y-6">
