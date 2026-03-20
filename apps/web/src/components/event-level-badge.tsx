@@ -15,7 +15,7 @@ export function EventLevelBadge({ level }: { level: LogLevel }) {
         colors.border
       )}
     >
-      {level}
+      {level === "info" ? "ℹ️ info" : level === "debug" ? "🐛 debug" : level === "warn" ? "⚠️ warn" : "🔴 error"}
     </Badge>
   );
 }

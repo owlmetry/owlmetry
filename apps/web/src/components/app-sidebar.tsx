@@ -73,7 +73,7 @@ export function AppSidebar() {
             Prod
           </ToggleGroupItem>
           <ToggleGroupItem value="debug" className="flex-1 text-xs h-7 px-2">
-            Debug
+            🐛 Debug
           </ToggleGroupItem>
           <ToggleGroupItem value="all" className="flex-1 text-xs h-7 px-2">
             All

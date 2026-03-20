@@ -138,7 +138,7 @@ export default function TeamPage() {
                           />
                         ) : (
                           <Badge variant={roleBadgeVariant(member.role)}>
-                            {member.role}
+                            {member.role === "owner" ? "👑 owner" : member.role === "admin" ? "🛡️ admin" : "👤 member"}
                           </Badge>
                         )}
                       </TableCell>
@@ -203,7 +203,9 @@ export default function TeamPage() {
                     <TableRow key={inv.id}>
                       <TableCell>{inv.email}</TableCell>
                       <TableCell>
-                        <Badge variant={roleBadgeVariant(inv.role)}>{inv.role}</Badge>
+                        <Badge variant={roleBadgeVariant(inv.role)}>
+                          {inv.role === "owner" ? "👑 owner" : inv.role === "admin" ? "🛡️ admin" : "👤 member"}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {inv.invited_by.name}
@@ -281,7 +283,7 @@ function RoleSelect({
       <SelectContent>
         {assignableRoles(actorRole).map((role) => (
           <SelectItem key={role} value={role}>
-            {role}
+            {role === "owner" ? "👑 owner" : role === "admin" ? "🛡️ admin" : "👤 member"}
           </SelectItem>
         ))}
       </SelectContent>
@@ -360,10 +362,10 @@ function InviteMemberDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="member">member</SelectItem>
-                <SelectItem value="admin">admin</SelectItem>
+                <SelectItem value="member">👤 member</SelectItem>
+                <SelectItem value="admin">🛡️ admin</SelectItem>
                 {currentRole === "owner" && (
-                  <SelectItem value="owner">owner</SelectItem>
+                  <SelectItem value="owner">👑 owner</SelectItem>
                 )}
               </SelectContent>
             </Select>

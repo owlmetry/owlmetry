@@ -213,8 +213,8 @@ function CreateKeyDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="client">Client</SelectItem>
-                  <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="client">📱 Client</SelectItem>
+                  <SelectItem value="agent">🕶️ Agent</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -519,7 +519,7 @@ export default function ApiKeysPage() {
                       variant={key.key_type === "agent" ? "default" : "secondary"}
                       className="text-xs"
                     >
-                      {key.key_type}
+                      {key.key_type === "client" ? "📱 client" : "🕶️ agent"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm py-1.5 text-muted-foreground">

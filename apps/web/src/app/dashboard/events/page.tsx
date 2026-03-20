@@ -178,7 +178,7 @@ export default function EventsPage() {
             <SelectContent>
               {LOG_LEVELS.map((l) => (
                 <SelectItem key={l} value={l}>
-                  {l}
+                  {l === "info" ? "ℹ️ info" : l === "debug" ? "🐛 debug" : l === "warn" ? "⚠️ warn" : "🔴 error"}
                 </SelectItem>
               ))}
             </SelectContent>

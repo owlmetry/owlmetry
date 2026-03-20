@@ -81,7 +81,7 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect }: E
             <DetailRow label="Locale" value={event.locale} />
             {event.is_debug && (
               <div className="flex justify-between gap-4 py-1.5">
-                <span className="shrink-0 text-xs text-muted-foreground">Debug</span>
+                <span className="shrink-0 text-xs text-muted-foreground">🐛 Debug</span>
                 <span className="text-right text-xs font-medium text-yellow-600">Yes</span>
               </div>
             )}

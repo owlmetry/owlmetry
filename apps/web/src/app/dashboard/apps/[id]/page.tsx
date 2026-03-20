@@ -110,8 +110,8 @@ export default function AppDetailPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All users</SelectItem>
-                <SelectItem value="false">Real users</SelectItem>
-                <SelectItem value="true">Anonymous</SelectItem>
+                <SelectItem value="false">👤 Real users</SelectItem>
+                <SelectItem value="true">👻 Anonymous</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -160,9 +160,9 @@ export default function AppDetailPage() {
                       </TableCell>
                       <TableCell className="py-1.5">
                         {user.is_anonymous ? (
-                          <Badge variant="secondary" className="text-xs">anon</Badge>
+                          <Badge variant="secondary" className="text-xs">👻 anon</Badge>
                         ) : (
-                          <Badge variant="default" className="text-xs">real</Badge>
+                          <Badge variant="default" className="text-xs">👤 real</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-xs py-1.5">

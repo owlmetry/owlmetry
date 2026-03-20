@@ -132,7 +132,7 @@ export default function AuditLogPage() {
             <SelectContent>
               {ACTIONS.map((a) => (
                 <SelectItem key={a} value={a}>
-                  {a}
+                  {a === "create" ? "✨ create" : a === "update" ? "✏️ update" : "🗑️ delete"}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -213,7 +213,7 @@ export default function AuditLogPage() {
                       </TableCell>
                       <TableCell className="py-1.5">
                         <Badge variant={actionBadgeVariant(log.action)} className="text-xs">
-                          {log.action}
+                          {log.action === "create" ? "✨ create" : log.action === "update" ? "✏️ update" : "🗑️ delete"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
@@ -261,7 +261,7 @@ export default function AuditLogPage() {
 
                 <span className="text-muted-foreground">Action</span>
                 <Badge variant={actionBadgeVariant(selectedLog.action)} className="w-fit text-xs">
-                  {selectedLog.action}
+                  {selectedLog.action === "create" ? "✨ create" : selectedLog.action === "update" ? "✏️ update" : "🗑️ delete"}
                 </Badge>
 
                 <span className="text-muted-foreground">Resource</span>

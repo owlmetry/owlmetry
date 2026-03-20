@@ -156,7 +156,7 @@ export default function MetricDetailPage() {
                   : "bg-yellow-500/10 text-yellow-600"
               }`}
             >
-              {metricData.status}
+              {metricData.status === "active" ? "🟢 active" : "⏸️ archived"}
             </span>
           )}
         </div>
@@ -372,7 +372,7 @@ export default function MetricDetailPage() {
                       <TableCell className="font-mono text-xs py-1.5">{time}</TableCell>
                       <TableCell className="py-1.5">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${PHASE_COLORS[event.phase] ?? ""}`}>
-                          {event.phase}
+                          {event.phase === "start" ? "🚀 start" : event.phase === "complete" ? "✅ complete" : event.phase === "fail" ? "❌ fail" : event.phase === "cancel" ? "🚫 cancel" : "📝 record"}
                         </span>
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5">

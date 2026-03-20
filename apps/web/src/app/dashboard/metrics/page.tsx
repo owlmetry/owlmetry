@@ -202,7 +202,7 @@ export default function MetricsPage() {
                         : "bg-yellow-500/10 text-yellow-600"
                     }`}
                   >
-                    {m.status}
+                    {m.status === "active" ? "🟢 active" : "⏸️ archived"}
                   </span>
                 </div>
               </CardHeader>

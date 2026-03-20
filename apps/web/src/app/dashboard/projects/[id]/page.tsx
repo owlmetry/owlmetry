@@ -23,10 +23,10 @@ import { api, ApiError } from "@/lib/api";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
 
 const PLATFORM_OPTIONS = [
-  { value: "apple", label: "Apple" },
-  { value: "android", label: "Android" },
-  { value: "web", label: "Web" },
-  { value: "backend", label: "Backend" },
+  { value: "apple", label: "🍎 Apple" },
+  { value: "android", label: "🤖 Android" },
+  { value: "web", label: "🌐 Web" },
+  { value: "backend", label: "☁️ Backend" },
 ];
 
 export default function ProjectDetailPage() {
