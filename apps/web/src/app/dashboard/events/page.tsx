@@ -137,6 +137,11 @@ export default function EventsPage() {
     setSelectedEvent(event);
   }
 
+  function handleFilter(key: string, value: string) {
+    filters.set(key, value);
+    setSheetOpen(false);
+  }
+
   return (
     <div className="space-y-4">
       {/* Filter bar */}
@@ -374,6 +379,7 @@ export default function EventsPage() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         onEventSelect={handleEventSelect}
+        onFilter={handleFilter}
       />
     </div>
   );

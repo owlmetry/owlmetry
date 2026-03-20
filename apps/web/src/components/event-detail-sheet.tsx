@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { InvestigateTimeline } from "@/components/investigate-timeline";
-import { Search } from "lucide-react";
+import { Search, Filter } from "lucide-react";
 import type { StoredEventResponse } from "@owlmetry/shared";
 import type { LogLevel } from "@owlmetry/shared";
 
@@ -21,10 +21,43 @@ interface EventDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEventSelect: (event: StoredEventResponse) => void;
+  onFilter?: (key: string, value: string) => void;
 }
 
-function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+function DetailRow({
+  label,
+  value,
+  onFilter,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onFilter?: () => void;
+}) {
   if (!value) return null;
+
+  if (onFilter) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onFilter}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onFilter();
+          }
+        }}
+        className="group flex justify-between gap-4 py-1.5 rounded-sm px-1 -mx-1 cursor-pointer hover:bg-muted/50 transition-colors"
+      >
+        <span className="shrink-0 text-xs text-muted-foreground flex items-center gap-1">
+          {label}
+          <Filter className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </span>
+        <span className="text-right font-mono text-xs break-all">{value}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-between gap-4 py-1.5">
       <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
@@ -33,7 +66,7 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
   );
 }
 
-export function EventDetailSheet({ event, open, onOpenChange, onEventSelect }: EventDetailSheetProps) {
+export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onFilter }: EventDetailSheetProps) {
   const [showTimeline, setShowTimeline] = useState(false);
 
   // Reset timeline when sheet closes or event changes
@@ -64,16 +97,16 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect }: E
         <ScrollArea className="flex-1 px-6 pb-6">
           <div className="space-y-1">
             <DetailRow label="ID" value={event.id} />
-            <DetailRow label="App ID" value={event.app_id} />
+            <DetailRow label="App ID" value={event.app_id} onFilter={onFilter && event.app_id ? () => onFilter("app_id", event.app_id) : undefined} />
             <DetailRow label="Timestamp" value={new Date(event.timestamp).toISOString()} />
             <DetailRow label="Received At" value={new Date(event.received_at).toISOString()} />
-            <DetailRow label="Level" value={event.level} />
+            <DetailRow label="Level" value={event.level} onFilter={onFilter && event.level ? () => onFilter("level", event.level) : undefined} />
             <DetailRow label="Message" value={event.message} />
-            <DetailRow label="User ID" value={event.user_id} />
-            <DetailRow label="Session ID" value={event.session_id} />
-            <DetailRow label="Screen Name" value={event.screen_name} />
+            <DetailRow label="User ID" value={event.user_id} onFilter={onFilter && event.user_id ? () => onFilter("user_id", event.user_id!) : undefined} />
+            <DetailRow label="Session ID" value={event.session_id} onFilter={onFilter && event.session_id ? () => onFilter("session_id", event.session_id) : undefined} />
+            <DetailRow label="Screen Name" value={event.screen_name} onFilter={onFilter && event.screen_name ? () => onFilter("screen_name", event.screen_name!) : undefined} />
             <DetailRow label="Source Module" value={event.source_module} />
-            <DetailRow label="Environment" value={event.environment} />
+            <DetailRow label="Environment" value={event.environment} onFilter={onFilter && event.environment ? () => onFilter("environment", event.environment!) : undefined} />
             <DetailRow label="OS Version" value={event.os_version} />
             <DetailRow label="App Version" value={event.app_version} />
             <DetailRow label="Build Number" value={event.build_number} />
