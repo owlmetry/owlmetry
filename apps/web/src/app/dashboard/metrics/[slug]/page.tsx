@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useDeferredValue } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
@@ -10,6 +10,8 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
+import type { FilterChip } from "@/components/filter-sheet";
+import { TIME_RANGES } from "@/lib/time-ranges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,7 +33,7 @@ import {
 import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
-import { BookOpen, X } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 const METRIC_PHASES: MetricPhase[] = ["start", "complete", "fail", "cancel", "record"];
 
@@ -129,6 +131,40 @@ export default function MetricDetailPage() {
   const agg = queryData?.aggregation;
   const isLifecycle = (agg?.start_count ?? 0) > 0 || (agg?.complete_count ?? 0) > 0;
 
+  const chips = useMemo(() => {
+    const c: FilterChip[] = [];
+    if (projectId) {
+      const name = projects.find((p) => p.id === projectId)?.name ?? projectId.slice(0, 8) + "...";
+      c.push({ label: "Project", value: name });
+    }
+    const appIdVal = filters.get("app_id");
+    if (appIdVal) {
+      const name = apps.find((a) => a.id === appIdVal)?.name ?? appIdVal.slice(0, 8) + "...";
+      c.push({ label: "App", value: name });
+    }
+    const tr = filters.get("time_range");
+    if (tr && tr !== "24h") {
+      if (tr === "custom") {
+        const s = filters.get("since");
+        const u = filters.get("until");
+        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
+      } else {
+        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
+        c.push({ label: "Time", value: label });
+      }
+    }
+    const env = filters.get("environment");
+    if (env) c.push({ label: "Env", value: env });
+    const av = filters.get("app_version");
+    if (av) c.push({ label: "Version", value: av });
+    const uid = filters.get("user_id");
+    if (uid) c.push({ label: "User", value: uid.length > 16 ? uid.slice(0, 13) + "..." : uid });
+    const osv = filters.get("os_version");
+    if (osv) c.push({ label: "OS", value: osv });
+    return c;
+  }, [projectId, projects, apps, filters]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -162,12 +198,13 @@ export default function MetricDetailPage() {
       <AnalyticsFilterBar
         filters={filters}
         groupByOptions={METRIC_GROUP_BY_OPTIONS}
+        chips={chips}
         leadingChildren={
           <>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Project</label>
               <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-                <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -185,7 +222,7 @@ export default function MetricDetailPage() {
                 value={filters.get("app_id") || "all"}
                 onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
               >
-                <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All apps" />
                 </SelectTrigger>
                 <SelectContent>
@@ -202,23 +239,23 @@ export default function MetricDetailPage() {
         }
       >
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">OS Version</label>
-          <Input
-            type="text"
-            placeholder="e.g. 18.0"
-            value={filters.get("os_version")}
-            onChange={(e) => filters.set("os_version", e.target.value)}
-            className="w-[160px] h-8 text-xs"
-          />
-        </div>
-        <div className="space-y-1">
           <label className="text-xs text-muted-foreground">User ID</label>
           <Input
             type="text"
             placeholder="Filter by user"
             value={filters.get("user_id")}
             onChange={(e) => filters.set("user_id", e.target.value)}
-            className="w-[160px] h-8 text-xs font-mono"
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">OS Version</label>
+          <Input
+            type="text"
+            placeholder="e.g. 18.0"
+            value={filters.get("os_version")}
+            onChange={(e) => filters.set("os_version", e.target.value)}
+            className="h-8 text-xs"
           />
         </div>
       </AnalyticsFilterBar>

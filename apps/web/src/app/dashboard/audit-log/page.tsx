@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { AuditLogsQueryParams, AuditLogResponse, AuditResourceType, AuditAction } from "@owlmetry/shared";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useTeam } from "@/contexts/team-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
+import { FilterSheet, type FilterChip } from "@/components/filter-sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { X } from "lucide-react";
 import { TIME_RANGES } from "@/lib/time-ranges";
 
 // Mirrors AuditResourceType and AuditAction from @owlmetry/shared (runtime import
@@ -85,6 +85,27 @@ export default function AuditLogPage() {
 
   const { auditLogs, isLoading, isLoadingMore, hasMore, loadMore } = useAuditLogs(queryFilters);
 
+  const chips = useMemo(() => {
+    const c: FilterChip[] = [];
+    const tr = filters.get("time_range");
+    if (tr && tr !== "24h") {
+      if (tr === "custom") {
+        const s = filters.get("since");
+        const u = filters.get("until");
+        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
+      } else {
+        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
+        c.push({ label: "Time", value: label });
+      }
+    }
+    if (resourceType) c.push({ label: "Resource", value: resourceType.replace(/_/g, " ") });
+    if (action) c.push({ label: "Action", value: action });
+    if (resourceId) c.push({ label: "Resource ID", value: resourceId.length > 16 ? resourceId.slice(0, 13) + "..." : resourceId });
+    if (actorId) c.push({ label: "Actor ID", value: actorId.length > 16 ? actorId.slice(0, 13) + "..." : actorId });
+    return c;
+  }, [resourceType, action, resourceId, actorId, filters]);
+
   function handleRowClick(log: AuditLogResponse) {
     setSelectedLog(log);
     setSheetOpen(true);
@@ -97,63 +118,15 @@ export default function AuditLogPage() {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Resource Type</label>
-          <Select value={resourceType} onValueChange={(v) => filters.set("resource_type", v)}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
-              <SelectValue placeholder="All types" />
-            </SelectTrigger>
-            <SelectContent>
-              {RESOURCE_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Action</label>
-          <Select value={action} onValueChange={(v) => filters.set("action", v)}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
-              <SelectValue placeholder="All actions" />
-            </SelectTrigger>
-            <SelectContent>
-              {ACTIONS.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a === "create" ? "✨ create" : a === "update" ? "✏️ update" : "🗑️ delete"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Resource ID</label>
-          <Input
-            value={resourceId}
-            onChange={(e) => filters.set("resource_id", e.target.value)}
-            placeholder="Filter by resource ID"
-            className="w-[160px] h-8 text-xs font-mono"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Actor ID</label>
-          <Input
-            value={actorId}
-            onChange={(e) => filters.set("actor_id", e.target.value)}
-            placeholder="Filter by actor ID"
-            className="w-[160px] h-8 text-xs font-mono"
-          />
-        </div>
-
+      <FilterSheet
+        hasActiveFilters={filters.hasActiveFilters}
+        onClear={filters.clearFilters}
+        chips={chips}
+      >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Time Range</label>
           <Select value={filters.get("time_range")} onValueChange={filters.handleTimeRangeChange}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -174,7 +147,7 @@ export default function AuditLogPage() {
                 type="date"
                 value={filters.get("since")}
                 onChange={(e) => filters.handleDateChange("since", e.target.value)}
-                className="w-[160px] h-8 text-xs"
+                className="h-8 text-xs"
               />
             </div>
 
@@ -184,19 +157,64 @@ export default function AuditLogPage() {
                 type="date"
                 value={filters.get("until")}
                 onChange={(e) => filters.handleDateChange("until", e.target.value)}
-                className="w-[160px] h-8 text-xs"
+                className="h-8 text-xs"
               />
             </div>
           </>
         )}
 
-        {filters.hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={filters.clearFilters} className="h-8">
-            <X className="h-3.5 w-3.5 mr-1" />
-            Clear
-          </Button>
-        )}
-      </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Resource Type</label>
+          <Select value={resourceType} onValueChange={(v) => filters.set("resource_type", v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              {RESOURCE_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t.replace(/_/g, " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Action</label>
+          <Select value={action} onValueChange={(v) => filters.set("action", v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All actions" />
+            </SelectTrigger>
+            <SelectContent>
+              {ACTIONS.map((a) => (
+                <SelectItem key={a} value={a}>
+                  {a === "create" ? "✨ create" : a === "update" ? "✏️ update" : "🗑️ delete"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Resource ID</label>
+          <Input
+            value={resourceId}
+            onChange={(e) => filters.set("resource_id", e.target.value)}
+            placeholder="Filter by resource ID"
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Actor ID</label>
+          <Input
+            value={actorId}
+            onChange={(e) => filters.set("actor_id", e.target.value)}
+            placeholder="Filter by actor ID"
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+      </FilterSheet>
 
       {/* Table */}
       {isLoading ? (

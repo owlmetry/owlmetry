@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import type { UrlFilters } from "@/hooks/use-url-filters";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { X } from "lucide-react";
+import { FilterSheet, type FilterChip } from "@/components/filter-sheet";
 import { TIME_RANGES, ENVIRONMENTS } from "@/lib/time-ranges";
 
 export interface GroupByOption {
@@ -29,6 +28,8 @@ interface AnalyticsFilterBarProps {
   leadingChildren?: ReactNode;
   /** Extra controls rendered after the standard filters (before the Clear button). */
   children?: ReactNode;
+  /** Filter chips for the summary row. */
+  chips?: FilterChip[];
 }
 
 export function AnalyticsFilterBar({
@@ -37,6 +38,7 @@ export function AnalyticsFilterBar({
   groupByAllowNone,
   leadingChildren,
   children,
+  chips = [],
 }: AnalyticsFilterBarProps) {
   const timeRange = filters.get("time_range");
   const sinceInput = filters.get("since");
@@ -46,13 +48,17 @@ export function AnalyticsFilterBar({
   const groupBy = filters.get("group_by");
 
   return (
-    <div className="flex items-end gap-3 flex-wrap">
+    <FilterSheet
+      hasActiveFilters={filters.hasActiveFilters}
+      onClear={filters.clearFilters}
+      chips={chips}
+    >
       {leadingChildren}
 
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Time Range</label>
         <Select value={timeRange} onValueChange={filters.handleTimeRangeChange}>
-          <SelectTrigger className="w-[160px] h-8 text-xs">
+          <SelectTrigger className="h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -73,7 +79,7 @@ export function AnalyticsFilterBar({
               type="date"
               value={sinceInput}
               onChange={(e) => filters.handleDateChange("since", e.target.value)}
-              className="w-[160px] h-8 text-xs"
+              className="h-8 text-xs"
             />
           </div>
 
@@ -83,22 +89,11 @@ export function AnalyticsFilterBar({
               type="date"
               value={untilInput}
               onChange={(e) => filters.handleDateChange("until", e.target.value)}
-              className="w-[160px] h-8 text-xs"
+              className="h-8 text-xs"
             />
           </div>
         </>
       )}
-
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">App Version</label>
-        <Input
-          type="text"
-          placeholder="e.g. 1.0.0"
-          value={appVersion}
-          onChange={(e) => filters.set("app_version", e.target.value)}
-          className="w-[160px] h-8 text-xs"
-        />
-      </div>
 
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Environment</label>
@@ -106,7 +101,7 @@ export function AnalyticsFilterBar({
           value={environment || "all"}
           onValueChange={(v) => filters.set("environment", v === "all" ? "" : v)}
         >
-          <SelectTrigger className="w-[160px] h-8 text-xs">
+          <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="All" />
           </SelectTrigger>
           <SelectContent>
@@ -120,6 +115,17 @@ export function AnalyticsFilterBar({
         </Select>
       </div>
 
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">App Version</label>
+        <Input
+          type="text"
+          placeholder="e.g. 1.0.0"
+          value={appVersion}
+          onChange={(e) => filters.set("app_version", e.target.value)}
+          className="h-8 text-xs"
+        />
+      </div>
+
       {groupByOptions && (
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Group By</label>
@@ -129,7 +135,7 @@ export function AnalyticsFilterBar({
               filters.set("group_by", groupByAllowNone && v === "none" ? "" : v)
             }
           >
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -145,13 +151,6 @@ export function AnalyticsFilterBar({
       )}
 
       {children}
-
-      {filters.hasActiveFilters && (
-        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={filters.clearFilters}>
-          <X className="h-3 w-3 mr-1" />
-          Clear
-        </Button>
-      )}
-    </div>
+    </FilterSheet>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue } from "react";
+import { useMemo, useDeferredValue } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import type { FunnelDefinitionResponse, AppResponse, ProjectResponse } from "@owlmetry/shared";
@@ -9,6 +9,8 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useFunnelQuery } from "@/hooks/use-funnels";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
+import type { FilterChip } from "@/components/filter-sheet";
+import { TIME_RANGES } from "@/lib/time-ranges";
 import { FunnelChart } from "@/components/funnels/funnel-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -92,6 +94,39 @@ export default function FunnelDetailPage() {
 
   const analytics = queryData?.analytics;
 
+  const chips = useMemo(() => {
+    const c: FilterChip[] = [];
+    if (projectId) {
+      const name = projects.find((p) => p.id === projectId)?.name ?? projectId.slice(0, 8) + "...";
+      c.push({ label: "Project", value: name });
+    }
+    const appIdVal = filters.get("app_id");
+    if (appIdVal) {
+      const name = apps.find((a) => a.id === appIdVal)?.name ?? appIdVal.slice(0, 8) + "...";
+      c.push({ label: "App", value: name });
+    }
+    const tr = filters.get("time_range");
+    if (tr && tr !== "7d") {
+      if (tr === "custom") {
+        const s = filters.get("since");
+        const u = filters.get("until");
+        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
+      } else {
+        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
+        c.push({ label: "Time", value: label });
+      }
+    }
+    const env = filters.get("environment");
+    if (env) c.push({ label: "Env", value: env });
+    const av = filters.get("app_version");
+    if (av) c.push({ label: "Version", value: av });
+    const exp = filters.get("experiment");
+    if (exp) c.push({ label: "Experiment", value: exp });
+    if (openMode) c.push({ label: "Mode", value: "Open" });
+    return c;
+  }, [projectId, projects, apps, openMode, filters]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -107,12 +142,13 @@ export default function FunnelDetailPage() {
         filters={filters}
         groupByOptions={FUNNEL_GROUP_BY_OPTIONS}
         groupByAllowNone
+        chips={chips}
         leadingChildren={
           <>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Project</label>
               <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-                <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -130,7 +166,7 @@ export default function FunnelDetailPage() {
                 value={filters.get("app_id") || "all"}
                 onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
               >
-                <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All apps" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,7 +189,7 @@ export default function FunnelDetailPage() {
             placeholder="name:variant"
             value={filters.get("experiment")}
             onChange={(e) => filters.set("experiment", e.target.value)}
-            className="w-[160px] h-8 text-xs"
+            className="h-8 text-xs"
           />
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import useSWR from "swr";
 import type {
   EventsQueryParams,
@@ -10,6 +10,7 @@ import type {
   LogLevel,
 } from "@owlmetry/shared";
 import { TIME_RANGES, ENVIRONMENTS } from "@/lib/time-ranges";
+import { FilterSheet, type FilterChip } from "@/components/filter-sheet";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
@@ -35,7 +36,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { X } from "lucide-react";
 
 export default function EventsPage() {
   const { currentTeam } = useTeam();
@@ -110,6 +110,36 @@ export default function EventsPage() {
     }
   }, [projectId, appId, availableApps]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const chips = useMemo(() => {
+    const c: FilterChip[] = [];
+    if (projectId) {
+      const name = projects.find((p) => p.id === projectId)?.name ?? projectId.slice(0, 8) + "...";
+      c.push({ label: "Project", value: name });
+    }
+    if (appId) {
+      const name = allApps.find((a) => a.id === appId)?.name ?? appId.slice(0, 8) + "...";
+      c.push({ label: "App", value: name });
+    }
+    const tr = filters.get("time_range");
+    if (tr && tr !== "24h") {
+      if (tr === "custom") {
+        const s = filters.get("since");
+        const u = filters.get("until");
+        const fmt = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        c.push({ label: "Time", value: s && u ? `${fmt(s)} – ${fmt(u)}` : s ? `Since ${fmt(s)}` : u ? `Until ${fmt(u)}` : "Custom" });
+      } else {
+        const label = TIME_RANGES.find((r) => r.value === tr)?.label ?? tr;
+        c.push({ label: "Time", value: label });
+      }
+    }
+    if (level) c.push({ label: "Level", value: level });
+    if (environment) c.push({ label: "Env", value: environment });
+    if (userId) c.push({ label: "User", value: userId.length > 16 ? userId.slice(0, 13) + "..." : userId });
+    if (sessionId) c.push({ label: "Session", value: sessionId.length > 16 ? sessionId.slice(0, 13) + "..." : sessionId });
+    if (screenName) c.push({ label: "Screen", value: screenName });
+    return c;
+  }, [projectId, appId, level, environment, userId, sessionId, screenName, projects, allApps, filters]);
+
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);
     setSheetOpen(true);
@@ -122,11 +152,15 @@ export default function EventsPage() {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-end gap-3">
+      <FilterSheet
+        hasActiveFilters={filters.hasActiveFilters}
+        onClear={filters.clearFilters}
+        chips={chips}
+      >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
           <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All projects" />
             </SelectTrigger>
             <SelectContent>
@@ -142,7 +176,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">App</label>
           <Select value={appId} onValueChange={(v) => filters.set("app_id", v)}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="All apps" />
             </SelectTrigger>
             <SelectContent>
@@ -156,75 +190,9 @@ export default function EventsPage() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Level</label>
-          <Select value={level} onValueChange={(v) => filters.set("level", v)}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
-              <SelectValue placeholder="All levels" />
-            </SelectTrigger>
-            <SelectContent>
-              {LOG_LEVELS.map((l) => (
-                <SelectItem key={l} value={l}>
-                  {l === "info" ? "ℹ️ info" : l === "debug" ? "🐛 debug" : l === "warn" ? "⚠️ warn" : "🔴 error"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">User ID</label>
-          <Input
-            value={userId}
-            onChange={(e) => filters.set("user_id", e.target.value)}
-            placeholder="Filter by user"
-            className="w-[160px] h-8 text-xs font-mono"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Screen</label>
-          <Input
-            value={screenName}
-            onChange={(e) => filters.set("screen_name", e.target.value)}
-            placeholder="Filter by screen"
-            className="w-[160px] h-8 text-xs"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Session</label>
-          <Input
-            value={sessionId}
-            onChange={(e) => filters.set("session_id", e.target.value)}
-            placeholder="Filter by session"
-            className="w-[160px] h-8 text-xs font-mono"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Environment</label>
-          <Select
-            value={environment || "all"}
-            onValueChange={(v) => filters.set("environment", v === "all" ? "" : v)}
-          >
-            <SelectTrigger className="w-[160px] h-8 text-xs">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              {ENVIRONMENTS.map((env) => (
-                <SelectItem key={env} value={env}>
-                  {env}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Time Range</label>
           <Select value={filters.get("time_range")} onValueChange={filters.handleTimeRangeChange}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -245,7 +213,7 @@ export default function EventsPage() {
                 type="date"
                 value={filters.get("since")}
                 onChange={(e) => filters.handleDateChange("since", e.target.value)}
-                className="w-[160px] h-8 text-xs"
+                className="h-8 text-xs"
               />
             </div>
 
@@ -255,19 +223,78 @@ export default function EventsPage() {
                 type="date"
                 value={filters.get("until")}
                 onChange={(e) => filters.handleDateChange("until", e.target.value)}
-                className="w-[160px] h-8 text-xs"
+                className="h-8 text-xs"
               />
             </div>
           </>
         )}
 
-        {filters.hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={filters.clearFilters} className="h-8">
-            <X className="h-3.5 w-3.5 mr-1" />
-            Clear
-          </Button>
-        )}
-      </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Level</label>
+          <Select value={level} onValueChange={(v) => filters.set("level", v)}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All levels" />
+            </SelectTrigger>
+            <SelectContent>
+              {LOG_LEVELS.map((l) => (
+                <SelectItem key={l} value={l}>
+                  {l === "info" ? "ℹ️ info" : l === "debug" ? "🐛 debug" : l === "warn" ? "⚠️ warn" : "🔴 error"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Environment</label>
+          <Select
+            value={environment || "all"}
+            onValueChange={(v) => filters.set("environment", v === "all" ? "" : v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {ENVIRONMENTS.map((env) => (
+                <SelectItem key={env} value={env}>
+                  {env}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">User ID</label>
+          <Input
+            value={userId}
+            onChange={(e) => filters.set("user_id", e.target.value)}
+            placeholder="Filter by user"
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Session</label>
+          <Input
+            value={sessionId}
+            onChange={(e) => filters.set("session_id", e.target.value)}
+            placeholder="Filter by session"
+            className="h-8 text-xs font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Screen</label>
+          <Input
+            value={screenName}
+            onChange={(e) => filters.set("screen_name", e.target.value)}
+            placeholder="Filter by screen"
+            className="h-8 text-xs"
+          />
+        </div>
+      </FilterSheet>
 
       {/* Auto-refresh indicator */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
