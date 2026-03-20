@@ -1,6 +1,7 @@
 import { createDatabaseConnection } from "./index.js";
 import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, metricDefinitions, funnelDefinitions } from "./schema.js";
 import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
+import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import "dotenv/config";
 
@@ -11,114 +12,137 @@ if (process.env.NODE_ENV === "production") {
 
 const url = process.env.DATABASE_URL || "postgres://localhost:5432/owlmetry";
 
+/** Insert a row if it doesn't exist, otherwise select the existing one. */
+async function findOrCreate<T extends Record<string, unknown>>(
+  db: ReturnType<typeof createDatabaseConnection>,
+  table: Parameters<ReturnType<typeof createDatabaseConnection>["insert"]>[0],
+  values: Record<string, unknown>,
+  selectWhere: Parameters<typeof db.select>[] extends never[] ? never : any,
+): Promise<T> {
+  const [inserted] = await db.insert(table).values(values).onConflictDoNothing().returning();
+  if (inserted) return inserted as T;
+  const [existing] = await db.select().from(table).where(selectWhere);
+  return existing as T;
+}
+
 async function main() {
   const db = createDatabaseConnection(url);
 
   console.log("Seeding database...");
 
-  // Create default user
-  const [user] = await db
-    .insert(users)
-    .values({
-      email: "admin@owlmetry.com",
-      name: "Admin",
-    })
-    .onConflictDoNothing()
-    .returning();
+  // --- User ---
+  const user = await findOrCreate<typeof users.$inferSelect>(
+    db, users,
+    { email: "admin@owlmetry.com", name: "Admin" },
+    eq(users.email, "admin@owlmetry.com"),
+  );
+  console.log(`  User:    ${user.email} (${user.id})`);
 
-  if (!user) {
-    console.log("Seed data already exists, skipping.");
-    process.exit(0);
-  }
+  // --- Team ---
+  const team = await findOrCreate<typeof teams.$inferSelect>(
+    db, teams,
+    { name: "Default Team", slug: "default" },
+    eq(teams.slug, "default"),
+  );
+  console.log(`  Team:    ${team.name} (${team.slug})`);
 
-  // Create default team
-  const [team] = await db
-    .insert(teams)
-    .values({
-      name: "Default Team",
-      slug: "default",
-    })
-    .returning();
-
-  // Add user to team as owner
+  // --- Team member ---
   await db.insert(teamMembers).values({
     team_id: team.id,
     user_id: user.id,
     role: "owner",
-  });
+  }).onConflictDoNothing();
 
-  // Create a demo project
-  const [project] = await db
-    .insert(projects)
-    .values({
-      team_id: team.id,
-      name: "Demo Project",
-      slug: "demo",
-    })
-    .returning();
+  // --- Project ---
+  const project = await findOrCreate<typeof projects.$inferSelect>(
+    db, projects,
+    { team_id: team.id, name: "Demo Project", slug: "demo" },
+    and(eq(projects.team_id, team.id), eq(projects.slug, "demo")),
+  );
+  console.log(`  Project: ${project.name} (${project.slug})`);
 
-  // Create a demo app with deterministic client key (so demo apps can hardcode it)
+  // --- Demo app (apple) ---
   const clientKey = "owl_client_demo_000000000000000000000000000000000000000000";
-  const [app] = await db
-    .insert(apps)
-    .values({
+  const clientKeyHash = hashApiKey(clientKey);
+
+  let [app] = await db.select().from(apps).where(eq(apps.client_key, clientKey));
+  if (!app) {
+    [app] = await db.insert(apps).values({
       team_id: team.id,
       project_id: project.id,
       name: "Demo App",
       platform: "apple",
       bundle_id: "com.owlmetry.demo",
       client_key: clientKey,
-    })
-    .returning();
-  await db.insert(apiKeys).values({
-    key_hash: hashApiKey(clientKey),
-    key_prefix: clientKey.slice(0, KEY_PREFIX_LENGTH),
-    key_type: "client",
-    app_id: app.id,
-    team_id: team.id,
-    name: "Demo Client Key",
-    created_by: user.id,
-    permissions: ["events:write"],
-  });
+    }).returning();
+  }
+  console.log(`  App:     ${app.name} (${app.id})`);
 
-  // Create agent API key (deterministic so demo apps can hardcode it)
+  // Client API key for demo app
+  const [existingClientApiKey] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, clientKeyHash));
+  if (!existingClientApiKey) {
+    await db.insert(apiKeys).values({
+      key_hash: clientKeyHash,
+      key_prefix: clientKey.slice(0, KEY_PREFIX_LENGTH),
+      key_type: "client",
+      app_id: app.id,
+      team_id: team.id,
+      name: "Demo Client Key",
+      created_by: user.id,
+      permissions: ["events:write"],
+    });
+  }
+
+  // --- Agent API key ---
   const agentKey = "owl_agent_demo_000000000000000000000000000000000000000000";
-  await db.insert(apiKeys).values({
-    key_hash: hashApiKey(agentKey),
-    key_prefix: agentKey.slice(0, KEY_PREFIX_LENGTH),
-    key_type: "agent",
-    app_id: null,
-    team_id: team.id,
-    name: "Demo Agent Key",
-    created_by: user.id,
-    permissions: ["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"],
-  });
+  const agentKeyHash = hashApiKey(agentKey);
+  const [existingAgentKey] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, agentKeyHash));
+  if (!existingAgentKey) {
+    await db.insert(apiKeys).values({
+      key_hash: agentKeyHash,
+      key_prefix: agentKey.slice(0, KEY_PREFIX_LENGTH),
+      key_type: "agent",
+      app_id: null,
+      team_id: team.id,
+      name: "Demo Agent Key",
+      created_by: user.id,
+      permissions: ["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"],
+    });
+  }
 
-  // Create a demo server app with deterministic client key
+  // --- Demo server app (backend) ---
   const serverAppKey = "owl_client_svr_0000000000000000000000000000000000000000";
-  const [serverApp] = await db
-    .insert(apps)
-    .values({
+  const serverAppKeyHash = hashApiKey(serverAppKey);
+
+  let [serverApp] = await db.select().from(apps).where(eq(apps.client_key, serverAppKey));
+  if (!serverApp) {
+    [serverApp] = await db.insert(apps).values({
       team_id: team.id,
       project_id: project.id,
       name: "Demo API Server",
       platform: "backend",
       bundle_id: null,
       client_key: serverAppKey,
-    })
-    .returning();
-  await db.insert(apiKeys).values({
-    key_hash: hashApiKey(serverAppKey),
-    key_prefix: serverAppKey.slice(0, KEY_PREFIX_LENGTH),
-    key_type: "client",
-    app_id: serverApp.id,
-    team_id: team.id,
-    name: "Demo API Server Client Key",
-    created_by: user.id,
-    permissions: ["events:write"],
-  });
+    }).returning();
+  }
+  console.log(`  Server:  ${serverApp.name} (${serverApp.id})`);
 
-  // Seed demo events
+  // Client API key for server app
+  const [existingServerApiKey] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, serverAppKeyHash));
+  if (!existingServerApiKey) {
+    await db.insert(apiKeys).values({
+      key_hash: serverAppKeyHash,
+      key_prefix: serverAppKey.slice(0, KEY_PREFIX_LENGTH),
+      key_type: "client",
+      app_id: serverApp.id,
+      team_id: team.id,
+      name: "Demo API Server Client Key",
+      created_by: user.id,
+      permissions: ["events:write"],
+    });
+  }
+
+  // --- Seed demo events (always fresh) ---
   const session1 = crypto.randomUUID();
   const session2 = crypto.randomUUID();
   const now = Date.now();
@@ -140,7 +164,7 @@ async function main() {
     seedEvents.map((e) => ({ ...e, app_id: app.id }))
   );
 
-  // Seed server events
+  // Server events
   const serverSession = crypto.randomUUID();
   const serverEvents: Array<Omit<typeof events.$inferInsert, "app_id">> = [
     { session_id: serverSession, level: "info", message: "Server started on port 4000", screen_name: "", user_id: "", source_module: "index.ts:42", environment: "backend", os_version: "Node.js 22.0.0", app_version: "1.0.0", device_model: "", locale: "", timestamp: new Date(now - 10 * 60000) },
@@ -152,7 +176,7 @@ async function main() {
     serverEvents.map((e) => ({ ...e, app_id: serverApp.id }))
   );
 
-  // Seed metric definitions
+  // --- Metric definitions ---
   await db.insert(metricDefinitions).values([
     {
       project_id: project.id,
@@ -171,9 +195,9 @@ async function main() {
       aggregation_rules: { lifecycle: true },
       status: "active",
     },
-  ]);
+  ]).onConflictDoNothing();
 
-  // Seed funnel definitions
+  // --- Funnel definitions ---
   await db.insert(funnelDefinitions).values([
     {
       project_id: project.id,
@@ -187,10 +211,9 @@ async function main() {
         { name: "First Post", event_filter: { message: "track:first-post" } },
       ],
     },
-  ]);
+  ]).onConflictDoNothing();
 
-  // Seed app_users
-  const now_ts = new Date();
+  // --- App users ---
   await db.insert(appUsers).values([
     {
       app_id: app.id,
@@ -211,21 +234,16 @@ async function main() {
       user_id: "owl_anon_demo-visitor",
       is_anonymous: true,
       first_seen_at: new Date(now - 120000),
-      last_seen_at: now_ts,
+      last_seen_at: new Date(),
     },
-  ]);
+  ]).onConflictDoNothing();
 
   console.log("\nSeed complete!");
-  console.log(`User:       admin@owlmetry.com (verification code appears in server console)`);
-  console.log(`Team:       ${team.name} (${team.slug})`);
-  console.log(`Project:    ${project.name} (${project.slug})`);
-  console.log(`App:        ${app.name} (${app.id})`);
-  console.log(`Server App: ${serverApp.name} (${serverApp.id})`);
-  console.log(`Client Key: ${clientKey}`);
-  console.log(`Server Key: ${serverAppKey}`);
-  console.log(`Agent Key:  ${agentKey}`);
-  console.log(`Events:     ${seedEvents.length + serverEvents.length} demo events seeded`);
-  console.log("\nSave these keys — they won't be shown again.");
+  console.log(`  Client Key: ${clientKey}`);
+  console.log(`  Server Key: ${serverAppKey}`);
+  console.log(`  Agent Key:  ${agentKey}`);
+  console.log(`  Events:     ${seedEvents.length + serverEvents.length} demo events inserted`);
+  console.log("\nRe-run safely at any time — existing data is preserved, fresh events are added.");
 
   process.exit(0);
 }
