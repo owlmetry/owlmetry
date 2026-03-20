@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { eq, and, count, isNull } from "drizzle-orm";
-import { teams, teamMembers, users, apiKeys, auditLogs } from "@owlmetry/db";
+import { eq, and, count, isNull, inArray } from "drizzle-orm";
+import { teams, teamMembers, users, apiKeys, auditLogs, projects, apps, metricDefinitions, funnelDefinitions, teamInvitations } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { canManageRole, VALID_TEAM_ROLES, SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import type {
@@ -129,7 +129,7 @@ export async function teamsRoutes(app: FastifyInstance) {
       }
 
       const [teamRows, members, pendingInvitations] = await Promise.all([
-        app.db.select().from(teams).where(eq(teams.id, teamId)).limit(1),
+        app.db.select().from(teams).where(and(eq(teams.id, teamId), isNull(teams.deleted_at))).limit(1),
         getTeamMembers(app.db, teamId),
         getPendingInvitations(app.db, teamId),
       ]);
@@ -177,13 +177,17 @@ export async function teamsRoutes(app: FastifyInstance) {
       const [current] = await app.db
         .select({ name: teams.name })
         .from(teams)
-        .where(eq(teams.id, teamId))
+        .where(and(eq(teams.id, teamId), isNull(teams.deleted_at)))
         .limit(1);
+
+      if (!current) {
+        return reply.code(404).send({ error: "Team not found" });
+      }
 
       const [updated] = await app.db
         .update(teams)
         .set({ name })
-        .where(eq(teams.id, teamId))
+        .where(and(eq(teams.id, teamId), isNull(teams.deleted_at)))
         .returning();
 
       if (!updated) {
@@ -230,22 +234,77 @@ export async function teamsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Cannot delete your only team" });
       }
 
-      // Log audit before cascade delete removes the audit_logs
+      const now = new Date();
+
+      // Soft-delete team and cascade to all children in a transaction
+      const result = await app.db.transaction(async (tx) => {
+        // Soft-delete the team
+        const [team] = await tx
+          .update(teams)
+          .set({ deleted_at: now })
+          .where(and(eq(teams.id, teamId), isNull(teams.deleted_at)))
+          .returning({ id: teams.id });
+
+        if (!team) return null;
+
+        // Find project IDs for cascading to definitions
+        const teamProjects = await tx
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(eq(projects.team_id, teamId), isNull(projects.deleted_at)));
+        const projectIds = teamProjects.map((p) => p.id);
+
+        // Soft-delete children
+        await tx
+          .update(projects)
+          .set({ deleted_at: now })
+          .where(and(eq(projects.team_id, teamId), isNull(projects.deleted_at)));
+
+        await tx
+          .update(apps)
+          .set({ deleted_at: now })
+          .where(and(eq(apps.team_id, teamId), isNull(apps.deleted_at)));
+
+        await tx
+          .update(apiKeys)
+          .set({ deleted_at: now })
+          .where(and(eq(apiKeys.team_id, teamId), isNull(apiKeys.deleted_at)));
+
+        if (projectIds.length > 0) {
+          await tx
+            .update(metricDefinitions)
+            .set({ deleted_at: now })
+            .where(and(inArray(metricDefinitions.project_id, projectIds), isNull(metricDefinitions.deleted_at)));
+
+          await tx
+            .update(funnelDefinitions)
+            .set({ deleted_at: now })
+            .where(and(inArray(funnelDefinitions.project_id, projectIds), isNull(funnelDefinitions.deleted_at)));
+        }
+
+        // Hard-delete team_members (removes access immediately)
+        await tx
+          .delete(teamMembers)
+          .where(eq(teamMembers.team_id, teamId));
+
+        // Hard-delete pending invitations
+        await tx
+          .delete(teamInvitations)
+          .where(eq(teamInvitations.team_id, teamId));
+
+        return team;
+      });
+
+      if (!result) {
+        return reply.code(404).send({ error: "Team not found" });
+      }
+
       logAuditEvent(app.db, auth, {
         team_id: teamId,
         action: "delete",
         resource_type: "team",
         resource_id: teamId,
       });
-
-      const [deleted] = await app.db
-        .delete(teams)
-        .where(eq(teams.id, teamId))
-        .returning({ id: teams.id });
-
-      if (!deleted) {
-        return reply.code(404).send({ error: "Team not found" });
-      }
 
       return { deleted: true };
     }

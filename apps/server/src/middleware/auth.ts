@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { eq, and, isNull } from "drizzle-orm";
 import { apiKeys, teams, teamMembers } from "@owlmetry/db";
+
 import type { Db } from "@owlmetry/db";
 import { API_KEY_PREFIX, hashApiKey, meetsMinimumRole } from "@owlmetry/shared";
 import type { AuthTeamMembership, TeamRole, Permission, ApiKeyType } from "@owlmetry/shared";
@@ -35,7 +36,7 @@ export async function getUserTeamMemberships(db: Db, userId: string): Promise<Au
     })
     .from(teamMembers)
     .innerJoin(teams, eq(teams.id, teamMembers.team_id))
-    .where(eq(teamMembers.user_id, userId));
+    .where(and(eq(teamMembers.user_id, userId), isNull(teams.deleted_at)));
 
   return rows.map((m) => ({
     id: m.team_id,

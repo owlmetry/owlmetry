@@ -3,7 +3,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
 import postgres from "postgres";
-import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions, dropOldestEventPartitions } from "@owlmetry/db";
+import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions, dropOldestEventPartitions, cleanupSoftDeletedResources } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
@@ -112,6 +112,30 @@ if (config.maxDatabaseSizeGb > 0) {
   pruningInterval = setInterval(runPruning, 3_600_000);
 }
 
+// Soft-delete cleanup (runs daily, hard-deletes resources soft-deleted > 7 days ago)
+let cleanupInterval: ReturnType<typeof setInterval> | undefined;
+
+const runCleanup = async () => {
+  const client = postgres(config.databaseUrl, { max: 1 });
+  try {
+    const result = await cleanupSoftDeletedResources(client);
+    const total = Object.values(result).reduce((a, b) => a + b, 0);
+    if (total > 0) {
+      app.log.info(
+        `Soft-delete cleanup: ${JSON.stringify(result)}`
+      );
+    }
+  } catch (err) {
+    app.log.error("Soft-delete cleanup failed:");
+    app.log.error(err);
+  } finally {
+    await client.end();
+  }
+};
+
+runCleanup();
+cleanupInterval = setInterval(runCleanup, 86_400_000); // 24 hours
+
 // Graceful shutdown
 let shuttingDown = false;
 const shutdown = async (signal: string) => {
@@ -123,6 +147,7 @@ const shutdown = async (signal: string) => {
   forceTimer.unref();
 
   if (pruningInterval) clearInterval(pruningInterval);
+  if (cleanupInterval) clearInterval(cleanupInterval);
   try {
     await app.close();
   } catch {

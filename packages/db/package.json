@@ -17,7 +17,8 @@
     "migrate": "tsx src/migrate.ts",
     "dev:seed": "tsx src/seed.ts",
     "dev:seed-events": "tsx src/seed-events.ts",
-    "dev:unsafe-reset": "tsx src/clear.ts"
+    "dev:unsafe-reset": "tsx src/clear.ts",
+    "cleanup": "tsx src/cleanup.ts"
   },
   "dependencies": {
     "@owlmetry/shared": "workspace:*",

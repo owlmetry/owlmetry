@@ -69,6 +69,7 @@ export const teams = pgTable("teams", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+  deleted_at: timestamp("deleted_at", { withTimezone: true }),
 });
 
 // Team members

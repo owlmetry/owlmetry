@@ -35,7 +35,7 @@ async function findInvitationByToken(db: FastifyInstance["db"], token: string) {
       inviter_name: users.name,
     })
     .from(teamInvitations)
-    .innerJoin(teams, eq(teams.id, teamInvitations.team_id))
+    .innerJoin(teams, and(eq(teams.id, teamInvitations.team_id), isNull(teams.deleted_at)))
     .innerJoin(users, eq(users.id, teamInvitations.invited_by_user_id))
     .where(eq(teamInvitations.token, token))
     .limit(1);
@@ -144,7 +144,7 @@ export async function invitationRoutes(app: FastifyInstance) {
 
       // Fetch team name + inviter name in parallel
       const [teamRows, inviterRows] = await Promise.all([
-        app.db.select({ name: teams.name }).from(teams).where(eq(teams.id, teamId)).limit(1),
+        app.db.select({ name: teams.name }).from(teams).where(and(eq(teams.id, teamId), isNull(teams.deleted_at))).limit(1),
         app.db.select({ name: users.name }).from(users).where(eq(users.id, auth.user_id)).limit(1),
       ]);
 

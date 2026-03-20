@@ -4,6 +4,7 @@ import * as schema from "./schema.js";
 
 export * from "./schema.js";
 export * from "./partitions.js";
+export * from "./cleanup.js";
 export { schema };
 
 export function createDatabaseConnection(databaseUrl: string) {

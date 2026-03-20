@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
-import { projects, apps } from "@owlmetry/db";
+import { projects, apps, apiKeys, metricDefinitions, funnelDefinitions } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
 import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import { serializeApp } from "../utils/serialize.js";
@@ -234,7 +234,14 @@ export async function projectsRoutes(app: FastifyInstance) {
 
       const now = new Date();
 
-      // Soft-delete the project and all its apps
+      // Find app IDs for cascading to api_keys
+      const projectApps = await app.db
+        .select({ id: apps.id })
+        .from(apps)
+        .where(and(eq(apps.project_id, id), isNull(apps.deleted_at)));
+      const appIds = projectApps.map((a) => a.id);
+
+      // Soft-delete the project, its apps, their api_keys, and definitions
       await Promise.all([
         app.db
           .update(apps)
@@ -244,6 +251,20 @@ export async function projectsRoutes(app: FastifyInstance) {
           .update(projects)
           .set({ deleted_at: now })
           .where(eq(projects.id, id)),
+        app.db
+          .update(metricDefinitions)
+          .set({ deleted_at: now })
+          .where(and(eq(metricDefinitions.project_id, id), isNull(metricDefinitions.deleted_at))),
+        app.db
+          .update(funnelDefinitions)
+          .set({ deleted_at: now })
+          .where(and(eq(funnelDefinitions.project_id, id), isNull(funnelDefinitions.deleted_at))),
+        ...(appIds.length > 0
+          ? [app.db
+              .update(apiKeys)
+              .set({ deleted_at: now })
+              .where(and(inArray(apiKeys.app_id, appIds), isNull(apiKeys.deleted_at)))]
+          : []),
       ]);
 
       logAuditEvent(app.db, auth, {

@@ -239,10 +239,19 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: deleteRoleError });
       }
 
-      await app.db
-        .update(apps)
-        .set({ deleted_at: new Date() })
-        .where(eq(apps.id, id));
+      const now = new Date();
+
+      // Soft-delete the app and its api_keys
+      await Promise.all([
+        app.db
+          .update(apps)
+          .set({ deleted_at: now })
+          .where(eq(apps.id, id)),
+        app.db
+          .update(apiKeys)
+          .set({ deleted_at: now })
+          .where(and(eq(apiKeys.app_id, id), isNull(apiKeys.deleted_at))),
+      ]);
 
       logAuditEvent(app.db, auth, {
         team_id: existing.team_id,
