@@ -101,7 +101,7 @@ export default function AuditLogPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Resource Type</label>
           <Select value={resourceType} onValueChange={(v) => filters.set("resource_type", v)}>
-            <SelectTrigger size="sm" className="w-[180px] text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="All types" />
             </SelectTrigger>
             <SelectContent>
@@ -117,7 +117,7 @@ export default function AuditLogPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Action</label>
           <Select value={action} onValueChange={(v) => filters.set("action", v)}>
-            <SelectTrigger size="sm" className="w-[130px] text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="All actions" />
             </SelectTrigger>
             <SelectContent>
@@ -136,7 +136,7 @@ export default function AuditLogPage() {
             value={resourceId}
             onChange={(e) => filters.set("resource_id", e.target.value)}
             placeholder="Filter by resource ID"
-            className="w-[180px] h-8 text-xs font-mono"
+            className="w-[160px] h-8 text-xs font-mono"
           />
         </div>
 
@@ -146,7 +146,7 @@ export default function AuditLogPage() {
             value={actorId}
             onChange={(e) => filters.set("actor_id", e.target.value)}
             placeholder="Filter by actor ID"
-            className="w-[180px] h-8 text-xs font-mono"
+            className="w-[160px] h-8 text-xs font-mono"
           />
         </div>
 
@@ -156,7 +156,7 @@ export default function AuditLogPage() {
             type="date"
             value={since}
             onChange={(e) => filters.set("since", e.target.value)}
-            className="w-[150px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs"
           />
         </div>
 
@@ -166,7 +166,7 @@ export default function AuditLogPage() {
             type="date"
             value={until}
             onChange={(e) => filters.set("until", e.target.value)}
-            className="w-[150px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs"
           />
         </div>
 

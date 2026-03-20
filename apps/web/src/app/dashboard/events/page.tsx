@@ -127,7 +127,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
           <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-            <SelectTrigger size="sm" className="w-[180px] text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="All projects" />
             </SelectTrigger>
             <SelectContent>
@@ -143,7 +143,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">App</label>
           <Select value={appId} onValueChange={(v) => filters.set("app_id", v)}>
-            <SelectTrigger size="sm" className="w-[180px] text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="All apps" />
             </SelectTrigger>
             <SelectContent>
@@ -159,7 +159,7 @@ export default function EventsPage() {
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Level</label>
           <Select value={level} onValueChange={(v) => filters.set("level", v)}>
-            <SelectTrigger size="sm" className="w-[130px] text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="All levels" />
             </SelectTrigger>
             <SelectContent>
@@ -178,7 +178,7 @@ export default function EventsPage() {
             value={userId}
             onChange={(e) => filters.set("user_id", e.target.value)}
             placeholder="Filter by user"
-            className="w-[160px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs font-mono"
           />
         </div>
 
@@ -208,7 +208,7 @@ export default function EventsPage() {
             value={environment || "all"}
             onValueChange={(v) => filters.set("environment", v === "all" ? "" : v)}
           >
-            <SelectTrigger size="sm" className="w-[130px] text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="All" />
             </SelectTrigger>
             <SelectContent>
@@ -228,7 +228,7 @@ export default function EventsPage() {
             type="date"
             value={since}
             onChange={(e) => filters.set("since", e.target.value)}
-            className="w-[150px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs"
           />
         </div>
 
@@ -238,7 +238,7 @@ export default function EventsPage() {
             type="date"
             value={until}
             onChange={(e) => filters.set("until", e.target.value)}
-            className="w-[150px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs"
           />
         </div>
 

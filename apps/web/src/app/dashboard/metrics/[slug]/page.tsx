@@ -167,7 +167,7 @@ export default function MetricDetailPage() {
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Project</label>
               <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-                <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectTrigger className="w-[160px] h-8 text-xs">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -208,7 +208,7 @@ export default function MetricDetailPage() {
             placeholder="e.g. 18.0"
             value={filters.get("os_version")}
             onChange={(e) => filters.set("os_version", e.target.value)}
-            className="w-[120px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs"
           />
         </div>
         <div className="space-y-1">
@@ -323,7 +323,7 @@ export default function MetricDetailPage() {
               value={filters.get("phase") || "all"}
               onValueChange={(v) => filters.set("phase", v === "all" ? "" : v)}
             >
-              <SelectTrigger className="w-[130px] h-8 text-xs">
+              <SelectTrigger className="w-[160px] h-8 text-xs">
                 <SelectValue placeholder="All phases" />
               </SelectTrigger>
               <SelectContent>
@@ -344,7 +344,7 @@ export default function MetricDetailPage() {
               placeholder="Filter by tracking ID"
               value={filters.get("tracking_id")}
               onChange={(e) => filters.set("tracking_id", e.target.value)}
-              className="w-[200px] h-8 text-xs font-mono"
+              className="w-[160px] h-8 text-xs font-mono"
             />
           </div>
         </div>

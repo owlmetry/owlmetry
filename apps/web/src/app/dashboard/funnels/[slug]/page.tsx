@@ -112,7 +112,7 @@ export default function FunnelDetailPage() {
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Project</label>
               <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
-                <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectTrigger className="w-[160px] h-8 text-xs">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,7 +153,7 @@ export default function FunnelDetailPage() {
             placeholder="name:variant"
             value={filters.get("experiment")}
             onChange={(e) => filters.set("experiment", e.target.value)}
-            className="w-[140px] h-8 text-xs"
+            className="w-[160px] h-8 text-xs"
           />
         </div>
 

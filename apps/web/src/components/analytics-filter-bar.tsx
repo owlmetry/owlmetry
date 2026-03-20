@@ -52,7 +52,7 @@ export function AnalyticsFilterBar({
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Time Range</label>
         <Select value={timeRange} onValueChange={filters.handleTimeRangeChange}>
-          <SelectTrigger className="w-[140px] h-8 text-xs">
+          <SelectTrigger className="w-[160px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -71,7 +71,7 @@ export function AnalyticsFilterBar({
           type="date"
           value={sinceInput}
           onChange={(e) => filters.handleDateChange("since", e.target.value)}
-          className="w-[140px] h-8 text-xs"
+          className="w-[160px] h-8 text-xs"
         />
       </div>
 
@@ -81,7 +81,7 @@ export function AnalyticsFilterBar({
           type="date"
           value={untilInput}
           onChange={(e) => filters.handleDateChange("until", e.target.value)}
-          className="w-[140px] h-8 text-xs"
+          className="w-[160px] h-8 text-xs"
         />
       </div>
 
@@ -92,7 +92,7 @@ export function AnalyticsFilterBar({
           placeholder="e.g. 1.0.0"
           value={appVersion}
           onChange={(e) => filters.set("app_version", e.target.value)}
-          className="w-[120px] h-8 text-xs"
+          className="w-[160px] h-8 text-xs"
         />
       </div>
 
@@ -102,7 +102,7 @@ export function AnalyticsFilterBar({
           value={environment || "all"}
           onValueChange={(v) => filters.set("environment", v === "all" ? "" : v)}
         >
-          <SelectTrigger className="w-[130px] h-8 text-xs">
+          <SelectTrigger className="w-[160px] h-8 text-xs">
             <SelectValue placeholder="All" />
           </SelectTrigger>
           <SelectContent>
@@ -125,7 +125,7 @@ export function AnalyticsFilterBar({
               filters.set("group_by", groupByAllowNone && v === "none" ? "" : v)
             }
           >
-            <SelectTrigger className="w-[140px] h-8 text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
