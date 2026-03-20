@@ -15,7 +15,8 @@
     "test": "pnpm -r test && pnpm test:swift-sdk",
     "test:swift-sdk": "bash scripts/test-swift-sdk.sh",
     "test:node-sdk": "bash scripts/test-node-sdk.sh",
-    "dev:demo-node": "node demos/node/server.mjs"
+    "dev:demo-node": "node demos/node/server.mjs",
+    "test:coverage": "pnpm --filter @owlmetry/server exec vitest run --coverage"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.4.0",
+    "@vitest/coverage-v8": "^4.0.18",
     "vitest": "^4.0.18"
   }
 }

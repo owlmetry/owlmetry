@@ -15,6 +15,9 @@ dist/
 # OS
 .DS_Store
 
+# coverage
+coverage/
+
 # logs
 *.log
 .dev-verification-code
