@@ -8,6 +8,12 @@ description: >-
 allowed-tools: Read, Bash, Grep, Glob
 ---
 
+## What is OwlMetry?
+
+OwlMetry is a self-hosted analytics platform. The Node.js SDK captures events from backend services — API servers, job workers, serverless functions — and delivers them to the OwlMetry server. It buffers events in memory and flushes them in batches to avoid blocking your application's request path.
+
+The SDK has zero runtime dependencies. All calls are non-blocking — events are buffered internally and sent in the background. A single `Owl.configure()` call initialises everything including a background flush timer.
+
 ## Version Check
 
 Run these checks silently. Only inform the user if updates are available.
@@ -55,7 +61,28 @@ Owl.configure({
 - Generates a fresh `sessionId` (UUID) on each `configure()` call
 - Registers a `beforeExit` handler to auto-flush on graceful shutdown
 
+## Buffering and Delivery
+
+The SDK buffers events in memory and sends them to the server in batches. Understanding how buffering works helps you avoid lost events:
+
+- **Buffer size** (`maxBufferSize: 10000`): maximum events held in memory. If the buffer fills up, new events are dropped. Increase this if your service produces bursts of events.
+- **Flush interval** (`flushIntervalMs: 5000`): a background timer fires every 5 seconds and sends all buffered events. The timer uses `.unref()` so it won't keep the process alive.
+- **Flush threshold** (`flushThreshold: 20`): if the buffer reaches this many events before the timer fires, an immediate flush is triggered.
+- **HTTP timeout**: each flush request has a 10-second timeout to prevent hanging on slow or unreachable servers. Failed flushes are silently dropped (events are not retried).
+- **Graceful exit**: a `beforeExit` handler auto-flushes remaining events on normal process termination. For SIGTERM/SIGINT, you must call `Owl.shutdown()` explicitly (see Graceful Shutdown).
+
+The key implication: if your process crashes or is force-killed, any events still in the buffer are lost. For critical routes, use `wrapHandler()` to flush after each request.
+
 ## Log Events
+
+Events are the core data unit. Use the four log levels to capture different kinds of backend activity:
+
+- **`info`** — normal operations: server started, request handled, job completed, user action processed.
+- **`debug`** — verbose detail for development: cache lookups, query plans, config loading, intermediate state.
+- **`warn`** — recoverable problems: slow queries, rate limits approaching, fallback paths, deprecated API usage.
+- **`error`** — failures: database connection errors, external API failures, unhandled rejections, missing resources.
+
+Choose **message strings** that are specific and searchable. Prefer `"Payment processing failed"` over `"error occurred"`. Use attributes for structured data you'll filter on later — keep values as strings.
 
 ```typescript
 Owl.info('Server started', { port: 4000 });
@@ -68,9 +95,19 @@ All methods: `Owl.info/debug/warn/error(message: string, attrs?: Record<string, 
 
 Source module (file:line) is auto-captured from the call stack.
 
+**Backend-specific examples:**
+```typescript
+Owl.info('Request handled', { method: 'POST', path: '/api/orders', status: 201 });
+Owl.info('Background job completed', { job: 'send-emails', processed: 150 });
+Owl.warn('Rate limit approaching', { current: 95, limit: 100, client_id: 'abc' });
+Owl.error('External API timeout', { service: 'stripe', endpoint: '/charges', timeout_ms: 10000 });
+```
+
 ## Per-Request User Scoping
 
-Create a scoped logger that automatically tags all events with a user ID:
+In a multi-user backend, many requests are processed concurrently. Without scoping, you'd need to pass a user ID to every log call. `Owl.withUser()` creates a scoped instance that automatically tags all events with the user ID — create one per request in your auth middleware.
+
+Use scoped instances whenever you know who the user is. Use the global `Owl` for system-level events (startup, shutdown, background jobs without a user context).
 
 ```typescript
 const owl = Owl.withUser('user_42');
@@ -82,6 +119,10 @@ owl.error('Payment failed', { reason: 'insufficient_funds' });
 `ScopedOwl` has the same logging methods as `Owl` (`info`, `debug`, `warn`, `error`, `track`, `startOperation`, `recordMetric`).
 
 ## Funnel Tracking
+
+Backend funnels track server-side conversion flows — signup pipelines, payment processing, onboarding sequences, data processing stages. Unlike client-side funnels where users interact with UI, backend funnels typically track state transitions in response to API calls or background jobs.
+
+**User ID is critical for backend funnels.** Funnel analytics group by user to calculate conversion — without a user ID, events can't be attributed. Always use a scoped instance (`Owl.withUser()`) or ensure user identity is set.
 
 ```typescript
 Owl.track('signup-started');
@@ -98,6 +139,14 @@ Each `track()` call emits an info-level event with message `"track:<stepName>"`.
 **Note:** `track()` attributes must be `Record<string, string>` (string values only).
 
 ## Structured Metrics
+
+Use structured metrics when you want aggregated performance data (averages, percentiles, error rates) rather than individual event logs. Metrics give you trend data and alerting signals; events give you individual records for debugging.
+
+**Decision: lifecycle vs single-shot:**
+- **Lifecycle** — when measuring something with a duration (start → end). Backend examples: HTTP request handling, database queries, external API calls, file processing, queue job execution.
+- **Single-shot** — when recording a point-in-time measurement. Backend examples: queue depth, cache hit rate, active connections, deployment markers.
+
+The metric definition must exist on the server **before** the SDK emits events for that slug. Create it via CLI first.
 
 ### Lifecycle operations (start -> complete/fail/cancel)
 
@@ -131,6 +180,16 @@ Works with scoped instances too: `owl.startOperation(...)`, `owl.recordMetric(..
 
 ## A/B Experiments
 
+Backend experiments let you vary server-side behavior (algorithm versions, feature flags, response formats) and measure the impact through metrics and funnels.
+
+How it works end-to-end:
+1. **Assign a variant**: `getVariant("pricing-algo", ["control", "v2"])` randomly picks on first call.
+2. **Branch your logic**: use the returned variant string to execute different code paths.
+3. **Events are auto-tagged**: all subsequent events include the experiment assignment.
+4. **Analyse**: query metrics or funnels segmented by variant to compare outcomes.
+
+Assignments persist to `~/.owlmetry/experiments.json` on disk, so they survive restarts. **Serverless caveat**: in serverless environments (Lambda, Cloud Functions), each cold start reads from the file — but if the filesystem is ephemeral, assignments won't persist across invocations. Use `setExperiment()` with a server-side assignment for stable bucketing in serverless.
+
 ```typescript
 // Random assignment on first call, persisted to ~/.owlmetry/experiments.json
 const variant = Owl.getVariant('checkout-redesign', ['control', 'variant-a', 'variant-b']);
@@ -146,7 +205,14 @@ All events automatically include an `experiments` field with current assignments
 
 ## Serverless Support
 
-Wrap handlers to guarantee event flush before returning:
+Serverless environments (AWS Lambda, Vercel Functions, Cloud Functions) freeze the runtime after each invocation. Events still in the buffer are lost when the runtime freezes — the flush timer and `beforeExit` handler may never fire.
+
+`wrapHandler()` solves this by calling `Owl.flush()` in a `finally` block after every invocation, guaranteeing delivery before the runtime freezes.
+
+**When to use `wrapHandler()`:**
+- **Serverless functions**: always wrap — this is the only reliable way to flush.
+- **Long-running servers, critical routes**: wrap routes where losing events is unacceptable (payment processing, user signup). The 5-second flush timer handles the rest.
+- **Long-running servers, general routes**: not needed — the background timer and shutdown handler cover normal operation.
 
 ```typescript
 // AWS Lambda
@@ -170,6 +236,10 @@ app.post('/api/checkout', Owl.wrapHandler(async (req, res) => {
 
 ## Graceful Shutdown
 
+Without explicit shutdown, events buffered since the last flush (up to 5 seconds worth) are lost when the process exits via SIGTERM or SIGINT. The `beforeExit` handler only covers graceful exits (no pending work, no signal termination).
+
+Always add a shutdown handler for production services:
+
 ```typescript
 process.on('SIGTERM', async () => {
   await Owl.shutdown();
@@ -181,6 +251,11 @@ process.on('SIGTERM', async () => {
 - The `beforeExit` handler auto-flushes on graceful process exit even without explicit shutdown.
 
 ## Integration Patterns
+
+These patterns show how to wire OwlMetry into common Node.js frameworks. The key ideas:
+- **Create a scoped logger in auth middleware** so all route handlers get user-attributed events automatically.
+- **Use `wrapHandler()` on critical routes** where losing events is unacceptable.
+- **Call `shutdown()` in the framework's close hook** to flush on process termination.
 
 ### Express middleware
 

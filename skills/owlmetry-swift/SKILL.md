@@ -8,6 +8,12 @@ description: >-
 allowed-tools: Read, Bash, Grep, Glob
 ---
 
+## What is OwlMetry?
+
+OwlMetry is a self-hosted analytics platform. The Swift SDK captures events from iOS, iPadOS, and macOS apps and delivers them to the OwlMetry server. It handles buffering, gzip compression, offline queuing, session management, and network monitoring automatically — you just call logging methods and the SDK takes care of delivery.
+
+The SDK is a static `Owl` enum with no external dependencies. All calls are non-blocking (events are buffered and flushed in batches). A single `configure()` call initialises everything.
+
 ## Version Check
 
 Run these checks silently. Only inform the user if updates are available.
@@ -46,7 +52,7 @@ Add to your target:
 
 ## Configure
 
-Place configuration in your `@main` App init or AppDelegate `didFinishLaunching`:
+Configuration must happen once, before any other `Owl` calls — typically in your `@main` App init or AppDelegate `didFinishLaunching`. Each `configure()` call generates a fresh `session_id` (UUID) that groups all subsequent events together. This means each app launch gets its own session, making it easy to see everything a user did in a single sitting.
 
 ```swift
 import OwlMetry
@@ -77,6 +83,15 @@ Auto-detects: bundle ID, session ID (fresh each launch), debug mode (`#if DEBUG`
 
 ## Log Events
 
+Events are the core unit of data in OwlMetry. Use the four log levels to capture different kinds of information:
+
+- **`info`** — normal operations worth recording: screen views, user actions, feature usage, successful completions. This is your default level.
+- **`debug`** — verbose detail useful only during development: cache hits, state transitions, intermediate values. These are filtered out in production data mode.
+- **`warn`** — something unexpected that the app recovered from: slow responses, fallback paths taken, retries needed.
+- **`error`** — something failed: network errors, parse failures, missing data, caught exceptions.
+
+Choose **message strings** that are specific and searchable. Prefer `"Failed to load profile image"` over `"error"`. Use `screenName` to tie events to where they happened in the UI. Use `customAttributes` for structured data you'll want to filter or search on later.
+
 ```swift
 Owl.info("User opened settings", screenName: "SettingsView")
 Owl.debug("Cache hit", screenName: "HomeView", customAttributes: ["key": "user_prefs"])
@@ -91,7 +106,16 @@ Owl.info(_ message: String, screenName: String? = nil, customAttributes: [String
 
 Source file, function, and line are auto-captured.
 
+**Avoid logging PII** (emails, phone numbers, passwords) or high-frequency events (every frame, every scroll position). Focus on actions and outcomes.
+
 ## User Identity
+
+Identity connects events to real users. Before `setUser()` is called, all events are tagged with an anonymous ID (`owl_anon_...`). After login, calling `setUser()` does two things:
+
+1. Tags all future events with the real user ID.
+2. Retroactively claims all previous anonymous events for that user (server-side), so you get a complete history.
+
+Call `setUser()` right after successful authentication. Call `clearUser()` on logout to revert to anonymous tracking.
 
 ```swift
 // After login — claims all previous anonymous events
@@ -108,6 +132,16 @@ Owl.clearUser(newAnonymousId: true)
 
 ## Funnel Tracking
 
+Funnels measure how users progress through a multi-step flow (onboarding, checkout, activation) and where they drop off. The system has three parts:
+
+1. **Define** the funnel server-side (via CLI or API) with ordered steps and event filters.
+2. **Track** steps client-side with `Owl.track("step-name")` — each call emits an event with message `"track:step-name"`.
+3. **Query** analytics to see conversion rates and drop-off between steps.
+
+Choose step names that match the `event_filter` in your funnel definition. For example, if the step filter is `{"message": "track:welcome-screen"}`, then call `Owl.track("welcome-screen")`.
+
+Use `attributes` when you need to segment funnel analytics later (e.g., by signup method or referral source).
+
 ```swift
 Owl.track("welcome-screen")
 Owl.track("create-account", attributes: ["method": "email"])
@@ -123,6 +157,14 @@ owlmetry funnels create --project <id> --name "Onboarding" --slug onboarding \
 ```
 
 ## Structured Metrics
+
+Use structured metrics instead of plain log events when you want aggregated statistics (averages, percentiles, error rates) rather than just a list of individual events. Metrics give you `p50`, `p95`, `p99` latencies, success/failure rates, and trend data over time.
+
+**Decision: lifecycle vs single-shot:**
+- **Lifecycle** — when you're measuring something with a duration (start → end). Examples: image upload, API call, video encoding, onboarding flow. The SDK auto-tracks `duration_ms`.
+- **Single-shot** — when you're recording a point-in-time value. Examples: app cold-start time, memory usage, items in cart at checkout.
+
+The metric definition must exist on the server **before** the SDK emits events for that slug. Create it via CLI first.
 
 ### Lifecycle operations (start → complete/fail/cancel)
 
@@ -154,6 +196,15 @@ Owl.recordMetric("app-cold-start", attributes: ["screen": "home"])
 
 ## A/B Experiments
 
+OwlMetry provides lightweight client-side A/B testing. The flow is:
+
+1. **Assign a variant**: `getVariant("experiment-name", options: ["control", "variant-a"])` randomly picks a variant on first call.
+2. **Render conditionally**: use the returned variant string to show different UI.
+3. **Events are auto-tagged**: all subsequent events include the experiment assignment in their `experiments` field.
+4. **Analyse**: query funnel or metric data segmented by variant to compare performance.
+
+`getVariant()` persists the assignment in Keychain, so the same user always sees the same variant across launches. Use `setExperiment()` to force a specific variant (e.g., from a server-side feature flag system). Use `clearExperiments()` to reset all assignments (e.g., for testing).
+
 ```swift
 // Random assignment on first call, persisted to Keychain thereafter
 let variant = Owl.getVariant("checkout-redesign", options: ["control", "variant-a", "variant-b"])
@@ -168,6 +219,34 @@ Owl.clearExperiments()
 - Assignments persist in Keychain (`com.owlmetry.experiments`).
 - All events automatically include an `experiments` field with current assignments.
 - Query funnel analytics segmented by variant via CLI: `owlmetry funnels query <slug> --project <id> --group-by experiment:checkout-redesign`
+
+## Instrumentation Strategy
+
+When instrumenting a new app, follow this priority:
+
+**Always instrument:**
+- App launch / cold start (`info` in `init()` or `didFinishLaunching`)
+- Key screen views (`info` with `screenName` in `onAppear`)
+- Authentication events (login, logout, signup)
+- Errors and failures (`error` in `catch` blocks, error handlers)
+- Core business actions (purchase, share, create, delete)
+
+**Instrument when relevant:**
+- Funnel steps for multi-step flows you want to optimize
+- Lifecycle metrics for operations where duration matters (uploads, loads, syncs)
+- A/B experiments when testing alternative UI or flows
+
+**Where to place calls:**
+- Screen views: `.onAppear` modifiers in SwiftUI, `viewDidAppear` in UIKit
+- User actions: button action handlers, gesture callbacks
+- Errors: `catch` blocks, `Result.failure` handlers
+- Metrics: wrap the async operation between `startOperation()` and `complete()`/`fail()`
+
+**What NOT to instrument:**
+- PII (emails, phone numbers, passwords, tokens)
+- Every UI interaction (every tap, every scroll)
+- High-frequency timer events
+- Sensitive business data (prices, payment details)
 
 ## Lifecycle
 
