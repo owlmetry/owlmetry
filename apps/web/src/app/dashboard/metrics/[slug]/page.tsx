@@ -4,7 +4,8 @@ import { useState, useDeferredValue } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
-import type { MetricDefinitionResponse, AppResponse, MetricPhase } from "@owlmetry/shared";
+import type { MetricDefinitionResponse, AppResponse, MetricPhase, ProjectResponse } from "@owlmetry/shared";
+import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
@@ -55,6 +56,7 @@ const METRIC_GROUP_BY_OPTIONS = [
 export default function MetricDetailPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const { currentTeam } = useTeam();
   const { dataMode } = useDataMode();
 
   const filters = useUrlFilters({
@@ -73,7 +75,14 @@ export default function MetricDetailPage() {
       phase: "",
       tracking_id: "",
     },
+    persistKeys: ["project_id"],
   });
+
+  // Fetch projects for the project selector
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    currentTeam?.id ? `/v1/projects?team_id=${currentTeam.id}` : null,
+  );
+  const projects = projectsData?.projects ?? [];
 
   const projectId = filters.get("project_id");
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
@@ -154,25 +163,42 @@ export default function MetricDetailPage() {
         filters={filters}
         groupByOptions={METRIC_GROUP_BY_OPTIONS}
         leadingChildren={
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">App</label>
-            <Select
-              value={filters.get("app_id") || "all"}
-              onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
-            >
-              <SelectTrigger className="w-[160px] h-8 text-xs">
-                <SelectValue placeholder="All apps" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All apps</SelectItem>
-                {apps.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Project</label>
+              <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
+                <SelectTrigger className="w-[180px] h-8 text-xs">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">App</label>
+              <Select
+                value={filters.get("app_id") || "all"}
+                onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
+              >
+                <SelectTrigger className="w-[160px] h-8 text-xs">
+                  <SelectValue placeholder="All apps" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All apps</SelectItem>
+                  {apps.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
         }
       >
         <div className="space-y-1">

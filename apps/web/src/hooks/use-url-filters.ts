@@ -9,6 +9,8 @@ export interface UrlFilterConfig {
   defaults: Record<string, string>;
   /** The base path for URL replacement (e.g. "/dashboard/events"). */
   path: string;
+  /** Keys that survive clearFilters and are excluded from hasActiveFilters (e.g. ["project_id"]). */
+  persistKeys?: string[];
 }
 
 export interface UrlFilters {
@@ -40,7 +42,8 @@ export interface UrlFilters {
 export function useUrlFilters(config: UrlFilterConfig): UrlFilters {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { defaults, path } = config;
+  const { defaults, path, persistKeys } = config;
+  const persistSet = useMemo(() => new Set(persistKeys ?? []), [persistKeys]);
 
   // Initialize state from URL params, falling back to defaults
   const [values, setValues] = useState<Record<string, string>>(() => {
@@ -120,15 +123,22 @@ export function useUrlFilters(config: UrlFilterConfig): UrlFilters {
 
   const hasActiveFilters = useMemo(() => {
     return Object.keys(defaults).some((key) => {
+      if (persistSet.has(key)) return false;
       const current = values[key] ?? "";
       const def = defaults[key] ?? "";
       return current !== def;
     });
-  }, [values, defaults]);
+  }, [values, defaults, persistSet]);
 
   const clearFilters = useCallback(() => {
-    setValues({ ...defaults });
-  }, [defaults]);
+    setValues((prev) => {
+      const next = { ...defaults };
+      for (const key of persistSet) {
+        if (prev[key] !== undefined) next[key] = prev[key];
+      }
+      return next;
+    });
+  }, [defaults, persistSet]);
 
   // Time range helpers
   const computedSince = useMemo(() => {
