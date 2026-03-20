@@ -8,6 +8,7 @@ import {
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_EXPIRED_KEY,
+  TEST_BACKEND_CLIENT_KEY,
   TEST_BUNDLE_ID,
   TEST_SESSION_ID,
 } from "./setup.js";
@@ -309,5 +310,79 @@ describe("POST /v1/ingest", () => {
     });
 
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  describe("environment validation against app platform", () => {
+    it("apple app accepts ios, ipados, and macos environments", async () => {
+      const res = await ingest([
+        { level: "info", message: "iOS event", session_id: TEST_SESSION_ID, environment: "ios" },
+        { level: "info", message: "iPadOS event", session_id: TEST_SESSION_ID, environment: "ipados" },
+        { level: "info", message: "macOS event", session_id: TEST_SESSION_ID, environment: "macos" },
+      ]);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ accepted: 3, rejected: 0 });
+    });
+
+    it("apple app rejects android, web, and backend environments", async () => {
+      const res = await ingest([
+        { level: "info", message: "Android event", session_id: TEST_SESSION_ID, environment: "android" },
+        { level: "info", message: "Web event", session_id: TEST_SESSION_ID, environment: "web" },
+        { level: "info", message: "Backend event", session_id: TEST_SESSION_ID, environment: "backend" },
+      ]);
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.accepted).toBe(0);
+      expect(body.rejected).toBe(3);
+      expect(body.errors[0].message).toMatch(/environment "android" is not allowed for apple apps/);
+    });
+
+    it("backend app accepts backend environment", async () => {
+      const res = await ingest(
+        [{ level: "info", message: "Backend event", session_id: TEST_SESSION_ID, environment: "backend" }],
+        TEST_BACKEND_CLIENT_KEY,
+        undefined as any
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+    });
+
+    it("backend app rejects ios environment", async () => {
+      const res = await ingest(
+        [{ level: "info", message: "iOS event", session_id: TEST_SESSION_ID, environment: "ios" }],
+        TEST_BACKEND_CLIENT_KEY,
+        undefined as any
+      );
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.accepted).toBe(0);
+      expect(body.rejected).toBe(1);
+      expect(body.errors[0].message).toMatch(/environment "ios" is not allowed for backend apps/);
+    });
+
+    it("accepts events without environment (null/undefined)", async () => {
+      const res = await ingest([
+        { level: "info", message: "No env event", session_id: TEST_SESSION_ID },
+      ]);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+    });
+
+    it("rejects mismatched environment while accepting valid ones in same batch", async () => {
+      const res = await ingest([
+        { level: "info", message: "Valid iOS", session_id: TEST_SESSION_ID, environment: "ios" },
+        { level: "info", message: "Invalid Android", session_id: TEST_SESSION_ID, environment: "android" },
+        { level: "info", message: "No environment", session_id: TEST_SESSION_ID },
+      ]);
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.accepted).toBe(2);
+      expect(body.rejected).toBe(1);
+    });
   });
 });

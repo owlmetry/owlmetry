@@ -6,6 +6,7 @@ import {
   MAX_BATCH_SIZE,
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
   LOG_LEVELS,
+  ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
 } from "@owlmetry/shared";
 import type { IngestRequest, IngestEventPayload } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
@@ -86,7 +87,7 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       // Look up the app to validate bundle_id (if applicable)
       const [appRow] = await app.db
-        .select({ bundle_id: apps.bundle_id })
+        .select({ bundle_id: apps.bundle_id, platform: apps.platform })
         .from(apps)
         .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
         .limit(1);
@@ -116,12 +117,22 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       const errors: Array<{ index: number; message: string }> = [];
       const validated: Array<{ index: number; event: IngestEventPayload }> = [];
+      const allowedEnvironments = ALLOWED_ENVIRONMENTS_FOR_PLATFORM[
+        appRow.platform as keyof typeof ALLOWED_ENVIRONMENTS_FOR_PLATFORM
+      ];
 
       for (let i = 0; i < payloads.length; i++) {
         const e = payloads[i];
         const err = validateIngestEventPayload(e, i);
         if (err) {
           errors.push({ index: i, message: err });
+          continue;
+        }
+        if (e.environment && !allowedEnvironments.includes(e.environment as any)) {
+          errors.push({
+            index: i,
+            message: `events[${i}]: environment "${e.environment}" is not allowed for ${appRow.platform} apps (allowed: ${allowedEnvironments.join(", ")})`,
+          });
           continue;
         }
         validated.push({ index: i, event: e });

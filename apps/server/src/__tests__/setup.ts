@@ -33,6 +33,8 @@ export const TEST_AGENT_KEY =
   "owl_agent_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 export const TEST_EXPIRED_KEY =
   "owl_client_cccccccccccccccccccccccccccccccccccccccccccccc";
+export const TEST_BACKEND_CLIENT_KEY =
+  "owl_client_dddddddddddddddddddddddddddddddddddddddddddddd";
 export const TEST_BUNDLE_ID = "com.owlmetry.test";
 export const TEST_SESSION_ID = "00000000-0000-0000-0000-000000000001";
 export const TEST_USER = {
@@ -403,6 +405,28 @@ export async function seedTestData() {
       'Test Agent Key',
       ${user.id},
       ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"])}::jsonb
+    )
+  `;
+
+  // Backend app (no bundle_id)
+  const [backendApp] = await client`
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
+    VALUES (${team.id}, ${project.id}, 'Test Backend App', 'backend', ${null}, ${TEST_BACKEND_CLIENT_KEY})
+    RETURNING id
+  `;
+
+  // Backend client key (events:write, scoped to backend app)
+  await client`
+    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
+    VALUES (
+      ${hashApiKey(TEST_BACKEND_CLIENT_KEY)},
+      ${TEST_BACKEND_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      'client',
+      ${backendApp.id},
+      ${team.id},
+      'Test Backend Client Key',
+      ${user.id},
+      ${JSON.stringify(["events:write"])}::jsonb
     )
   `;
 

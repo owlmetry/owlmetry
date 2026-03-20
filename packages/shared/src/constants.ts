@@ -18,6 +18,16 @@ export const MAX_PAGE_SIZE = 200;
 export const APP_PLATFORMS = ["apple", "android", "web", "backend"] as const;
 export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
 
+export const ALLOWED_ENVIRONMENTS_FOR_PLATFORM: Record<
+  (typeof APP_PLATFORMS)[number],
+  readonly (typeof ENVIRONMENTS)[number][]
+> = {
+  apple: ["ios", "ipados", "macos"],
+  android: ["android"],
+  web: ["web"],
+  backend: ["backend"],
+};
+
 export const SLUG_REGEX = /^[a-z0-9-]+$/;
 
 /**
