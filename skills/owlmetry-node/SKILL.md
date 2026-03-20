@@ -37,7 +37,7 @@ If the user doesn't have these yet, invoke `/owlmetry-cli` first to:
 npm install @owlmetry/node
 ```
 
-Zero runtime dependencies. Node.js 20+. Supports both ESM and CommonJS.
+Zero runtime dependencies. Node.js 20+. ESM only.
 
 ## Configure
 
@@ -82,7 +82,7 @@ Events are the core data unit. Use the four log levels to capture different kind
 - **`warn`** — recoverable problems: slow queries, rate limits approaching, fallback paths, deprecated API usage.
 - **`error`** — failures: database connection errors, external API failures, unhandled rejections, missing resources.
 
-Choose **message strings** that are specific and searchable. Prefer `"Payment processing failed"` over `"error occurred"`. Use attributes for structured data you'll filter on later — keep values as strings.
+Choose **message strings** that are specific and searchable. Prefer `"Payment processing failed"` over `"error occurred"`. Use attributes for structured data you'll filter on later.
 
 ```typescript
 Owl.info('Server started', { port: 4000 });

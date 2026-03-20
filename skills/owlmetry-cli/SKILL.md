@@ -67,7 +67,7 @@ Projects group apps cross-platform: an iOS app and its backend API can share the
 
 ### Projects
 
-Projects group apps by product and scope metrics and funnels. Create one project per product (e.g., "Acme Mobile", "Acme Backend").
+Projects group apps by product and scope metrics and funnels. Create one project per product (e.g., "Acme" with iOS + backend apps under it).
 
 ```bash
 owlmetry projects --format json                                        # List all

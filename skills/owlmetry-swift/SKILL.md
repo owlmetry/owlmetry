@@ -79,7 +79,7 @@ struct MyApp: App {
 - `flushOnBackground: Bool` — auto-flush when app backgrounds (default: `true`)
 - `compressionEnabled: Bool` — gzip request bodies (default: `true`)
 
-Auto-detects: bundle ID, session ID (fresh each launch), debug mode (`#if DEBUG`).
+Auto-detects: bundle ID, debug mode (`#if DEBUG`). Auto-generates: session ID (fresh each launch).
 
 ## Log Events
 
@@ -128,7 +128,7 @@ Owl.clearUser()
 Owl.clearUser(newAnonymousId: true)
 ```
 
-**Important:** The SDK automatically flushes buffered events before claiming identity. Anonymous events are retroactively linked to the user ID server-side.
+**Important:** The SDK automatically flushes buffered events before claiming identity.
 
 ## Funnel Tracking
 
