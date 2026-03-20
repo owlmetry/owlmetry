@@ -8,6 +8,9 @@ import {
   createAgentKey,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
+  TEST_BACKEND_CLIENT_KEY,
+  TEST_ANDROID_CLIENT_KEY,
+  TEST_ANDROID_BUNDLE_ID,
   TEST_BUNDLE_ID,
   TEST_SESSION_ID,
 } from "./setup.js";
@@ -17,6 +20,8 @@ let token: string;
 let teamId: string;
 let projectId: string;
 let appId: string;
+let backendProjectId: string;
+let androidProjectId: string;
 
 beforeAll(async () => {
   app = await buildApp();
@@ -27,6 +32,8 @@ beforeEach(async () => {
   const seed = await seedTestData();
   projectId = seed.projectId;
   appId = seed.appId;
+  backendProjectId = seed.backendProjectId;
+  androidProjectId = seed.androidProjectId;
   const auth = await getTokenAndTeamId(app);
   token = auth.token;
   teamId = auth.teamId;
@@ -297,7 +304,7 @@ describe("Metric Query Filters", () => {
     const slug = "env-filter-query";
     await ingestMetric(slug, "record", { environment: "ios" });
     await ingestMetric(slug, "record", { environment: "ios" });
-    await ingestMetric(slug, "record", { environment: "android" });
+    await ingestMetric(slug, "record", { environment: "macos" });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
@@ -310,12 +317,12 @@ describe("Metric Query Filters", () => {
     expect(iosRes.statusCode).toBe(200);
     expect(iosRes.json().aggregation.total_count).toBe(2);
 
-    const androidRes = await app.inject({
+    const macosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=android`,
+      url: `/v1/metrics/${slug}/query?project_id=${projectId}&environment=macos`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
-    expect(androidRes.json().aggregation.total_count).toBe(1);
+    expect(macosRes.json().aggregation.total_count).toBe(1);
 
     const allRes = await app.inject({
       method: "GET",
@@ -329,7 +336,7 @@ describe("Metric Query Filters", () => {
     const slug = "env-group-query";
     await ingestMetric(slug, "record", { environment: "ios" });
     await ingestMetric(slug, "record", { environment: "ios" });
-    await ingestMetric(slug, "record", { environment: "web" });
+    await ingestMetric(slug, "record", { environment: "ipados" });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
@@ -343,16 +350,16 @@ describe("Metric Query Filters", () => {
     const groups = res.json().aggregation.groups;
     expect(groups).toHaveLength(2);
     const iosGroup = groups.find((g: any) => g.value === "ios");
-    const webGroup = groups.find((g: any) => g.value === "web");
+    const ipadosGroup = groups.find((g: any) => g.value === "ipados");
     expect(iosGroup.total_count).toBe(2);
-    expect(webGroup.total_count).toBe(1);
+    expect(ipadosGroup.total_count).toBe(1);
   });
 
   it("filters raw metric events by environment", async () => {
     const slug = "env-filter-events";
     await ingestMetric(slug, "record", { environment: "macos" });
-    await ingestMetric(slug, "record", { environment: "backend" });
-    await ingestMetric(slug, "record", { environment: "backend" });
+    await ingestMetric(slug, "record", { environment: "ipados" });
+    await ingestMetric(slug, "record", { environment: "ipados" });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
@@ -364,12 +371,12 @@ describe("Metric Query Filters", () => {
     });
     expect(macosRes.json().events).toHaveLength(1);
 
-    const backendRes = await app.inject({
+    const ipadosRes = await app.inject({
       method: "GET",
-      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=backend&data_mode=all`,
+      url: `/v1/metrics/${slug}/events?project_id=${projectId}&environment=ipados&data_mode=all`,
       headers: { authorization: `Bearer ${agentKey}` },
     });
-    expect(backendRes.json().events).toHaveLength(2);
+    expect(ipadosRes.json().events).toHaveLength(2);
   });
 
   // --- app_version ---
@@ -591,7 +598,7 @@ describe("Metric Query Filters", () => {
     const slug = "multi-filter";
     await ingestMetric(slug, "record", { environment: "ios", app_version: "1.0.0" });
     await ingestMetric(slug, "record", { environment: "ios", app_version: "2.0.0" });
-    await ingestMetric(slug, "record", { environment: "android", app_version: "1.0.0" });
+    await ingestMetric(slug, "record", { environment: "macos", app_version: "1.0.0" });
     await new Promise((r) => setTimeout(r, 200));
 
     const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
@@ -645,5 +652,307 @@ describe("Metric Aggregation", () => {
     expect(aggregation.duration_avg_ms).toBeDefined();
     expect(aggregation.error_breakdown).toHaveLength(1);
     expect(aggregation.error_breakdown[0].error).toBe("payment_failed");
+  });
+});
+
+// ─── Cross-platform metric tests ─────────────────────────────────────────────
+
+describe("Metric Cross-Platform Environment", () => {
+  /** Ingest a metric event targeting a specific platform's app. */
+  async function ingestMetricForPlatform(
+    platform: "apple" | "backend" | "android",
+    slug: string,
+    phase: string,
+    attrs: {
+      environment?: string;
+      app_version?: string;
+      user_id?: string;
+      is_debug?: boolean;
+      tracking_id?: string;
+      duration_ms?: string;
+      error?: string;
+    } = {}
+  ) {
+    const keyMap = {
+      apple: { key: TEST_CLIENT_KEY, bundle_id: TEST_BUNDLE_ID },
+      backend: { key: TEST_BACKEND_CLIENT_KEY, bundle_id: undefined },
+      android: { key: TEST_ANDROID_CLIENT_KEY, bundle_id: TEST_ANDROID_BUNDLE_ID },
+    };
+    const { key, bundle_id } = keyMap[platform];
+    const trackingId = attrs.tracking_id ?? crypto.randomUUID();
+    return app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${key}` },
+      payload: {
+        bundle_id,
+        events: [
+          {
+            session_id: TEST_SESSION_ID,
+            level: "info",
+            message: `metric:${slug}:${phase}`,
+            environment: attrs.environment,
+            app_version: attrs.app_version,
+            user_id: attrs.user_id,
+            is_debug: attrs.is_debug,
+            custom_attributes: {
+              tracking_id: trackingId,
+              ...(attrs.duration_ms ? { duration_ms: attrs.duration_ms } : {}),
+              ...(attrs.error ? { error: attrs.error } : {}),
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  // --- backend platform ---
+
+  it("ingests metric events via backend app with backend environment", async () => {
+    const slug = "backend-metric";
+    const res = await ingestMetricForPlatform("backend", slug, "record", { environment: "backend" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${backendProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(eventsRes.json().events).toHaveLength(1);
+    expect(eventsRes.json().events[0].environment).toBe("backend");
+  });
+
+  it("filters backend metric events by environment", async () => {
+    const slug = "backend-env-filter";
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend" });
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const backendRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${backendProjectId}&environment=backend&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(backendRes.json().events).toHaveLength(2);
+
+    // ios should return nothing for a backend project
+    const iosRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${backendProjectId}&environment=ios&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(iosRes.json().events).toHaveLength(0);
+  });
+
+  it("queries backend metric aggregation", async () => {
+    const slug = "backend-agg";
+    const tid1 = crypto.randomUUID();
+    const tid2 = crypto.randomUUID();
+    await ingestMetricForPlatform("backend", slug, "start", { tracking_id: tid1, environment: "backend" });
+    await ingestMetricForPlatform("backend", slug, "complete", { tracking_id: tid1, duration_ms: "300", environment: "backend" });
+    await ingestMetricForPlatform("backend", slug, "start", { tracking_id: tid2, environment: "backend" });
+    await ingestMetricForPlatform("backend", slug, "fail", { tracking_id: tid2, duration_ms: "100", error: "timeout", environment: "backend" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { aggregation } = res.json();
+    expect(aggregation.total_count).toBe(4);
+    expect(aggregation.start_count).toBe(2);
+    expect(aggregation.complete_count).toBe(1);
+    expect(aggregation.fail_count).toBe(1);
+    expect(aggregation.success_rate).toBe(50);
+    expect(aggregation.error_breakdown).toHaveLength(1);
+    expect(aggregation.error_breakdown[0].error).toBe("timeout");
+  });
+
+  it("backend app rejects non-backend environments for metrics", async () => {
+    const slug = "backend-reject";
+    const res = await ingestMetricForPlatform("backend", slug, "record", { environment: "ios" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().rejected).toBe(1);
+    expect(res.json().errors[0].message).toMatch(/environment "ios" is not allowed for backend apps/);
+  });
+
+  // --- android platform ---
+
+  it("ingests metric events via android app with android environment", async () => {
+    const slug = "android-metric";
+    const res = await ingestMetricForPlatform("android", slug, "record", { environment: "android" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ accepted: 1, rejected: 0 });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const eventsRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${androidProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(eventsRes.json().events).toHaveLength(1);
+    expect(eventsRes.json().events[0].environment).toBe("android");
+  });
+
+  it("filters android metric events by environment", async () => {
+    const slug = "android-env-filter";
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android" });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const androidRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${androidProjectId}&environment=android&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(androidRes.json().events).toHaveLength(2);
+
+    // ios should return nothing for an android project
+    const iosRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/events?project_id=${androidProjectId}&environment=ios&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(iosRes.json().events).toHaveLength(0);
+  });
+
+  it("queries android metric aggregation with lifecycle phases", async () => {
+    const slug = "android-lifecycle";
+    const tid = crypto.randomUUID();
+    await ingestMetricForPlatform("android", slug, "start", { tracking_id: tid, environment: "android" });
+    await ingestMetricForPlatform("android", slug, "complete", { tracking_id: tid, duration_ms: "750", environment: "android" });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { aggregation } = res.json();
+    expect(aggregation.total_count).toBe(3);
+    expect(aggregation.start_count).toBe(1);
+    expect(aggregation.complete_count).toBe(1);
+    expect(aggregation.record_count).toBe(1);
+    expect(aggregation.success_rate).toBe(100);
+  });
+
+  it("android app rejects non-android environments for metrics", async () => {
+    const slug = "android-reject";
+    for (const env of ["ios", "ipados", "macos", "web", "backend"]) {
+      const res = await ingestMetricForPlatform("android", slug, "record", { environment: env });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().rejected).toBe(1);
+      expect(res.json().errors[0].message).toMatch(new RegExp(`environment "${env}" is not allowed for android apps`));
+    }
+  });
+
+  it("groups android metric events by app_version", async () => {
+    const slug = "android-ver-group";
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", app_version: "1.0.0" });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", app_version: "1.0.0" });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", app_version: "2.0.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&group_by=app_version`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(2);
+    const v1 = groups.find((g: any) => g.value === "1.0.0");
+    const v2 = groups.find((g: any) => g.value === "2.0.0");
+    expect(v1.total_count).toBe(2);
+    expect(v2.total_count).toBe(1);
+  });
+
+  it("combines environment and app_version filters for android metrics", async () => {
+    const slug = "android-combo";
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", app_version: "1.0.0" });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", app_version: "2.0.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&environment=android&app_version=1.0.0`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.json().aggregation.total_count).toBe(1);
+  });
+
+  it("data_mode filter works for backend metrics", async () => {
+    const slug = "backend-data-mode";
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_debug: true });
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_debug: false });
+    await ingestMetricForPlatform("backend", slug, "record", { environment: "backend", is_debug: false });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const debugRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=debug`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(debugRes.json().aggregation.total_count).toBe(1);
+
+    const prodRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=production`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(prodRes.json().aggregation.total_count).toBe(2);
+
+    const allRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${backendProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(allRes.json().aggregation.total_count).toBe(3);
+  });
+
+  it("data_mode filter works for android metrics", async () => {
+    const slug = "android-data-mode";
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", is_debug: true });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android", is_debug: false });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    const debugRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&data_mode=debug`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(debugRes.json().aggregation.total_count).toBe(1);
+
+    const prodRes = await app.inject({
+      method: "GET",
+      url: `/v1/metrics/${slug}/query?project_id=${androidProjectId}&data_mode=production`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(prodRes.json().aggregation.total_count).toBe(1);
   });
 });

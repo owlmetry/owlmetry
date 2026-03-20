@@ -266,8 +266,8 @@ describe("GET /v1/auth/keys", () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    // seed creates 3 keys: client, agent, expired
-    expect(body.api_keys).toHaveLength(3);
+    // seed creates 5 keys: client, agent, backend client, android client, expired
+    expect(body.api_keys).toHaveLength(5);
     expect(body.api_keys[0].key_prefix).toBeDefined();
     expect(body.api_keys[0].created_at).toBeDefined();
   });

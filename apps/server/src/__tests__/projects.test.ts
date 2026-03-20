@@ -36,8 +36,9 @@ describe("GET /v1/projects", () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.projects).toHaveLength(1);
-    expect(body.projects[0].name).toBe("Test Project");
+    expect(body.projects).toHaveLength(3);
+    const testProject = body.projects.find((p: any) => p.name === "Test Project");
+    expect(testProject).toBeDefined();
     expect(body.projects[0].deleted_at).toBeUndefined();
   });
 
@@ -56,7 +57,7 @@ describe("GET /v1/projects", () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect(res.json().projects).toHaveLength(0);
+    expect(res.json().projects).toHaveLength(2);
   });
 });
 
@@ -226,7 +227,7 @@ describe("DELETE /v1/projects/:id", () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect(listRes.json().apps).toHaveLength(0);
+    expect(listRes.json().apps).toHaveLength(2);
   });
 
   it("returns 404 for non-existent project", async () => {

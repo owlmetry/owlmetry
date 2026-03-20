@@ -39,10 +39,10 @@ describe("GET /v1/apps", () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.apps).toHaveLength(1);
-    expect(body.apps[0].name).toBe("Test App");
-    expect(body.apps[0].platform).toBe("apple");
-    expect(body.apps[0].client_key).toBe(TEST_CLIENT_KEY);
+    expect(body.apps).toHaveLength(3);
+    const appleApp = body.apps.find((a: any) => a.platform === "apple");
+    expect(appleApp.name).toBe("Test App");
+    expect(appleApp.client_key).toBe(TEST_CLIENT_KEY);
   });
 
   it("returns 401 without auth", async () => {
@@ -301,7 +301,7 @@ describe("POST /v1/apps", () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect(res.json().apps).toHaveLength(2);
+    expect(res.json().apps).toHaveLength(4);
   });
 
   it("cannot create app under a deleted project", async () => {
@@ -433,7 +433,7 @@ describe("DELETE /v1/apps/:id", () => {
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect(listRes.json().apps).toHaveLength(0);
+    expect(listRes.json().apps).toHaveLength(2);
   });
 
   it("returns 404 for non-existent app", async () => {

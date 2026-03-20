@@ -267,7 +267,7 @@ describe("API key permission enforcement — apps routes", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().apps).toHaveLength(1);
+    expect(res.json().apps).toHaveLength(3);
   });
 
   it("agent key without apps:read cannot list apps", async () => {
@@ -409,7 +409,7 @@ describe("API key permission enforcement — projects routes", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().projects).toHaveLength(1);
+    expect(res.json().projects).toHaveLength(3);
   });
 
   it("agent key without projects:read cannot list projects", async () => {

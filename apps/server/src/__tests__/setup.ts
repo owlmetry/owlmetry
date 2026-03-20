@@ -35,6 +35,9 @@ export const TEST_EXPIRED_KEY =
   "owl_client_cccccccccccccccccccccccccccccccccccccccccccccc";
 export const TEST_BACKEND_CLIENT_KEY =
   "owl_client_dddddddddddddddddddddddddddddddddddddddddddddd";
+export const TEST_ANDROID_CLIENT_KEY =
+  "owl_client_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+export const TEST_ANDROID_BUNDLE_ID = "com.owlmetry.test.android";
 export const TEST_BUNDLE_ID = "com.owlmetry.test";
 export const TEST_SESSION_ID = "00000000-0000-0000-0000-000000000001";
 export const TEST_USER = {
@@ -408,10 +411,17 @@ export async function seedTestData() {
     )
   `;
 
-  // Backend app (no bundle_id)
+  // Separate project for backend app
+  const [backendProject] = await client`
+    INSERT INTO projects (team_id, name, slug)
+    VALUES (${team.id}, 'Test Backend Project', 'test-backend-project')
+    RETURNING id
+  `;
+
+  // Backend app (no bundle_id, in its own project)
   const [backendApp] = await client`
     INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-    VALUES (${team.id}, ${project.id}, 'Test Backend App', 'backend', ${null}, ${TEST_BACKEND_CLIENT_KEY})
+    VALUES (${team.id}, ${backendProject.id}, 'Test Backend App', 'backend', ${null}, ${TEST_BACKEND_CLIENT_KEY})
     RETURNING id
   `;
 
@@ -425,6 +435,35 @@ export async function seedTestData() {
       ${backendApp.id},
       ${team.id},
       'Test Backend Client Key',
+      ${user.id},
+      ${JSON.stringify(["events:write"])}::jsonb
+    )
+  `;
+
+  // Separate project for android app
+  const [androidProject] = await client`
+    INSERT INTO projects (team_id, name, slug)
+    VALUES (${team.id}, 'Test Android Project', 'test-android-project')
+    RETURNING id
+  `;
+
+  // Android app
+  const [androidApp] = await client`
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
+    VALUES (${team.id}, ${androidProject.id}, 'Test Android App', 'android', ${TEST_ANDROID_BUNDLE_ID}, ${TEST_ANDROID_CLIENT_KEY})
+    RETURNING id
+  `;
+
+  // Android client key (events:write, scoped to android app)
+  await client`
+    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
+    VALUES (
+      ${hashApiKey(TEST_ANDROID_CLIENT_KEY)},
+      ${TEST_ANDROID_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      'client',
+      ${androidApp.id},
+      ${team.id},
+      'Test Android Client Key',
       ${user.id},
       ${JSON.stringify(["events:write"])}::jsonb
     )
@@ -448,7 +487,16 @@ export async function seedTestData() {
 
   await client.end();
 
-  return { userId: user.id, teamId: team.id, projectId: project.id, appId: app.id };
+  return {
+    userId: user.id,
+    teamId: team.id,
+    projectId: project.id,
+    appId: app.id,
+    backendProjectId: backendProject.id,
+    backendAppId: backendApp.id,
+    androidProjectId: androidProject.id,
+    androidAppId: androidApp.id,
+  };
 }
 
 /**

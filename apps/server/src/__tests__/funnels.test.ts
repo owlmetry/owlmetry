@@ -8,6 +8,9 @@ import {
   createAgentKey,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
+  TEST_BACKEND_CLIENT_KEY,
+  TEST_ANDROID_CLIENT_KEY,
+  TEST_ANDROID_BUNDLE_ID,
   TEST_BUNDLE_ID,
   TEST_SESSION_ID,
 } from "./setup.js";
@@ -17,6 +20,8 @@ let token: string;
 let teamId: string;
 let projectId: string;
 let appId: string;
+let backendProjectId: string;
+let androidProjectId: string;
 
 beforeAll(async () => {
   app = await buildApp();
@@ -27,6 +32,8 @@ beforeEach(async () => {
   const seed = await seedTestData();
   projectId = seed.projectId;
   appId = seed.appId;
+  backendProjectId = seed.backendProjectId;
+  androidProjectId = seed.androidProjectId;
   const auth = await getTokenAndTeamId(app);
   token = auth.token;
   teamId = auth.teamId;
@@ -434,7 +441,7 @@ describe("Funnel Analytics", () => {
     await ingest([
       { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-ios-1", environment: "ios", timestamp: new Date(now - 60000).toISOString() },
       { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "user-ios-1", environment: "ios", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-android-1", environment: "android", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-ipados-1", environment: "ipados", timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -454,9 +461,9 @@ describe("Funnel Analytics", () => {
     expect(iosGroup).toBeDefined();
     expect(iosGroup.steps[0].unique_users).toBe(1);
 
-    const androidGroup = analytics.breakdown.find((b: any) => b.value === "android");
-    expect(androidGroup).toBeDefined();
-    expect(androidGroup.steps[0].unique_users).toBe(1);
+    const ipadosGroup = analytics.breakdown.find((b: any) => b.value === "ipados");
+    expect(ipadosGroup).toBeDefined();
+    expect(ipadosGroup.steps[0].unique_users).toBe(1);
   });
 
   it("groups by experiment variant", async () => {
@@ -578,5 +585,210 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     });
 
     expect(res2.json().analytics.steps[0].unique_users).toBe(0);
+  });
+});
+
+// ─── Cross-platform funnel tests ─────────────────────────────────────────────
+
+describe("Funnel Cross-Platform Environment", () => {
+  const STEPS = [
+    { name: "Landing", event_filter: { message: "track:landing" } },
+    { name: "Signup", event_filter: { message: "track:signup" } },
+  ];
+
+  function ingestForPlatform(platform: "apple" | "backend" | "android", events: any[]) {
+    const keyMap = {
+      apple: { key: TEST_CLIENT_KEY, bundle_id: TEST_BUNDLE_ID },
+      backend: { key: TEST_BACKEND_CLIENT_KEY, bundle_id: undefined },
+      android: { key: TEST_ANDROID_CLIENT_KEY, bundle_id: TEST_ANDROID_BUNDLE_ID },
+    };
+    const { key, bundle_id } = keyMap[platform];
+    return app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${key}` },
+      payload: { bundle_id, events },
+    });
+  }
+
+  // --- backend platform ---
+
+  it("tracks funnel steps ingested via backend app", async () => {
+    await createFunnel({ project_id: backendProjectId, name: "Backend Funnel", slug: "backend-funnel", steps: STEPS });
+
+    const now = Date.now();
+    await ingestForPlatform("backend", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "be-user-1", environment: "backend", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "be-user-1", environment: "backend", timestamp: new Date(now - 50000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/backend-funnel/query?project_id=${backendProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { steps } = res.json().analytics;
+    expect(steps[0].unique_users).toBe(1);
+    expect(steps[1].unique_users).toBe(1);
+  });
+
+  it("backend funnel filters by data_mode", async () => {
+    await createFunnel({ project_id: backendProjectId, name: "Backend DM", slug: "backend-dm", steps: STEPS });
+
+    const now = Date.now();
+    await ingestForPlatform("backend", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "debug-user", environment: "backend", is_debug: true, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user", environment: "backend", is_debug: false, timestamp: new Date(now - 50000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const prodRes = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=production`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(prodRes.json().analytics.steps[0].unique_users).toBe(1);
+
+    const debugRes = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=debug`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(debugRes.json().analytics.steps[0].unique_users).toBe(1);
+
+    const allRes = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/backend-dm/query?project_id=${backendProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(allRes.json().analytics.steps[0].unique_users).toBe(2);
+  });
+
+  it("backend funnel rejects non-backend environment events", async () => {
+    const res = await ingestForPlatform("backend", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "ios" },
+    ]);
+    expect(res.json().rejected).toBe(1);
+    expect(res.json().errors[0].message).toMatch(/not allowed for backend apps/);
+  });
+
+  // --- android platform ---
+
+  it("tracks funnel steps ingested via android app", async () => {
+    await createFunnel({ project_id: androidProjectId, name: "Android Funnel", slug: "android-funnel", steps: STEPS });
+
+    const now = Date.now();
+    await ingestForPlatform("android", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "android-user-1", environment: "android", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "android-user-1", environment: "android", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "android-user-2", environment: "android", timestamp: new Date(now - 40000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/android-funnel/query?project_id=${androidProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { steps } = res.json().analytics;
+    expect(steps[0].unique_users).toBe(2);
+    expect(steps[1].unique_users).toBe(1);
+    expect(steps[1].drop_off_count).toBe(1);
+  });
+
+  it("android funnel computes correct drop-off math", async () => {
+    await createFunnel({ project_id: androidProjectId, name: "Android Drop", slug: "android-drop", steps: STEPS });
+
+    const now = Date.now();
+    await ingestForPlatform("android", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", timestamp: new Date(now - 55000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", timestamp: new Date(now - 40000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/android-drop/query?project_id=${androidProjectId}&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    const { steps } = res.json().analytics;
+    expect(steps[0].unique_users).toBe(3);
+    expect(steps[0].drop_off_count).toBe(0);
+    expect(steps[1].unique_users).toBe(1);
+    expect(steps[1].drop_off_count).toBe(2);
+  });
+
+  it("android funnel filters by data_mode", async () => {
+    await createFunnel({ project_id: androidProjectId, name: "Android DM", slug: "android-dm", steps: STEPS });
+
+    const now = Date.now();
+    await ingestForPlatform("android", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "debug-user", environment: "android", is_debug: true, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-1", environment: "android", is_debug: false, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-2", environment: "android", is_debug: false, timestamp: new Date(now - 40000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const prodRes = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/android-dm/query?project_id=${androidProjectId}&data_mode=production`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(prodRes.json().analytics.steps[0].unique_users).toBe(2);
+
+    const debugRes = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/android-dm/query?project_id=${androidProjectId}&data_mode=debug`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(debugRes.json().analytics.steps[0].unique_users).toBe(1);
+  });
+
+  it("android funnel rejects non-android environment events", async () => {
+    for (const env of ["ios", "ipados", "macos", "web", "backend"]) {
+      const res = await ingestForPlatform("android", [
+        { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: env },
+      ]);
+      expect(res.json().rejected).toBe(1);
+      expect(res.json().errors[0].message).toMatch(new RegExp(`not allowed for android apps`));
+    }
+  });
+
+  it("android funnel supports experiment grouping", async () => {
+    await createFunnel({ project_id: androidProjectId, name: "Android Exp", slug: "android-exp", steps: STEPS });
+
+    const now = Date.now();
+    await ingestForPlatform("android", [
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", experiments: { checkout: "A" }, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 40000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/android-exp/query?project_id=${androidProjectId}&group_by=experiment:checkout&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const variantA = res.json().analytics.breakdown.find((b: any) => b.value === "A");
+    const variantB = res.json().analytics.breakdown.find((b: any) => b.value === "B");
+    expect(variantA.steps[0].unique_users).toBe(1);
+    expect(variantB.steps[0].unique_users).toBe(2);
   });
 });
