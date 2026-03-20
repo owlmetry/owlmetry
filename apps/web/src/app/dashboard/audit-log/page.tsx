@@ -56,6 +56,8 @@ export default function AuditLogPage() {
     defaults: {
       resource_type: "",
       action: "",
+      resource_id: "",
+      actor_id: "",
       since: "",
       until: "",
     },
@@ -66,6 +68,8 @@ export default function AuditLogPage() {
 
   const resourceType = filters.get("resource_type");
   const action = filters.get("action");
+  const resourceId = filters.get("resource_id");
+  const actorId = filters.get("actor_id");
   const since = filters.get("since");
   const until = filters.get("until");
 
@@ -74,6 +78,8 @@ export default function AuditLogPage() {
   };
   if (resourceType) queryFilters.resource_type = resourceType;
   if (action) queryFilters.action = action;
+  if (resourceId) queryFilters.resource_id = resourceId;
+  if (actorId) queryFilters.actor_id = actorId;
   if (since) queryFilters.since = new Date(since).toISOString();
   if (until) queryFilters.until = new Date(until + "T23:59:59").toISOString();
 
@@ -122,6 +128,26 @@ export default function AuditLogPage() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Resource ID</label>
+          <Input
+            value={resourceId}
+            onChange={(e) => filters.set("resource_id", e.target.value)}
+            placeholder="Filter by resource ID"
+            className="w-[180px] h-8 text-xs font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Actor ID</label>
+          <Input
+            value={actorId}
+            onChange={(e) => filters.set("actor_id", e.target.value)}
+            placeholder="Filter by actor ID"
+            className="w-[180px] h-8 text-xs font-mono"
+          />
         </div>
 
         <div className="space-y-1">

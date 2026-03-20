@@ -4,12 +4,20 @@ import { useState, useDeferredValue } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
-import type { MetricDefinitionResponse } from "@owlmetry/shared";
+import type { MetricDefinitionResponse, AppResponse, MetricPhase } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -22,7 +30,9 @@ import {
 import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
-import { BookOpen } from "lucide-react";
+import { BookOpen, X } from "lucide-react";
+
+const METRIC_PHASES: MetricPhase[] = ["start", "complete", "fail", "cancel", "record"];
 
 const PHASE_COLORS: Record<string, string> = {
   start: "bg-blue-500/10 text-blue-600",
@@ -57,12 +67,26 @@ export default function MetricDetailPage() {
       app_version: "",
       environment: "",
       group_by: "time:day",
+      app_id: "",
+      os_version: "",
+      user_id: "",
+      phase: "",
+      tracking_id: "",
     },
   });
 
   const projectId = filters.get("project_id");
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
+  const deferredOsVersion = useDeferredValue(filters.get("os_version"));
+  const deferredUserId = useDeferredValue(filters.get("user_id"));
+  const deferredTrackingId = useDeferredValue(filters.get("tracking_id"));
   const [docsOpen, setDocsOpen] = useState(false);
+
+  // Fetch apps for app_id filter
+  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
+    projectId ? `/v1/apps?project_id=${projectId}` : null,
+  );
+  const apps = appsData?.apps ?? [];
 
   // Fetch metric definition
   const { data: metricData } = useSWR<MetricDefinitionResponse>(
@@ -73,7 +97,10 @@ export default function MetricDetailPage() {
   const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId || undefined, {
     since: filters.computedSince,
     until: filters.computedUntil,
+    app_id: filters.get("app_id") || undefined,
     app_version: deferredAppVersion || undefined,
+    os_version: deferredOsVersion || undefined,
+    user_id: deferredUserId || undefined,
     environment: filters.get("environment") || undefined,
     group_by: filters.get("group_by"),
     data_mode: dataMode,
@@ -83,6 +110,9 @@ export default function MetricDetailPage() {
   const { events, isLoading: eventsLoading } = useMetricEvents(slug, projectId || undefined, {
     since: filters.computedSince,
     until: filters.computedUntil,
+    phase: (filters.get("phase") as MetricPhase) || undefined,
+    tracking_id: deferredTrackingId || undefined,
+    user_id: deferredUserId || undefined,
     environment: filters.get("environment") || undefined,
     data_mode: dataMode,
   });
@@ -120,7 +150,52 @@ export default function MetricDetailPage() {
       </div>
 
       {/* Filter bar */}
-      <AnalyticsFilterBar filters={filters} groupByOptions={METRIC_GROUP_BY_OPTIONS} />
+      <AnalyticsFilterBar
+        filters={filters}
+        groupByOptions={METRIC_GROUP_BY_OPTIONS}
+        leadingChildren={
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">App</label>
+            <Select
+              value={filters.get("app_id") || "all"}
+              onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectValue placeholder="All apps" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All apps</SelectItem>
+                {apps.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      >
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">OS Version</label>
+          <Input
+            type="text"
+            placeholder="e.g. 18.0"
+            value={filters.get("os_version")}
+            onChange={(e) => filters.set("os_version", e.target.value)}
+            className="w-[120px] h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">User ID</label>
+          <Input
+            type="text"
+            placeholder="Filter by user"
+            value={filters.get("user_id")}
+            onChange={(e) => filters.set("user_id", e.target.value)}
+            className="w-[160px] h-8 text-xs font-mono"
+          />
+        </div>
+      </AnalyticsFilterBar>
 
       {queryLoading ? (
         <p className="text-sm text-muted-foreground">Loading metrics...</p>
@@ -213,7 +288,40 @@ export default function MetricDetailPage() {
 
       {/* Recent metric events table */}
       <div>
-        <h2 className="text-sm font-medium mb-3">Recent Events</h2>
+        <div className="flex items-end gap-3 flex-wrap mb-3">
+          <h2 className="text-sm font-medium">Recent Events</h2>
+
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Phase</label>
+            <Select
+              value={filters.get("phase") || "all"}
+              onValueChange={(v) => filters.set("phase", v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="w-[130px] h-8 text-xs">
+                <SelectValue placeholder="All phases" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All phases</SelectItem>
+                {METRIC_PHASES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p === "start" ? "🚀 start" : p === "complete" ? "✅ complete" : p === "fail" ? "❌ fail" : p === "cancel" ? "🚫 cancel" : "📝 record"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Tracking ID</label>
+            <Input
+              type="text"
+              placeholder="Filter by tracking ID"
+              value={filters.get("tracking_id")}
+              onChange={(e) => filters.set("tracking_id", e.target.value)}
+              className="w-[200px] h-8 text-xs font-mono"
+            />
+          </div>
+        </div>
         {eventsLoading ? (
           <p className="text-sm text-muted-foreground">Loading events...</p>
         ) : events.length === 0 ? (

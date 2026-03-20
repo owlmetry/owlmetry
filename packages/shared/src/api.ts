@@ -188,6 +188,7 @@ export interface EventsQueryParams {
   level?: string;
   user_id?: string;
   session_id?: string;
+  environment?: string;
   screen_name?: string;
   since?: string;
   until?: string;

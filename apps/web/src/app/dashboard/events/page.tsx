@@ -9,6 +9,7 @@ import type {
   AppResponse,
   LogLevel,
 } from "@owlmetry/shared";
+import { ENVIRONMENTS } from "@/lib/time-ranges";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
@@ -48,6 +49,8 @@ export default function EventsPage() {
       app_id: "",
       level: "",
       user_id: "",
+      session_id: "",
+      environment: "",
       screen_name: "",
       since: "",
       until: "",
@@ -86,6 +89,10 @@ export default function EventsPage() {
   if (level) filterParams.level = level;
   const userId = filters.get("user_id");
   if (userId) filterParams.user_id = userId;
+  const sessionId = filters.get("session_id");
+  if (sessionId) filterParams.session_id = sessionId;
+  const environment = filters.get("environment");
+  if (environment) filterParams.environment = environment;
   const screenName = filters.get("screen_name");
   if (screenName) filterParams.screen_name = screenName;
   const since = filters.get("since");
@@ -183,6 +190,36 @@ export default function EventsPage() {
             placeholder="Filter by screen"
             className="w-[160px] h-8 text-xs"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Session</label>
+          <Input
+            value={sessionId}
+            onChange={(e) => filters.set("session_id", e.target.value)}
+            placeholder="Filter by session"
+            className="w-[160px] h-8 text-xs font-mono"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Environment</label>
+          <Select
+            value={environment || "all"}
+            onValueChange={(v) => filters.set("environment", v === "all" ? "" : v)}
+          >
+            <SelectTrigger size="sm" className="w-[130px] text-xs">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {ENVIRONMENTS.map((env) => (
+                <SelectItem key={env} value={env}>
+                  {env}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-1">

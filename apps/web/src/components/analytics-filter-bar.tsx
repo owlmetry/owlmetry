@@ -25,6 +25,8 @@ interface AnalyticsFilterBarProps {
   groupByOptions?: GroupByOption[];
   /** Whether the group-by select uses "" as the "none" value (default: false, uses first option as default). */
   groupByAllowNone?: boolean;
+  /** Extra controls rendered before the standard filters. */
+  leadingChildren?: ReactNode;
   /** Extra controls rendered after the standard filters (before the Clear button). */
   children?: ReactNode;
 }
@@ -33,6 +35,7 @@ export function AnalyticsFilterBar({
   filters,
   groupByOptions,
   groupByAllowNone,
+  leadingChildren,
   children,
 }: AnalyticsFilterBarProps) {
   const timeRange = filters.get("time_range");
@@ -44,6 +47,8 @@ export function AnalyticsFilterBar({
 
   return (
     <div className="flex items-end gap-3 flex-wrap">
+      {leadingChildren}
+
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Time Range</label>
         <Select value={timeRange} onValueChange={filters.handleTimeRangeChange}>
