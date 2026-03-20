@@ -18,6 +18,7 @@ dist/
 # logs
 *.log
 .dev-verification-code
+.dev-invitation-link
 firebase-debug.log
 
 # Next.js
@@ -31,4 +32,3 @@ sdks/swift/.build/
 CLAUDE.md
 *PLAN.md
 .claude
-
