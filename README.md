@@ -38,9 +38,12 @@ And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **Structured metrics** — define metrics, track operations with `startOperation`/`complete`/`fail`, query aggregations (counts, success rates, duration percentiles, error breakdowns) via API
 - **Funnel analytics** — define conversion funnels and let your agent query drop-off rates programmatically
+- **Lightweight A/B experiments** — SDKs assign random variants on first call, persist assignments locally, and tag all events with the active experiment; no server config needed
+- **Audit trail** — automatic logging of who created, updated, or deleted resources; queryable via API, CLI, and dashboard
 - **Dashboard optional** — Next.js web UI for when you want a visual overview. Not required for any workflow
 - **Single Postgres** — no Kafka, no ClickHouse, no Redis. One database. Monthly partitioned events handle the scale
 - **Auth model** — `owl_client_` keys for SDKs, `owl_agent_` keys for agents/CLI, JWT for the optional dashboard. Role-based access: **owner** > **admin** > **member**
+- **Team invitations** — token-based email invitations with 7-day expiry; public accept page handles auth redirects automatically
 - **Team management** — create teams, invite members by email, change roles, remove members
 - **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
 
@@ -233,6 +236,7 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/auth/send-code` | None | Send email verification code |
 | `POST` | `/v1/auth/verify-code` | None | Verify code and get JWT token |
 | `POST` | `/v1/auth/agent-login` | None | Verify code + provision agent API key (auto-creates project/app for new users) |
+| `POST` | `/v1/auth/logout` | None | Clear JWT token cookie |
 | `GET` | `/v1/auth/me` | JWT | Get current user profile + teams |
 | `PATCH` | `/v1/auth/me` | JWT | Update name |
 | `GET` | `/v1/auth/teams` | JWT | List user's teams |
@@ -242,13 +246,18 @@ MAX_DATABASE_SIZE_GB=10
 | `PATCH` | `/v1/auth/keys/:id` | JWT (admin+) | Update API key name or permissions |
 | `DELETE` | `/v1/auth/keys/:id` | JWT (admin+) | Revoke an API key |
 | `POST` | `/v1/teams` | JWT | Create a new team |
-| `GET` | `/v1/teams/:id` | JWT | Get team details with members |
+| `GET` | `/v1/teams/:id` | JWT | Get team details with members and pending invitations |
 | `PATCH` | `/v1/teams/:id` | JWT (admin+) | Rename team |
 | `DELETE` | `/v1/teams/:id` | JWT (owner) | Delete team |
 | `GET` | `/v1/teams/:id/members` | JWT | List team members |
-| `POST` | `/v1/teams/:id/members` | JWT (admin+) | Add member by email |
 | `PATCH` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Change member role |
 | `DELETE` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Remove member (or self-leave) |
+| `GET` | `/v1/teams/:id/members/:userId/agent-keys` | JWT | List agent keys created by a member |
+| `POST` | `/v1/teams/:id/invitations` | JWT (admin+) | Create or resend team invitation |
+| `GET` | `/v1/teams/:id/invitations` | JWT | List pending invitations |
+| `DELETE` | `/v1/teams/:id/invitations/:invitationId` | JWT (admin+) | Revoke invitation |
+| `GET` | `/v1/invites/:token` | None | Get invitation details (public) |
+| `POST` | `/v1/invites/accept` | JWT | Accept invitation and join team |
 | `POST` | `/v1/ingest` | Client key | Batch ingest events |
 | `GET` | `/v1/events` | Agent key / JWT | Query events with filters |
 | `GET` | `/v1/events/:id` | Agent key / JWT | Get single event |
@@ -262,7 +271,14 @@ MAX_DATABASE_SIZE_GB=10
 | `POST` | `/v1/apps` | `apps:write` / JWT (admin+) | Create app (requires project_id) |
 | `PATCH` | `/v1/apps/:id` | `apps:write` / JWT (admin+) | Update app name |
 | `DELETE` | `/v1/apps/:id` | JWT only (admin+) | Soft-delete app |
+| `GET` | `/v1/apps/:id/users` | `apps:read` / JWT | List app users (paginated) |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
+| `GET` | `/v1/funnels?project_id=` | `funnels:read` / JWT | List funnel definitions for project |
+| `GET` | `/v1/funnels/:slug?project_id=` | `funnels:read` / JWT | Get funnel definition |
+| `POST` | `/v1/funnels` | `funnels:write` / JWT (admin+) | Create funnel definition |
+| `PATCH` | `/v1/funnels/:slug?project_id=` | `funnels:write` / JWT (admin+) | Update funnel definition |
+| `DELETE` | `/v1/funnels/:slug?project_id=` | JWT only (admin+) | Soft-delete funnel definition |
+| `GET` | `/v1/funnels/:slug/query?project_id=` | `funnels:read` / JWT | Query funnel analytics (drop-off rates, grouping, experiments) |
 | `GET` | `/v1/metrics?project_id=` | `metrics:read` / JWT | List metric definitions for project |
 | `GET` | `/v1/metrics/:slug?project_id=` | `metrics:read` / JWT | Get metric definition with docs |
 | `POST` | `/v1/metrics` | `metrics:write` / JWT (admin+) | Create metric definition |
@@ -309,18 +325,37 @@ New users automatically get a team, project, and backend app provisioned. The ag
 
 ```bash
 # An agent can do all of this programmatically
+
+# Projects & apps
 owlmetry projects                              # List projects
 owlmetry projects view <id>                    # Project details with apps
 owlmetry projects create --team-id <id> --name "My Project" --slug my-project
-
 owlmetry apps                                  # List apps
 owlmetry apps --project <id>                   # Filter by project
 owlmetry apps create --project <id> --name "iOS App" --platform apple --bundle-id com.example.app
 
+# Events
 owlmetry events --since 1h                     # Events from the last hour
 owlmetry events --level error --app <id>       # Errors for a specific app
 owlmetry events view <id>                      # Full event details
 owlmetry investigate <eventId> --window 10     # Events ±10 min around target
+
+# Metrics
+owlmetry metrics --project <id>                # List metric definitions
+owlmetry metrics view <slug> --project <id>    # Metric definition details
+owlmetry metrics create --project <id> --name "Startup Time" --slug startup-time --lifecycle
+owlmetry metrics query <slug> --project <id> --since 7d
+owlmetry metrics events <slug> --project <id>  # Raw metric events
+
+# Funnels
+owlmetry funnels --project <id>                # List funnel definitions
+owlmetry funnels view <slug> --project <id>    # Funnel definition details
+owlmetry funnels create --project <id> --name "Onboarding" --slug onboarding --steps '[...]'
+owlmetry funnels query <slug> --project <id> --since 7d
+
+# Audit log
+owlmetry audit-log list --team <id>            # Query audit log entries
+owlmetry audit-log list --resource-type app --action create
 ```
 
 ### Output Formats
@@ -362,6 +397,28 @@ const owl = Owl.withUser('user_123');
 owl.info('Processing order');
 owl.error('Payment failed', { error: err.message });
 
+// Funnel tracking
+Owl.track('signup-started');
+Owl.track('signup-completed', { method: 'email' });
+
+// Structured metrics — lifecycle operations
+const op = Owl.startOperation('api-request', { endpoint: '/v1/users' });
+// ... do work ...
+op.complete();   // or op.fail(), op.cancel()
+// duration_ms is tracked automatically
+
+// Structured metrics — single-shot measurement
+Owl.recordMetric('cache-hit', { key: 'user:123' });
+
+// A/B experiments
+const variant = Owl.getVariant('onboarding-flow', ['control', 'streamlined']);
+// Returns random variant on first call, persists to ~/.owlmetry/experiments.json
+Owl.setExperiment('onboarding-flow', 'streamlined');  // Force a variant
+Owl.clearExperiments();                                // Reset all assignments
+
+// Manual flush (useful in scripts)
+await Owl.flush();
+
 // Graceful shutdown (flushes all buffered events)
 await Owl.shutdown();
 ```
@@ -394,6 +451,64 @@ export const myFunction = onRequest(
 
 - **Safety net**: The SDK also registers a `beforeExit` hook that flushes any remaining events when the Node.js event loop drains, catching events that slip through without `wrapHandler`.
 - **Use `wrapHandler`, not `shutdown()`** — `shutdown()` destroys the transport, which breaks warm container reuse. `wrapHandler` only flushes, keeping the SDK ready for the next invocation.
+
+## Swift SDK
+
+Native Swift SDK for iOS, iPadOS, and macOS. Distributed as a Swift Package.
+
+### Setup
+
+1. Add the package dependency pointing to your OwlMetry repo
+2. Create an Apple-platform app in OwlMetry and use the generated `owl_client_` key
+
+### Usage
+
+```swift
+import OwlMetry
+
+// Initialize (typically in AppDelegate or @main App.init)
+try Owl.configure(
+    endpoint: "https://your-owlmetry.com",
+    apiKey: "owl_client_xxx"
+)
+
+// Logging
+Owl.info("User logged in")
+Owl.error("Payment failed", customAttributes: ["reason": "insufficient_funds"])
+Owl.warn("Retry limit approaching")
+Owl.debug("Cache miss", screenName: "ProfileView")
+
+// User identity
+Owl.setUser("user_123")           // Link events to a known user
+Owl.clearUser()                   // Revert to anonymous
+
+// Funnel tracking
+Owl.track("signup-started")
+Owl.track("signup-completed", attributes: ["method": "apple"])
+
+// Structured metrics — lifecycle operations
+let op = Owl.startOperation("image-upload", attributes: ["format": "heic"])
+// ... do work ...
+op.complete()   // or op.fail(), op.cancel()
+
+// Structured metrics — single-shot
+Owl.recordMetric("cache-hit", attributes: ["key": "user:123"])
+
+// A/B experiments
+let variant = Owl.getVariant("onboarding-flow", options: ["control", "streamlined"])
+Owl.setExperiment("onboarding-flow", variant: "streamlined")
+Owl.clearExperiments()
+
+// Graceful shutdown
+await Owl.shutdown()
+```
+
+### Transport
+
+- Events are buffered and flushed periodically or when the buffer fills
+- Payloads are gzip-compressed by default (`compressionEnabled: true`)
+- Automatically flushes when the app enters the background (`flushOnBackground: true`)
+- `session_id` is generated per `configure()` call
 
 ## Demo Apps
 
