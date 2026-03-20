@@ -7,6 +7,7 @@ import type { ProjectResponse, MetricDefinitionResponse, StoredMetricEventRespon
 import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -25,14 +26,17 @@ import {
 import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
-import { BookOpen } from "lucide-react";
+import { BookOpen, X } from "lucide-react";
 
 const TIME_RANGES = [
   { label: "Last hour", value: "1h" },
   { label: "Last 24h", value: "24h" },
   { label: "Last 7 days", value: "7d" },
   { label: "Last 30 days", value: "30d" },
+  { label: "Custom", value: "custom" },
 ];
+
+const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"];
 
 function sinceFromRange(range: string): string {
   const now = Date.now();
@@ -62,23 +66,66 @@ export default function MetricDetailPage() {
   const [timeRange, setTimeRange] = useState("24h");
   const [groupBy, setGroupBy] = useState("time:day");
   const [docsOpen, setDocsOpen] = useState(false);
+  const [sinceInput, setSinceInput] = useState("");
+  const [untilInput, setUntilInput] = useState("");
+  const [appVersion, setAppVersion] = useState("");
+  const [environment, setEnvironment] = useState("");
 
   // Fetch metric definition
   const { data: metricData } = useSWR<MetricDefinitionResponse>(
     projectId ? `/v1/metrics/${slug}?project_id=${projectId}` : null,
   );
 
-  const since = useMemo(() => sinceFromRange(timeRange), [timeRange]);
+  const computedSince = useMemo(() => {
+    if (sinceInput) return new Date(sinceInput).toISOString();
+    if (timeRange === "custom") return undefined;
+    return sinceFromRange(timeRange);
+  }, [sinceInput, timeRange]);
+
+  const computedUntil = useMemo(() => {
+    if (untilInput) return new Date(untilInput + "T23:59:59").toISOString();
+    return undefined;
+  }, [untilInput]);
+
+  const hasActiveFilters = sinceInput || untilInput || appVersion || environment || timeRange !== "24h" || groupBy !== "time:day";
+
+  function clearFilters() {
+    setTimeRange("24h");
+    setGroupBy("time:day");
+    setSinceInput("");
+    setUntilInput("");
+    setAppVersion("");
+    setEnvironment("");
+  }
+
+  function handleTimeRangeChange(value: string) {
+    setTimeRange(value);
+    if (value !== "custom") {
+      setSinceInput("");
+      setUntilInput("");
+    }
+  }
+
+  function handleDateChange(field: "since" | "until", value: string) {
+    if (field === "since") setSinceInput(value);
+    else setUntilInput(value);
+    if (value) setTimeRange("custom");
+  }
 
   // Aggregation query
   const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId || undefined, {
-    since,
+    since: computedSince,
+    until: computedUntil,
+    app_version: appVersion || undefined,
+    environment: environment || undefined,
     group_by: groupBy,
   });
 
   // Raw events
   const { events, isLoading: eventsLoading } = useMetricEvents(slug, projectId || undefined, {
-    since,
+    since: computedSince,
+    until: computedUntil,
+    environment: environment || undefined,
     include_debug: "true",
   });
 
@@ -115,10 +162,10 @@ export default function MetricDetailPage() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-end gap-3">
+      <div className="flex items-end gap-3 flex-wrap">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Time Range</label>
-          <Select value={timeRange} onValueChange={setTimeRange}>
+          <Select value={timeRange} onValueChange={handleTimeRangeChange}>
             <SelectTrigger className="w-[140px] h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -126,6 +173,50 @@ export default function MetricDetailPage() {
               {TIME_RANGES.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Since</label>
+          <Input
+            type="date"
+            value={sinceInput}
+            onChange={(e) => handleDateChange("since", e.target.value)}
+            className="w-[140px] h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Until</label>
+          <Input
+            type="date"
+            value={untilInput}
+            onChange={(e) => handleDateChange("until", e.target.value)}
+            className="w-[140px] h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">App Version</label>
+          <Input
+            type="text"
+            placeholder="e.g. 1.0.0"
+            value={appVersion}
+            onChange={(e) => setAppVersion(e.target.value)}
+            className="w-[120px] h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Environment</label>
+          <Select value={environment || "all"} onValueChange={(v) => setEnvironment(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-[130px] h-8 text-xs">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {ENVIRONMENTS.map((env) => (
+                <SelectItem key={env} value={env}>
+                  {env}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -144,9 +235,16 @@ export default function MetricDetailPage() {
               <SelectItem value="app_version">App Version</SelectItem>
               <SelectItem value="device_model">Device</SelectItem>
               <SelectItem value="os_version">OS Version</SelectItem>
+              <SelectItem value="environment">Environment</SelectItem>
             </SelectContent>
           </Select>
         </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={clearFilters}>
+            <X className="h-3 w-3 mr-1" />
+            Clear
+          </Button>
+        )}
       </div>
 
       {queryLoading ? (

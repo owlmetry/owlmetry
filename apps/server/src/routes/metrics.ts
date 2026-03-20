@@ -357,7 +357,7 @@ export async function metricsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
       const { slug } = request.params;
-      const { project_id, since, until, app_id, app_version, device_model, os_version, user_id, is_debug, group_by } = request.query;
+      const { project_id, since, until, app_id, app_version, device_model, os_version, user_id, is_debug, environment, group_by } = request.query;
 
       if (!project_id) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
@@ -387,6 +387,7 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (device_model) conditions.push(eq(metricEvents.device_model, device_model));
       if (os_version) conditions.push(eq(metricEvents.os_version, os_version));
       if (user_id) conditions.push(eq(metricEvents.user_id, user_id));
+      if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
       if (is_debug !== undefined && is_debug !== "") {
         conditions.push(eq(metricEvents.is_debug, is_debug === "true"));
       }
@@ -463,6 +464,8 @@ export async function metricsRoutes(app: FastifyInstance) {
           groupExpr = sql`${metricEvents.device_model}`;
         } else if (group_by === "os_version") {
           groupExpr = sql`${metricEvents.os_version}`;
+        } else if (group_by === "environment") {
+          groupExpr = sql`${metricEvents.environment}`;
         } else {
           return reply.code(400).send({ error: `Invalid group_by value: ${group_by}` });
         }
@@ -523,7 +526,7 @@ export async function metricsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("metrics:read") },
     async (request, reply) => {
       const { slug } = request.params;
-      const { project_id, phase, tracking_id, user_id, since, until, cursor, limit: limitStr, include_debug } = request.query;
+      const { project_id, phase, tracking_id, user_id, environment, since, until, cursor, limit: limitStr, include_debug } = request.query;
 
       if (!project_id) {
         return reply.code(400).send({ error: "project_id query parameter is required" });
@@ -548,6 +551,7 @@ export async function metricsRoutes(app: FastifyInstance) {
       }
       if (tracking_id) conditions.push(eq(metricEvents.tracking_id, tracking_id));
       if (user_id) conditions.push(eq(metricEvents.user_id, user_id));
+      if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
       if (since) conditions.push(gte(metricEvents.timestamp, new Date(since)));
       if (until) conditions.push(lte(metricEvents.timestamp, new Date(until)));
       if (include_debug !== "true") conditions.push(eq(metricEvents.is_debug, false));

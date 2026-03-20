@@ -188,6 +188,7 @@ export class OwlMetryClient {
       phase: params.phase,
       tracking_id: params.tracking_id,
       user_id: params.user_id,
+      environment: params.environment,
       since: params.since,
       until: params.until,
       cursor: params.cursor,
@@ -208,6 +209,7 @@ export class OwlMetryClient {
       os_version: params.os_version,
       user_id: params.user_id,
       is_debug: params.is_debug,
+      environment: params.environment,
       group_by: params.group_by,
     };
     return this.request<MetricQueryResponse>("GET", `/v1/metrics/${slug}/query`, { params: stringParams });

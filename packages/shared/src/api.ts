@@ -338,7 +338,9 @@ export interface MetricQueryParams {
   os_version?: string;
   user_id?: string;
   is_debug?: string;
-  group_by?: string; // "app_id" | "app_version" | "device_model" | "os_version" | "time:hour" | "time:day" | "time:week"
+  environment?: string;
+  phase?: string;
+  group_by?: string; // "app_id" | "app_version" | "device_model" | "os_version" | "environment" | "time:hour" | "time:day" | "time:week"
 }
 
 export interface MetricAggregationResult {
@@ -387,6 +389,7 @@ export interface MetricEventsQueryParams {
   phase?: MetricPhase;
   tracking_id?: string;
   user_id?: string;
+  environment?: string;
   since?: string;
   until?: string;
   cursor?: string;

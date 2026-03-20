@@ -111,12 +111,14 @@ metricsCommand
       .argParser((v) => parsePositiveInt(v, "--limit")),
   )
   .option("--cursor <cursor>", "Pagination cursor")
+  .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
   .option("--include-debug", "Include debug events (hidden by default)")
   .action(async (slug: string, opts: {
     project: string;
     phase?: string;
     trackingId?: string;
     user?: string;
+    environment?: string;
     since?: string;
     until?: string;
     limit?: number;
@@ -137,6 +139,7 @@ metricsCommand
       phase: opts.phase as any,
       tracking_id: opts.trackingId,
       user_id: opts.user,
+      environment: opts.environment,
       since,
       until,
       cursor: opts.cursor,
@@ -198,13 +201,37 @@ metricsCommand
   .option("--since <date>", "Start date (ISO)")
   .option("--until <date>", "End date (ISO)")
   .option("--app <id>", "Filter by app ID")
-  .option("--group-by <field>", "Group by: app_id, app_version, device_model, os_version, time:hour, time:day, time:week")
-  .action(async (slug: string, opts: { project: string; since?: string; until?: string; app?: string; groupBy?: string }, cmd) => {
+  .option("--app-version <version>", "Filter by app version")
+  .option("--device-model <model>", "Filter by device model")
+  .option("--os-version <version>", "Filter by OS version")
+  .option("--user <id>", "Filter by user ID")
+  .option("--is-debug", "Filter to debug events only")
+  .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
+  .option("--group-by <field>", "Group by: app_id, app_version, device_model, os_version, environment, time:hour, time:day, time:week")
+  .action(async (slug: string, opts: {
+    project: string;
+    since?: string;
+    until?: string;
+    app?: string;
+    appVersion?: string;
+    deviceModel?: string;
+    osVersion?: string;
+    user?: string;
+    isDebug?: boolean;
+    environment?: string;
+    groupBy?: string;
+  }, cmd) => {
     const { client, globals } = createClient(cmd);
     const result = await client.queryMetric(slug, opts.project, {
       since: opts.since,
       until: opts.until,
       app_id: opts.app,
+      app_version: opts.appVersion,
+      device_model: opts.deviceModel,
+      os_version: opts.osVersion,
+      user_id: opts.user,
+      is_debug: opts.isDebug ? "true" : undefined,
+      environment: opts.environment,
       group_by: opts.groupBy,
     });
     output(globals.format, result, () => formatQueryResult(result));
