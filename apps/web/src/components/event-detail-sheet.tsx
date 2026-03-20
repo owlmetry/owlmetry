@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { InvestigateTimeline } from "@/components/investigate-timeline";
 import { Search, Filter } from "lucide-react";
@@ -28,33 +29,44 @@ function DetailRow({
   label,
   value,
   onFilter,
+  filterKey,
 }: {
   label: string;
   value: string | null | undefined;
   onFilter?: () => void;
+  filterKey?: string;
 }) {
   if (!value) return null;
 
   if (onFilter) {
     return (
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onFilter}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onFilter();
-          }
-        }}
-        className="group flex justify-between gap-4 py-1.5 rounded-sm px-1 -mx-1 cursor-pointer hover:bg-muted/50 transition-colors"
-      >
-        <span className="shrink-0 text-xs text-muted-foreground flex items-center gap-1">
-          {label}
-          <Filter className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </span>
-        <span className="text-right font-mono text-xs break-all">{value}</span>
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={onFilter}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onFilter();
+                }
+              }}
+              className="group flex justify-between gap-4 py-1.5 rounded-sm px-1 -mx-1 cursor-pointer hover:bg-muted/50 transition-colors"
+            >
+              <span className="shrink-0 text-xs text-muted-foreground flex items-center gap-1">
+                {label}
+                <Filter className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+              <span className="text-right font-mono text-xs break-all">{value}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="bg-popover text-popover-foreground border shadow-md [&>svg]:text-popover [&>svg]:fill-popover">
+            Filter by {filterKey ?? label}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
