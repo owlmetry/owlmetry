@@ -339,7 +339,6 @@ export interface MetricQueryParams {
   user_id?: string;
   is_debug?: string;
   environment?: string;
-  phase?: string;
   group_by?: string; // "app_id" | "app_version" | "device_model" | "os_version" | "environment" | "time:hour" | "time:day" | "time:week"
 }
 

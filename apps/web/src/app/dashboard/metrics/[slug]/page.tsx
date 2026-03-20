@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, MetricDefinitionResponse, StoredMetricEventResponse } from "@owlmetry/shared";
@@ -36,7 +36,7 @@ const TIME_RANGES = [
   { label: "Custom", value: "custom" },
 ];
 
-const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"];
+const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
 
 function sinceFromRange(range: string): string {
   const now = Date.now();
@@ -69,6 +69,7 @@ export default function MetricDetailPage() {
   const [sinceInput, setSinceInput] = useState("");
   const [untilInput, setUntilInput] = useState("");
   const [appVersion, setAppVersion] = useState("");
+  const deferredAppVersion = useDeferredValue(appVersion);
   const [environment, setEnvironment] = useState("");
 
   // Fetch metric definition
@@ -83,8 +84,11 @@ export default function MetricDetailPage() {
   }, [sinceInput, timeRange]);
 
   const computedUntil = useMemo(() => {
-    if (untilInput) return new Date(untilInput + "T23:59:59").toISOString();
-    return undefined;
+    if (!untilInput) return undefined;
+    // Use start of the next day so the entire selected date is included
+    const d = new Date(untilInput);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString();
   }, [untilInput]);
 
   const hasActiveFilters = sinceInput || untilInput || appVersion || environment || timeRange !== "24h" || groupBy !== "time:day";
@@ -116,7 +120,7 @@ export default function MetricDetailPage() {
   const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId || undefined, {
     since: computedSince,
     until: computedUntil,
-    app_version: appVersion || undefined,
+    app_version: deferredAppVersion || undefined,
     environment: environment || undefined,
     group_by: groupBy,
   });
