@@ -33,6 +33,7 @@ SERVER_KEY_HASH=$(node -e "const{createHash}=require('crypto');console.log(creat
 SERVER_KEY_PREFIX=$(echo "$TEST_SERVER_KEY" | cut -c1-16)
 TEAM_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM teams LIMIT 1")
 PROJECT_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM projects LIMIT 1")
+OWNER_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT user_id FROM team_members WHERE team_id = '$TEAM_ID' AND role = 'owner' LIMIT 1")
 EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM apps WHERE platform = 'backend' LIMIT 1")
 
 if [ -z "$EXISTING" ]; then
@@ -46,8 +47,8 @@ BEGIN
   VALUES ('$TEAM_ID', '$PROJECT_ID', 'Test Server App', 'backend', NULL, '$TEST_SERVER_KEY')
   RETURNING id INTO v_app_id;
 
-  INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions)
-  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write"]'::jsonb);
+  INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, created_by)
+  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write"]'::jsonb, '$OWNER_ID');
 END \$\$;
 SQL
     echo "Server app seeded"
