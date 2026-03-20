@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import postgres from "postgres";
 import {
   buildApp,
   truncateAll,
@@ -7,6 +8,7 @@ import {
   getToken,
   createUserAndGetToken,
   TEST_CLIENT_KEY,
+  TEST_DB_URL,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -228,6 +230,49 @@ describe("DELETE /v1/projects/:id", () => {
     });
 
     expect(listRes.json().apps).toHaveLength(2);
+  });
+
+  it("cascade soft-deletes api_keys and definitions within the project", async () => {
+    const token = await getToken(app);
+
+    // Create a metric definition and funnel definition in the project
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    await client`
+      INSERT INTO metric_definitions (project_id, name, slug)
+      VALUES (${testData.projectId}, 'Test Metric', 'test-metric')
+    `;
+    await client`
+      INSERT INTO funnel_definitions (project_id, name, slug, steps)
+      VALUES (${testData.projectId}, 'Test Funnel', 'test-funnel', ${JSON.stringify([{ name: "step1", event_filter: { message: "step1" } }])}::jsonb)
+    `;
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // API keys for apps in this project should be soft-deleted
+    const activeKeys = await client`
+      SELECT id FROM api_keys
+      WHERE app_id = ${testData.appId} AND deleted_at IS NULL
+    `;
+    expect(activeKeys).toHaveLength(0);
+
+    // Metric and funnel definitions should be soft-deleted
+    const activeMetrics = await client`
+      SELECT id FROM metric_definitions
+      WHERE project_id = ${testData.projectId} AND deleted_at IS NULL
+    `;
+    expect(activeMetrics).toHaveLength(0);
+
+    const activeFunnels = await client`
+      SELECT id FROM funnel_definitions
+      WHERE project_id = ${testData.projectId} AND deleted_at IS NULL
+    `;
+    expect(activeFunnels).toHaveLength(0);
+
+    await client.end();
   });
 
   it("returns 404 for non-existent project", async () => {

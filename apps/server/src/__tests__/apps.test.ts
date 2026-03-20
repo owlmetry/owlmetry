@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import postgres from "postgres";
 import {
   buildApp,
   truncateAll,
@@ -10,6 +11,7 @@ import {
   TEST_AGENT_KEY,
   TEST_CLIENT_KEY,
   TEST_SESSION_ID,
+  TEST_DB_URL,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -445,6 +447,32 @@ describe("DELETE /v1/apps/:id", () => {
     });
 
     expect(res.statusCode).toBe(404);
+  });
+
+  it("cascade soft-deletes api_keys for the app", async () => {
+    const token = await getToken(app);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/apps/${testData.appId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // Client key for this app should be soft-deleted
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const activeKeys = await client`
+      SELECT id FROM api_keys
+      WHERE app_id = ${testData.appId} AND deleted_at IS NULL
+    `;
+    expect(activeKeys).toHaveLength(0);
+
+    // Keys for other apps should be unaffected
+    const otherKeys = await client`
+      SELECT id FROM api_keys
+      WHERE app_id != ${testData.appId} AND app_id IS NOT NULL AND deleted_at IS NULL
+    `;
+    expect(otherKeys.length).toBeGreaterThan(0);
+    await client.end();
   });
 
   it("returns 404 when deleting an already-deleted app", async () => {

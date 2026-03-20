@@ -211,6 +211,76 @@ describe("DELETE /v1/teams/:teamId", () => {
 
     expect(res.statusCode).toBe(403);
   });
+
+  it("soft-deletes team and cascades to children", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    // Create a second team so the user has more than one
+    await app.inject({
+      method: "POST",
+      url: "/v1/teams",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Backup Team", slug: "backup-team" },
+    });
+    const { token: freshToken } = await getTokenAndTeamId(app);
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}`,
+      headers: { authorization: `Bearer ${freshToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+
+    // Team row still exists with deleted_at set
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const [team] = await client`SELECT deleted_at FROM teams WHERE id = ${teamId}`;
+    expect(team.deleted_at).not.toBeNull();
+
+    // Projects, apps, and api_keys are soft-deleted
+    const [proj] = await client`SELECT deleted_at FROM projects WHERE team_id = ${teamId} LIMIT 1`;
+    expect(proj.deleted_at).not.toBeNull();
+    const [appRow] = await client`SELECT deleted_at FROM apps WHERE team_id = ${teamId} LIMIT 1`;
+    expect(appRow.deleted_at).not.toBeNull();
+    const activeKeys = await client`SELECT id FROM api_keys WHERE team_id = ${teamId} AND deleted_at IS NULL`;
+    expect(activeKeys).toHaveLength(0);
+
+    // team_members are hard-deleted (access revoked immediately)
+    const members = await client`SELECT * FROM team_members WHERE team_id = ${teamId}`;
+    expect(members).toHaveLength(0);
+    await client.end();
+  });
+
+  it("soft-deleted team is invisible to authenticated user", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    // Create second team
+    await app.inject({
+      method: "POST",
+      url: "/v1/teams",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Backup Team", slug: "backup-team" },
+    });
+    const { token: freshToken } = await getTokenAndTeamId(app);
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}`,
+      headers: { authorization: `Bearer ${freshToken}` },
+    });
+
+    // Re-authenticate — deleted team should not appear in memberships
+    const { token: afterToken, teams: afterTeams } = await createUserAndGetToken(app, TEST_USER.email);
+    expect(afterTeams).toHaveLength(1);
+    expect(afterTeams[0].slug).toBe("backup-team");
+
+    // GET the deleted team should 403 (no membership)
+    const getRes = await app.inject({
+      method: "GET",
+      url: `/v1/teams/${teamId}`,
+      headers: { authorization: `Bearer ${afterToken}` },
+    });
+    expect(getRes.statusCode).toBe(403);
+  });
 });
 
 // ─── Team Invitations ─────────────────────────────────────────────
