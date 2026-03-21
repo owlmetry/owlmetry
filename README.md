@@ -4,13 +4,19 @@ Agent-first observability. One Postgres instance. No humans required.
 
 OwlMetry is a self-hosted observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through the CLI.
 
-Most observability tools are built for humans staring at dashboards. OwlMetry is built for agents making API calls. Every feature is accessible programmatically through agent API keys, a CLI, and a complete REST API. The web dashboard exists as an optional visual layer — not the primary interface.
-
 > **Warning:** This project is in active development and is not yet production-ready. APIs, schemas, and configuration may change without notice.
+
+## Get Started
+
+```bash
+npm install -g @owlmetry/cli
+```
+
+Then tell your agent to run `owlmetry skills` and install the relevant skill files. It handles the rest — account setup, SDK integration, instrumentation, and querying.
 
 ## Why agent-first?
 
-Traditional observability requires a human in the loop: someone to check dashboards, read alerts, interpret metrics, and decide what to fix. That made sense when humans wrote all the code. It doesn't make sense when your agent is already writing the code — it should also be the one monitoring it.
+Most observability tools are built for humans staring at dashboards. OwlMetry is built for agents making API calls. Every feature is accessible programmatically through agent API keys, a CLI, and a complete REST API. The web dashboard exists as an optional visual layer — not the primary interface.
 
 With OwlMetry, your agent can:
 
@@ -31,6 +37,7 @@ And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres
 
 - **Agent-native API** — every operation available through `owl_agent_` keys: query events, list apps, read projects, analyze funnels. Agents are first-class citizens, not an afterthought
 - **CLI for agents and humans** — `--format json` for machine consumption, `--format table` for humans. Same tool, both audiences
+- **AI skill files** — bundled with the CLI, teach any coding agent (Claude Code, Codex, etc.) how to set up, instrument, and query OwlMetry
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; supports gzip-compressed payloads
 - **Projects & apps** — organize apps by product across platforms (`apple`, `android`, `web`, `backend`); Apple platform covers iOS, iPadOS, and macOS with a single app
 - **Device tracking** — environment, OS version, app version, device model, locale, build number
@@ -165,7 +172,7 @@ See [INSTALL.md](INSTALL.md) for the complete self-hosting guide — covers syst
 
 ## CLI
 
-The CLI is a thin HTTP client over the OwlMetry API. It works equally well as a tool for coding agents (`--format json`) and for humans (`--format table`). It also ships with AI skill files that teach coding agents how to use OwlMetry.
+The CLI is a thin HTTP client over the OwlMetry API. It works equally well as a tool for coding agents (`--format json`) and for humans (`--format table`).
 
 ```bash
 npm install -g @owlmetry/cli
@@ -455,3 +462,10 @@ pnpm dev:demo-node          # Terminal 2
 | `RESEND_API_KEY` | (empty) | Resend API key for sending verification emails; if unset, codes print to server console |
 | `EMAIL_FROM` | `noreply@owlmetry.com` | From address for verification emails (requires Resend) |
 | `COOKIE_DOMAIN` | (unset) | Cookie domain for cross-subdomain auth (e.g., `.yourdomain.com`); required when API and dashboard are on different subdomains |
+
+## Links
+
+- [Website](https://owlmetry.com)
+- [Self-Hosting Guide](INSTALL.md)
+- [CLI on npm](https://www.npmjs.com/package/@owlmetry/cli)
+- [Node SDK on npm](https://www.npmjs.com/package/@owlmetry/node)
