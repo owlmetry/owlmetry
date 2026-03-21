@@ -165,21 +165,32 @@ See [INSTALL.md](INSTALL.md) for the complete self-hosting guide — covers syst
 
 ## CLI
 
-The CLI is a thin HTTP client over the OwlMetry API. It works equally well as a tool for coding agents (`--format json`) and for humans (`--format table`).
+The CLI is a thin HTTP client over the OwlMetry API. It works equally well as a tool for coding agents (`--format json`) and for humans (`--format table`). It also ships with AI skill files that teach coding agents how to use OwlMetry.
+
+```bash
+npm install -g @owlmetry/cli
+```
 
 ### Setup
 
 ```bash
-# Build the CLI
-pnpm build
-
 # Configure endpoint and API key (saves to ~/.owlmetry/config.json)
-node apps/cli/dist/index.js setup --endpoint http://localhost:4000 --api-key <agent-key>
+owlmetry setup --endpoint http://localhost:4000 --api-key <agent-key>
 
 # Or use environment variables
 export OWLMETRY_ENDPOINT=http://localhost:4000
 export OWLMETRY_API_KEY=<agent-key>
 ```
+
+### AI Skills
+
+The CLI bundles skill files that teach AI agents (Claude Code, Codex, etc.) how to use the CLI, Node SDK, and Swift SDK:
+
+```bash
+owlmetry skills
+```
+
+Point your agent to the printed file paths to give it full OwlMetry knowledge — setup, instrumentation, and querying.
 
 ### Authentication
 
@@ -253,6 +264,10 @@ owlmetry audit-log list --resource-type app --action create
 ## Node.js Server SDK
 
 Zero-dependency server-side SDK. Your agent can add this to any Node.js project in seconds.
+
+```bash
+npm install @owlmetry/node
+```
 
 ### Setup
 
