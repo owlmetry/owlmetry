@@ -107,7 +107,7 @@ pnpm test:coverage     # Server tests with code coverage reporting
 
 ```bash
 # Node.js 20+
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # pnpm
@@ -148,6 +148,7 @@ cp .env.example .env
 #   JWT_SECRET=<generate a random 64-char string>
 #   PORT=4000
 #   CORS_ORIGINS=https://your-domain.com
+#   WEB_APP_URL=https://your-domain.com
 
 pnpm db:migrate
 pnpm dev:seed
@@ -249,9 +250,9 @@ MAX_DATABASE_SIZE_GB=10
 | `PATCH` | `/v1/auth/keys/:id` | JWT (admin+) | Update API key name or permissions |
 | `DELETE` | `/v1/auth/keys/:id` | JWT (admin+) | Revoke an API key |
 | `POST` | `/v1/teams` | JWT | Create a new team |
-| `GET` | `/v1/teams/:id` | JWT | Get team details with members and pending invitations |
-| `PATCH` | `/v1/teams/:id` | JWT (admin+) | Rename team |
-| `DELETE` | `/v1/teams/:id` | JWT (owner) | Delete team |
+| `GET` | `/v1/teams/:teamId` | JWT | Get team details with members and pending invitations |
+| `PATCH` | `/v1/teams/:teamId` | JWT (admin+) | Rename team |
+| `DELETE` | `/v1/teams/:teamId` | JWT (owner) | Delete team |
 | `GET` | `/v1/teams/:id/members` | JWT | List team members |
 | `PATCH` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Change member role |
 | `DELETE` | `/v1/teams/:id/members/:userId` | JWT (admin+) | Remove member (or self-leave) |
@@ -339,7 +340,7 @@ owlmetry projects update <id> --name "New Name" # Rename project
 owlmetry apps                                  # List apps
 owlmetry apps --project <id>                   # Filter by project
 owlmetry apps view <id>                        # App details
-owlmetry apps create --project <id> --name "iOS App" --platform apple --bundle-id com.example.app
+owlmetry apps create --project-id <id> --name "iOS App" --platform apple --bundle-id com.example.app
 owlmetry apps update <id> --name "New Name"    # Rename app
 
 # Events
@@ -420,7 +421,7 @@ Owl.track('signup-completed', { method: 'email' });
 // Structured metrics — lifecycle operations
 const op = Owl.startOperation('api-request', { endpoint: '/v1/users' });
 // ... do work ...
-op.complete();   // or op.fail(), op.cancel()
+op.complete();   // or op.fail('reason'), op.cancel()
 // duration_ms is tracked automatically
 
 // Structured metrics — single-shot measurement
@@ -505,7 +506,7 @@ Owl.track("signup-completed", attributes: ["method": "apple"])
 // Structured metrics — lifecycle operations
 let op = Owl.startOperation("image-upload", attributes: ["format": "heic"])
 // ... do work ...
-op.complete()   // or op.fail(), op.cancel()
+op.complete()   // or op.fail("reason"), op.cancel()
 
 // Structured metrics — single-shot
 Owl.recordMetric("cache-hit", attributes: ["key": "user:123"])
