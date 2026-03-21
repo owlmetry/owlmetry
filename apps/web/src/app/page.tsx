@@ -167,7 +167,7 @@ export default async function LandingPage() {
       </section>
 
       {/* Get Started */}
-      <section id="get-started" className="py-24 md:py-32 bg-muted/30">
+      <section id="get-started" className="py-24 md:py-32">
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-4">
@@ -216,7 +216,7 @@ export default async function LandingPage() {
                 </div>
                 <TerminalCopyButton text="Run command 'owlmetry skills', install those skill files, and set up OwlMetry for this project." />
               </div>
-              <pre className="px-5 py-4 text-[13px] leading-relaxed overflow-x-auto font-mono">
+              <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
                 <code>
                   <span className="text-white/40">&gt;</span>{" "}
                   <span className="text-white/70">Run </span>
@@ -249,16 +249,16 @@ export default async function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="py-24 md:py-32">
+      <section id="features" className="relative py-24 md:py-32" style={{ background: "oklch(0.12 0.015 55)" }}>
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-4" style={{ color: "oklch(0.555 0.163 48.998)" }}>
               Capabilities
             </p>
-            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white/95 md:text-4xl">
               Built for agents, usable by humans
             </h2>
-            <p className="mt-4 text-muted-foreground max-w-2xl mx-auto">
+            <p className="mt-4 text-white/50 max-w-2xl mx-auto">
               Most observability tools are built for humans staring at dashboards.
               OwlMetry is built for agents making API calls.
             </p>
@@ -268,7 +268,7 @@ export default async function LandingPage() {
             {features.map((feature) => (
               <div
                 key={feature.title}
-                className="group relative rounded-xl border bg-card p-6 transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/[0.04] hover:-translate-y-0.5"
+                className="group relative rounded-xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:border-primary/30 hover:bg-white/[0.05] hover:-translate-y-0.5"
               >
                 <div
                   className="absolute inset-x-0 top-0 h-px opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -277,11 +277,11 @@ export default async function LandingPage() {
                       "linear-gradient(90deg, transparent, oklch(0.555 0.163 48.998 / 0.5), transparent)",
                   }}
                 />
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-300 group-hover:bg-primary/15 group-hover:shadow-[0_0_16px_oklch(0.555_0.163_48.998_/_0.15)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.06] transition-all duration-300 group-hover:bg-white/[0.1]" style={{ color: "oklch(0.555 0.163 48.998)" }}>
                   <feature.icon className="h-5 w-5" />
                 </div>
-                <h3 className="mt-4 text-base font-semibold">{feature.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                <h3 className="mt-4 text-base font-semibold text-white/90">{feature.title}</h3>
+                <p className="mt-2 text-sm text-white/45 leading-relaxed">
                   {feature.description}
                 </p>
               </div>
@@ -291,7 +291,7 @@ export default async function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-24 md:py-32 bg-muted/30">
+      <section id="how-it-works" className="py-24 md:py-32">
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-4">
@@ -333,16 +333,16 @@ export default async function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-24 md:py-32">
+      <section id="pricing" className="relative py-24 md:py-32" style={{ background: "oklch(0.12 0.015 55)" }}>
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-4" style={{ color: "oklch(0.555 0.163 48.998)" }}>
               Pricing
             </p>
-            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white/95 md:text-4xl">
               Free. Forever. Self-hosted.
             </h2>
-            <p className="mt-4 text-muted-foreground">
+            <p className="mt-4 text-white/50">
               No usage limits. No per-seat pricing. No vendor lock-in.
             </p>
           </div>
@@ -350,15 +350,15 @@ export default async function LandingPage() {
           <div className="mt-16 mx-auto max-w-md relative">
             {/* Glow behind card */}
             <div
-              className="absolute -inset-4 rounded-3xl blur-2xl opacity-[0.08]"
+              className="absolute -inset-4 rounded-3xl blur-2xl opacity-[0.12]"
               style={{ background: "oklch(0.555 0.163 48.998)" }}
             />
-            <div className="relative rounded-2xl border-2 border-primary/20 bg-card p-8 text-center shadow-xl">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary tracking-wide">
+            <div className="relative rounded-2xl border border-white/15 bg-white/[0.04] p-8 text-center">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-semibold tracking-wide" style={{ color: "oklch(0.555 0.163 48.998)" }}>
                 Open Source
               </div>
-              <p className="mt-6 text-5xl font-bold tracking-tight">$0</p>
-              <p className="mt-1 text-sm text-muted-foreground">forever</p>
+              <p className="mt-6 text-5xl font-bold tracking-tight text-white/95">$0</p>
+              <p className="mt-1 text-sm text-white/40">forever</p>
 
               <ul className="mt-8 space-y-3 text-left">
                 {[
@@ -369,8 +369,8 @@ export default async function LandingPage() {
                   "Full REST API",
                   "Optional web dashboard",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-sm">
-                    <Check className="h-4 w-4 shrink-0 text-primary" />
+                  <li key={item} className="flex items-center gap-3 text-sm text-white/70">
+                    <Check className="h-4 w-4 shrink-0" style={{ color: "oklch(0.555 0.163 48.998)" }} />
                     {item}
                   </li>
                 ))}
