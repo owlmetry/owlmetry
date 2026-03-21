@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -64,10 +65,15 @@ const steps = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const cookieStore = await cookies();
+  const isAuthenticated = !!cookieStore.get("token")?.value;
+  const ctaLabel = isAuthenticated ? "Dashboard" : "Get Started";
+  const ctaHref = isAuthenticated ? "/dashboard" : "/login";
+
   return (
     <>
-      <MarketingNav />
+      <MarketingNav isAuthenticated={isAuthenticated} />
       <main>
       {/* Hero */}
       <section
@@ -140,11 +146,11 @@ export default function LandingPage() {
 
             <div className="mt-10 flex flex-col gap-3 sm:flex-row landing-stagger-4">
               <Link
-                href="/login"
+                href={ctaHref}
                 className="group inline-flex h-11 items-center justify-center rounded-lg px-8 text-sm font-medium text-white transition-all duration-200 hover:shadow-[0_0_24px_oklch(0.555_0.163_48.998_/_0.4)] hover:brightness-110"
                 style={{ background: "oklch(0.555 0.163 48.998)" }}
               >
-                Get Started
+                {ctaLabel}
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               <a
@@ -426,11 +432,11 @@ export default function LandingPage() {
               </ul>
 
               <Link
-                href="/login"
+                href={ctaHref}
                 className="group mt-8 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-medium text-white transition-all duration-200 hover:shadow-[0_0_24px_oklch(0.555_0.163_48.998_/_0.4)] hover:brightness-110"
                 style={{ background: "oklch(0.555 0.163 48.998)" }}
               >
-                Get Started
+                {ctaLabel}
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
             </div>
@@ -457,11 +463,11 @@ export default function LandingPage() {
           </p>
           <div className="mt-10">
             <Link
-              href="/login"
+              href={ctaHref}
               className="group inline-flex h-12 items-center justify-center rounded-lg px-10 text-sm font-medium text-white transition-all duration-200 hover:shadow-[0_0_24px_oklch(0.555_0.163_48.998_/_0.4)] hover:brightness-110"
               style={{ background: "oklch(0.555 0.163 48.998)" }}
             >
-              Get Started
+              {ctaLabel}
               <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
           </div>

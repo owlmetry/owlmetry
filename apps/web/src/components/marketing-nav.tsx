@@ -12,9 +12,12 @@ const navLinks = [
   { href: "#pricing", label: "Pricing" },
 ];
 
-export function MarketingNav() {
+export function MarketingNav({ isAuthenticated }: { isAuthenticated: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const ctaLabel = isAuthenticated ? "Dashboard" : "Get Started";
+  const ctaHref = isAuthenticated ? "/dashboard" : "/login";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -50,18 +53,13 @@ export function MarketingNav() {
               {link.label}
             </a>
           ))}
-          <Link href="/login">
-            <Button variant="ghost" size="sm" className="text-white/60 hover:text-white hover:bg-white/10">
-              Sign In
-            </Button>
-          </Link>
-          <Link href="/login">
+          <Link href={ctaHref}>
             <Button
               size="sm"
               className="text-white hover:brightness-110 transition-all"
               style={{ background: "oklch(0.555 0.163 48.998)" }}
             >
-              Get Started
+              {ctaLabel}
             </Button>
           </Link>
         </div>
@@ -91,15 +89,10 @@ export function MarketingNav() {
               {link.label}
             </a>
           ))}
-          <div className="flex gap-3 pt-2">
-            <Link href="/login" className="flex-1">
-              <Button variant="outline" size="sm" className="w-full border-white/15 text-white/70 hover:bg-white/10 hover:text-white">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/login" className="flex-1">
+          <div className="pt-2">
+            <Link href={ctaHref}>
               <Button size="sm" className="w-full text-white" style={{ background: "oklch(0.555 0.163 48.998)" }}>
-                Get Started
+                {ctaLabel}
               </Button>
             </Link>
           </div>
