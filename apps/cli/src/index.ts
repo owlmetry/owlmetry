@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { Command, Option } from "commander";
 import chalk from "chalk";
 import { ApiError } from "./client.js";
@@ -11,10 +10,13 @@ import { authCommand } from "./commands/auth.js";
 import { metricsCommand } from "./commands/metrics.js";
 import { funnelsCommand } from "./commands/funnels.js";
 import { auditLogCommand } from "./commands/audit-logs.js";
+import { skillsCommand } from "./commands/skills.js";
+
+declare const __CLI_VERSION__: string;
 
 const program = new Command()
   .name("owlmetry")
-  .version("0.1.0")
+  .version(__CLI_VERSION__)
   .description("OwlMetry CLI — query metrics and manage your apps from the terminal")
   .addOption(
     new Option("--format <format>", "Output format")
@@ -34,6 +36,7 @@ program.addCommand(usersCommand);
 program.addCommand(metricsCommand);
 program.addCommand(funnelsCommand);
 program.addCommand(auditLogCommand);
+program.addCommand(skillsCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

@@ -4,7 +4,7 @@
   "scripts": {
     "dev:server": "pnpm --filter @owlmetry/server dev",
     "dev:web": "pnpm --filter @owlmetry/web dev",
-    "dev:cli": "pnpm --filter @owlmetry/cli dev",
+    "dev:cli": "pnpm --filter ./apps/cli dev",
     "build": "pnpm -r build",
     "db:generate": "pnpm --filter @owlmetry/db generate",
     "db:migrate": "pnpm --filter @owlmetry/db migrate",

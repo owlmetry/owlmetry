@@ -1,23 +1,49 @@
 {
   "name": "@owlmetry/cli",
   "version": "0.1.0",
+  "description": "OwlMetry CLI — manage projects, apps, metrics, funnels, and events from the terminal. Includes AI skill files for agent-assisted development.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jasonvdb/owlmetry.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://owlmetry.com",
+  "bugs": "https://github.com/nicktechnolog/owlmetry/issues",
+  "keywords": [
+    "owlmetry",
+    "analytics",
+    "metrics",
+    "funnels",
+    "mobile",
+    "observability",
+    "cli",
+    "ai-skills"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
-    "owlmetry": "dist/index.js"
+    "owlmetry": "dist/index.cjs"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup",
+    "build:tsc": "tsc",
     "dev": "tsx src/index.ts",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@owlmetry/shared": "workspace:*",
-    "chalk": "^5.4.1",
-    "cli-table3": "^0.6.5",
-    "commander": "^13.1.0"
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
+    "@owlmetry/shared": "workspace:*",
     "@types/node": "^25.4.0",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"

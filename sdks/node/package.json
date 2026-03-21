@@ -12,7 +12,7 @@
     }
   },
   "files": [
-    "dist"
+    "dist/src"
   ],
   "scripts": {
     "build": "tsc",
@@ -23,6 +23,23 @@
     "node": ">=20"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jasonvdb/owlmetry.git",
+    "directory": "sdks/node"
+  },
+  "homepage": "https://owlmetry.com",
+  "bugs": "https://github.com/Jasonvdb/owlmetry/issues",
+  "keywords": [
+    "owlmetry",
+    "analytics",
+    "metrics",
+    "funnels",
+    "logging",
+    "observability",
+    "node",
+    "sdk"
+  ],
   "devDependencies": {
     "@types/node": "^25.5.0",
     "typescript": "^5.9.3"
