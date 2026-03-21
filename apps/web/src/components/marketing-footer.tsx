@@ -7,23 +7,22 @@ const columns = [
     links: [
       { label: "Features", href: "#features" },
       { label: "Pricing", href: "#pricing" },
-      { label: "Documentation", href: "#" },
+      { label: "Get Started", href: "#get-started" },
     ],
   },
   {
     title: "Developers",
     links: [
-      { label: "Swift SDK", href: "#" },
-      { label: "Node.js SDK", href: "#" },
-      { label: "REST API", href: "#" },
+      { label: "GitHub", href: "https://github.com/Jasonvdb/owlmetry" },
+      { label: "Swift SDK", href: "https://github.com/Jasonvdb/owlmetry/tree/main/sdks/swift" },
+      { label: "Node.js SDK", href: "https://www.npmjs.com/package/@owlmetry/node" },
+      { label: "CLI", href: "https://www.npmjs.com/package/@owlmetry/cli" },
     ],
   },
   {
-    title: "Company",
+    title: "Contact",
     links: [
-      { label: "GitHub", href: "#" },
-      { label: "Blog", href: "#" },
-      { label: "Contact", href: "#" },
+      { label: "jason@owlmetry.com", href: "mailto:jason@owlmetry.com" },
     ],
   },
 ];

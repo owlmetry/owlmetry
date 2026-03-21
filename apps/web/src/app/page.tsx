@@ -146,19 +146,21 @@ export default async function LandingPage() {
             </p>
 
             <div className="mt-10 flex flex-col gap-3 sm:flex-row landing-stagger-4">
-              <Link
-                href={ctaHref}
+              <a
+                href="#get-started"
                 className="group inline-flex h-11 items-center justify-center rounded-lg px-8 text-sm font-medium text-white transition-all duration-200 hover:shadow-[0_0_24px_oklch(0.555_0.163_48.998_/_0.4)] hover:brightness-110"
                 style={{ background: "oklch(0.555 0.163 48.998)" }}
               >
-                {ctaLabel}
+                Get Started
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
+              </a>
               <a
-                href="#features"
+                href="https://github.com/Jasonvdb/owlmetry"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex h-11 items-center justify-center rounded-lg border border-white/15 px-8 text-sm font-medium text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/5 hover:text-white"
               >
-                Learn More
+                Self-Host
               </a>
             </div>
           </div>
@@ -290,24 +292,139 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-24 md:py-32">
+      {/* Use Cases */}
+      <section className="py-24 md:py-32">
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-4">
-              How it works
+              Use cases
             </p>
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+              Ask your agent. Get answers.
+            </h2>
+            <p className="mt-4 text-muted-foreground max-w-2xl mx-auto">
+              Your agent uses the OwlMetry CLI to query events, trace sessions, analyze funnels, and monitor performance &mdash; all from natural language.
+            </p>
+          </div>
+
+          <div className="mt-16 grid gap-5 md:grid-cols-2">
+            {/* Card 1 — Debug a user report */}
+            <div className="rounded-xl border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
+              <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
+                <p className="text-[13px] text-white/70">
+                  <span className="text-white/30 mr-1.5">&gt;</span>
+                  User 42 reported sync issues. What happened?
+                </p>
+              </div>
+              <div className="px-5 py-4 text-[12.5px] leading-relaxed space-y-1.5">
+                <p className="text-white/35">Querying errors for user 42...</p>
+                <p className="text-white/35">Investigating surrounding events...</p>
+                <p className="text-white/35">Tracing session timeline...</p>
+                <div className="pt-2.5 mt-1.5 border-t border-white/[0.04]">
+                  <p className="text-white/55">
+                    Found 5 sync errors in session. Background refresh failing with 409 conflict &mdash; stale local state after app update. Surrounding events show repeated retry loop.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2 — Morning standup */}
+            <div className="rounded-xl border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
+              <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
+                <p className="text-[13px] text-white/70">
+                  <span className="text-white/30 mr-1.5">&gt;</span>
+                  What app issues did we have overnight?
+                </p>
+              </div>
+              <div className="px-5 py-4 text-[12.5px] leading-relaxed space-y-1.5">
+                <p className="text-white/35">Pulling errors and warnings from the last 12 hours...</p>
+                <p className="text-white/35">Grouping by message pattern...</p>
+                <div className="pt-2.5 mt-1.5 border-t border-white/[0.04]">
+                  <p className="text-white/55">
+                    17 errors overnight. 12 are &quot;Payment gateway timeout&quot; starting at 3:14 AM &mdash; Stripe had a 47-minute outage. 5 unrelated auth errors from a single device.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3 — Funnel optimization */}
+            <div className="rounded-xl border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
+              <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
+                <p className="text-[13px] text-white/70">
+                  <span className="text-white/30 mr-1.5">&gt;</span>
+                  Why is our onboarding conversion dropping?
+                </p>
+              </div>
+              <div className="px-5 py-4 text-[12.5px] leading-relaxed space-y-1.5">
+                <p className="text-white/35">Querying onboarding funnel for the last 7 days...</p>
+                <p className="text-white/35">Comparing step drop-offs by app version...</p>
+                <div className="pt-2.5 mt-1.5 border-t border-white/[0.04]">
+                  <p className="text-white/55">
+                    Drop-off between &quot;Create Account&quot; and &quot;Verify Email&quot; jumped from 12% to 34%. Only affects v2.4.1 &mdash; email verification deeplink is broken on iOS 18.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4 — Performance monitoring */}
+            <div className="rounded-xl border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
+              <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
+                <p className="text-[13px] text-white/70">
+                  <span className="text-white/30 mr-1.5">&gt;</span>
+                  Is our photo upload getting slower?
+                </p>
+              </div>
+              <div className="px-5 py-4 text-[12.5px] leading-relaxed space-y-1.5">
+                <p className="text-white/35">Querying photo-upload metric for the last 7 days...</p>
+                <p className="text-white/35">Comparing against the previous week...</p>
+                <div className="pt-2.5 mt-1.5 border-t border-white/[0.04]">
+                  <p className="text-white/55">
+                    p50 steady at 1.2s but p95 climbed from 3.8s to 6.1s this week. Failure rate up 2%. Large files (&gt;5MB) are timing out on cellular connections.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5 — A/B experiment */}
+            <div className="rounded-xl border overflow-hidden md:col-span-2" style={{ background: "oklch(0.13 0.015 55)" }}>
+              <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
+                <p className="text-[13px] text-white/70">
+                  <span className="text-white/30 mr-1.5">&gt;</span>
+                  How is the checkout redesign experiment performing?
+                </p>
+              </div>
+              <div className="px-5 py-4 text-[12.5px] leading-relaxed space-y-1.5">
+                <p className="text-white/35">Querying checkout funnel segmented by experiment variant...</p>
+                <p className="text-white/35">Comparing checkout completion time across variants...</p>
+                <div className="pt-2.5 mt-1.5 border-t border-white/[0.04]">
+                  <p className="text-white/55">
+                    Variant B converts 23% better than control (68% vs 55%) and checkout time dropped from 4.2s to 2.8s. Variant A shows no significant difference. Recommend shipping Variant B.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how-it-works" className="relative py-24 md:py-32" style={{ background: "oklch(0.12 0.015 55)" }}>
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-4" style={{ color: "oklch(0.555 0.163 48.998)" }}>
+              How it works
+            </p>
+            <h2 className="text-3xl font-bold tracking-tight text-white/95 md:text-4xl">
               Your agent does the work
             </h2>
-            <p className="mt-4 text-muted-foreground">
+            <p className="mt-4 text-white/50">
               Point your coding agent at OwlMetry. It takes it from there.
             </p>
           </div>
 
           <div className="mt-16 relative">
             {/* Connecting line */}
-            <div className="hidden md:block absolute top-7 left-[calc(16.67%+28px)] right-[calc(16.67%+28px)] h-px bg-border" />
+            <div className="hidden md:block absolute top-7 left-[calc(16.67%+28px)] right-[calc(16.67%+28px)] h-px bg-white/10" />
 
             <div className="grid gap-12 md:grid-cols-3 md:gap-8">
               {steps.map((step) => (
@@ -321,8 +438,8 @@ export default async function LandingPage() {
                   >
                     {step.number}
                   </div>
-                  <h3 className="mt-6 text-lg font-semibold">{step.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                  <h3 className="mt-6 text-lg font-semibold text-white/90">{step.title}</h3>
+                  <p className="mt-2 text-sm text-white/45 leading-relaxed max-w-xs mx-auto">
                     {step.description}
                   </p>
                 </div>
@@ -333,16 +450,16 @@ export default async function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="relative py-24 md:py-32" style={{ background: "oklch(0.12 0.015 55)" }}>
+      <section id="pricing" className="py-24 md:py-32">
         <div className="mx-auto max-w-6xl px-6">
           <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-4" style={{ color: "oklch(0.555 0.163 48.998)" }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-4">
               Pricing
             </p>
-            <h2 className="text-3xl font-bold tracking-tight text-white/95 md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
               Free. Forever. Self-hosted.
             </h2>
-            <p className="mt-4 text-white/50">
+            <p className="mt-4 text-muted-foreground">
               No usage limits. No per-seat pricing. No vendor lock-in.
             </p>
           </div>
@@ -350,15 +467,15 @@ export default async function LandingPage() {
           <div className="mt-16 mx-auto max-w-md relative">
             {/* Glow behind card */}
             <div
-              className="absolute -inset-4 rounded-3xl blur-2xl opacity-[0.12]"
+              className="absolute -inset-4 rounded-3xl blur-2xl opacity-[0.08]"
               style={{ background: "oklch(0.555 0.163 48.998)" }}
             />
-            <div className="relative rounded-2xl border border-white/15 bg-white/[0.04] p-8 text-center">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 text-xs font-semibold tracking-wide" style={{ color: "oklch(0.555 0.163 48.998)" }}>
+            <div className="relative rounded-2xl border-2 border-primary/20 bg-card p-8 text-center shadow-xl">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary tracking-wide">
                 Open Source
               </div>
-              <p className="mt-6 text-5xl font-bold tracking-tight text-white/95">$0</p>
-              <p className="mt-1 text-sm text-white/40">forever</p>
+              <p className="mt-6 text-5xl font-bold tracking-tight">$0</p>
+              <p className="mt-1 text-sm text-muted-foreground">forever</p>
 
               <ul className="mt-8 space-y-3 text-left">
                 {[
@@ -369,8 +486,8 @@ export default async function LandingPage() {
                   "Full REST API",
                   "Optional web dashboard",
                 ].map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-sm text-white/70">
-                    <Check className="h-4 w-4 shrink-0" style={{ color: "oklch(0.555 0.163 48.998)" }} />
+                  <li key={item} className="flex items-center gap-3 text-sm">
+                    <Check className="h-4 w-4 shrink-0 text-primary" />
                     {item}
                   </li>
                 ))}
