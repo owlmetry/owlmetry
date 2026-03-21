@@ -1,3 +1,9 @@
+import { config as dotenvConfig } from "dotenv";
+import { resolve } from "node:path";
+
+// Load .env from monorepo root before reading env vars
+dotenvConfig({ path: resolve(import.meta.dirname, "../../../.env") });
+
 export const config = {
   port: Number(process.env.PORT || 4000),
   host: process.env.HOST || "0.0.0.0",
