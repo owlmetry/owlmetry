@@ -450,6 +450,33 @@ describe("GET /v1/invites/:token", () => {
 
     expect(res.statusCode).toBe(404);
   });
+
+  it("returns 410 for expired invitation", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { email: "expired@owlmetry.com" },
+    });
+
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    // Expire the invitation via direct DB update
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    await client`UPDATE team_invitations SET expires_at = NOW() - INTERVAL '1 day' WHERE token = ${inviteToken}`;
+    await client.end();
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/invites/${inviteToken}`,
+    });
+
+    expect(res.statusCode).toBe(410);
+    expect(res.json().error).toMatch(/expired/i);
+  });
 });
 
 describe("POST /v1/invites/accept", () => {
@@ -520,6 +547,112 @@ describe("POST /v1/invites/accept", () => {
 
     expect(res.statusCode).toBe(403);
     expect(res.json().error).toContain("specific@owlmetry.com");
+  });
+
+  it("rejects expired invitation", async () => {
+    const { token: ownerToken, teamId } = await getTokenAndTeamId(app);
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { email: "expired@owlmetry.com" },
+    });
+
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    // Expire the invitation
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    await client`UPDATE team_invitations SET expires_at = NOW() - INTERVAL '1 day' WHERE token = ${inviteToken}`;
+    await client.end();
+
+    const newUser = await createUserAndGetToken(app, "expired@owlmetry.com", "Expired User");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/invites/accept",
+      headers: { authorization: `Bearer ${newUser.token}` },
+      payload: { token: inviteToken },
+    });
+
+    expect(res.statusCode).toBe(410);
+    expect(res.json().error).toMatch(/expired/i);
+  });
+
+  it("rejects already-accepted invitation", async () => {
+    const { token: ownerToken, teamId } = await getTokenAndTeamId(app);
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { email: "accepted@owlmetry.com" },
+    });
+
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    const newUser = await createUserAndGetToken(app, "accepted@owlmetry.com", "Accepted User");
+
+    // Accept the invitation the first time
+    await app.inject({
+      method: "POST",
+      url: "/v1/invites/accept",
+      headers: { authorization: `Bearer ${newUser.token}` },
+      payload: { token: inviteToken },
+    });
+
+    // Re-auth and try to accept again
+    const { token: freshToken } = await createUserAndGetToken(app, "accepted@owlmetry.com");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/invites/accept",
+      headers: { authorization: `Bearer ${freshToken}` },
+      payload: { token: inviteToken },
+    });
+
+    expect(res.statusCode).toBe(410);
+    expect(res.json().error).toMatch(/already been accepted/i);
+  });
+
+  it("succeeds when user is already a team member (race condition)", async () => {
+    const { token: ownerToken, teamId } = await getTokenAndTeamId(app);
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/teams/${teamId}/invitations`,
+      headers: { authorization: `Bearer ${ownerToken}` },
+      payload: { email: "racer@owlmetry.com" },
+    });
+
+    const acceptUrl = testEmailService.lastInvitationParams!.accept_url;
+    const inviteToken = new URL(acceptUrl).searchParams.get("token")!;
+
+    // Register user and add them directly as a member (simulating race condition)
+    const newUser = await createUserAndGetToken(app, "racer@owlmetry.com", "Racer");
+    await addTeamMember(teamId, newUser.userId, "member");
+
+    // Re-auth to pick up membership
+    const { token: freshToken } = await createUserAndGetToken(app, "racer@owlmetry.com");
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/invites/accept",
+      headers: { authorization: `Bearer ${freshToken}` },
+      payload: { token: inviteToken },
+    });
+
+    // Should succeed — catches PG unique violation and marks invite accepted
+    expect(res.statusCode).toBe(200);
+    expect(res.json().team_name).toBe("Test Team");
+
+    // Verify invitation is marked as accepted
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const [inv] = await client`SELECT accepted_at FROM team_invitations WHERE token = ${inviteToken}`;
+    expect(inv.accepted_at).not.toBeNull();
+    await client.end();
   });
 });
 

@@ -218,6 +218,40 @@ describe("POST /v1/ingest", () => {
     expect(rateLimited[0].json().error).toMatch(/rate limit/i);
   });
 
+  it("includes Retry-After header on 429 response", async () => {
+    const promises = [];
+    for (let i = 0; i < 105; i++) {
+      promises.push(
+        ingest([{ level: "info", message: `Flood ${i}`, session_id: TEST_SESSION_ID }])
+      );
+    }
+    const results = await Promise.all(promises);
+
+    const rateLimited = results.find((r) => r.statusCode === 429)!;
+    expect(rateLimited).toBeDefined();
+    expect(rateLimited.headers["retry-after"]).toBe("1");
+  });
+
+  it("rate limits keys independently", async () => {
+    // Drain the bucket for the default client key
+    const promises = [];
+    for (let i = 0; i < 105; i++) {
+      promises.push(
+        ingest([{ level: "info", message: `Flood ${i}`, session_id: TEST_SESSION_ID }])
+      );
+    }
+    await Promise.all(promises);
+
+    // A different key should still have its own full bucket
+    const res = await ingest(
+      [{ level: "info", message: "Backend event", session_id: TEST_SESSION_ID, environment: "backend" }],
+      TEST_BACKEND_CLIENT_KEY,
+      undefined as any
+    );
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it("accepts gzip-compressed event payload", async () => {
     const json = JSON.stringify({
       bundle_id: TEST_BUNDLE_ID,
@@ -312,6 +346,23 @@ describe("POST /v1/ingest", () => {
     });
 
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it("rejects gzip payload exceeding 1 MB compressed size", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_KEY}`,
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+        "content-length": "2000000",
+      },
+      body: Buffer.from("irrelevant"),
+    });
+
+    expect(res.statusCode).toBe(413);
+    expect(res.json().error).toBe("Compressed payload too large");
   });
 
   describe("environment validation against app platform", () => {
