@@ -20,9 +20,10 @@ import { config } from "../config.js";
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: config.cookieSecure,
-  sameSite: "strict" as const,
+  sameSite: "lax" as const,
   path: "/",
   maxAge: 7 * 24 * 60 * 60, // 7 days, matching JWT expiry
+  ...(config.cookieDomain ? { domain: config.cookieDomain } : {}),
 };
 
 function serializeUser(user: { id: string; email: string; name: string; created_at: Date; updated_at: Date }) {
