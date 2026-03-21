@@ -1,9 +1,16 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { saveConfig, getGlobals, DEFAULT_ENDPOINT } from "../config.js";
+import { saveConfig, getGlobals, DEFAULT_ENDPOINT, DEFAULT_INGEST_ENDPOINT } from "../config.js";
 
 function resolveEndpoint(globals: { endpoint?: string }): string {
   return globals.endpoint || process.env.OWLMETRY_ENDPOINT || DEFAULT_ENDPOINT;
+}
+
+function resolveIngestEndpointForAuth(globals: { ingestEndpoint?: string }, endpoint: string): string {
+  const explicit = globals.ingestEndpoint ?? process.env.OWLMETRY_INGEST_ENDPOINT;
+  if (explicit) return explicit;
+  if (endpoint === DEFAULT_ENDPOINT) return DEFAULT_INGEST_ENDPOINT;
+  return endpoint;
 }
 
 async function apiPost<T>(endpoint: string, path: string, body: unknown): Promise<{ status: number; data: T }> {
@@ -96,12 +103,15 @@ authCommand
       process.exit(1);
     }
 
-    saveConfig({ endpoint, api_key });
+    const ingestEndpoint = resolveIngestEndpointForAuth(globals as { ingestEndpoint?: string }, endpoint);
+    saveConfig({ endpoint, api_key, ingest_endpoint: ingestEndpoint });
 
     if (format === "json") {
-      console.log(JSON.stringify({ api_key, endpoint, team }, null, 2));
+      console.log(JSON.stringify({ api_key, endpoint, ingest_endpoint: ingestEndpoint, team }, null, 2));
     } else {
       console.log(chalk.green("✓ Authenticated! Config saved to ~/.owlmetry/config.json"));
-      console.log(`  Team: ${team?.name}`);
+      console.log(`  Team:             ${team?.name}`);
+      console.log(`  API endpoint:     ${endpoint}`);
+      console.log(`  Ingest endpoint:  ${ingestEndpoint}`);
     }
   });

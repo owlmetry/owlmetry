@@ -24,8 +24,9 @@ const program = new Command()
       .choices(["table", "json", "log"])
       .default("table"),
   )
-  .option("--endpoint <url>", "OwlMetry server URL")
-  .option("--api-key <key>", "API key");
+  .option("--endpoint <url>", "OwlMetry API server URL")
+  .option("--api-key <key>", "API key")
+  .option("--ingest-endpoint <url>", "OwlMetry ingest endpoint URL (for SDKs; defaults to API endpoint for self-hosted)");
 
 program.addCommand(authCommand);
 program.addCommand(setupCommand);

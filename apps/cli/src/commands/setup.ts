@@ -40,6 +40,9 @@ export const setupCommand = new Command("setup")
       process.exit(1);
     }
 
-    saveConfig({ endpoint: globals.endpoint, api_key: globals.apiKey });
+    const ingestEndpoint = (globals as { ingestEndpoint?: string }).ingestEndpoint || globals.endpoint;
+    saveConfig({ endpoint: globals.endpoint, api_key: globals.apiKey, ingest_endpoint: ingestEndpoint });
     console.log(chalk.green("Configuration saved to ~/.owlmetry/config.json"));
+    console.log(`  API endpoint:     ${globals.endpoint}`);
+    console.log(`  Ingest endpoint:  ${ingestEndpoint}`);
   });

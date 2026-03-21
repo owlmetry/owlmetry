@@ -55,11 +55,11 @@ If it fails (missing config or invalid key), run the auth flow:
    ```bash
    owlmetry auth verify --email <user-email> --code <code> --format json
    ```
-   This creates the user account and team (if new), generates an agent API key (`owl_agent_...`), and saves config to `~/.owlmetry/config.json`. Default endpoint: `https://api.owlmetry.com`.
+   This creates the user account and team (if new), generates an agent API key (`owl_agent_...`), and saves config to `~/.owlmetry/config.json`. Default API endpoint: `https://api.owlmetry.com`. Default ingest endpoint: `https://ingest.owlmetry.com`.
 
 **Manual setup** (if the user already has an API key):
 ```bash
-owlmetry setup --endpoint <url> --api-key <key>
+owlmetry setup --endpoint <url> --api-key <key> [--ingest-endpoint <url>]
 ```
 
 ### Step 3 — Create project and app
@@ -242,7 +242,8 @@ owlmetry audit-log list --team <id> [--resource-type <type>] [--resource-id <id>
 ## Key Notes
 
 - Always use `--format json` when parsing output programmatically.
-- **Global flags** available on all commands: `--endpoint <url>`, `--api-key <key>`, `--format <format>`
+- **Global flags** available on all commands: `--endpoint <url>`, `--api-key <key>`, `--ingest-endpoint <url>`, `--format <format>`
+- **Two endpoints**: `endpoint` is the API server (for CLI/agent queries). `ingest_endpoint` is where SDKs send events. Both are saved in `~/.owlmetry/config.json`. For the hosted platform: `api.owlmetry.com` and `ingest.owlmetry.com`. For self-hosted: ingest defaults to the same as the API endpoint.
 - **Agent keys** (`owl_agent_...`) are for CLI queries. **Client keys** (`owl_client_...`) are for SDK event ingestion.
 - **Time format:** relative (`1h`, `30m`, `7d`) or ISO 8601 (`2026-03-20T00:00:00Z`). Relative times go backwards from now — `1h` means "the last hour", `7d` means "the last 7 days".
 - **Data mode:** `production` (default), `debug`, or `all` — filters events by their debug flag. SDKs auto-detect debug mode (DEBUG builds on iOS, `NODE_ENV !== "production"` on Node). Use `debug` mode during development to see test events; use `production` (the default) for real analytics.
@@ -255,7 +256,7 @@ A typical end-to-end flow for adding OwlMetry to a new project:
 1. **Sign up**: `owlmetry auth send-code` → verify code → auto-provisioned with team, project, and backend app
 2. **Create apps**: `owlmetry apps create --platform apple --bundle-id com.example.myapp` (and/or android, web, backend)
 3. **Note the client key**: from the app creation response — pass this to the SDK
-4. **Instrument the app**: Add the Swift or Node SDK, configure with the endpoint and client key, add logging calls
+4. **Instrument the app**: Add the Swift or Node SDK, configure with the `ingest_endpoint` from `~/.owlmetry/config.json` and client key, add logging calls
 5. **Define metrics**: `owlmetry metrics create --slug photo-upload --lifecycle` for operations you want to track with duration
 6. **Define funnels**: `owlmetry funnels create --slug onboarding --steps '[...]'` for multi-step flows you want to measure conversion on
 7. **Query data**: Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior

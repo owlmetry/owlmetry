@@ -8,15 +8,18 @@ import type { OutputFormat } from "./formatters/index.js";
 export interface CliConfig {
   endpoint: string;
   api_key: string;
+  ingest_endpoint?: string;
 }
 
 export interface GlobalOptions {
   format: OutputFormat;
   endpoint?: string;
   apiKey?: string;
+  ingestEndpoint?: string;
 }
 
 export const DEFAULT_ENDPOINT = "https://api.owlmetry.com";
+export const DEFAULT_INGEST_ENDPOINT = "https://ingest.owlmetry.com";
 
 const CONFIG_DIR = join(homedir(), ".owlmetry");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
@@ -59,7 +62,25 @@ export function resolveConfig(opts: {
     );
   }
 
-  return { endpoint, api_key };
+  return { endpoint, api_key, ingest_endpoint: file?.ingest_endpoint };
+}
+
+/**
+ * Resolve the ingest endpoint from flags → env → config file → derived from API endpoint.
+ * For the hosted platform: defaults to ingest.owlmetry.com
+ * For self-hosted: defaults to the same as the API endpoint
+ */
+export function resolveIngestEndpoint(opts: { ingestEndpoint?: string }, config: CliConfig): string {
+  const explicit = opts.ingestEndpoint ?? process.env.OWLMETRY_INGEST_ENDPOINT;
+  if (explicit) return explicit;
+
+  if (config.ingest_endpoint) return config.ingest_endpoint;
+
+  // Derive: if using the hosted API, use the hosted ingest endpoint
+  if (config.endpoint === DEFAULT_ENDPOINT) return DEFAULT_INGEST_ENDPOINT;
+
+  // Self-hosted: default to same as API endpoint
+  return config.endpoint;
 }
 
 export function getGlobals(cmd: Command): GlobalOptions {
