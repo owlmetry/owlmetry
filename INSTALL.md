@@ -54,6 +54,7 @@ CORS_ORIGINS=https://yourdomain.com
 MAX_DATABASE_SIZE_GB=8
 RESEND_API_KEY=<your-resend-key>
 EMAIL_FROM=noreply@yourdomain.com
+COOKIE_DOMAIN=.yourdomain.com
 ```
 
 Generate a random JWT secret:
@@ -72,6 +73,7 @@ openssl rand -base64 48
 | `MAX_DATABASE_SIZE_GB` | No | Auto-prune events when DB exceeds this size (default: `0` = disabled) |
 | `RESEND_API_KEY` | No | [Resend](https://resend.com) API key for sending verification emails. If unset, codes print to server console (fine for single-user setups) |
 | `EMAIL_FROM` | No | From address for verification emails (default: `noreply@owlmetry.com`) |
+| `COOKIE_DOMAIN` | Yes* | Cookie domain for cross-subdomain auth (e.g., `.yourdomain.com`). Required when API and dashboard are on different subdomains |
 
 ## 4. Run Migrations
 

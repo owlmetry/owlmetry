@@ -570,3 +570,4 @@ pnpm dev:demo-node          # Terminal 2
 | `MAX_DATABASE_SIZE_GB` | `0` (disabled) | Max database size before pruning old events |
 | `RESEND_API_KEY` | (empty) | Resend API key for sending verification emails; if unset, codes print to server console |
 | `EMAIL_FROM` | `noreply@owlmetry.com` | From address for verification emails (requires Resend) |
+| `COOKIE_DOMAIN` | (unset) | Cookie domain for cross-subdomain auth (e.g., `.yourdomain.com`); required when API and dashboard are on different subdomains |
