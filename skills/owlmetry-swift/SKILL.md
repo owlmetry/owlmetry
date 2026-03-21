@@ -23,17 +23,9 @@ Run these checks silently. Only inform the user if updates are available.
 
 ## Prerequisite
 
-You need:
-- **Ingest endpoint**: the URL where SDKs send events
-- **Client key**: starts with `owl_client_...` (for an app with `platform: apple`)
+You need an **ingest endpoint** and a **client key** (`owl_client_...`) for an Apple-platform app. Both come from the CLI setup flow.
 
-**Finding the ingest endpoint:** Read `~/.owlmetry/config.json` and use the `ingest_endpoint` field. This is set automatically during `owlmetry auth verify` or `owlmetry setup`. For the hosted platform it's `https://ingest.owlmetry.com`. For self-hosted it defaults to the same as the API endpoint.
-
-If the user doesn't have a client key yet, invoke `/owlmetry-cli` first to:
-1. Sign up or log in (this saves the ingest endpoint to config)
-2. Create a project (if needed)
-3. Create an app with `--platform apple --bundle-id <bundle-id>`
-4. Note the `client_key` from the app creation response
+If the user doesn't have these yet, follow the `/owlmetry-cli` skill first — it handles sign-up, project creation, and app creation. The ingest endpoint is saved to `~/.owlmetry/config.json` (`ingest_endpoint` field) and the client key is returned when creating an app.
 
 ## Add Swift Package
 

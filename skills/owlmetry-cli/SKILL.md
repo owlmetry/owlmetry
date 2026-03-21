@@ -96,7 +96,7 @@ Use the `client_key` from Step 3 to configure the appropriate SDK:
 - **Node.js projects** → follow the `owlmetry-node` skill file
 - **Swift/iOS projects** → follow the `owlmetry-swift` skill file
 
-Pass the endpoint and client key to the SDK's `configure()` call.
+Pass the **ingest endpoint** and client key to the SDK's `configure()` call. Read `~/.owlmetry/config.json` for the `ingest_endpoint` value (set during auth). For the hosted platform it's `https://ingest.owlmetry.com`. For self-hosted it defaults to the API endpoint.
 
 ## Resource Hierarchy
 
@@ -253,10 +253,11 @@ owlmetry audit-log list --team <id> [--resource-type <type>] [--resource-id <id>
 
 A typical end-to-end flow for adding OwlMetry to a new project:
 
-1. **Sign up**: `owlmetry auth send-code` → verify code → auto-provisioned with team, project, and backend app
-2. **Create apps**: `owlmetry apps create --platform apple --bundle-id com.example.myapp` (and/or android, web, backend)
-3. **Note the client key**: from the app creation response — pass this to the SDK
-4. **Instrument the app**: Add the Swift or Node SDK, configure with the `ingest_endpoint` from `~/.owlmetry/config.json` and client key, add logging calls
-5. **Define metrics**: `owlmetry metrics create --slug photo-upload --lifecycle` for operations you want to track with duration
-6. **Define funnels**: `owlmetry funnels create --slug onboarding --steps '[...]'` for multi-step flows you want to measure conversion on
-7. **Query data**: Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior
+1. **Sign up**: `owlmetry auth send-code` → verify code → team created, config saved
+2. **Create a project**: `owlmetry projects create --name "..." --slug "..." --format json`
+3. **Create apps**: `owlmetry apps create --platform apple --bundle-id com.example.myapp` (and/or android, web, backend)
+4. **Note the client key**: from the app creation response — pass this to the SDK
+5. **Instrument the app**: Add the Swift or Node SDK, configure with the `ingest_endpoint` from `~/.owlmetry/config.json` and client key, add logging calls
+6. **Define metrics**: `owlmetry metrics create --slug photo-upload --lifecycle` for operations you want to track with duration
+7. **Define funnels**: `owlmetry funnels create --slug onboarding --steps '[...]'` for multi-step flows you want to measure conversion on
+8. **Query data**: Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior
