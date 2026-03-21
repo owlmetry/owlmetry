@@ -62,7 +62,7 @@ struct MyApp: App {
     init() {
         do {
             try Owl.configure(
-                endpoint: "https://api.owlmetry.com",
+                endpoint: "https://ingest.owlmetry.com",
                 apiKey: "owl_client_..."
             )
         } catch {

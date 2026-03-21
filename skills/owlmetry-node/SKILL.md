@@ -45,7 +45,7 @@ Zero runtime dependencies. Node.js 20+. ESM only.
 import { Owl } from '@owlmetry/node';
 
 Owl.configure({
-  endpoint: 'https://api.owlmetry.com',
+  endpoint: 'https://ingest.owlmetry.com',
   apiKey: 'owl_client_...',
   serviceName: 'my-api',          // optional, default: "unknown"
   appVersion: '1.2.0',            // optional

@@ -181,7 +181,7 @@ pm2 startup  # follow the instructions to enable on boot
 # /etc/nginx/sites-available/owlmetry
 server {
     listen 80;
-    server_name api.your-domain.com;
+    server_name api.owlmetry.com;
 
     location / {
         proxy_pass http://127.0.0.1:4000;
@@ -207,7 +207,7 @@ sudo systemctl reload nginx
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d api.your-domain.com
+sudo certbot --nginx -d api.owlmetry.com -d ingest.owlmetry.com -d owlmetry.com
 ```
 
 ### 7. Partition maintenance
@@ -380,7 +380,7 @@ import { Owl } from '@owlmetry/node';
 
 // Initialize at server startup
 Owl.configure({
-  endpoint: 'https://your-owlmetry.com',
+  endpoint: 'https://ingest.owlmetry.com',
   apiKey: 'owl_client_xxx',
   serviceName: 'api-server',
   appVersion: '1.0.0',
@@ -439,7 +439,7 @@ In short-lived environments (Firebase Cloud Functions, AWS Lambda), buffered eve
 import { onRequest } from 'firebase-functions/v2/https';
 import { Owl } from '@owlmetry/node';
 
-Owl.configure({ endpoint: 'https://...', apiKey: 'owl_client_...' });
+Owl.configure({ endpoint: 'https://ingest.owlmetry.com', apiKey: 'owl_client_...' });
 
 export const myFunction = onRequest(
   Owl.wrapHandler(async (req, res) => {
@@ -468,7 +468,7 @@ import OwlMetry
 
 // Initialize (typically in AppDelegate or @main App.init)
 try Owl.configure(
-    endpoint: "https://your-owlmetry.com",
+    endpoint: "https://ingest.owlmetry.com",
     apiKey: "owl_client_xxx"
 )
 
