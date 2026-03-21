@@ -59,6 +59,7 @@ packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed
 demos/ios          iOS demo app
 demos/node         Node.js demo server
+deploy/            VPS deployment scripts (Ubuntu 24.04 setup)
 ```
 
 The API server is the product. Everything else — the dashboard, the CLI, the SDKs — is a client of that API. This means your agent has the same capabilities as the web UI. Nothing is dashboard-only.
@@ -93,9 +94,11 @@ pnpm dev:server
 
 # Run tests (requires owlmetry_test database + Swift toolchain)
 createdb owlmetry_test
-pnpm test              # Vitest + Swift SDK integration tests
+pnpm test              # Vitest + Swift SDK + CLI integration tests
 pnpm test:swift-sdk    # Swift SDK integration tests only
 pnpm test:node-sdk     # Node SDK integration tests only
+pnpm test:cli          # CLI tests (unit + formatter + integration)
+pnpm test:coverage     # Server tests with code coverage reporting
 ```
 
 ## Server Installation (Ubuntu VPS)
@@ -273,20 +276,22 @@ MAX_DATABASE_SIZE_GB=10
 | `DELETE` | `/v1/apps/:id` | JWT only (admin+) | Soft-delete app |
 | `GET` | `/v1/apps/:id/users` | `apps:read` / JWT | List app users (paginated) |
 | `POST` | `/v1/identity/claim` | Client key | Link anonymous events to a user ID |
-| `GET` | `/v1/funnels?project_id=` | `funnels:read` / JWT | List funnel definitions for project |
-| `GET` | `/v1/funnels/:slug?project_id=` | `funnels:read` / JWT | Get funnel definition |
-| `POST` | `/v1/funnels` | `funnels:write` / JWT (admin+) | Create funnel definition |
-| `PATCH` | `/v1/funnels/:slug?project_id=` | `funnels:write` / JWT (admin+) | Update funnel definition |
-| `DELETE` | `/v1/funnels/:slug?project_id=` | JWT only (admin+) | Soft-delete funnel definition |
-| `GET` | `/v1/funnels/:slug/query?project_id=` | `funnels:read` / JWT | Query funnel analytics (drop-off rates, grouping, experiments) |
-| `GET` | `/v1/metrics?project_id=` | `metrics:read` / JWT | List metric definitions for project |
-| `GET` | `/v1/metrics/:slug?project_id=` | `metrics:read` / JWT | Get metric definition with docs |
-| `POST` | `/v1/metrics` | `metrics:write` / JWT (admin+) | Create metric definition |
-| `PATCH` | `/v1/metrics/:slug?project_id=` | `metrics:write` / JWT (admin+) | Update metric definition |
-| `DELETE` | `/v1/metrics/:slug?project_id=` | JWT only (admin+) | Soft-delete metric definition |
-| `GET` | `/v1/metrics/:slug/query?project_id=` | `metrics:read` / JWT | Aggregation endpoint (counts, rates, percentiles) |
-| `GET` | `/v1/metrics/:slug/events?project_id=` | `metrics:read` / JWT | Raw metric events (paginated) |
-| `GET` | `/v1/audit-logs?team_id=` | `audit_logs:read` / JWT (admin+) | Query audit log entries (paginated, cursor-based) |
+| `GET` | `/v1/projects/:projectId/funnels` | `funnels:read` / JWT | List funnel definitions for project |
+| `GET` | `/v1/projects/:projectId/funnels/:slug` | `funnels:read` / JWT | Get funnel definition |
+| `GET` | `/v1/funnels/by-id/:id` | `funnels:read` / JWT | Get funnel definition by ID |
+| `POST` | `/v1/projects/:projectId/funnels` | `funnels:write` / JWT (admin+) | Create funnel definition |
+| `PATCH` | `/v1/projects/:projectId/funnels/:slug` | `funnels:write` / JWT (admin+) | Update funnel definition |
+| `DELETE` | `/v1/projects/:projectId/funnels/:slug` | JWT only (admin+) | Soft-delete funnel definition |
+| `GET` | `/v1/projects/:projectId/funnels/:slug/query` | `funnels:read` / JWT | Query funnel analytics (drop-off rates, grouping, experiments) |
+| `GET` | `/v1/projects/:projectId/metrics` | `metrics:read` / JWT | List metric definitions for project |
+| `GET` | `/v1/projects/:projectId/metrics/:slug` | `metrics:read` / JWT | Get metric definition with docs |
+| `GET` | `/v1/metrics/by-id/:id` | `metrics:read` / JWT | Get metric definition by ID |
+| `POST` | `/v1/projects/:projectId/metrics` | `metrics:write` / JWT (admin+) | Create metric definition |
+| `PATCH` | `/v1/projects/:projectId/metrics/:slug` | `metrics:write` / JWT (admin+) | Update metric definition |
+| `DELETE` | `/v1/projects/:projectId/metrics/:slug` | JWT only (admin+) | Soft-delete metric definition |
+| `GET` | `/v1/projects/:projectId/metrics/:slug/query` | `metrics:read` / JWT | Aggregation endpoint (counts, rates, percentiles) |
+| `GET` | `/v1/projects/:projectId/metrics/:slug/events` | `metrics:read` / JWT | Raw metric events (paginated) |
+| `GET` | `/v1/teams/:teamId/audit-logs` | `audit_logs:read` / JWT (admin+) | Query audit log entries (paginated, cursor-based) |
 
 ## CLI
 
@@ -330,9 +335,12 @@ New users automatically get a team, project, and backend app provisioned. The ag
 owlmetry projects                              # List projects
 owlmetry projects view <id>                    # Project details with apps
 owlmetry projects create --team-id <id> --name "My Project" --slug my-project
+owlmetry projects update <id> --name "New Name" # Rename project
 owlmetry apps                                  # List apps
 owlmetry apps --project <id>                   # Filter by project
+owlmetry apps view <id>                        # App details
 owlmetry apps create --project <id> --name "iOS App" --platform apple --bundle-id com.example.app
+owlmetry apps update <id> --name "New Name"    # Rename app
 
 # Events
 owlmetry events --since 1h                     # Events from the last hour
@@ -340,10 +348,16 @@ owlmetry events --level error --app <id>       # Errors for a specific app
 owlmetry events view <id>                      # Full event details
 owlmetry investigate <eventId> --window 10     # Events ±10 min around target
 
+# Users
+owlmetry users <app-id>                        # List app users
+owlmetry users <app-id> --real --search "alice" # Filter by type and search
+
 # Metrics
 owlmetry metrics --project <id>                # List metric definitions
 owlmetry metrics view <slug> --project <id>    # Metric definition details
 owlmetry metrics create --project <id> --name "Startup Time" --slug startup-time --lifecycle
+owlmetry metrics update <slug> --project <id> --name "New Name"
+owlmetry metrics delete <slug> --project <id>  # Soft-delete metric
 owlmetry metrics query <slug> --project <id> --since 7d
 owlmetry metrics events <slug> --project <id>  # Raw metric events
 
@@ -351,6 +365,8 @@ owlmetry metrics events <slug> --project <id>  # Raw metric events
 owlmetry funnels --project <id>                # List funnel definitions
 owlmetry funnels view <slug> --project <id>    # Funnel definition details
 owlmetry funnels create --project <id> --name "Onboarding" --slug onboarding --steps '[...]'
+owlmetry funnels update <slug> --project <id> --name "New Name"
+owlmetry funnels delete <slug> --project <id>  # Soft-delete funnel
 owlmetry funnels query <slug> --project <id> --since 7d
 
 # Audit log
@@ -549,6 +565,7 @@ pnpm dev:demo-node          # Terminal 2
 | `PORT` | `4000` | API server port |
 | `HOST` | `0.0.0.0` | API server bind address |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
+| `WEB_APP_URL` | `http://localhost:3000` | Web dashboard URL (used for invitation email links) |
 | `MAX_DATABASE_SIZE_GB` | `0` (disabled) | Max database size before pruning old events |
 | `RESEND_API_KEY` | (empty) | Resend API key for sending verification emails; if unset, codes print to server console |
 | `EMAIL_FROM` | `noreply@owlmetry.com` | From address for verification emails (requires Resend) |
