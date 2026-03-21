@@ -120,6 +120,32 @@ describe("GET /v1/projects/:id", () => {
 });
 
 describe("POST /v1/projects", () => {
+  it("rejects missing fields in create", async () => {
+    const { token } = await getTokenAndTeamId(app);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Test" },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects invalid slug in create", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { team_id: teamId, name: "Test", slug: "Bad Slug!" },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it("rejects duplicate slug in same team", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
 

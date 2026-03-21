@@ -601,6 +601,62 @@ describe("Metric Query Filters", () => {
     expect(allRes.json().aggregation.total_count).toBe(3);
   });
 
+  // --- until filter ---
+
+  it("filters query results by until timestamp", async () => {
+    const slug = "until-filter-query";
+    const now = Date.now();
+    await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        bundle_id: TEST_BUNDLE_ID,
+        events: [
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 7200000).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 100).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+        ],
+      },
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?until=${new Date(now - 3600000).toISOString()}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().aggregation.total_count).toBe(1);
+  });
+
+  it("filters raw metric events by until timestamp", async () => {
+    const slug = "until-filter-events";
+    const now = Date.now();
+    await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        bundle_id: TEST_BUNDLE_ID,
+        events: [
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 7200000).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 100).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+        ],
+      },
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?until=${new Date(now - 3600000).toISOString()}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().events).toHaveLength(1);
+  });
+
   // --- phase filter on events endpoint ---
 
   it("filters raw metric events by phase", async () => {
@@ -638,6 +694,72 @@ describe("Metric Query Filters", () => {
     expect(recordRes.json().events[0].phase).toBe("record");
   });
 
+  // --- tracking_id filter on events endpoint ---
+
+  it("filters raw metric events by tracking_id", async () => {
+    const slug = "tid-filter";
+    const targetTid = crypto.randomUUID();
+    await ingestMetric(slug, "record", { tracking_id: targetTid });
+    await ingestMetric(slug, "record");
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?tracking_id=${targetTid}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().events).toHaveLength(1);
+    expect(res.json().events[0].tracking_id).toBe(targetTid);
+  });
+
+  // --- cursor pagination on events endpoint ---
+
+  it("paginates raw metric events with cursor", async () => {
+    const slug = "cursor-paginate";
+    const now = Date.now();
+    // Space events apart so timestamp-based cursor advances
+    await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        bundle_id: TEST_BUNDLE_ID,
+        events: [
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 30000).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 20000).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+          { session_id: TEST_SESSION_ID, level: "info", message: `metric:${slug}:record`, timestamp: new Date(now - 10000).toISOString(), custom_attributes: { tracking_id: crypto.randomUUID() } },
+        ],
+      },
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+
+    // Page 1 — limit=2, so we get 2 events and cursor advances past the 2nd
+    const page1 = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?limit=2&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(page1.statusCode).toBe(200);
+    const p1 = page1.json();
+    expect(p1.events).toHaveLength(2);
+    expect(p1.has_more).toBe(true);
+    expect(p1.cursor).toBeDefined();
+
+    // Page 2 — should return remaining event(s)
+    const page2 = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/events?limit=2&cursor=${p1.cursor}&data_mode=all`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(page2.statusCode).toBe(200);
+    const p2 = page2.json();
+    expect(p2.events.length).toBeGreaterThanOrEqual(1);
+  });
+
   // --- group_by time:day ---
 
   it("groups query results by time:day", async () => {
@@ -658,6 +780,50 @@ describe("Metric Query Filters", () => {
     const groups = res.json().aggregation.groups;
     expect(groups).toHaveLength(1);
     expect(groups[0].key).toBe("time:day");
+    expect(groups[0].total_count).toBe(2);
+  });
+
+  // --- group_by time:hour ---
+
+  it("groups query results by time:hour", async () => {
+    const slug = "time-hour-group";
+    await ingestMetric(slug, "record");
+    await ingestMetric(slug, "record");
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=time:hour`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe("time:hour");
+    expect(groups[0].total_count).toBe(2);
+  });
+
+  // --- group_by time:week ---
+
+  it("groups query results by time:week", async () => {
+    const slug = "time-week-group";
+    await ingestMetric(slug, "record");
+    await ingestMetric(slug, "record");
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=time:week`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].key).toBe("time:week");
     expect(groups[0].total_count).toBe(2);
   });
 
@@ -1013,6 +1179,27 @@ describe("Metric Cross-Platform Environment", () => {
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(allRes.json().aggregation.total_count).toBe(3);
+  });
+
+  it("groups query results by app_id", async () => {
+    const slug = "app-id-group";
+    await ingestMetricForPlatform("apple", slug, "record", { environment: "ios" });
+    await ingestMetricForPlatform("apple", slug, "record", { environment: "ios" });
+    await ingestMetricForPlatform("android", slug, "record", { environment: "android" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Query apple project — should only see the 2 apple app events
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=app_id`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(1);
+    expect(groups[0].total_count).toBe(2);
   });
 
   it("data_mode filter works for android metrics", async () => {

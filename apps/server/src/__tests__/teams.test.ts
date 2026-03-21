@@ -8,8 +8,10 @@ import {
   getTokenAndTeamId,
   createUserAndGetToken,
   addTeamMember,
+  createAgentKey,
   testEmailService,
   TEST_USER,
+  TEST_AGENT_KEY,
   TEST_DB_URL,
 } from "./setup.js";
 import postgres from "postgres";
@@ -75,6 +77,26 @@ describe("POST /v1/teams", () => {
     expect(res.statusCode).toBe(409);
   });
 
+  it("rejects missing name or slug", async () => {
+    const token = await getToken(app);
+
+    const noSlug = await app.inject({
+      method: "POST",
+      url: "/v1/teams",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Test" },
+    });
+    expect(noSlug.statusCode).toBe(400);
+
+    const noName = await app.inject({
+      method: "POST",
+      url: "/v1/teams",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { slug: "test" },
+    });
+    expect(noName.statusCode).toBe(400);
+  });
+
   it("rejects invalid slugs", async () => {
     const token = await getToken(app);
 
@@ -136,6 +158,19 @@ describe("PATCH /v1/teams/:teamId", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().name).toBe("Renamed Team");
+  });
+
+  it("rejects empty body", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/teams/${teamId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 
   it("member cannot rename team", async () => {
@@ -700,6 +735,21 @@ describe("PATCH /v1/teams/:teamId/members/:userId", () => {
     expect(res.json().role).toBe("admin");
   });
 
+  it("rejects invalid role in member role change", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "member");
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/teams/${teamId}/members/${second.userId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { role: "superadmin" },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it("cannot change own role", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
 
@@ -834,6 +884,25 @@ describe("DELETE /v1/teams/:teamId/members/:userId", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().removed).toBe(true);
+  });
+
+  it("member cannot remove another member", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const second = await registerSecondUser();
+    await addTeamMember(teamId, second.userId, "member");
+
+    const third = await createUserAndGetToken(app, "third@owlmetry.com", "Third User");
+    await addTeamMember(teamId, third.userId, "member");
+
+    const { token: memberToken } = await createUserAndGetToken(app, "second@owlmetry.com");
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/teams/${teamId}/members/${third.userId}`,
+      headers: { authorization: `Bearer ${memberToken}` },
+    });
+
+    expect(res.statusCode).toBe(403);
   });
 
   it("sole owner cannot leave team", async () => {
@@ -1119,5 +1188,60 @@ describe("Role enforcement on existing routes", () => {
     });
 
     expect(res.statusCode).toBe(200);
+  });
+});
+
+// ─── API Key Rejection on Team and Invitation Routes ─────────────────
+
+describe("API key rejection on team and invitation routes", () => {
+  it("rejects API key on all team management routes", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const agentKey = await createAgentKey(app, token, teamId, [
+      "events:read", "apps:read", "apps:write", "projects:read", "projects:write",
+      "metrics:read", "metrics:write", "funnels:read", "funnels:write", "audit_logs:read",
+    ]);
+
+    const routes = [
+      { method: "POST" as const, url: "/v1/teams", payload: { name: "Test", slug: "test" } },
+      { method: "PATCH" as const, url: `/v1/teams/${teamId}`, payload: { name: "New" } },
+      { method: "DELETE" as const, url: `/v1/teams/${teamId}` },
+      { method: "GET" as const, url: `/v1/teams/${teamId}/members/${testData.userId}/agent-keys` },
+      { method: "PATCH" as const, url: `/v1/teams/${teamId}/members/${testData.userId}`, payload: { role: "admin" } },
+      { method: "DELETE" as const, url: `/v1/teams/${teamId}/members/${testData.userId}` },
+    ];
+
+    for (const route of routes) {
+      const res = await app.inject({
+        method: route.method,
+        url: route.url,
+        headers: { authorization: `Bearer ${agentKey}` },
+        payload: "payload" in route ? route.payload : undefined,
+      });
+      expect(res.statusCode).toBe(403);
+    }
+  });
+
+  it("rejects API key on invitation routes", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const agentKey = await createAgentKey(app, token, teamId, [
+      "events:read", "apps:read", "apps:write", "projects:read", "projects:write",
+      "metrics:read", "metrics:write", "funnels:read", "funnels:write", "audit_logs:read",
+    ]);
+
+    const routes = [
+      { method: "POST" as const, url: `/v1/teams/${teamId}/invitations`, payload: { email: "test@owlmetry.com" } },
+      { method: "POST" as const, url: "/v1/invites/accept", payload: { token: "00000000-0000-0000-0000-000000000000" } },
+      { method: "DELETE" as const, url: `/v1/teams/${teamId}/invitations/00000000-0000-0000-0000-000000000000` },
+    ];
+
+    for (const route of routes) {
+      const res = await app.inject({
+        method: route.method,
+        url: route.url,
+        headers: { authorization: `Bearer ${agentKey}` },
+        payload: route.payload,
+      });
+      expect(res.statusCode).toBe(403);
+    }
   });
 });

@@ -215,6 +215,18 @@ describe("Funnel Definitions CRUD", () => {
     expect(res.statusCode).toBe(403);
   });
 
+  it("returns 404 for non-existent funnel by-id", async () => {
+    const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/funnels/by-id/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe("Funnel not found");
+  });
+
   it("enforces funnels:read permission", async () => {
     const agentKey = await createAgentKey(app, token, teamId, ["events:read"]);
     const res = await app.inject({
@@ -400,6 +412,57 @@ describe("Funnel Analytics", () => {
     });
 
     expect(res.json().analytics.steps[0].unique_users).toBe(1);
+  });
+
+  it("filters funnel analytics by app_version", async () => {
+    await createFunnel({ name: "Version Filter", slug: "ver-filter", steps: ONBOARDING_STEPS });
+
+    const now = Date.now();
+    await ingest([
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1a", app_version: "1.0.0", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1b", app_version: "1.0.0", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v2a", app_version: "2.0.0", timestamp: new Date(now - 40000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/ver-filter/query?app_version=1.0.0&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().analytics.steps[0].unique_users).toBe(2);
+  });
+
+  it("groups funnel analytics by app_version", async () => {
+    await createFunnel({ name: "Version Group", slug: "ver-group", steps: ONBOARDING_STEPS });
+
+    const now = Date.now();
+    await ingest([
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1a", app_version: "1.0.0", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1b", app_version: "1.0.0", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v2a", app_version: "2.0.0", timestamp: new Date(now - 40000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/ver-group/query?group_by=app_version&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { analytics } = res.json();
+    expect(analytics.breakdown).toBeDefined();
+    expect(analytics.breakdown).toHaveLength(2);
+
+    const v1 = analytics.breakdown.find((b: any) => b.value === "1.0.0");
+    const v2 = analytics.breakdown.find((b: any) => b.value === "2.0.0");
+    expect(v1.steps[0].unique_users).toBe(2);
+    expect(v2.steps[0].unique_users).toBe(1);
   });
 
   it("excludes NULL user_id from analytics", async () => {
