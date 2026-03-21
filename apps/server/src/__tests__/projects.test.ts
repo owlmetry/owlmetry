@@ -6,7 +6,9 @@ import {
   truncateAll,
   seedTestData,
   getToken,
+  getTokenAndTeamId,
   createUserAndGetToken,
+  addTeamMember,
   TEST_CLIENT_KEY,
   TEST_DB_URL,
 } from "./setup.js";
@@ -114,6 +116,29 @@ describe("GET /v1/projects/:id", () => {
     });
 
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("POST /v1/projects", () => {
+  it("rejects duplicate slug in same team", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Dupe Test", slug: "dupe-test", team_id: teamId },
+    });
+    expect(first.statusCode).toBe(201);
+
+    const second = await app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Dupe Test 2", slug: "dupe-test", team_id: teamId },
+    });
+    expect(second.statusCode).toBe(409);
+    expect(second.json().error).toContain("already exists");
   });
 });
 
@@ -314,6 +339,19 @@ describe("DELETE /v1/projects/:id", () => {
     });
 
     expect(res.statusCode).toBe(404);
+  });
+
+  it("member cannot delete project", async () => {
+    const { userId: memberUserId, token: memberToken } = await createUserAndGetToken(app, "member@owlmetry.com", "Member");
+    await addTeamMember(testData.teamId, memberUserId, "member");
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${memberToken}` },
+    });
+
+    expect(res.statusCode).toBe(403);
   });
 
   it("rejects client key (no projects:write permission)", async () => {

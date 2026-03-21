@@ -477,6 +477,53 @@ describe("Funnel Analytics", () => {
     expect(ipadosGroup.steps[0].unique_users).toBe(1);
   });
 
+  it("matches funnel steps by screen_name filter", async () => {
+    await createFunnel({
+      name: "Payment",
+      slug: "payment",
+      steps: [
+        { name: "Pay", event_filter: { message: "track:pay", screen_name: "PaymentView" } },
+      ],
+    });
+
+    const now = Date.now();
+    // Matching message + matching screen_name → should count
+    await ingest([
+      { level: "info", message: "track:pay", session_id: TEST_SESSION_ID, user_id: "user-match", screen_name: "PaymentView", timestamp: new Date(now - 5000).toISOString() },
+    ]);
+    // Matching message + wrong screen_name → should NOT count
+    await ingest([
+      { level: "info", message: "track:pay", session_id: TEST_SESSION_ID, user_id: "user-wrong", screen_name: "HomeView", timestamp: new Date(now - 4000).toISOString() },
+    ]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/payment/query?data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().analytics.steps[0].unique_users).toBe(1);
+  });
+
+  it("returns empty result for invalid group_by value", async () => {
+    await createFunnel({ name: "Test", slug: "test-gb", steps: ONBOARDING_STEPS });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/test-gb/query?group_by=invalid_value&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { analytics } = res.json();
+    expect(analytics.total_users).toBe(0);
+    expect(analytics.steps).toEqual([]);
+    expect(analytics.breakdown).toEqual([]);
+  });
+
   it("groups by experiment variant", async () => {
     await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
 

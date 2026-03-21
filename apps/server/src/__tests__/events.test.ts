@@ -5,6 +5,9 @@ import {
   truncateAll,
   seedTestData,
   getToken,
+  getTokenAndTeamId,
+  createAgentKey,
+  createUserAndGetToken,
   TEST_CLIENT_KEY,
   TEST_AGENT_KEY,
   TEST_BUNDLE_ID,
@@ -160,6 +163,48 @@ describe("GET /v1/events", () => {
     expect(body.events).toHaveLength(2);
   });
 
+  it("filters by session_id", async () => {
+    const sessionA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    const sessionB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    await ingestEvents([
+      { level: "info", message: "Session A", session_id: sessionA },
+      { level: "info", message: "Session B", session_id: sessionB },
+    ]);
+
+    const res = await queryEvents({ session_id: sessionA });
+    const body = res.json();
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].message).toBe("Session A");
+  });
+
+  it("filters by environment", async () => {
+    await ingestEvents([
+      { level: "info", message: "iOS event", session_id: TEST_SESSION_ID, environment: "ios" },
+      { level: "info", message: "iPadOS event", session_id: TEST_SESSION_ID, environment: "ipados" },
+    ]);
+
+    const res = await queryEvents({ environment: "ios" });
+    const body = res.json();
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].message).toBe("iOS event");
+  });
+
+  it("filters by until timestamp", async () => {
+    const earlier = new Date(Date.now() - 7200_000).toISOString(); // 2 hours ago
+    const later = new Date().toISOString();
+    const middle = new Date(Date.now() - 3600_000).toISOString(); // 1 hour ago
+
+    await ingestEvents([
+      { level: "info", message: "Earlier event", session_id: TEST_SESSION_ID, timestamp: earlier },
+      { level: "info", message: "Later event", session_id: TEST_SESSION_ID, timestamp: later },
+    ]);
+
+    const res = await queryEvents({ until: middle });
+    const body = res.json();
+    expect(body.events).toHaveLength(1);
+    expect(body.events[0].message).toBe("Earlier event");
+  });
+
   it("returns empty array when no events match", async () => {
     const res = await queryEvents({ level: "warn" });
     const body = res.json();
@@ -212,6 +257,27 @@ describe("GET /v1/events/:id", () => {
       method: "GET",
       url: "/v1/events/00000000-0000-0000-0000-000000000000",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("denies cross-team access to event", async () => {
+    // Ingest event with team A's key
+    await ingestEvents([{ level: "info", message: "Team A event", session_id: TEST_SESSION_ID }]);
+
+    const listRes = await queryEvents();
+    const eventId = listRes.json().events[0].id;
+
+    // Create second user (gets own team)
+    const { token: otherToken, teamId: otherTeamId } = await createUserAndGetToken(app, "other@owlmetry.com", "Other");
+    const otherAgentKey = await createAgentKey(app, otherToken, otherTeamId, ["events:read"]);
+
+    // Team B's agent key should not see Team A's event
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/events/${eventId}`,
+      headers: { authorization: `Bearer ${otherAgentKey}` },
     });
 
     expect(res.statusCode).toBe(404);

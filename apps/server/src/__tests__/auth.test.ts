@@ -585,6 +585,62 @@ describe("POST /v1/auth/keys", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("rejects key creation with missing name", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        key_type: "agent",
+        team_id: teamId,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain("name and key_type required");
+  });
+
+  it("rejects key creation for app in different team", async () => {
+    const token = await getToken(app);
+
+    // Create a second user with their own team and app
+    const { token: otherToken, teamId: otherTeamId } = await createUserAndGetToken(app, "other@owlmetry.com", "Other");
+
+    // Create a project in the other team
+    const projRes = await app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${otherToken}` },
+      payload: { name: "Other Project", slug: "other-project", team_id: otherTeamId },
+    });
+    const otherProjectId = projRes.json().id;
+
+    // Create an app in the other team
+    const appRes = await app.inject({
+      method: "POST",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${otherToken}` },
+      payload: { name: "Other App", platform: "apple", bundle_id: "com.other.test", project_id: otherProjectId },
+    });
+    const otherAppId = appRes.json().id;
+
+    // First user tries to create a key for the other team's app
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/auth/keys",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        name: "Cross-team key",
+        key_type: "client",
+        app_id: otherAppId,
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe("App not found");
+  });
+
   it("rejects API key auth (only users can create keys)", async () => {
     const res = await app.inject({
       method: "POST",

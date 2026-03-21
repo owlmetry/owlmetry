@@ -126,6 +126,18 @@ describe("Metric Definitions CRUD", () => {
     expect(res.json().slug).toBe("checkout");
   });
 
+  it("returns 404 for non-existent metric by-id", async () => {
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/metrics/by-id/00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toBe("Metric not found");
+  });
+
   it("gets a metric by UUID via by-id endpoint", async () => {
     const createRes = await app.inject({
       method: "POST",
@@ -478,6 +490,56 @@ describe("Metric Query Filters", () => {
       headers: { authorization: `Bearer ${agentKey}` },
     });
     expect(res.json().aggregation.total_count).toBe(2);
+  });
+
+  // --- device_model group_by ---
+
+  it("groups query results by device_model", async () => {
+    const slug = "device-group";
+    await ingestMetric(slug, "record", { device_model: "iPhone 15" });
+    await ingestMetric(slug, "record", { device_model: "iPhone 15" });
+    await ingestMetric(slug, "record", { device_model: "Pixel 8" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=device_model`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(2);
+    const iphone = groups.find((g: any) => g.value === "iPhone 15");
+    const pixel = groups.find((g: any) => g.value === "Pixel 8");
+    expect(iphone.total_count).toBe(2);
+    expect(pixel.total_count).toBe(1);
+  });
+
+  // --- os_version group_by ---
+
+  it("groups query results by os_version", async () => {
+    const slug = "os-group";
+    await ingestMetric(slug, "record", { os_version: "17.4" });
+    await ingestMetric(slug, "record", { os_version: "18.0" });
+    await ingestMetric(slug, "record", { os_version: "18.0" });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/metrics/${slug}/query?group_by=os_version`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const groups = res.json().aggregation.groups;
+    expect(groups).toHaveLength(2);
+    const v174 = groups.find((g: any) => g.value === "17.4");
+    const v180 = groups.find((g: any) => g.value === "18.0");
+    expect(v174.total_count).toBe(1);
+    expect(v180.total_count).toBe(2);
   });
 
   // --- user_id ---
