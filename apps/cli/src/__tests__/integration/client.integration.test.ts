@@ -29,7 +29,8 @@ describe.skipIf(!TEST_ENDPOINT)("integration: OwlMetryClient", () => {
     });
 
     it("creates and retrieves a project", async () => {
-      const created = await client.createProject({ name: "CLI Test Project", team_id: process.env.OWLMETRY_TEST_TEAM_ID! });
+      const slug = `cli-test-${Date.now()}`;
+      const created = await client.createProject({ name: "CLI Test Project", slug, team_id: process.env.OWLMETRY_TEST_TEAM_ID! });
       expect(created.name).toBe("CLI Test Project");
       expect(created.id).toBeDefined();
 
@@ -39,7 +40,7 @@ describe.skipIf(!TEST_ENDPOINT)("integration: OwlMetryClient", () => {
     });
 
     it("updates a project name", async () => {
-      const created = await client.createProject({ name: "To Rename", team_id: process.env.OWLMETRY_TEST_TEAM_ID! });
+      const created = await client.createProject({ name: "To Rename", slug: `cli-rename-${Date.now()}`, team_id: process.env.OWLMETRY_TEST_TEAM_ID! });
       const updated = await client.updateProject(created.id, { name: "Renamed" });
       expect(updated.name).toBe("Renamed");
     });

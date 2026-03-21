@@ -79,9 +79,9 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 curl -sf -X POST "http://127.0.0.1:$TEST_PORT/v1/ingest" \
   -H "Authorization: Bearer $TEST_CLIENT_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"events\":[
-    {\"message\":\"CLI test event info\",\"level\":\"info\",\"timestamp\":\"$TIMESTAMP\",\"session_id\":\"00000000-0000-0000-0000-000000000099\",\"bundle_id\":\"com.owlmetry.test\"},
-    {\"message\":\"CLI test event error\",\"level\":\"error\",\"timestamp\":\"$TIMESTAMP\",\"session_id\":\"00000000-0000-0000-0000-000000000099\",\"bundle_id\":\"com.owlmetry.test\"}
+  -d "{\"bundle_id\":\"com.owlmetry.test\",\"events\":[
+    {\"message\":\"CLI test event info\",\"level\":\"info\",\"timestamp\":\"$TIMESTAMP\",\"session_id\":\"00000000-0000-0000-0000-000000000099\"},
+    {\"message\":\"CLI test event error\",\"level\":\"error\",\"timestamp\":\"$TIMESTAMP\",\"session_id\":\"00000000-0000-0000-0000-000000000099\"}
   ]}" > /dev/null
 
 echo "Events ingested"
