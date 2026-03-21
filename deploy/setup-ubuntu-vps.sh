@@ -39,6 +39,19 @@ log "Updating system packages..."
 apt-get update -qq
 apt-get upgrade -y -qq
 
+# --- Swap (2 GB — needed for Next.js builds on small VPS) ---
+if swapon --show | grep -q /swapfile; then
+  log "Swap already configured"
+else
+  log "Creating 2 GB swap file..."
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  log "Swap enabled (2 GB)"
+fi
+
 # --- Node.js 22 LTS (via NodeSource) ---
 if command -v node &>/dev/null; then
   NODE_VER=$(node --version)
