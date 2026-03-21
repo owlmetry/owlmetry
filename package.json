@@ -12,8 +12,9 @@
     "dev:seed-events": "pnpm --filter @owlmetry/db dev:seed-events",
     "dev:unsafe-reset": "pnpm --filter @owlmetry/db dev:unsafe-reset",
     "db:cleanup": "pnpm --filter @owlmetry/db cleanup",
-    "test": "pnpm -r test && pnpm test:swift-sdk",
+    "test": "pnpm -r test && pnpm test:swift-sdk && pnpm test:cli",
     "test:swift-sdk": "bash scripts/test-swift-sdk.sh",
+    "test:cli": "bash scripts/test-cli.sh",
     "test:node-sdk": "bash scripts/test-node-sdk.sh",
     "dev:demo-node": "node demos/node/server.mjs",
     "test:coverage": "pnpm --filter @owlmetry/server exec vitest run --coverage"
