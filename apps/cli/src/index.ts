@@ -11,6 +11,7 @@ import { metricsCommand } from "./commands/metrics.js";
 import { funnelsCommand } from "./commands/funnels.js";
 import { auditLogCommand } from "./commands/audit-logs.js";
 import { skillsCommand } from "./commands/skills.js";
+import { whoamiCommand } from "./commands/whoami.js";
 
 declare const __CLI_VERSION__: string;
 
@@ -37,6 +38,7 @@ program.addCommand(metricsCommand);
 program.addCommand(funnelsCommand);
 program.addCommand(auditLogCommand);
 program.addCommand(skillsCommand);
+program.addCommand(whoamiCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

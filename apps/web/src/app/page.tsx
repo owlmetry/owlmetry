@@ -249,9 +249,9 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* Code Preview — Data in, Insights out */}
-      <section className="relative py-24 md:py-32 overflow-hidden" style={{ background: "oklch(0.12 0.015 55)" }}>
-        {/* Subtle noise texture via gradient */}
+      {/* Get Started */}
+      <section id="get-started" className="relative py-24 md:py-32 overflow-hidden" style={{ background: "oklch(0.12 0.015 55)" }}>
+        {/* Subtle grid texture */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -264,18 +264,18 @@ export default async function LandingPage() {
         <div className="relative mx-auto max-w-6xl px-6">
           <div className="text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-4" style={{ color: "oklch(0.555 0.163 48.998)" }}>
-              The full loop
+              Get started
             </p>
             <h2 className="text-3xl font-bold tracking-tight text-white/95 md:text-4xl">
-              Data in. Insights out.
+              One install. One prompt. You&apos;re done.
             </h2>
-            <p className="mt-4 text-white/50">
-              Your app sends events. Your agent queries them.
+            <p className="mt-4 text-white/50 max-w-xl mx-auto">
+              Your agent reads the skill files and handles the rest &mdash; auth, project setup, and SDK integration.
             </p>
           </div>
 
           <div className="mt-16 grid gap-6 md:grid-cols-2">
-            {/* SDK — Data in */}
+            {/* Left — You */}
             <div className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
                 <div className="flex gap-1.5">
@@ -283,70 +283,31 @@ export default async function LandingPage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
                   <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
                 </div>
-                <span className="text-xs font-medium text-white/50 ml-2">Your app &mdash; Node.js SDK</span>
+                <span className="text-xs font-medium text-white/50 ml-2">You &mdash; Terminal</span>
               </div>
-              <pre className="p-5 text-[13px] leading-relaxed overflow-x-auto font-mono">
-                <code>
-                  <span className="text-orange-400">import</span>{" "}
-                  <span className="text-white/60">{"{"}</span>{" "}
-                  <span className="text-white/80">Owl</span>{" "}
-                  <span className="text-white/60">{"}"}</span>{" "}
-                  <span className="text-orange-400">from</span>{" "}
-                  <span className="text-green-400">&quot;@owlmetry/node&quot;</span>
-                  {"\n\n"}
-                  <span className="text-purple-400">Owl</span>
-                  <span className="text-white/60">.</span>
-                  <span className="text-blue-400">configure</span>
-                  <span className="text-white/60">({"{"}</span>
-                  {"\n"}
-                  {"  "}
-                  <span className="text-white/60">endpoint:</span>{" "}
-                  <span className="text-green-400">&quot;https://your-server.com&quot;</span>
-                  <span className="text-white/60">,</span>
-                  {"\n"}
-                  {"  "}
-                  <span className="text-white/60">apiKey:</span>{" "}
-                  <span className="text-green-400">&quot;owl_client_...&quot;</span>
-                  {"\n"}
-                  <span className="text-white/60">{"}"})</span>
-                  {"\n\n"}
-                  <span className="text-white/35">// Events flow in from your app</span>
-                  {"\n"}
-                  <span className="text-purple-400">Owl</span>
-                  <span className="text-white/60">.</span>
-                  <span className="text-blue-400">info</span>
-                  <span className="text-white/60">(</span>
-                  <span className="text-green-400">&quot;User logged in&quot;</span>
-                  <span className="text-white/60">,</span>{" "}
-                  <span className="text-white/60">{"{"}</span>{" "}
-                  <span className="text-white/60">route:</span>{" "}
-                  <span className="text-green-400">&quot;/auth&quot;</span>{" "}
-                  <span className="text-white/60">{"}"})</span>
-                  {"\n"}
-                  <span className="text-purple-400">Owl</span>
-                  <span className="text-white/60">.</span>
-                  <span className="text-blue-400">error</span>
-                  <span className="text-white/60">(</span>
-                  <span className="text-green-400">&quot;Payment failed&quot;</span>
-                  <span className="text-white/60">,</span>{" "}
-                  <span className="text-white/60">{"{"}</span>{" "}
-                  <span className="text-white/60">err</span>{" "}
-                  <span className="text-white/60">{"}"})</span>
-                  {"\n"}
-                  <span className="text-purple-400">Owl</span>
-                  <span className="text-white/60">.</span>
-                  <span className="text-blue-400">warn</span>
-                  <span className="text-white/60">(</span>
-                  <span className="text-green-400">&quot;Rate limit hit&quot;</span>
-                  <span className="text-white/60">,</span>{" "}
-                  <span className="text-white/60">{"{"}</span>{" "}
-                  <span className="text-white/60">ip</span>{" "}
-                  <span className="text-white/60">{"}"})</span>
-                </code>
-              </pre>
+              <div className="p-5">
+                <pre className="text-[13px] leading-relaxed font-mono">
+                  <code>
+                    <span className="text-white/35"># Install the CLI</span>
+                    {"\n"}
+                    <span className="text-green-400">$</span>{" "}
+                    <span className="text-white/80">npm install -g @owlmetry/cli</span>
+                  </code>
+                </pre>
+                <div className="mt-6 mb-2 border-t border-white/[0.06] pt-5">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-white/30 mb-3">Then tell your agent</p>
+                  <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+                    <p className="text-[13px] leading-relaxed text-white/70 font-mono">
+                      Run <span className="text-orange-400">`owlmetry skills`</span>, install{"\n"}
+                      those skill files, and set up{"\n"}
+                      OwlMetry for this project.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Agent — Insights out */}
+            {/* Right — Your Agent */}
             <div className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
               <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
                 <div className="flex gap-1.5">
@@ -354,32 +315,65 @@ export default async function LandingPage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
                   <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
                 </div>
-                <span className="text-xs font-medium text-white/50 ml-2">Your agent &mdash; CLI</span>
+                <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
               </div>
               <pre className="p-5 text-[13px] leading-relaxed overflow-x-auto font-mono">
                 <code>
-                  <span className="text-white/35"># Agent finds the errors</span>
-                  {"\n"}
                   <span className="text-green-400">$</span>{" "}
-                  <span className="text-white/80">owlmetry events</span>{" "}
-                  <span className="text-white/60">--level error --since 1h</span>
-                  {"\n\n"}
-                  <span className="text-white/35"># Pulls context around the incident</span>
-                  {"\n"}
-                  <span className="text-green-400">$</span>{" "}
-                  <span className="text-white/80">owlmetry investigate</span>{" "}
-                  <span className="text-white/60">evt_3f8a --window 10</span>
-                  {"\n\n"}
-                  <span className="text-white/35"># Reads the data as JSON</span>
-                  {"\n"}
-                  <span className="text-green-400">$</span>{" "}
-                  <span className="text-white/80">owlmetry events</span>{" "}
-                  <span className="text-white/60">--format json \</span>
+                  <span className="text-white/80">owlmetry skills</span>
                   {"\n"}
                   {"  "}
-                  <span className="text-white/60">--level error --since 1h</span>
+                  <span className="text-white/40">CLI</span>{"        "}
+                  <span className="text-white/60">/.../owlmetry-cli/SKILL.md</span>
+                  {"\n"}
+                  {"  "}
+                  <span className="text-white/40">Node SDK</span>{"   "}
+                  <span className="text-white/60">/.../owlmetry-node/SKILL.md</span>
+                  {"\n"}
+                  {"  "}
+                  <span className="text-white/40">Swift SDK</span>{"  "}
+                  <span className="text-white/60">/.../owlmetry-swift/SKILL.md</span>
                   {"\n\n"}
-                  <span className="text-white/35"># Understands the problem. Writes the fix.</span>
+                  <span className="text-white/35">Reading skill files...</span>
+                  {"\n\n"}
+                  <span className="text-blue-400">What&apos;s your email?</span>{"  "}
+                  <span className="text-white/60">dev@example.com</span>
+                  {"\n\n"}
+                  <span className="text-green-400">$</span>{" "}
+                  <span className="text-white/80">owlmetry auth send-code</span>{" "}
+                  <span className="text-white/60">--email dev@example.com</span>
+                  {"\n"}
+                  <span className="text-green-400">✓</span>{" "}
+                  <span className="text-white/60">Code sent!</span>
+                  {"\n\n"}
+                  <span className="text-blue-400">What&apos;s the 6-digit code?</span>{"  "}
+                  <span className="text-white/60">482901</span>
+                  {"\n\n"}
+                  <span className="text-green-400">$</span>{" "}
+                  <span className="text-white/80">owlmetry auth verify</span>{" "}
+                  <span className="text-white/60">...</span>
+                  {"\n"}
+                  <span className="text-green-400">✓</span>{" "}
+                  <span className="text-white/60">Authenticated!</span>
+                  {"\n\n"}
+                  <span className="text-green-400">$</span>{" "}
+                  <span className="text-white/80">owlmetry projects create</span>{" "}
+                  <span className="text-white/60">--name &quot;Acme&quot; ...</span>
+                  {"\n"}
+                  <span className="text-green-400">✓</span>{" "}
+                  <span className="text-white/60">Project created</span>
+                  {"\n\n"}
+                  <span className="text-green-400">$</span>{" "}
+                  <span className="text-white/80">owlmetry apps create</span>{" "}
+                  <span className="text-white/60">--platform apple ...</span>
+                  {"\n"}
+                  <span className="text-green-400">✓</span>{" "}
+                  <span className="text-white/60">App created</span>
+                  {"\n\n"}
+                  <span className="text-white/35">Adding OwlMetry SDK to your project...</span>
+                  {"\n"}
+                  <span className="text-green-400">✓</span>{" "}
+                  <span className="text-white/60">Instrumentation complete</span>
                 </code>
               </pre>
             </div>

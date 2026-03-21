@@ -25,33 +25,78 @@ If everything is current or the remote is unreachable, continue silently.
 
 ## Setup
 
+Follow these steps in order. Skip any step that's already done.
+
+### Step 1 — Install the CLI
+
 **Prerequisites:** Node.js 20+
 
-**Install:**
 ```bash
 npm install -g @owlmetry/cli
 ```
 
-**Sign up / log in:**
+### Step 2 — Check authentication
+
 ```bash
-owlmetry auth send-code --email <user-email>
-```
-Ask the user for the 6-digit verification code that arrives by email, then:
-```bash
-owlmetry auth verify --email <user-email> --code <code> --format json
+owlmetry whoami --format json
 ```
 
-- New users are auto-provisioned with a team, project, and backend app.
-- The response includes an agent API key (`owl_agent_...`), team ID, project ID, and app details.
-- Config is saved to `~/.owlmetry/config.json`.
-- Default endpoint: `https://api.owlmetry.com`
+If this succeeds, authentication is already configured — skip to Step 3.
 
-If the user already has a config file (`~/.owlmetry/config.json`), they're already set up — skip auth.
+If it fails (missing config or invalid key), run the auth flow:
+
+1. Ask the user for their email address.
+2. Send a verification code:
+   ```bash
+   owlmetry auth send-code --email <user-email>
+   ```
+3. Ask the user for the 6-digit code from their email.
+4. Verify and save credentials:
+   ```bash
+   owlmetry auth verify --email <user-email> --code <code> --format json
+   ```
+   This creates the user account and team (if new), generates an agent API key (`owl_agent_...`), and saves config to `~/.owlmetry/config.json`. Default endpoint: `https://api.owlmetry.com`.
 
 **Manual setup** (if the user already has an API key):
 ```bash
 owlmetry setup --endpoint <url> --api-key <key>
 ```
+
+### Step 3 — Create project and app
+
+After authentication, set up the resources the SDK needs. Check if any projects already exist:
+
+```bash
+owlmetry projects --format json
+```
+
+If the user already has a project and app, skip to SDK integration.
+
+**Create a project** — infer a good name from the user's repository or directory name:
+```bash
+owlmetry projects create --name "<ProjectName>" --slug "<project-slug>" --format json
+```
+Save the returned `id` — you need it for the next command.
+
+**Create an app** — choose the platform based on the project type:
+- Swift/SwiftUI → `apple`
+- Kotlin/Android → `android`
+- Web frontend → `web`
+- Node.js/backend → `backend`
+
+```bash
+owlmetry apps create --project-id <project-id> --name "<AppName>" --platform <platform> [--bundle-id <bundle-id>] --format json
+```
+- `--bundle-id` is required for apple/android/web (e.g., `com.example.myapp`), omitted for backend.
+- The response includes a `client_key` (`owl_client_...`) — this is the SDK API key for event ingestion. Save it.
+
+### Step 4 — Integrate the SDK
+
+Use the `client_key` from Step 3 to configure the appropriate SDK:
+- **Node.js projects** → follow the `owlmetry-node` skill file
+- **Swift/iOS projects** → follow the `owlmetry-swift` skill file
+
+Pass the endpoint and client key to the SDK's `configure()` call.
 
 ## Resource Hierarchy
 

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, gte, lt, sql } from "drizzle-orm";
-import { users, teams, teamMembers, apiKeys, apps, projects, emailVerificationCodes } from "@owlmetry/db";
+import { users, teams, teamMembers, apiKeys, apps, emailVerificationCodes } from "@owlmetry/db";
 import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
   SendCodeRequest,
@@ -654,52 +654,6 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    // Auto-provision if no projects exist
-    const existingProjects = await app.db
-      .select()
-      .from(projects)
-      .where(and(eq(projects.team_id, targetTeam.id), isNull(projects.deleted_at)))
-      .limit(1);
-
-    let provisionedProject: { id: string; name: string; slug: string } | null = null;
-    let provisionedApp: { id: string; name: string; platform: string } | null = null;
-    const isNewSetup = existingProjects.length === 0;
-
-    if (isNewSetup) {
-      const [project] = await app.db
-        .insert(projects)
-        .values({ team_id: targetTeam.id, name: "My Project", slug: "my-project" })
-        .returning();
-
-      provisionedProject = { id: project.id, name: project.name, slug: project.slug };
-
-      const clientKeyData = generateApiKey("client");
-      const [newApp] = await app.db
-        .insert(apps)
-        .values({
-          team_id: targetTeam.id,
-          project_id: project.id,
-          name: "My App",
-          platform: "backend",
-          bundle_id: null,
-          client_key: clientKeyData.fullKey,
-        })
-        .returning();
-
-      await app.db.insert(apiKeys).values({
-        key_hash: clientKeyData.keyHash,
-        key_prefix: clientKeyData.keyPrefix,
-        key_type: "client",
-        app_id: newApp.id,
-        team_id: targetTeam.id,
-        name: "My App Client Key",
-        created_by: agentUser.id,
-        permissions: DEFAULT_API_KEY_PERMISSIONS.client,
-      });
-
-      provisionedApp = { id: newApp.id, name: newApp.name, platform: newApp.platform };
-    }
-
     // Build auth context for audit logging (only target team needed)
     const agentLoginAuth = {
       type: "user" as const,
@@ -707,13 +661,6 @@ export async function authRoutes(app: FastifyInstance) {
       email: agentUser.email,
       team_memberships: [{ team_id: targetTeam.id, role: targetTeam.role }],
     };
-
-    if (isNewSetup && provisionedProject) {
-      logAuditEvent(app.db, agentLoginAuth, { team_id: targetTeam.id, action: "create", resource_type: "project", resource_id: provisionedProject.id, metadata: { name: provisionedProject.name } });
-      if (provisionedApp) {
-        logAuditEvent(app.db, agentLoginAuth, { team_id: targetTeam.id, action: "create", resource_type: "app", resource_id: provisionedApp.id, metadata: { name: provisionedApp.name, platform: provisionedApp.platform } });
-      }
-    }
 
     // Create agent API key
     const agentKeyData = generateApiKey("agent");
@@ -739,9 +686,35 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(201).send({
       api_key: agentKeyData.fullKey,
       team: { id: targetTeam.id, name: targetTeam.name, slug: targetTeam.slug },
-      project: provisionedProject,
-      app: provisionedApp,
-      is_new_setup: isNewSetup,
+    });
+  });
+
+  // Whoami — verify auth and return identity info
+  app.get("/whoami", { preHandler: requireAuth }, async (request, reply) => {
+    const auth = request.auth;
+
+    if (auth.type === "api_key") {
+      const [team] = await app.db
+        .select({ id: teams.id, name: teams.name, slug: teams.slug })
+        .from(teams)
+        .where(eq(teams.id, auth.team_id))
+        .limit(1);
+
+      return reply.send({
+        type: "api_key",
+        key_type: auth.key_type,
+        team: team ? { id: team.id, name: team.name, slug: team.slug } : null,
+        permissions: auth.permissions,
+      });
+    }
+
+    // User (JWT) auth
+    const memberships = await getUserTeamMemberships(app.db, auth.user_id);
+
+    return reply.send({
+      type: "user",
+      email: auth.email,
+      teams: memberships.map((m) => ({ id: m.id, name: m.name, slug: m.slug, role: m.role })),
     });
   });
 }

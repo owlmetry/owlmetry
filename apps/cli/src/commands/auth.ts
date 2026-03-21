@@ -71,9 +71,6 @@ authCommand
     const { status, data } = await apiPost<{
       api_key?: string;
       team?: { id: string; name: string; slug: string };
-      project?: { id: string; name: string; slug: string } | null;
-      app?: { id: string; name: string; platform: string } | null;
-      is_new_setup?: boolean;
       error?: string;
       teams?: Array<{ id: string; name: string; slug: string; role: string }>;
     }>(endpoint, "/v1/auth/agent-login", { email, code, team_id: teamId });
@@ -92,7 +89,7 @@ authCommand
       process.exit(1);
     }
 
-    const { api_key, team, project, app, is_new_setup } = data;
+    const { api_key, team } = data;
 
     if (!api_key) {
       console.error(chalk.red("No API key returned"));
@@ -102,11 +99,9 @@ authCommand
     saveConfig({ endpoint, api_key });
 
     if (format === "json") {
-      console.log(JSON.stringify({ api_key, endpoint, team, project, app, is_new_setup }, null, 2));
+      console.log(JSON.stringify({ api_key, endpoint, team }, null, 2));
     } else {
       console.log(chalk.green("✓ Authenticated! Config saved to ~/.owlmetry/config.json"));
-      console.log(`  Team:    ${team?.name}`);
-      if (project) console.log(`  Project: ${project.name}`);
-      if (app) console.log(`  App:     ${app.name} (${app.platform})`);
+      console.log(`  Team: ${team?.name}`);
     }
   });

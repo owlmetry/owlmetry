@@ -50,10 +50,6 @@ describe("POST /v1/auth/agent-login", () => {
     const body = res.json();
     expect(body.api_key).toMatch(/^owl_agent_/);
     expect(body.team.name).toBe("Newagent's Team");
-    expect(body.is_new_setup).toBe(true);
-    expect(body.project.name).toBe("My Project");
-    expect(body.app.name).toBe("My App");
-    expect(body.app.platform).toBe("backend");
   });
 
   it("verifies code and returns agent key for existing user", async () => {
@@ -69,9 +65,6 @@ describe("POST /v1/auth/agent-login", () => {
     const body = res.json();
     expect(body.api_key).toMatch(/^owl_agent_/);
     expect(body.team.id).toBe(testData.teamId);
-    expect(body.is_new_setup).toBe(false);
-    expect(body.project).toBeNull();
-    expect(body.app).toBeNull();
   });
 
   it("returned agent key works for API calls", async () => {
@@ -92,8 +85,7 @@ describe("POST /v1/auth/agent-login", () => {
     });
 
     expect(projRes.statusCode).toBe(200);
-    expect(projRes.json().projects).toHaveLength(1);
-    expect(projRes.json().projects[0].name).toBe("My Project");
+    expect(projRes.json().projects).toHaveLength(0);
   });
 
   it("rejects invalid code", async () => {
@@ -141,7 +133,7 @@ describe("POST /v1/auth/agent-login", () => {
     expect(res.json().teams).toHaveLength(2);
   });
 
-  it("provisions for specific team when team_id provided", async () => {
+  it("returns agent key for specific team when team_id provided", async () => {
     const { token } = await getTokenAndTeamId(app);
     const teamRes = await app.inject({
       method: "POST",
@@ -161,7 +153,6 @@ describe("POST /v1/auth/agent-login", () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.json().team.id).toBe(secondTeamId);
-    expect(res.json().is_new_setup).toBe(true);
   });
 
   it("rejects non-member team_id", async () => {
@@ -188,7 +179,7 @@ describe("Full CLI agent flow (end-to-end)", () => {
     });
     expect(sendRes.statusCode).toBe(200);
 
-    // Step 2: Agent login (verify + provision in one call)
+    // Step 2: Agent login (verify + get agent key)
     const loginRes = await app.inject({
       method: "POST",
       url: "/v1/auth/agent-login",
@@ -197,16 +188,16 @@ describe("Full CLI agent flow (end-to-end)", () => {
     expect(loginRes.statusCode).toBe(201);
     const body = loginRes.json();
     expect(body.api_key).toMatch(/^owl_agent_/);
-    expect(body.is_new_setup).toBe(true);
+    expect(body.team).toBeDefined();
 
-    // Step 3: Agent key works
+    // Step 3: Agent key works (no auto-provisioned projects)
     const projRes = await app.inject({
       method: "GET",
       url: "/v1/projects",
       headers: { authorization: `Bearer ${body.api_key}` },
     });
     expect(projRes.statusCode).toBe(200);
-    expect(projRes.json().projects).toHaveLength(1);
+    expect(projRes.json().projects).toHaveLength(0);
   });
 
   it("send-code → agent-login for existing user", async () => {
@@ -225,9 +216,8 @@ describe("Full CLI agent flow (end-to-end)", () => {
     expect(loginRes.statusCode).toBe(201);
     const body = loginRes.json();
     expect(body.api_key).toMatch(/^owl_agent_/);
-    expect(body.is_new_setup).toBe(false);
 
-    // Agent key works
+    // Agent key works — existing user has seeded project
     const projRes = await app.inject({
       method: "GET",
       url: "/v1/projects",
@@ -235,5 +225,59 @@ describe("Full CLI agent flow (end-to-end)", () => {
     });
     expect(projRes.statusCode).toBe(200);
     expect(projRes.json().projects.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("GET /v1/auth/whoami", () => {
+  it("returns key info for agent key auth", async () => {
+    const code = await sendCode("whoami@owlmetry.com");
+
+    const loginRes = await app.inject({
+      method: "POST",
+      url: "/v1/auth/agent-login",
+      payload: { email: "whoami@owlmetry.com", code },
+    });
+    const agentKey = loginRes.json().api_key;
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/whoami",
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.type).toBe("api_key");
+    expect(body.key_type).toBe("agent");
+    expect(body.team.name).toBe("Whoami's Team");
+    expect(body.permissions).toBeInstanceOf(Array);
+    expect(body.permissions.length).toBeGreaterThan(0);
+  });
+
+  it("returns user info for JWT auth", async () => {
+    const { token } = await getTokenAndTeamId(app);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/whoami",
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.type).toBe("user");
+    expect(body.email).toBe(TEST_USER.email);
+    expect(body.teams).toBeInstanceOf(Array);
+    expect(body.teams.length).toBeGreaterThanOrEqual(1);
+    expect(body.teams[0]).toHaveProperty("role");
+  });
+
+  it("returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/auth/whoami",
+    });
+
+    expect(res.statusCode).toBe(401);
   });
 });

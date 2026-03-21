@@ -87,6 +87,11 @@ export class OwlMetryClient {
     return (await response.json()) as T;
   }
 
+  // Auth
+  async whoami(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>("GET", "/v1/auth/whoami");
+  }
+
   // Projects
   async listProjects(): Promise<ProjectResponse[]> {
     const result = await this.request<{ projects: ProjectResponse[] }>("GET", "/v1/projects");
