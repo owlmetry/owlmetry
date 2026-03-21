@@ -64,13 +64,9 @@ deploy/            VPS deployment scripts (Ubuntu 24.04 setup)
 
 The API server is the product. Everything else — the dashboard, the CLI, the SDKs — is a client of that API. This means your agent has the same capabilities as the web UI. Nothing is dashboard-only.
 
-## Requirements
-
-- Node.js >= 20
-- PostgreSQL >= 15
-- pnpm
-
 ## Local Development
+
+Requires Node.js >= 20, PostgreSQL >= 15, and pnpm.
 
 ```bash
 # Install dependencies
@@ -101,136 +97,9 @@ pnpm test:cli          # CLI tests (unit + formatter + integration)
 pnpm test:coverage     # Server tests with code coverage reporting
 ```
 
-## Server Installation (Ubuntu VPS)
+## Self-Hosting
 
-### 1. System dependencies
-
-```bash
-# Node.js 20+
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# pnpm
-corepack enable
-corepack prepare pnpm@latest --activate
-
-# PostgreSQL
-sudo apt install -y postgresql postgresql-contrib
-sudo systemctl enable postgresql
-sudo systemctl start postgresql
-
-# pm2 (process manager)
-npm install -g pm2
-
-# nginx
-sudo apt install -y nginx
-```
-
-### 2. PostgreSQL setup
-
-```bash
-sudo -u postgres createuser --superuser $(whoami)
-createdb owlmetry
-```
-
-### 3. Application setup
-
-```bash
-git clone <your-repo-url> /opt/owlmetry
-cd /opt/owlmetry
-
-pnpm install
-pnpm build
-
-cp .env.example .env
-# Edit .env:
-#   DATABASE_URL=postgres://localhost:5432/owlmetry
-#   JWT_SECRET=<generate a random 64-char string>
-#   PORT=4000
-#   CORS_ORIGINS=https://your-domain.com
-#   WEB_APP_URL=https://your-domain.com
-
-pnpm db:migrate
-pnpm dev:seed
-```
-
-### 4. pm2 process management
-
-Create `ecosystem.config.cjs` in the project root:
-
-```js
-module.exports = {
-  apps: [
-    {
-      name: "owlmetry-api",
-      script: "apps/server/dist/index.js",
-      cwd: "/opt/owlmetry",
-      env: {
-        NODE_ENV: "production",
-      },
-    },
-  ],
-};
-```
-
-```bash
-pm2 start ecosystem.config.cjs
-pm2 save
-pm2 startup  # follow the instructions to enable on boot
-```
-
-### 5. nginx reverse proxy
-
-```nginx
-# /etc/nginx/sites-available/owlmetry
-server {
-    listen 80;
-    server_name api.owlmetry.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-```bash
-sudo ln -s /etc/nginx/sites-available/owlmetry /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### 6. SSL with Let's Encrypt
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d api.owlmetry.com -d ingest.owlmetry.com -d owlmetry.com
-```
-
-### 7. Partition maintenance
-
-Event partitions are auto-created on server startup (current month + 2 months ahead). If you want a safety net, add a monthly cron:
-
-```bash
-crontab -e
-# Add: run migrations on the 1st of each month at midnight
-0 0 1 * * cd /opt/owlmetry && pnpm db:migrate >> /var/log/owlmetry-partitions.log 2>&1
-```
-
-### 8. Database size management
-
-To prevent the database from filling your disk, set `MAX_DATABASE_SIZE_GB` in `.env`. The server checks the total database size every hour (and once at startup). When the limit is exceeded, it drops the oldest monthly event partitions first. If only the current month remains and the database is still over the limit, it falls back to deleting the oldest individual event rows. Set to `0` (default) to disable.
-
-```bash
-MAX_DATABASE_SIZE_GB=10
-```
+See [INSTALL.md](INSTALL.md) for the complete self-hosting guide — covers system dependencies, PostgreSQL, nginx, pm2, SSL, Cloudflare, firewall, and maintenance.
 
 ## API Overview
 
