@@ -259,11 +259,20 @@ owlmetry audit-log list --team <id> [--resource-type <type>] [--resource-id <id>
 
 A typical end-to-end flow for adding OwlMetry to a new project:
 
-1. **Sign up**: `owlmetry auth send-code` → verify code → team created, config saved
-2. **Create a project**: `owlmetry projects create --name "..." --slug "..." --format json`
-3. **Create apps**: `owlmetry apps create --platform apple --bundle-id com.example.myapp` (and/or android, web, backend)
+1. **Sign up** (CLI): `owlmetry auth send-code` → verify code → team created, config saved
+2. **Create a project** (CLI): `owlmetry projects create --name "..." --slug "..." --format json`
+3. **Create apps** (CLI): `owlmetry apps create --platform apple --bundle-id com.example.myapp` (and/or android, web, backend)
 4. **Note the client key**: from the app creation response — pass this to the SDK
-5. **Instrument the app**: Add the Swift or Node SDK, configure with the `ingest_endpoint` from `~/.owlmetry/config.json` and client key, add logging calls
-6. **Define metrics**: `owlmetry metrics create --slug photo-upload --lifecycle` for operations you want to track with duration
-7. **Define funnels**: `owlmetry funnels create --slug onboarding --steps '[...]'` for multi-step flows you want to measure conversion on
-8. **Query data**: Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior
+5. **Integrate the SDK** (switch to `/owlmetry-swift` or `/owlmetry-node` skill): Add the SDK dependency, configure with `ingest_endpoint` and client key, verify the project builds
+
+After setup, the SDK skill will prompt the user to choose which instrumentation to start with. The three areas and what's needed:
+
+| Area | CLI setup needed? | SDK skill |
+|------|-------------------|-----------|
+| **Event & error logging** | No — just add SDK calls | `Owl.info()`, `Owl.error()`, `Owl.warn()`, `Owl.debug()` |
+| **Structured metrics** | Yes — `owlmetry metrics create` for each metric slug | `Owl.startOperation()`, `Owl.recordMetric()` |
+| **Funnel tracking** | Yes — `owlmetry funnels create` with steps JSON | `Owl.track("step-name")` |
+
+For metrics and funnels, the CLI defines **what** to track (server-side definitions), and the SDK implements **where** to track it (code instrumentation). The definition must exist before the SDK emits events for that slug.
+
+6. **Query data** (CLI): Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior

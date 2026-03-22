@@ -97,6 +97,16 @@ struct MyApp: App {
 
 Auto-detects: bundle ID, debug mode (`#if DEBUG`). Auto-generates: session ID (fresh each launch).
 
+## Next Steps — Codebase Instrumentation
+
+Once `Owl.configure()` is in place and the project builds, **stop and ask the user** which area they'd like to instrument first. Present these three options:
+
+1. **Event & error logging** — Audit the codebase for user actions, screen views, error handling, and key flows. Add `Owl.info()`, `Owl.warn()`, `Owl.error()` calls at meaningful points. This is SDK-only — no CLI setup required beyond what's already done.
+2. **Structured metrics** — Identify operations worth measuring (network requests, data loading, image processing, etc.). Add `Owl.startOperation()` / `Owl.recordMetric()` to track durations and success rates. **Requires CLI first:** each metric slug must be defined on the server via `owlmetry metrics create` (use the `/owlmetry-cli` skill) before the SDK can emit events for it.
+3. **Funnel tracking** — Identify user journeys (onboarding, checkout, key conversions). Add `Owl.track()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
+
+Wait for the user to choose before proceeding. For whichever option they pick, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
+
 ## Log Events
 
 Events are the core unit of data in OwlMetry. Use the four log levels to capture different kinds of information:
@@ -240,16 +250,19 @@ Owl.clearExperiments()
 
 When instrumenting a new app, follow this priority:
 
-**Always instrument:**
+**Always instrument (events — no CLI setup needed):**
 - App launch / cold start (`info` in `init()` or `didFinishLaunching`)
 - Key screen views (`info` with `screenName` in `onAppear`)
 - Authentication events (login, logout, signup)
 - Errors and failures (`error` in `catch` blocks, error handlers)
 - Core business actions (purchase, share, create, delete)
 
-**Instrument when relevant:**
-- Funnel steps for multi-step flows you want to optimize
-- Lifecycle metrics for operations where duration matters (uploads, loads, syncs)
+**Instrument when relevant (metrics — requires CLI `owlmetry metrics create` first):**
+- Lifecycle metrics for operations where duration matters: image uploads, API calls, data syncs, video encoding
+- Single-shot metrics for point-in-time values: app cold-start time, memory usage, items in cart
+
+**Instrument when relevant (funnels — requires CLI `owlmetry funnels create` first):**
+- Multi-step flows you want to measure conversion on: onboarding, checkout, activation
 - A/B experiments when testing alternative UI or flows
 
 **Where to place calls:**

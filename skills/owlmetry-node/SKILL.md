@@ -57,6 +57,16 @@ Owl.configure({
 - Generates a fresh `sessionId` (UUID) on each `configure()` call
 - Registers a `beforeExit` handler to auto-flush on graceful shutdown
 
+## Next Steps — Codebase Instrumentation
+
+Once `Owl.configure()` is in place and the project builds, **stop and ask the user** which area they'd like to instrument first. Present these three options:
+
+1. **Event & error logging** — Audit the codebase for request handlers, error paths, background jobs, and key operations. Add `Owl.info()`, `Owl.warn()`, `Owl.error()` calls at meaningful points throughout the service. This is SDK-only — no CLI setup required beyond what's already done.
+2. **Structured metrics** — Identify operations worth measuring (API response times, database queries, external service calls, etc.). Add `Owl.startOperation()` / `Owl.recordMetric()` to track durations and success rates. **Requires CLI first:** each metric slug must be defined on the server via `owlmetry metrics create` (use the `/owlmetry-cli` skill) before the SDK can emit events for it.
+3. **Funnel tracking** — Identify server-side user journeys (sign-up flow, payment processing, onboarding steps). Add `Owl.track()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
+
+Wait for the user to choose before proceeding. For whichever option they pick, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
+
 ## Buffering and Delivery
 
 The SDK buffers events in memory and sends them to the server in batches. Understanding how buffering works helps you avoid lost events:
@@ -309,3 +319,29 @@ fastify.post('/api/process', async (request, reply) => {
   return { ok: true };
 });
 ```
+
+## Instrumentation Strategy
+
+When instrumenting a backend service, follow this priority:
+
+**Always instrument (events — no CLI setup needed):**
+- Server startup and shutdown (`info`)
+- Request handling: key route hits, responses sent (`info` with method/path/status)
+- Errors and failures: catch blocks, unhandled rejections, external API failures (`error`)
+- Authentication events: login, logout, token refresh (`info`)
+- Core business actions: order placed, payment processed, email sent (`info`)
+- Background jobs: started, completed, failed (`info`/`error`)
+
+**Instrument when relevant (metrics — requires CLI `owlmetry metrics create` first):**
+- Lifecycle metrics for operations where duration matters: API response time, database queries, external service calls, file processing
+- Single-shot metrics for point-in-time values: queue depth, cache hit rate, active connections
+
+**Instrument when relevant (funnels — requires CLI `owlmetry funnels create` first):**
+- Multi-step server-side flows you want to measure conversion on: signup pipeline, payment processing, onboarding sequence
+- Always use `Owl.withUser()` for funnel events — funnel analytics require user IDs to calculate conversion
+
+**What NOT to instrument:**
+- PII (emails, passwords, tokens, IP addresses)
+- High-frequency health checks or heartbeats
+- Every database query (instrument categories, not every call)
+- Sensitive business data (payment amounts, account balances)
