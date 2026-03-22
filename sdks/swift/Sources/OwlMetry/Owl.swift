@@ -98,6 +98,10 @@ public enum Owl {
             await transport.start()
             await filter.start()
         }
+
+        // Emit session start event
+        log("sdk:session_started", level: .info, screenName: nil, customAttributes: nil,
+            file: #file, function: #function, line: #line)
     }
 
     // MARK: - User Identity

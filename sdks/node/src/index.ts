@@ -235,6 +235,9 @@ export const Owl = {
         }
       });
     }
+
+    // Emit session start event
+    log("info", "sdk:session_started");
   },
 
   info(message: string, attrs?: Record<string, unknown>): void {
@@ -335,6 +338,7 @@ export const Owl = {
 
   async shutdown(): Promise<void> {
     if (transport) {
+      log("info", "sdk:session_ended");
       await transport.shutdown();
       transport = null;
     }

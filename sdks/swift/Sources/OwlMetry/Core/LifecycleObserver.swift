@@ -30,6 +30,14 @@ final class LifecycleObserver: @unchecked Sendable {
         )
         observers.append(
             NotificationCenter.default.addObserver(
+                forName: UIApplication.willEnterForegroundNotification,
+                object: nil, queue: .main
+            ) { _ in
+                Owl.info("sdk:app_foregrounded")
+            }
+        )
+        observers.append(
+            NotificationCenter.default.addObserver(
                 forName: UIApplication.willTerminateNotification,
                 object: nil, queue: .main
             ) { [weak self] _ in
@@ -37,6 +45,14 @@ final class LifecycleObserver: @unchecked Sendable {
             }
         )
         #elseif canImport(AppKit)
+        observers.append(
+            NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil, queue: .main
+            ) { _ in
+                Owl.info("sdk:app_foregrounded")
+            }
+        )
         observers.append(
             NotificationCenter.default.addObserver(
                 forName: NSApplication.willTerminateNotification,
@@ -71,6 +87,8 @@ final class LifecycleObserver: @unchecked Sendable {
             Task { await transport.persistBufferToDisk() }
             return
         }
+
+        Owl.info("sdk:app_backgrounded")
 
         Task {
             await self.transport.flushAll()
