@@ -139,15 +139,14 @@ export default async function LandingPage() {
                     "linear-gradient(135deg, oklch(0.65 0.2 45) 0%, oklch(0.555 0.163 48.998) 50%, oklch(0.5 0.14 55) 100%)",
                 }}
               >
-                No humans required.
+                For every app you ship.
               </span>
             </h1>
 
             <p className="mt-6 max-w-xl text-base text-white/55 leading-relaxed md:text-lg landing-stagger-3">
-              Self-hosted observability for the agentic era. Point your coding
-              agent at OwlMetry and it handles everything — integration,
-              monitoring, debugging, performance analysis. Your infrastructure.
-              Your data.
+              Structured events, performance metrics, and conversion funnels
+              — purpose-built to be driven by Claude Code, Codex, OpenClaw,
+              Cursor, or whichever coding agent you use.
             </p>
 
             <div className="mt-10 flex flex-col gap-3 sm:flex-row landing-stagger-4">
@@ -463,34 +462,71 @@ export default async function LandingPage() {
               Pricing
             </p>
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-              Free. Forever. Self-hosted.
+              Simple pricing. No surprises.
             </h2>
             <p className="mt-4 text-muted-foreground">
-              No usage limits. No per-seat pricing. No vendor lock-in.
+              Start free. Self-host for unlimited everything.
             </p>
           </div>
 
-          <div className="mt-16 mx-auto max-w-md relative">
-            {/* Glow behind card */}
-            <div
-              className="absolute -inset-4 rounded-3xl blur-2xl opacity-[0.08]"
-              style={{ background: "oklch(0.555 0.163 48.998)" }}
-            />
-            <div className="relative rounded-2xl border-2 border-primary/20 bg-card p-8 text-center shadow-xl">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary tracking-wide">
-                Open Source
+          <div className="mt-16 mx-auto max-w-5xl grid gap-5 md:grid-cols-3 items-stretch">
+            {/* Free tier */}
+            <div className="relative flex flex-col rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+              <div className="inline-flex items-center gap-1.5 self-center rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground tracking-wide">
+                Free
               </div>
               <p className="mt-6 text-5xl font-bold tracking-tight">$0</p>
               <p className="mt-1 text-sm text-muted-foreground">forever</p>
 
-              <ul className="mt-8 space-y-3 text-left">
+              <ul className="mt-8 space-y-3 text-left flex-1">
                 {[
-                  "Unlimited events & apps",
+                  "1 app",
+                  "10,000 events per month",
+                  "Events, metrics & funnels",
                   "Agent API keys + CLI",
-                  "Swift & Node.js SDKs",
-                  "Single Postgres — no infra sprawl",
-                  "Full REST API",
-                  "Optional web dashboard",
+                  "Web dashboard",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-sm">
+                    <Check className="h-4 w-4 shrink-0 text-primary" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href={ctaHref}
+                className="group mt-8 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border text-sm font-medium text-muted-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:text-foreground"
+              >
+                {ctaLabel}
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </Link>
+            </div>
+
+            {/* Pro tier */}
+            <div className="relative flex flex-col rounded-2xl border-2 border-primary/30 bg-card p-8 text-center shadow-lg md:-my-4 md:py-10">
+              {/* Glow behind card */}
+              <div
+                className="absolute -inset-4 rounded-3xl blur-2xl opacity-[0.1] -z-10"
+                style={{ background: "oklch(0.555 0.163 48.998)" }}
+              />
+              <div className="inline-flex items-center gap-1.5 self-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary tracking-wide">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80 animate-pulse" />
+                Free during alpha
+              </div>
+              <div className="mt-6 flex items-baseline justify-center gap-2">
+                <span className="line-through text-muted-foreground/40 text-2xl font-semibold">$19/mo</span>
+                <span className="text-5xl font-bold tracking-tight">$0</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">per month</p>
+
+              <ul className="mt-8 space-y-3 text-left flex-1">
+                {[
+                  "Unlimited apps",
+                  "Unlimited events",
+                  "Events, metrics & funnels",
+                  "Agent API keys + CLI",
+                  "Web dashboard",
+                  "Priority support",
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3 text-sm">
                     <Check className="h-4 w-4 shrink-0 text-primary" />
@@ -507,6 +543,40 @@ export default async function LandingPage() {
                 {ctaLabel}
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
+            </div>
+
+            {/* Self-hosted tier */}
+            <div className="relative flex flex-col rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+              <div className="inline-flex items-center gap-1.5 self-center rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground tracking-wide">
+                Self-Hosted
+              </div>
+              <p className="mt-6 text-5xl font-bold tracking-tight">$0</p>
+              <p className="mt-1 text-sm text-muted-foreground">forever</p>
+
+              <ul className="mt-8 space-y-3 text-left flex-1">
+                {[
+                  "Unlimited everything",
+                  "Your infrastructure, your data",
+                  "Single Postgres — no infra sprawl",
+                  "Full REST API",
+                  "Open source",
+                ].map((item) => (
+                  <li key={item} className="flex items-center gap-3 text-sm">
+                    <Check className="h-4 w-4 shrink-0 text-primary" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+
+              <a
+                href="https://github.com/Jasonvdb/owlmetry"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group mt-8 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border text-sm font-medium text-muted-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:text-foreground"
+              >
+                View on GitHub
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+              </a>
             </div>
           </div>
         </div>
