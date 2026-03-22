@@ -216,14 +216,14 @@ export default async function LandingPage() {
                   </div>
                   <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
                 </div>
-                <TerminalCopyButton text="Run command 'owlmetry skills', install those skill files, and set up OwlMetry for this project." />
+                <TerminalCopyButton text="Run 'owlmetry skills', install those skill files, then use the CLI skill to set up this project and the relevant SDK skill to add tracking to the app's code." />
               </div>
               <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
                 <code>
                   <span className="text-white/40">&gt;</span>{" "}
                   <span className="text-white/70">Run </span>
                   <span className="text-orange-400">owlmetry skills</span>
-                  <span className="text-white/70">, install those skill files, and set up OwlMetry for this project.</span>
+                  <span className="text-white/70">, install those skill files, then use the CLI skill to set up this project and the relevant SDK skill to add tracking to the app&apos;s code.</span>
                   {"\n\n"}
                   <span className="text-white/30">Reading skill files...</span>
                   {"\n"}
