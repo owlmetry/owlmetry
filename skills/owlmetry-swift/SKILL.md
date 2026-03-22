@@ -46,6 +46,26 @@ Add to your target:
 
 **Minimum platforms:** iOS 16.0, macOS 13.0. Zero external dependencies.
 
+## Verify Package Integration
+
+After adding the package, build the project to verify the dependency resolves and `import OwlMetry` compiles. Do not proceed with configuration until the build succeeds.
+
+If the build fails with a "No such module 'OwlMetry'" error, ask the user to add the package manually in Xcode:
+
+1. Open the `.xcodeproj` or `.xcworkspace` in Xcode
+2. Select the project in the navigator (blue icon at the top)
+3. Select the app target under "Targets"
+4. Go to the "General" tab
+5. Scroll to "Frameworks, Libraries, and Embedded Content"
+6. Click the **+** button
+7. Click "Add Other…" > "Add Package Dependency…"
+8. Enter the URL: `https://github.com/Jasonvdb/owlmetry.git`
+9. Set "Dependency Rule" to **Branch** → `main`
+10. Click "Add Package"
+11. Select the **OwlMetry** library and click "Add Package"
+
+Once the user confirms the package is added, retry the build to verify, then proceed with configuration.
+
 ## Configure
 
 Configuration must happen once, before any other `Owl` calls — typically in your `@main` App init or AppDelegate `didFinishLaunching`. Each `configure()` call generates a fresh `session_id` (UUID) that groups all subsequent events together. This means each app launch gets its own session, making it easy to see everything a user did in a single sitting.
