@@ -43,26 +43,26 @@ const features = [
   },
   {
     icon: Shield,
-    title: "Self-Hosted by Design",
-    description: "Your data stays on your servers. Privacy compliance becomes a property of your infrastructure, not a vendor promise.",
+    title: "Open Source",
+    description: "The entire codebase is open. Use our hosted service or run it on your own infrastructure — same product, your choice.",
   },
 ];
 
 const steps = [
   {
     number: "01",
-    title: "Deploy",
-    description: "One Postgres database, one API server. Point your agent at the setup instructions and it handles the rest.",
+    title: "Install the CLI",
+    description: "One command: npm install -g @owlmetry/cli. Then tell your agent to install the skill files.",
   },
   {
     number: "02",
-    title: "Integrate",
-    description: "Your agent adds the SDK, configures the API key, and starts tracking events — without you opening an editor.",
+    title: "Agent sets you up",
+    description: "Your agent verifies your email, creates a project and app, and configures API keys — all through the CLI.",
   },
   {
     number: "03",
-    title: "Monitor & Fix",
-    description: "The agent queries events, diagnoses issues, traces user sessions, and writes the fix. You review the changes.",
+    title: "Agent instruments your code",
+    description: "The agent adds the SDK to your app and wires up event tracking, metrics, and funnels.",
   },
 ];
 
@@ -165,7 +165,7 @@ export default async function LandingPage() {
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/15 px-8 text-sm font-medium text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/5 hover:text-white"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" /></svg>
-                Self-Host
+                View on GitHub
               </a>
             </div>
           </div>
@@ -423,7 +423,7 @@ export default async function LandingPage() {
               Your agent does the work
             </h2>
             <p className="mt-4 text-white/50">
-              Point your coding agent at OwlMetry. It takes it from there.
+              Install the CLI. Your agent handles everything else.
             </p>
           </div>
 
@@ -465,7 +465,7 @@ export default async function LandingPage() {
               Simple pricing. No surprises.
             </h2>
             <p className="mt-4 text-muted-foreground">
-              Start free. Self-host for unlimited everything.
+              Start free. Scale when you&apos;re ready.
             </p>
           </div>
 
@@ -596,8 +596,8 @@ export default async function LandingPage() {
             Let your agent handle observability.
           </h2>
           <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
-            Deploy on your infrastructure. Your agent sets up the integration,
-            monitors production, and acts on what it finds.
+            Your agent sets up the integration, monitors production,
+            and acts on what it finds.
           </p>
           <div className="mt-10">
             <Link
