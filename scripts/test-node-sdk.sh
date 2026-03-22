@@ -34,7 +34,7 @@ SERVER_KEY_PREFIX=$(echo "$TEST_SERVER_KEY" | cut -c1-16)
 TEAM_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM teams LIMIT 1")
 PROJECT_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM projects LIMIT 1")
 OWNER_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT user_id FROM team_members WHERE team_id = '$TEAM_ID' AND role = 'owner' LIMIT 1")
-EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM apps WHERE platform = 'backend' LIMIT 1")
+EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM api_keys WHERE key_hash = '$SERVER_KEY_HASH' LIMIT 1")
 
 if [ -z "$EXISTING" ]; then
     echo "Creating test server app..."
