@@ -1,6 +1,6 @@
 ---
 name: owlmetry-swift
-version: 0.1.0
+version: 0.1.1
 description: >-
   Integrate the OwlMetry Swift SDK into an iOS or macOS app for analytics,
   event tracking, metrics, funnels, and A/B experiments. Use when
@@ -99,13 +99,13 @@ Auto-detects: bundle ID, debug mode (`#if DEBUG`). Auto-generates: session ID (f
 
 ## Next Steps — Codebase Instrumentation
 
-Once `Owl.configure()` is in place and the project builds, **stop and ask the user** which area they'd like to instrument first. Present these three options:
+Once `Owl.configure()` is in place and the project builds successfully, **you MUST stop here and ask the user** which area they'd like to instrument first — even if the user's original prompt asked you to "instrument the app." Do not proceed with any code changes until the user chooses. Present these three options:
 
 1. **Event & error logging** — Audit the codebase for user actions, screen views, error handling, and key flows. Add `Owl.info()`, `Owl.warn()`, `Owl.error()` calls at meaningful points. This is SDK-only — no CLI setup required beyond what's already done.
 2. **Structured metrics** — Identify operations worth measuring (network requests, data loading, image processing, etc.). Add `Owl.startOperation()` / `Owl.recordMetric()` to track durations and success rates. **Requires CLI first:** each metric slug must be defined on the server via `owlmetry metrics create` (use the `/owlmetry-cli` skill) before the SDK can emit events for it.
 3. **Funnel tracking** — Identify user journeys (onboarding, checkout, key conversions). Add `Owl.track()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
 
-Wait for the user to choose before proceeding. For whichever option they pick, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
+After the user chooses, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
 
 ## Log Events
 

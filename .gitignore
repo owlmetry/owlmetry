@@ -29,6 +29,7 @@ firebase-debug.log
 out/
 
 # Swift
+.build/
 sdks/swift/.build/
 
 # project notes

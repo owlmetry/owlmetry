@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, inArray, isNull, isNotNull } from "drizzle-orm";
 import { projects, apps, apiKeys, metricDefinitions, funnelDefinitions } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
 import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
@@ -109,6 +109,17 @@ export async function projectsRoutes(app: FastifyInstance) {
       }
 
       try {
+        // Clear any soft-deleted project with the same slug so it can be reused
+        await app.db
+          .delete(projects)
+          .where(
+            and(
+              eq(projects.team_id, team_id),
+              eq(projects.slug, slug),
+              isNotNull(projects.deleted_at)
+            )
+          );
+
         const [created] = await app.db
           .insert(projects)
           .values({

@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { createClient } from "../config.js";
+import { createClient, loadConfig, getActiveProfile } from "../config.js";
 import { output } from "../formatters/index.js";
 import {
   formatProjectsTable,
@@ -26,13 +26,22 @@ projectsCommand
 projectsCommand
   .command("create")
   .description("Create a new project")
-  .requiredOption("--team-id <id>", "Team ID")
+  .option("--team-id <id>", "Team ID (defaults to active team)")
   .requiredOption("--name <name>", "Project name")
   .requiredOption("--slug <slug>", "Project slug")
-  .action(async (opts: { teamId: string; name: string; slug: string }, cmd) => {
+  .action(async (opts: { teamId?: string; name: string; slug: string }, cmd) => {
     const { client, globals } = createClient(cmd);
+    let teamId = opts.teamId;
+    if (!teamId) {
+      const config = loadConfig();
+      if (!config) {
+        throw new Error("No team ID specified and no config found. Use --team-id or run `owlmetry auth verify` first.");
+      }
+      const resolved = getActiveProfile(config, globals.team);
+      teamId = resolved.teamId;
+    }
     const project = await client.createProject({
-      team_id: opts.teamId,
+      team_id: teamId,
       name: opts.name,
       slug: opts.slug,
     });

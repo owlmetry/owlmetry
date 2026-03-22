@@ -1,6 +1,6 @@
 ---
 name: owlmetry-cli
-version: 0.1.0
+version: 0.1.1
 description: >-
   Install the OwlMetry CLI, sign up, and manage projects, apps, metrics,
   funnels, and events. Use when adding OwlMetry to a project, querying
@@ -121,7 +121,7 @@ Projects group apps by product and scope metrics and funnels. Create one project
 ```bash
 owlmetry projects --format json                                        # List all
 owlmetry projects view <id> --format json                              # View details + apps
-owlmetry projects create --team-id <id> --name <name> --slug <slug> --format json
+owlmetry projects create --name <name> --slug <slug> [--team-id <id>] --format json
 owlmetry projects update <id> --name <new-name> --format json
 ```
 
