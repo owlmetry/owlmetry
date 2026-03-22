@@ -103,6 +103,13 @@ export default function EventsPage() {
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filterParams);
 
+  // App name lookup
+  const appNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allApps) map.set(a.id, a.name);
+    return map;
+  }, [allApps]);
+
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
     if (projectId && appId) {
@@ -317,6 +324,8 @@ export default function EventsPage() {
                   <TableHead className="w-[100px]">Time</TableHead>
                   <TableHead className="w-[90px]">Level</TableHead>
                   <TableHead>Message</TableHead>
+                  <TableHead className="w-[140px]">App</TableHead>
+                  <TableHead className="w-[100px]">Environment</TableHead>
                   <TableHead className="w-[140px]">User ID</TableHead>
                   <TableHead className="w-[120px]">Screen</TableHead>
                 </TableRow>
@@ -343,8 +352,14 @@ export default function EventsPage() {
                       <TableCell className="py-1.5">
                         <EventLevelBadge level={event.level as LogLevel} />
                       </TableCell>
-                      <TableCell className="font-mono text-xs py-1.5 max-w-[400px] truncate">
+                      <TableCell className="font-mono text-xs py-1.5 truncate">
                         {event.message}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5 truncate max-w-[140px]">
+                        {appNameMap.get(event.app_id) ?? event.app_id}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5">
+                        {event.environment ?? "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5 truncate max-w-[140px]">
                         {event.user_id ?? "—"}
