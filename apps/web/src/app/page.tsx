@@ -3,11 +3,11 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Bot,
-  Terminal,
-  Database,
+  Activity,
+  Timer,
+  Filter,
   Smartphone,
   Shield,
-  Search,
   ArrowRight,
   Check,
 } from "lucide-react";
@@ -19,32 +19,32 @@ const features = [
   {
     icon: Bot,
     title: "Agent-Native API",
-    description: "Every operation available through agent API keys. Your coding agent can set up, monitor, and diagnose — no human in the loop.",
+    description: "Your coding agent sets up tracking, queries data, and diagnoses issues — no dashboard needed, though there's one if you want it.",
   },
   {
-    icon: Terminal,
-    title: "CLI for Agents & Humans",
-    description: "JSON output for machine consumption, tables for humans. Same tool, both audiences.",
+    icon: Activity,
+    title: "Events",
+    description: "Know exactly what happened and when. Structured events with log levels, session tracking, and screen context give you a complete picture of every user journey.",
   },
   {
-    icon: Database,
-    title: "Single Postgres",
-    description: "No Kafka, no ClickHouse, no Redis. One database with monthly partitioned events. That's the entire backend.",
+    icon: Timer,
+    title: "Metrics",
+    description: "Find your slowest screens and flakiest network calls. Time any operation end-to-end and catch performance regressions before users notice.",
+  },
+  {
+    icon: Filter,
+    title: "Funnels",
+    description: "See where users drop off. Define multi-step funnels, compare conversion across app versions, and measure the impact of A/B experiments.",
   },
   {
     icon: Smartphone,
     title: "Multi-Platform SDKs",
-    description: "Native SDKs for Swift and Node.js with automatic batching, gzip compression, and retry logic built in.",
+    description: "Drop in a Swift or Node.js SDK and start collecting data in minutes. Batching, compression, and retry happen automatically.",
   },
   {
     icon: Shield,
     title: "Self-Hosted by Design",
-    description: "Your data never leaves your servers. GDPR and HIPAA compliance becomes a property of your infrastructure, not a vendor promise.",
-  },
-  {
-    icon: Search,
-    title: "Dashboard Optional",
-    description: "The web UI is a visual layer, not the primary interface. Everything the dashboard can do, your agent can do through the API.",
+    description: "Your data stays on your servers. Privacy compliance becomes a property of your infrastructure, not a vendor promise.",
   },
 ];
 
