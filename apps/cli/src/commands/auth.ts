@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { saveConfig, getGlobals, DEFAULT_ENDPOINT, DEFAULT_INGEST_ENDPOINT } from "../config.js";
+import { loadConfig, saveConfig, getGlobals, DEFAULT_ENDPOINT, DEFAULT_INGEST_ENDPOINT } from "../config.js";
+import type { CliConfig } from "../config.js";
 
 function resolveEndpoint(globals: { endpoint?: string }): string {
   return globals.endpoint || process.env.OWLMETRY_ENDPOINT || DEFAULT_ENDPOINT;
@@ -98,20 +99,41 @@ authCommand
 
     const { api_key, team } = data;
 
-    if (!api_key) {
-      console.error(chalk.red("No API key returned"));
+    if (!api_key || !team) {
+      console.error(chalk.red("No API key or team info returned"));
       process.exit(1);
     }
 
     const ingestEndpoint = resolveIngestEndpointForAuth(globals as { ingestEndpoint?: string }, endpoint);
-    saveConfig({ endpoint, api_key, ingest_endpoint: ingestEndpoint });
+
+    // Merge into existing config, preserving other team profiles
+    const existing = loadConfig();
+    const config: CliConfig = {
+      endpoint,
+      ingest_endpoint: ingestEndpoint,
+      active_team: team.id,
+      teams: {
+        ...existing?.teams,
+        [team.id]: {
+          api_key,
+          team_name: team.name,
+          team_slug: team.slug,
+        },
+      },
+    };
+    saveConfig(config);
+
+    const profileCount = Object.keys(config.teams).length;
 
     if (format === "json") {
       console.log(JSON.stringify({ api_key, endpoint, ingest_endpoint: ingestEndpoint, team }, null, 2));
     } else {
       console.log(chalk.green("✓ Authenticated! Config saved to ~/.owlmetry/config.json"));
-      console.log(`  Team:             ${team?.name}`);
+      console.log(`  Team:             ${team.name}`);
       console.log(`  API endpoint:     ${endpoint}`);
       console.log(`  Ingest endpoint:  ${ingestEndpoint}`);
+      if (profileCount > 1) {
+        console.log(`  Profiles:         ${profileCount} teams configured`);
+      }
     }
   });

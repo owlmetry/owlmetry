@@ -57,6 +57,10 @@ If it fails (missing config or invalid key), run the auth flow:
    ```
    This creates the user account and team (if new), generates an agent API key (`owl_agent_...`), and saves config to `~/.owlmetry/config.json`. Default API endpoint: `https://api.owlmetry.com`. Default ingest endpoint: `https://ingest.owlmetry.com`.
 
+**Multi-team setup**: If the user belongs to multiple teams, run `auth verify` once per team (using `--team-id` to select each team). Each team's key is stored as a separate profile. The last verified team becomes the active profile.
+
+**Switching teams**: Use `owlmetry switch` to list profiles or `owlmetry switch <name-or-slug>` to switch the active team. Use `--team <name-or-slug>` on any command to use a different team's key for a single command without switching.
+
 **Manual setup** (if the user already has an API key):
 ```bash
 owlmetry setup --endpoint <url> --api-key <key> [--ingest-endpoint <url>]
@@ -242,8 +246,10 @@ owlmetry audit-log list --team <id> [--resource-type <type>] [--resource-id <id>
 ## Key Notes
 
 - Always use `--format json` when parsing output programmatically.
-- **Global flags** available on all commands: `--endpoint <url>`, `--api-key <key>`, `--ingest-endpoint <url>`, `--format <format>`
+- **Global flags** available on all commands: `--endpoint <url>`, `--api-key <key>`, `--ingest-endpoint <url>`, `--team <name-or-id>`, `--format <format>`
+- **Team profiles**: Config stores multiple team profiles keyed by team ID. `owlmetry switch` lists/switches the active profile. `--team` flag on any command uses a specific team's key without switching the active profile.
 - **Two endpoints**: `endpoint` is the API server (for CLI/agent queries). `ingest_endpoint` is where SDKs send events. Both are saved in `~/.owlmetry/config.json`. For the hosted platform: `api.owlmetry.com` and `ingest.owlmetry.com`. For self-hosted: ingest defaults to the same as the API endpoint.
+- **Config format**: `~/.owlmetry/config.json` stores `endpoint`, `ingest_endpoint`, `active_team` (team ID), and `teams` (a map of team ID → `{ api_key, team_name, team_slug }`).
 - **Agent keys** (`owl_agent_...`) are for CLI queries. **Client keys** (`owl_client_...`) are for SDK event ingestion.
 - **Time format:** relative (`1h`, `30m`, `7d`) or ISO 8601 (`2026-03-20T00:00:00Z`). Relative times go backwards from now — `1h` means "the last hour", `7d` means "the last 7 days".
 - **Data mode:** `production` (default), `debug`, or `all` — filters events by their debug flag. SDKs auto-detect debug mode (DEBUG builds on iOS, `NODE_ENV !== "production"` on Node). Use `debug` mode during development to see test events; use `production` (the default) for real analytics.

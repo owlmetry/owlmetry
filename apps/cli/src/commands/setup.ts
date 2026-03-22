@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { saveConfig, getGlobals } from "../config.js";
+import { loadConfig, saveConfig, getGlobals } from "../config.js";
+import type { CliConfig } from "../config.js";
 import { OwlMetryClient } from "../client.js";
 
 export const setupCommand = new Command("setup")
@@ -25,14 +26,27 @@ export const setupCommand = new Command("setup")
       process.exit(1);
     }
 
-    // Verify connectivity
+    // Verify connectivity and fetch team info
     const client = new OwlMetryClient({
       endpoint: globals.endpoint,
       apiKey: globals.apiKey,
     });
 
+    let teamId = "_manual";
+    let teamName = "Manual Setup";
+    let teamSlug = "manual";
+
     try {
-      await client.listProjects();
+      const whoami = await client.whoami() as {
+        type: string;
+        team?: { id: string; name: string; slug: string };
+      };
+
+      if (whoami.team) {
+        teamId = whoami.team.id;
+        teamName = whoami.team.name;
+        teamSlug = whoami.team.slug;
+      }
     } catch (err) {
       console.error(
         chalk.red(`Failed to connect: ${err instanceof Error ? err.message : String(err)}`),
@@ -41,8 +55,26 @@ export const setupCommand = new Command("setup")
     }
 
     const ingestEndpoint = (globals as { ingestEndpoint?: string }).ingestEndpoint || globals.endpoint;
-    saveConfig({ endpoint: globals.endpoint, api_key: globals.apiKey, ingest_endpoint: ingestEndpoint });
-    console.log(chalk.green("Configuration saved to ~/.owlmetry/config.json"));
+
+    // Merge into existing config, preserving other team profiles
+    const existing = loadConfig();
+    const config: CliConfig = {
+      endpoint: globals.endpoint,
+      ingest_endpoint: ingestEndpoint,
+      active_team: teamId,
+      teams: {
+        ...existing?.teams,
+        [teamId]: {
+          api_key: globals.apiKey,
+          team_name: teamName,
+          team_slug: teamSlug,
+        },
+      },
+    };
+    saveConfig(config);
+
+    console.log(chalk.green("✓ Configuration saved to ~/.owlmetry/config.json"));
+    console.log(`  Team:             ${teamName}`);
     console.log(`  API endpoint:     ${globals.endpoint}`);
     console.log(`  Ingest endpoint:  ${ingestEndpoint}`);
   });

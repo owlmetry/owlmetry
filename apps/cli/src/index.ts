@@ -12,6 +12,7 @@ import { funnelsCommand } from "./commands/funnels.js";
 import { auditLogCommand } from "./commands/audit-logs.js";
 import { skillsCommand } from "./commands/skills.js";
 import { whoamiCommand } from "./commands/whoami.js";
+import { switchCommand } from "./commands/switch.js";
 
 declare const __CLI_VERSION__: string;
 
@@ -26,7 +27,8 @@ const program = new Command()
   )
   .option("--endpoint <url>", "OwlMetry API server URL")
   .option("--api-key <key>", "API key")
-  .option("--ingest-endpoint <url>", "OwlMetry ingest endpoint URL (for SDKs; defaults to API endpoint for self-hosted)");
+  .option("--ingest-endpoint <url>", "OwlMetry ingest endpoint URL (for SDKs; defaults to API endpoint for self-hosted)")
+  .option("--team <name-or-id>", "Use a specific team profile for this command");
 
 program.addCommand(authCommand);
 program.addCommand(setupCommand);
@@ -40,6 +42,7 @@ program.addCommand(funnelsCommand);
 program.addCommand(auditLogCommand);
 program.addCommand(skillsCommand);
 program.addCommand(whoamiCommand);
+program.addCommand(switchCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

@@ -5,7 +5,20 @@ import type { Command } from "commander";
 import { OwlMetryClient } from "./client.js";
 import type { OutputFormat } from "./formatters/index.js";
 
+export interface TeamProfile {
+  api_key: string;
+  team_name: string;
+  team_slug: string;
+}
+
 export interface CliConfig {
+  endpoint: string;
+  ingest_endpoint?: string;
+  active_team: string;
+  teams: Record<string, TeamProfile>;
+}
+
+export interface ResolvedConfig {
   endpoint: string;
   api_key: string;
   ingest_endpoint?: string;
@@ -16,6 +29,7 @@ export interface GlobalOptions {
   endpoint?: string;
   apiKey?: string;
   ingestEndpoint?: string;
+  team?: string;
 }
 
 export const DEFAULT_ENDPOINT = "https://api.owlmetry.com";
@@ -38,18 +52,86 @@ export function saveConfig(config: CliConfig): void {
   writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2) + "\n", "utf-8");
 }
 
+/**
+ * Resolve a team profile by ID (exact), slug (exact), or name (case-insensitive).
+ * Throws with a list of available teams if no match is found.
+ */
+export function getActiveProfile(config: CliConfig, teamHint?: string): { teamId: string; profile: TeamProfile } {
+  const entries = Object.entries(config.teams);
+  if (entries.length === 0) {
+    throw new Error("No team profiles configured. Run `owlmetry auth verify` to add one.");
+  }
+
+  if (!teamHint) {
+    const profile = config.teams[config.active_team];
+    if (!profile) {
+      throw new Error(
+        `Active team "${config.active_team}" not found in config. Run \`owlmetry auth verify\` to re-authenticate.`
+      );
+    }
+    return { teamId: config.active_team, profile };
+  }
+
+  // Try exact ID match
+  if (config.teams[teamHint]) {
+    return { teamId: teamHint, profile: config.teams[teamHint] };
+  }
+
+  // Try exact slug match
+  for (const [id, profile] of entries) {
+    if (profile.team_slug === teamHint) {
+      return { teamId: id, profile };
+    }
+  }
+
+  // Try case-insensitive name match
+  const lower = teamHint.toLowerCase();
+  for (const [id, profile] of entries) {
+    if (profile.team_name.toLowerCase() === lower) {
+      return { teamId: id, profile };
+    }
+  }
+
+  const available = entries
+    .map(([id, p]) => `  ${id}  ${p.team_name} (${p.team_slug})`)
+    .join("\n");
+  throw new Error(`No team matching "${teamHint}". Available teams:\n${available}`);
+}
+
+/**
+ * List all configured profiles with an active indicator.
+ */
+export function listProfiles(config: CliConfig): Array<{ teamId: string; profile: TeamProfile; active: boolean }> {
+  return Object.entries(config.teams).map(([teamId, profile]) => ({
+    teamId,
+    profile,
+    active: teamId === config.active_team,
+  }));
+}
+
 export function resolveConfig(opts: {
   endpoint?: string;
   apiKey?: string;
-}): CliConfig {
+  team?: string;
+}): ResolvedConfig {
   const envEndpoint = opts.endpoint ?? process.env.OWLMETRY_ENDPOINT;
   const envApiKey = opts.apiKey ?? process.env.OWLMETRY_API_KEY;
 
   // Skip file read if both values are already resolved
   const file = envEndpoint && envApiKey ? null : loadConfig();
 
-  const endpoint = envEndpoint ?? file?.endpoint;
-  const api_key = envApiKey ?? file?.api_key;
+  let endpoint = envEndpoint;
+  let api_key = envApiKey;
+  let ingest_endpoint = file?.ingest_endpoint;
+
+  // Resolve from config file profiles if not already set
+  if (file && !api_key) {
+    const { profile } = getActiveProfile(file, opts.team);
+    api_key = profile.api_key;
+  }
+  if (!endpoint) {
+    endpoint = file?.endpoint;
+  }
 
   if (!endpoint) {
     throw new Error(
@@ -62,7 +144,7 @@ export function resolveConfig(opts: {
     );
   }
 
-  return { endpoint, api_key, ingest_endpoint: file?.ingest_endpoint };
+  return { endpoint, api_key, ingest_endpoint };
 }
 
 /**
@@ -70,7 +152,7 @@ export function resolveConfig(opts: {
  * For the hosted platform: defaults to ingest.owlmetry.com
  * For self-hosted: defaults to the same as the API endpoint
  */
-export function resolveIngestEndpoint(opts: { ingestEndpoint?: string }, config: CliConfig): string {
+export function resolveIngestEndpoint(opts: { ingestEndpoint?: string }, config: ResolvedConfig): string {
   const explicit = opts.ingestEndpoint ?? process.env.OWLMETRY_INGEST_ENDPOINT;
   if (explicit) return explicit;
 
