@@ -124,7 +124,12 @@ export default async function LandingPage() {
               />
             </div>
 
-            <h1 className="mt-10 text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-[3.5rem] lg:leading-[1.1] landing-stagger-2">
+            <div className="mt-8 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1 landing-stagger-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400/80 animate-pulse" />
+              <span className="text-xs font-medium text-white/40 tracking-wide">Alpha</span>
+            </div>
+
+            <h1 className="mt-5 text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-[3.5rem] lg:leading-[1.1] landing-stagger-2">
               Agent-first observability.
               <br />
               <span
