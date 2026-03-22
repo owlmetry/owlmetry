@@ -97,6 +97,24 @@ struct MyApp: App {
 
 Auto-detects: bundle ID, debug mode (`#if DEBUG`). Auto-generates: session ID (fresh each launch).
 
+## User Identity (set up during initial configuration)
+
+After adding `Owl.configure()`, find where the app handles authentication and add `Owl.setUser()` / `Owl.clearUser()`. This is part of the basic setup — do it now, before moving on to instrumentation.
+
+Look for the auth state change handler (e.g., Firebase Auth listener, login/logout methods) and add:
+
+```swift
+// After successful login — claims all previous anonymous events for this user
+Owl.setUser(userId)
+
+// On logout — reverts to anonymous tracking
+Owl.clearUser()
+```
+
+**Where to find it:** Search for login/logout methods, auth state listeners, or session management code. Look for patterns like setting a user ID on other services (crash reporting, analytics), storing auth tokens, or clearing user state. Place `Owl.setUser()` right after the user ID becomes available. Place `Owl.clearUser()` in the sign-out/logout handler.
+
+The SDK automatically flushes buffered events before claiming identity, so anonymous events from before login are retroactively linked to the user.
+
 ## Next Steps — Codebase Instrumentation
 
 Once `Owl.configure()` is in place and the project builds successfully, **you MUST stop here and ask the user** which area they'd like to instrument first — even if the user's original prompt asked you to "instrument the app." Do not proceed with any code changes until the user chooses. Present these three options:

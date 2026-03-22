@@ -37,6 +37,8 @@ Zero runtime dependencies. Node.js 20+. ESM only.
 
 ## Configure
 
+Place `Owl.configure()` in the **main entry point** of your service — the root `index.ts`, `server.ts`, or `app.ts` file where your server starts. It must run once at process startup, before any other `Owl` calls. Do **not** put it in a helper/utility file — it should be alongside your other top-level initialization (e.g., `express()`, `Fastify()`, Firebase `setGlobalOptions`).
+
 ```typescript
 import { Owl } from '@owlmetry/node';
 
@@ -56,6 +58,16 @@ Owl.configure({
 - `isDev` defaults to `true` when `NODE_ENV !== "production"`
 - Generates a fresh `sessionId` (UUID) on each `configure()` call
 - Registers a `beforeExit` handler to auto-flush on graceful shutdown
+
+**Serverless (Firebase Cloud Functions, AWS Lambda, Vercel):** After adding `Owl.configure()`, also wrap your exported handler functions with `Owl.wrapHandler()` to guarantee events are flushed before the runtime freezes. This is essential boilerplate for serverless — without it, buffered events are lost:
+
+```typescript
+// Before:
+export const myFunction = onCall(async (request) => { ... });
+
+// After:
+export const myFunction = onCall(Owl.wrapHandler(async (request) => { ... }));
+```
 
 ## Next Steps — Codebase Instrumentation
 
