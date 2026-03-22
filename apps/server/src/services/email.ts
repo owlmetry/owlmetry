@@ -72,7 +72,12 @@ export class ResendEmailService implements EmailService {
         from: this.from,
         to: email,
         subject: "Your OwlMetry verification code",
-        html: `<p>Your verification code is: <strong>${code}</strong></p><p>This code expires in 10 minutes.</p>`,
+        html: [
+          `<p>Your verification code is:</p>`,
+          `<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:16px 0;">${code}</p>`,
+          `<p>Pass this code to your AI agent to authenticate the OwlMetry CLI, or enter it in the dashboard to sign in.</p>`,
+          `<p style="color:#888;font-size:13px;">This code expires in 10 minutes.</p>`,
+        ].join(""),
       }),
     });
 
