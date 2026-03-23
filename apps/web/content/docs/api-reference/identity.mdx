@@ -3,4 +3,63 @@ title: Identity
 description: POST /v1/identity/claim — link anonymous events to a known user ID after authentication.
 ---
 
-Link anonymous events to a known user ID.
+Link anonymous events to a known user ID after a user authenticates in your app.
+
+## POST /v1/identity/claim
+
+Reassign all events, metric events, and funnel events from an anonymous user to a known user ID. Also merges the corresponding `app_users` records.
+
+**Auth required:** Yes (client API key with `events:write` permission)
+
+### Request
+
+```json
+{
+  "anonymous_id": "owl_anon_abc123xyz",
+  "user_id": "user-456"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `anonymous_id` | string | Yes | The anonymous ID to claim. Must start with `owl_anon_`. |
+| `user_id` | string | Yes | The authenticated user's ID. Must not start with `owl_anon_`. |
+
+### Validation rules
+
+- `anonymous_id` must start with the `owl_anon_` prefix.
+- `user_id` must not start with `owl_anon_`.
+- The API key must be scoped to an app (client keys only).
+
+### Behavior
+
+1. All `events` rows where `user_id` matches `anonymous_id` (for the API key's app) are updated to the new `user_id`.
+2. All `funnel_events` and `metric_events` rows with the same anonymous user_id are also reassigned.
+3. The `app_users` record for the anonymous ID is merged into the identified user's record. The `claimed_from` array on the identified user is updated to include the anonymous ID, and `first_seen_at` takes the earlier of the two records.
+4. The anonymous `app_users` record is deleted.
+
+### Idempotent
+
+If the same `anonymous_id` has already been claimed by the same `user_id`, the endpoint returns success with `events_reassigned_count: 0` without making any changes.
+
+### Response
+
+```json
+// Success (200)
+{
+  "claimed": true,
+  "events_reassigned_count": 42
+}
+
+// Already claimed (200)
+{
+  "claimed": true,
+  "events_reassigned_count": 0
+}
+```
+
+Returns `404` if no events exist for the given `anonymous_id` in the API key's app.
+
+### SDK integration note
+
+SDKs must flush all buffered events before calling this endpoint. Otherwise, in-flight events sent after the claim may still carry the old anonymous ID and will not be reassigned.

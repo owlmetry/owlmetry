@@ -3,4 +3,278 @@ title: Funnels
 description: Funnel definition CRUD and analytics query endpoints with open/closed mode support.
 ---
 
-Funnel definition CRUD and analytics queries.
+Funnel definition CRUD and analytics queries. All routes are nested under `/v1/projects/:projectId`.
+
+Funnels define a series of steps users should complete. Each step has a name and an event filter (matching on `message` and/or `screen_name`). SDKs track funnel steps via `track(stepName)` which emits events with the message `"track:<stepName>"`.
+
+## GET /v1/projects/:projectId/funnels
+
+List all funnel definitions for a project.
+
+**Auth required:** Yes (`funnels:read` permission or JWT)
+
+```json
+// Response (200)
+{
+  "funnels": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "name": "Onboarding",
+      "slug": "onboarding",
+      "description": "New user onboarding flow",
+      "steps": [
+        {
+          "name": "Sign Up",
+          "event_filter": { "message": "track:sign-up" }
+        },
+        {
+          "name": "Profile Setup",
+          "event_filter": { "message": "track:profile-setup" }
+        },
+        {
+          "name": "First Action",
+          "event_filter": { "message": "track:first-action" }
+        }
+      ],
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## GET /v1/projects/:projectId/funnels/:slug
+
+Get a single funnel definition by slug.
+
+**Auth required:** Yes (`funnels:read` permission or JWT)
+
+Response shape matches a single item from the list response above.
+
+## GET /v1/funnels/by-id/:id
+
+Get a funnel definition by UUID. Useful for the web dashboard where detail pages use UUID-based URLs.
+
+**Auth required:** Yes (`funnels:read` permission or JWT)
+
+Response shape is identical to the slug-based endpoint.
+
+## POST /v1/projects/:projectId/funnels
+
+Create a new funnel definition.
+
+**Auth required:** Yes (`funnels:write` permission or JWT, admin role required)
+
+```json
+// Request
+{
+  "name": "Onboarding",
+  "slug": "onboarding",
+  "description": "New user onboarding flow",
+  "steps": [
+    {
+      "name": "Sign Up",
+      "event_filter": { "message": "track:sign-up" }
+    },
+    {
+      "name": "Profile Setup",
+      "event_filter": { "message": "track:profile-setup" }
+    },
+    {
+      "name": "First Action",
+      "event_filter": { "message": "track:first-action" }
+    }
+  ]
+}
+
+// Response (201)
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "name": "Onboarding",
+  "slug": "onboarding",
+  "description": "New user onboarding flow",
+  "steps": [...],
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name. |
+| `slug` | string | Yes | Must match `^[a-z0-9-]+$`. Unique within a project. |
+| `description` | string | No | Short description. |
+| `steps` | array | Yes | 1-20 step objects. |
+
+### Step object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Step display name. |
+| `event_filter` | object | Yes | Must have at least `message` or `screen_name`. |
+| `event_filter.message` | string | No | Match events with this exact message. |
+| `event_filter.screen_name` | string | No | Match events with this exact screen name. |
+
+Returns `409` if a funnel with the same slug already exists in the project.
+
+## PATCH /v1/projects/:projectId/funnels/:slug
+
+Update a funnel definition.
+
+**Auth required:** Yes (`funnels:write` permission or JWT, admin role required)
+
+```json
+// Request (all fields optional)
+{
+  "name": "Updated Onboarding",
+  "description": "Updated description",
+  "steps": [
+    {
+      "name": "New Step 1",
+      "event_filter": { "message": "track:new-step" }
+    }
+  ]
+}
+
+// Response (200)
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "name": "Updated Onboarding",
+  "slug": "onboarding",
+  "description": "Updated description",
+  "steps": [...],
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-15T12:00:00.000Z"
+}
+```
+
+## DELETE /v1/projects/:projectId/funnels/:slug
+
+Soft-delete a funnel definition.
+
+**Auth required:** Yes (JWT only, admin role required. Agent keys receive 403.)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```
+
+## GET /v1/projects/:projectId/funnels/:slug/query
+
+Run a funnel analytics query. Computes step-by-step conversion rates for users who triggered each step.
+
+**Auth required:** Yes (`funnels:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `since` | string | ISO 8601 timestamp (default: 30 days ago). |
+| `until` | string | ISO 8601 timestamp (default: now). |
+| `app_id` | string | Filter to a specific app. |
+| `app_version` | string | Filter by app version. |
+| `environment` | string | Filter by environment. |
+| `experiment` | string | Filter by experiment variant in `name:variant` format. |
+| `mode` | string | `closed` (default) or `open`. See below. |
+| `group_by` | string | Segment results. See options below. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+
+### Analysis modes
+
+| Mode | Behavior |
+|------|----------|
+| `closed` | Sequential. Users must complete steps in order. Step N only counts users who completed step N-1 before (by timestamp). |
+| `open` | Independent. Each step is evaluated separately. A user counts for step N regardless of whether they completed earlier steps. |
+
+### Group by options
+
+| Value | Description |
+|-------|-------------|
+| `environment` | Segment by runtime environment. |
+| `app_version` | Segment by app version. |
+| `experiment:<name>` | Segment by experiment variant (e.g., `experiment:onboarding_flow`). |
+
+### Response
+
+```json
+{
+  "slug": "onboarding",
+  "analytics": {
+    "funnel": {
+      "id": "uuid",
+      "project_id": "uuid",
+      "name": "Onboarding",
+      "slug": "onboarding",
+      "description": "New user onboarding flow",
+      "steps": [...],
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    },
+    "mode": "closed",
+    "total_users": 1000,
+    "steps": [
+      {
+        "step_index": 0,
+        "step_name": "Sign Up",
+        "unique_users": 1000,
+        "percentage": 100,
+        "drop_off_count": 0,
+        "drop_off_percentage": 0
+      },
+      {
+        "step_index": 1,
+        "step_name": "Profile Setup",
+        "unique_users": 750,
+        "percentage": 75,
+        "drop_off_count": 250,
+        "drop_off_percentage": 25
+      },
+      {
+        "step_index": 2,
+        "step_name": "First Action",
+        "unique_users": 500,
+        "percentage": 50,
+        "drop_off_count": 250,
+        "drop_off_percentage": 33.3
+      }
+    ],
+    "breakdown": [
+      {
+        "key": "environment",
+        "value": "ios",
+        "total_users": 600,
+        "steps": [
+          {
+            "step_index": 0,
+            "step_name": "Sign Up",
+            "unique_users": 600,
+            "percentage": 100,
+            "drop_off_count": 0,
+            "drop_off_percentage": 0
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Step analytics fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `step_index` | number | Zero-based step position. |
+| `step_name` | string | Step display name. |
+| `unique_users` | number | Distinct users who completed this step. |
+| `percentage` | number | Percentage relative to the first step's users. |
+| `drop_off_count` | number | Users who completed the previous step but not this one. Zero for the first step. |
+| `drop_off_percentage` | number | Drop-off as a percentage of the previous step's users. Zero for the first step. |
+
+The `breakdown` array is only present when `group_by` is specified. Each entry contains the same step analytics structure scoped to a specific group value.

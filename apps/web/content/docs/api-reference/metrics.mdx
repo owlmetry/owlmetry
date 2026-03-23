@@ -3,4 +3,301 @@ title: Metrics
 description: Metric definition CRUD and aggregation query endpoints.
 ---
 
-Metric definition CRUD and aggregation queries.
+Metric definition CRUD, raw event listing, and aggregation queries. All routes are nested under `/v1/projects/:projectId`.
+
+## GET /v1/projects/:projectId/metrics
+
+List all metric definitions for a project.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+```json
+// Response (200)
+{
+  "metrics": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "name": "App Launch Time",
+      "slug": "app-launch-time",
+      "description": "Time from cold start to first interactive frame",
+      "documentation": null,
+      "schema_definition": null,
+      "aggregation_rules": null,
+      "status": "active",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## GET /v1/projects/:projectId/metrics/:slug
+
+Get a single metric definition by slug.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+```json
+// Response (200)
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "name": "App Launch Time",
+  "slug": "app-launch-time",
+  "description": "Time from cold start to first interactive frame",
+  "documentation": null,
+  "schema_definition": null,
+  "aggregation_rules": null,
+  "status": "active",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+## GET /v1/metrics/by-id/:id
+
+Get a metric definition by UUID. Useful for the web dashboard where detail pages use UUID-based URLs.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+Response shape is identical to the slug-based endpoint above.
+
+## POST /v1/projects/:projectId/metrics
+
+Create a new metric definition.
+
+**Auth required:** Yes (`metrics:write` permission or JWT, admin role required)
+
+```json
+// Request
+{
+  "name": "App Launch Time",
+  "slug": "app-launch-time",
+  "description": "Time from cold start to first interactive frame",
+  "documentation": "Measured from didFinishLaunchingWithOptions to first frame render.",
+  "schema_definition": null,
+  "aggregation_rules": null
+}
+
+// Response (201)
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "name": "App Launch Time",
+  "slug": "app-launch-time",
+  "description": "Time from cold start to first interactive frame",
+  "documentation": "Measured from didFinishLaunchingWithOptions to first frame render.",
+  "schema_definition": null,
+  "aggregation_rules": null,
+  "status": "active",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name. |
+| `slug` | string | Yes | Must match `^[a-z0-9-]+$`. Unique within a project. |
+| `description` | string | No | Short description. |
+| `documentation` | string | No | Extended documentation or measurement notes. |
+| `schema_definition` | object | No | JSON schema for metric attributes. |
+| `aggregation_rules` | object | No | Custom aggregation configuration. |
+
+Returns `409` if a metric with the same slug already exists in the project.
+
+## PATCH /v1/projects/:projectId/metrics/:slug
+
+Update a metric definition.
+
+**Auth required:** Yes (`metrics:write` permission or JWT, admin role required)
+
+```json
+// Request (all fields optional)
+{
+  "name": "Updated Name",
+  "description": "Updated description",
+  "documentation": "Updated docs",
+  "schema_definition": null,
+  "aggregation_rules": null,
+  "status": "archived"
+}
+
+// Response (200)
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "name": "Updated Name",
+  "slug": "app-launch-time",
+  "description": "Updated description",
+  "documentation": "Updated docs",
+  "schema_definition": null,
+  "aggregation_rules": null,
+  "status": "archived",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-15T12:00:00.000Z"
+}
+```
+
+The `status` field accepts `active` or `archived`.
+
+## DELETE /v1/projects/:projectId/metrics/:slug
+
+Soft-delete a metric definition.
+
+**Auth required:** Yes (JWT only, admin role required. Agent keys receive 403.)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```
+
+## GET /v1/projects/:projectId/metrics/:slug/events
+
+List raw metric events for a specific metric, ordered by timestamp descending.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `phase` | string | Filter by phase: `start`, `complete`, `fail`, `cancel`, `record`. |
+| `tracking_id` | string | Filter by operation tracking ID (UUID). |
+| `user_id` | string | Filter by user ID. |
+| `environment` | string | Filter by environment. |
+| `since` | string | ISO 8601 timestamp. |
+| `until` | string | ISO 8601 timestamp. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+| `cursor` | string | Cursor from previous response. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+```json
+// Response (200)
+{
+  "events": [
+    {
+      "id": "uuid",
+      "app_id": "uuid",
+      "session_id": "uuid",
+      "user_id": "user-123",
+      "api_key_id": "uuid",
+      "metric_slug": "app-launch-time",
+      "phase": "complete",
+      "tracking_id": "uuid",
+      "duration_ms": 1250,
+      "error": null,
+      "attributes": {
+        "tracking_id": "uuid",
+        "duration_ms": "1250"
+      },
+      "environment": "ios",
+      "os_version": "17.4",
+      "app_version": "1.2.0",
+      "device_model": "iPhone15,2",
+      "build_number": "42",
+      "is_dev": false,
+      "client_event_id": "uuid",
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "received_at": "2024-01-15T10:30:01.000Z"
+    }
+  ],
+  "cursor": "2024-01-15T10:29:00.000Z",
+  "has_more": true
+}
+```
+
+## GET /v1/projects/:projectId/metrics/:slug/query
+
+Run an aggregation query over metric events.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `since` | string | ISO 8601 timestamp (default: 24 hours ago). |
+| `until` | string | ISO 8601 timestamp. |
+| `app_id` | string | Filter to a specific app. |
+| `app_version` | string | Filter by app version. |
+| `device_model` | string | Filter by device model. |
+| `os_version` | string | Filter by OS version. |
+| `user_id` | string | Filter by user ID. |
+| `environment` | string | Filter by environment. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+| `group_by` | string | Group results. See options below. |
+
+### Group by options
+
+| Value | Description |
+|-------|-------------|
+| `time:hour` | Group by hour (ascending). |
+| `time:day` | Group by day (ascending). |
+| `time:week` | Group by week (ascending). |
+| `app_id` | Group by app. |
+| `app_version` | Group by app version. |
+| `device_model` | Group by device model. |
+| `os_version` | Group by OS version. |
+| `environment` | Group by environment. |
+
+### Response
+
+```json
+{
+  "slug": "app-launch-time",
+  "aggregation": {
+    "total_count": 500,
+    "start_count": 200,
+    "complete_count": 180,
+    "fail_count": 15,
+    "cancel_count": 5,
+    "record_count": 100,
+    "success_rate": 92.31,
+    "duration_avg_ms": 1250.5,
+    "duration_p50_ms": 1100.0,
+    "duration_p95_ms": 2500.0,
+    "duration_p99_ms": 4200.0,
+    "unique_users": 150,
+    "error_breakdown": [
+      { "error": "NetworkTimeout", "count": 10 },
+      { "error": "ServerError", "count": 5 }
+    ],
+    "groups": [
+      {
+        "key": "environment",
+        "value": "ios",
+        "total_count": 400,
+        "complete_count": 160,
+        "fail_count": 10,
+        "success_rate": 94.12,
+        "duration_avg_ms": 1100.0
+      }
+    ]
+  }
+}
+```
+
+### Aggregation fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_count` | number | Total metric events matching the query. |
+| `start_count` | number | Events with phase `start`. |
+| `complete_count` | number | Events with phase `complete`. |
+| `fail_count` | number | Events with phase `fail`. |
+| `cancel_count` | number | Events with phase `cancel`. |
+| `record_count` | number | Events with phase `record`. |
+| `success_rate` | number or null | `complete / (complete + fail) * 100`, rounded to 2 decimals. Null if no completions or failures. |
+| `duration_avg_ms` | number or null | Average duration in milliseconds. |
+| `duration_p50_ms` | number or null | Median duration. |
+| `duration_p95_ms` | number or null | 95th percentile duration. |
+| `duration_p99_ms` | number or null | 99th percentile duration. |
+| `unique_users` | number | Count of distinct user IDs. |
+| `error_breakdown` | array | Top 20 error messages with counts (from `fail` phase events). |
+| `groups` | array | Present only when `group_by` is specified. Max 100 groups. |

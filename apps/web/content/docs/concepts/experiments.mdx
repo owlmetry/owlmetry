@@ -3,4 +3,81 @@ title: A/B Experiments
 description: Run lightweight client-side experiments with variant assignment, persistence, and funnel segmentation.
 ---
 
-Run lightweight client-side A/B experiments.
+OwlMetry supports lightweight client-side A/B experiments. You define experiment names and variant options, and the SDK handles random assignment, persistence, and attaching assignments to every event automatically.
+
+## How It Works
+
+Experiments in OwlMetry are client-side only. There is no server-side experiment configuration or central experiment registry. You define experiments in your app code, and the SDK manages variant assignment and persistence locally.
+
+Every event emitted by an SDK automatically includes an `experiments` field containing the user's current variant assignments:
+
+```json
+{
+  "experiments": {
+    "checkout-redesign": "variant-b",
+    "pricing-page": "control"
+  }
+}
+```
+
+This means you can segment any data -- events, metrics, funnels -- by experiment variant without additional instrumentation.
+
+## Variant Assignment
+
+### `getVariant(name, options)`
+
+Returns a variant for the named experiment. On the first call, a variant is randomly selected from the provided options and persisted. Subsequent calls with the same experiment name return the previously assigned variant, regardless of what options are passed.
+
+```
+getVariant("checkout-redesign", ["control", "variant-a", "variant-b"])
+// → "variant-b" (randomly assigned on first call, same value on all future calls)
+```
+
+Assignment is random with equal probability across all options.
+
+### `setExperiment(name, variant)`
+
+Force-sets a variant for an experiment, overwriting any previous assignment. Use this when variant assignment comes from a server or external system rather than random local selection.
+
+```
+setExperiment("checkout-redesign", "variant-a")
+```
+
+### `clearExperiments()`
+
+Removes all persisted experiment assignments. The next call to `getVariant()` will perform a fresh random assignment.
+
+## Persistence
+
+Experiment assignments are persisted locally so that a user always sees the same variant across app sessions:
+
+| SDK | Storage Location |
+|---|---|
+| Swift | Keychain (`com.owlmetry.experiments`) |
+| Node | File system (`~/.owlmetry/experiments.json`) |
+
+Persistence survives app restarts and reinstalls (on iOS, Keychain data persists across installs). Assignments are only cleared when you explicitly call `clearExperiments()`.
+
+## Events and Experiments
+
+All events emitted by the SDK automatically include the current experiment assignments in the `experiments` field. No additional code is needed. This applies to:
+
+- Regular events (via `log()` / `event()`)
+- Metric events (via `startOperation()` / `recordMetric()`)
+- Funnel events (via `track()`)
+
+## Funnel Segmentation
+
+Experiments integrate directly with [funnel analytics](/docs/concepts/funnels). You can:
+
+- **Filter** a funnel query to a specific variant: `?experiment=checkout-redesign:variant-b`
+- **Group** funnel results by variant: `?group_by=experiment:checkout-redesign`
+
+This lets you compare conversion rates between control and variant groups without building a separate analysis pipeline.
+
+## SDK Guides
+
+For implementation details, see:
+
+- [Swift SDK experiments](/docs/sdks/swift/experiments)
+- [Node SDK experiments](/docs/sdks/node/experiments)

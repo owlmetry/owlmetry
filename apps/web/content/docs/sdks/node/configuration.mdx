@@ -3,4 +3,76 @@ title: Configuration
 description: Configure the Node.js SDK with Owl.configure() — API key, endpoint, isDev, and flush options.
 ---
 
-Configure the Node.js SDK with `Owl.configure()`.
+Call `Owl.configure()` once at application startup before logging any events.
+
+## Basic Configuration
+
+```typescript
+import { Owl } from "@owlmetry/node";
+
+Owl.configure({
+  endpoint: "https://ingest.owlmetry.com",
+  apiKey: "owl_client_...",
+  serviceName: "payment-service",
+  appVersion: "1.4.0",
+});
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `endpoint` | `string` | *required* | OwlMetry server URL. Trailing slashes are stripped automatically. |
+| `apiKey` | `string` | *required* | Client API key for a backend-platform app. Must start with `owl_client_`. |
+| `serviceName` | `string` | `"unknown"` | Name of this service. Useful for identifying which backend emitted an event when you run multiple services. |
+| `appVersion` | `string` | `undefined` | Version string included on every event. |
+| `debug` | `boolean` | `false` | When `true`, SDK internals log to `console.error` -- failed requests, slug corrections, experiment save errors. |
+| `isDev` | `boolean` | `process.env.NODE_ENV !== "production"` | Marks all events with `is_dev: true`. Defaults to `true` unless `NODE_ENV` is `"production"`. See [Data Mode](/docs/concepts/data-mode). |
+| `flushIntervalMs` | `number` | `5000` | Milliseconds between automatic buffer flushes. |
+| `flushThreshold` | `number` | `20` | Maximum buffered events before an automatic flush is triggered. |
+| `maxBufferSize` | `number` | `10000` | Hard cap on buffered events. When the buffer is full, the oldest event is dropped. |
+
+## What Happens on Configure
+
+When `Owl.configure()` is called:
+
+1. **Validates** the endpoint URL and API key format
+2. **Generates a session ID** -- a fresh UUID that groups all events until the next `configure()` call or `shutdown()`
+3. **Starts the flush timer** -- the buffer is flushed every `flushIntervalMs` milliseconds
+4. **Registers a `beforeExit` handler** -- automatically flushes remaining events when the Node.js process exits gracefully
+5. **Loads experiment assignments** from `~/.owlmetry/experiments.json` (see [Experiments](/docs/sdks/node/experiments))
+6. **Emits a `sdk:session_started` event** -- marks the beginning of this service session
+
+If you call `configure()` again (for example during hot reload), the previous transport is shut down cleanly before the new one starts.
+
+## isDev and Data Mode
+
+The `isDev` option controls whether events are tagged as development or production data. The [Data Mode](/docs/concepts/data-mode) filter in the dashboard and CLI lets you separate the two.
+
+By default, `isDev` is `true` when `NODE_ENV` is anything other than `"production"`. This means:
+
+- Running `node server.js` locally tags events as dev
+- Running `NODE_ENV=production node server.js` tags events as production
+
+Override it explicitly if you need different behavior:
+
+```typescript
+Owl.configure({
+  endpoint: "https://ingest.owlmetry.com",
+  apiKey: "owl_client_...",
+  isDev: false, // always production, regardless of NODE_ENV
+});
+```
+
+## Graceful Shutdown
+
+Call `Owl.shutdown()` before your process exits to flush remaining events and stop the background timer:
+
+```typescript
+process.on("SIGTERM", async () => {
+  await Owl.shutdown();
+  process.exit(0);
+});
+```
+
+For serverless environments, see the [serverless guide](/docs/sdks/node/serverless) which covers `Owl.wrapHandler()` as an alternative.

@@ -3,4 +3,154 @@ title: Funnels
 description: Create, list, and query funnel definitions and analytics from the CLI.
 ---
 
-Create, list, and query funnels.
+Funnels track user progression through a sequence of steps, like an onboarding flow or checkout process. Definitions are scoped to [projects](/docs/cli/projects). Each step has a name and an event filter that matches on `message` and/or `screen_name`.
+
+## List funnels
+
+```bash
+owlmetry funnels --project <id>
+```
+
+Lists all funnel definitions for a project.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project <id>` | Yes | Project UUID |
+
+## View a funnel
+
+```bash
+owlmetry funnels view <slug> --project <id>
+```
+
+Shows the funnel definition including its steps, event filters, and description.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Funnel slug |
+| `--project <id>` | Yes | Project UUID |
+
+## Create a funnel
+
+```bash
+owlmetry funnels create --project <id> --name <name> --slug <slug> --steps <json> [--description <desc>]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project <id>` | Yes | Project UUID |
+| `--name <name>` | Yes | Display name |
+| `--slug <slug>` | Yes | Unique identifier (lowercase letters, numbers, hyphens only) |
+| `--steps <json>` | Yes | Steps as a JSON array (see format below) |
+| `--description <desc>` | No | Short description |
+
+### Step format
+
+Each step is a JSON object with `name` and `event_filter`. The `event_filter` matches events by `message` and/or `screen_name`.
+
+```json
+[
+  { "name": "sign-up", "event_filter": { "message": "track:sign-up" } },
+  { "name": "onboarding", "event_filter": { "message": "track:onboarding" } },
+  { "name": "first-purchase", "event_filter": { "message": "track:first-purchase" } }
+]
+```
+
+Maximum 20 steps per funnel.
+
+### Example
+
+```bash
+owlmetry funnels create \
+  --project 550e8400-... \
+  --name "Onboarding" \
+  --slug onboarding \
+  --description "New user onboarding flow" \
+  --steps '[{"name":"sign-up","event_filter":{"message":"track:sign-up"}},{"name":"profile-setup","event_filter":{"message":"track:profile-setup"}},{"name":"first-action","event_filter":{"message":"track:first-action"}}]'
+```
+
+## Query funnel analytics
+
+```bash
+owlmetry funnels query <slug> --project <id> [options]
+```
+
+Returns step-by-step analytics: unique users at each step, percentage of start, and drop-off rates.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Funnel slug |
+| `--project <id>` | Yes | Project UUID |
+| `--since <date>` | No | Start date (ISO 8601) |
+| `--until <date>` | No | End date (ISO 8601) |
+| `--open` | No | Use open (independent) mode instead of closed (sequential) mode |
+| `--app-version <version>` | No | Filter by app version |
+| `--environment <env>` | No | Filter by environment: `ios`, `ipados`, `macos`, `android`, `web`, `backend` |
+| `--experiment <name:variant>` | No | Filter by experiment assignment (format: `name:variant`) |
+| `--group-by <field>` | No | Segment results (see below) |
+| `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
+
+### Funnel modes
+
+- **Closed** (default) — sequential. Users must complete each step in order. A user who skips step 2 is not counted at step 3.
+- **Open** (`--open`) — independent. Each step is evaluated separately. Users can appear at any step regardless of earlier steps.
+
+### Group-by options
+
+| Value | Description |
+|-------|-------------|
+| `environment` | Segment by environment |
+| `app_version` | Segment by app version |
+| `experiment:<name>` | Segment by experiment variant assignment |
+
+### Examples
+
+```bash
+# Closed funnel for the last 30 days
+owlmetry funnels query onboarding --project 550e8400-... --since 2025-01-01
+
+# Open funnel
+owlmetry funnels query onboarding --project 550e8400-... --open
+
+# A/B test comparison
+owlmetry funnels query onboarding --project 550e8400-... --group-by experiment:onboarding-variant
+
+# Filter to a specific experiment arm
+owlmetry funnels query onboarding --project 550e8400-... --experiment onboarding-variant:control
+```
+
+## Update a funnel
+
+```bash
+owlmetry funnels update <slug> --project <id> [options]
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Funnel slug |
+| `--project <id>` | Yes | Project UUID |
+| `--name <name>` | No | New display name |
+| `--description <desc>` | No | New description |
+| `--steps <json>` | No | New steps as JSON array |
+
+```bash
+# Rename a funnel
+owlmetry funnels update onboarding --project 550e8400-... --name "New User Onboarding"
+
+# Replace steps
+owlmetry funnels update onboarding --project 550e8400-... \
+  --steps '[{"name":"sign-up","event_filter":{"message":"track:sign-up"}},{"name":"tutorial","event_filter":{"message":"track:tutorial"}}]'
+```
+
+## Delete a funnel
+
+```bash
+owlmetry funnels delete <slug> --project <id>
+```
+
+Soft-deletes the funnel definition. Existing funnel events are not removed.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Funnel slug |
+| `--project <id>` | Yes | Project UUID |

@@ -3,4 +3,75 @@ title: Funnels
 description: Track funnel step completions with Owl.track() in the Node.js SDK.
 ---
 
-Track funnel step completions with `Owl.track()`.
+Use `Owl.track()` to emit named step completions that feed into [funnel analytics](/docs/concepts/funnels). Each call sends an info-level event with a `track:<stepName>` message that the server matches against funnel step definitions.
+
+## Tracking Steps
+
+```typescript
+Owl.track("signup-started");
+Owl.track("email-verified");
+Owl.track("profile-completed");
+```
+
+You can include optional attributes:
+
+```typescript
+Owl.track("plan-selected", { plan: "pro", interval: "annual" });
+```
+
+## Per-User Funnel Tracking
+
+Funnels are most useful when steps are associated with a specific user. Use a scoped instance so every step carries the user ID:
+
+```typescript
+const owl = Owl.withUser(userId);
+owl.track("checkout-started");
+// ... later
+owl.track("payment-completed");
+owl.track("order-confirmed");
+```
+
+Without a user ID, funnel analytics cannot correlate steps across a conversion path.
+
+## Backend Funnel Patterns
+
+Backend services often track steps that happen outside the client -- webhook callbacks, background jobs, or server-side validation. These complement client-side funnel tracking by capturing the full picture.
+
+### Webhook-Driven Steps
+
+```typescript
+app.post("/webhooks/stripe", async (req, res) => {
+  const event = req.body;
+  const owl = Owl.withUser(event.data.object.metadata.user_id);
+
+  if (event.type === "payment_intent.succeeded") {
+    owl.track("payment-succeeded", { amount: String(event.data.object.amount) });
+  }
+
+  if (event.type === "invoice.paid") {
+    owl.track("subscription-activated");
+  }
+
+  res.sendStatus(200);
+});
+```
+
+### Background Job Steps
+
+```typescript
+async function processOnboarding(userId: string) {
+  const owl = Owl.withUser(userId);
+
+  await generateWelcomeEmail(userId);
+  owl.track("welcome-email-sent");
+
+  await provisionAccount(userId);
+  owl.track("account-provisioned");
+}
+```
+
+## Defining Funnels
+
+Funnel steps recorded by the SDK are matched against funnel definitions on the server. Define your funnels in the dashboard or CLI with the step names you use in `track()` calls. Each step's `event_filter` matches on the `message` field (which will be `track:<stepName>`).
+
+See [Funnels](/docs/concepts/funnels) for details on how funnel definitions, analytics, and query modes work.

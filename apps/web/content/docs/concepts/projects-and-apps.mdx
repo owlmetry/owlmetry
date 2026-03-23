@@ -3,4 +3,86 @@ title: Projects & Apps
 description: Organize your tracking with projects (cross-platform products) and apps (platform-specific builds).
 ---
 
-Organize your tracking with projects and apps.
+OwlMetry uses a two-level hierarchy to organize your tracking: **projects** group related apps by product, and **apps** represent individual platform-specific builds.
+
+## Projects
+
+A project represents a product or service. If you ship a mobile app called "Acme" on iOS and Android with a web dashboard, all three would live under a single "Acme" project.
+
+Projects are team-scoped and identified by a unique slug. They provide a shared namespace for:
+
+- [Metric definitions](/docs/concepts/metrics) -- performance tracking is defined per-project
+- [Funnel definitions](/docs/concepts/funnels) -- conversion funnels span apps within a project
+- Apps -- the platform-specific builds that send events
+
+Projects are managed through the [dashboard](/docs/concepts/authentication), the [CLI](/docs/cli/projects), or the [API](/docs/api-reference/projects).
+
+## Apps
+
+An app represents a single platform-specific build within a project. Each app has a platform, an optional bundle ID, and its own client API key for event ingestion.
+
+### Platforms
+
+Every app has a broad `platform` that categorizes what kind of build it is:
+
+| Platform | Description | Bundle ID Required |
+|---|---|---|
+| `apple` | iOS, iPadOS, or macOS app | Yes |
+| `android` | Android app | Yes |
+| `web` | Web application | Yes |
+| `backend` | Server-side application | No |
+
+### Environments
+
+While an app has a single platform, the events it sends carry a more specific `environment` field that records the exact runtime:
+
+| Environment | Description |
+|---|---|
+| `ios` | iPhone |
+| `ipados` | iPad |
+| `macos` | Mac (Catalyst, Mac Catalyst, or native macOS) |
+| `android` | Android device |
+| `web` | Web browser |
+| `backend` | Server process |
+
+This distinction allows a single "apple" platform app to receive events from iOS, iPadOS, and macOS environments, which the SDKs detect automatically.
+
+### Platform-to-Environment Mapping
+
+Each platform allows a specific set of environments:
+
+| Platform | Allowed Environments |
+|---|---|
+| `apple` | `ios`, `ipados`, `macos` |
+| `android` | `android` |
+| `web` | `web` |
+| `backend` | `backend` |
+
+## Bundle ID
+
+Apps with a platform other than `backend` require a `bundle_id` (e.g., `com.example.myapp`). The ingest endpoint validates that the `bundle_id` in each request matches the app's registered bundle ID on every ingestion request.
+
+Backend-platform apps have no bundle ID, and the ingest route skips this validation for them.
+
+Bundle IDs are **immutable after creation**. The update endpoint only accepts a `name` change. If you need to change a bundle ID, delete the app and create a new one.
+
+## Auto-Created Client Key
+
+When you create an app, OwlMetry automatically generates a client API key (`owl_client_` prefix) and stores it on the app record. This key is returned in the creation response so you can configure your SDK immediately.
+
+The key is also stored hashed in the `api_keys` table following the standard [API key security model](/docs/concepts/authentication). The plaintext version on the app record enables easy retrieval for SDK configuration.
+
+## Typical Setup
+
+A common configuration for a cross-platform mobile product:
+
+| Project | App | Platform | Bundle ID |
+|---|---|---|---|
+| Acme | Acme iOS | apple | `com.example.acme` |
+| Acme | Acme Android | android | `com.example.acme` |
+| Acme | Acme Web | web | `com.example.acme` |
+| Acme | Acme API | backend | -- |
+
+All four apps share the same project, so metric definitions, funnel definitions, and cross-platform analytics are unified under "Acme."
+
+For managing projects and apps, see the [CLI projects guide](/docs/cli/projects), the [CLI apps guide](/docs/cli/apps), or the [API reference](/docs/api-reference/projects).

@@ -3,4 +3,66 @@ title: Projects
 description: Create, list, and manage projects from the CLI.
 ---
 
-Create, list, and manage projects.
+Projects group related apps across platforms. For example, a "My App" project might contain an iOS app, an Android app, and a backend service. Metrics and funnels are scoped to projects.
+
+## List projects
+
+```bash
+owlmetry projects
+```
+
+Lists all projects accessible to the authenticated team.
+
+## View a project
+
+```bash
+owlmetry projects view <id>
+```
+
+Shows project details including its apps.
+
+| Argument | Description |
+|----------|-------------|
+| `<id>` | Project UUID |
+
+## Create a project
+
+```bash
+owlmetry projects create --name <name> --slug <slug> [--team-id <id>]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--name <name>` | Yes | Display name for the project |
+| `--slug <slug>` | Yes | URL-friendly identifier (must be unique within the team) |
+| `--team-id <id>` | No | Team UUID. Defaults to the active team from config. |
+
+Slugs must be lowercase alphanumeric with hyphens (e.g., `my-app`).
+
+```bash
+owlmetry projects create --name "My App" --slug my-app
+```
+
+## Update a project
+
+```bash
+owlmetry projects update <id> --name <name>
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<id>` | Yes | Project UUID |
+| `--name <name>` | Yes | New project name |
+
+```bash
+owlmetry projects update 550e8400-... --name "My Renamed App"
+```
+
+## JSON output
+
+All project commands support `--format json` for machine-readable output:
+
+```bash
+owlmetry projects --format json
+owlmetry projects view <id> --format json
+```

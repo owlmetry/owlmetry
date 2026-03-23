@@ -3,4 +3,129 @@ title: Projects
 description: CRUD endpoints for managing projects — create, list, get, update, and delete projects within teams.
 ---
 
-Create, list, get, update, and delete projects.
+Create, list, get, update, and delete projects. Projects group related apps across platforms (e.g., a "MyApp" project containing iOS, Android, and web apps).
+
+## GET /v1/projects
+
+List all projects the caller has access to.
+
+**Auth required:** Yes (`projects:read` permission or JWT)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Optional. Filter to a specific team. |
+
+```json
+// Response (200)
+{
+  "projects": [
+    {
+      "id": "uuid",
+      "team_id": "uuid",
+      "name": "My App",
+      "slug": "my-app",
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## GET /v1/projects/:id
+
+Get a single project with its apps.
+
+**Auth required:** Yes (`projects:read` permission or JWT)
+
+```json
+// Response (200)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "name": "My App",
+  "slug": "my-app",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "apps": [
+    {
+      "id": "uuid",
+      "team_id": "uuid",
+      "project_id": "uuid",
+      "name": "iOS App",
+      "platform": "apple",
+      "bundle_id": "com.example.myapp",
+      "client_key": "owl_client_abc123...",
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## POST /v1/projects
+
+Create a new project within a team.
+
+**Auth required:** Yes (`projects:write` permission or JWT, admin role required)
+
+```json
+// Request
+{
+  "team_id": "uuid",
+  "name": "My App",
+  "slug": "my-app"
+}
+
+// Response (201)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "name": "My App",
+  "slug": "my-app",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `team_id` | string | Yes | The team this project belongs to. |
+| `name` | string | Yes | Display name. |
+| `slug` | string | Yes | URL-friendly identifier. Must match `^[a-z0-9-]+$`. Unique within a team. |
+
+Slug reuse: if a soft-deleted project exists with the same slug in the same team, it is hard-deleted to free the slug.
+
+Returns `409` if an active project with the same slug already exists.
+
+## PATCH /v1/projects/:id
+
+Update a project. Only the `name` field can be changed.
+
+**Auth required:** Yes (`projects:write` permission or JWT, admin role required)
+
+```json
+// Request
+{
+  "name": "Renamed Project"
+}
+
+// Response (200)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "name": "Renamed Project",
+  "slug": "my-app",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+## DELETE /v1/projects/:id
+
+Soft-delete a project and cascade to its apps, API keys, metric definitions, and funnel definitions.
+
+**Auth required:** Yes (JWT only, admin role required. Agent keys receive 403.)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```

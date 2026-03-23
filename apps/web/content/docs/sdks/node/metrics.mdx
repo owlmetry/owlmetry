@@ -3,4 +3,104 @@ title: Metrics
 description: Track performance with startOperation() and recordMetric() in the Node.js SDK.
 ---
 
-Track performance with structured metric operations.
+The SDK supports [structured metrics](/docs/concepts/metrics) for tracking operation performance. There are two patterns: lifecycle operations that measure duration, and single-shot recordings for point-in-time measurements.
+
+## Operations
+
+An operation tracks the full lifecycle of a unit of work -- from start to completion, failure, or cancellation. The SDK automatically measures duration.
+
+```typescript
+const op = Owl.startOperation("order-processing", { order_id: "abc-123" });
+
+try {
+  await processPayment(order);
+  await sendConfirmation(order);
+  op.complete({ total: String(order.total) });
+} catch (err) {
+  op.fail(err.message, { order_id: "abc-123" });
+}
+```
+
+### Starting an Operation
+
+`Owl.startOperation(metric, attrs?)` returns an `Operation` object and emits a `start` phase event immediately.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `metric` | `string` | Metric slug -- lowercase letters, numbers, and hyphens only (e.g., `"api-request"`, `"image-resize"`) |
+| `attrs` | `Record<string, unknown>` | Optional attributes included on the start event |
+
+### Completing an Operation
+
+Call exactly one of these methods on the returned `Operation`:
+
+| Method | Description |
+|---|---|
+| `op.complete(attrs?)` | The operation succeeded. Emits a `complete` event with `duration_ms`. |
+| `op.fail(error, attrs?)` | The operation failed. Emits a `fail` event with `duration_ms` and the error string. |
+| `op.cancel(attrs?)` | The operation was cancelled. Emits a `cancel` event with `duration_ms`. |
+
+Each method automatically calculates `duration_ms` from the time `startOperation()` was called. A unique `tracking_id` (UUID) correlates the start and end events on the server.
+
+### User-Scoped Operations
+
+Operations started from a scoped instance tag all lifecycle events with the user ID:
+
+```typescript
+const owl = Owl.withUser("user_42");
+const op = owl.startOperation("checkout");
+
+try {
+  await chargeUser(order);
+  op.complete();
+} catch (err) {
+  op.fail(err.message);
+}
+```
+
+## Single-Shot Metrics
+
+Use `Owl.recordMetric()` for measurements that do not have a start/end lifecycle:
+
+```typescript
+Owl.recordMetric("daily-active-users", { count: String(dauCount) });
+Owl.recordMetric("queue-depth", { size: String(queue.length) });
+```
+
+This emits a single `record` phase event. It is useful for periodic measurements, counts, or any value you want to track over time.
+
+## Metric Slugs
+
+Metric slugs must contain only lowercase letters, numbers, and hyphens (`/^[a-z0-9-]+$/`). If you pass an invalid slug, the SDK auto-corrects it by lowercasing, replacing invalid characters with hyphens, and collapsing consecutive hyphens. When `debug` is enabled, a warning is logged:
+
+```typescript
+// "API Request Time" becomes "api-request-time"
+Owl.startOperation("API Request Time");
+```
+
+Define your metric slugs in the dashboard or CLI before sending events to get the most out of metric aggregation queries. See [Structured Metrics](/docs/concepts/metrics) for details on how the server processes metric events.
+
+## Full Example
+
+A complete Express route with operation tracking and error handling:
+
+```typescript
+app.post("/api/orders", async (req, res) => {
+  const owl = Owl.withUser(req.auth.userId);
+  const op = owl.startOperation("create-order", {
+    item_count: String(req.body.items.length),
+  });
+
+  try {
+    const order = await createOrder(req.body);
+    await chargePayment(order);
+    await sendReceipt(order);
+
+    op.complete({ order_id: order.id });
+    res.json(order);
+  } catch (err) {
+    op.fail(err.message);
+    res.status(500).json({ error: "Order failed" });
+  }
+});
+```

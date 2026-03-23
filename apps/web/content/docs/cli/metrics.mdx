@@ -3,4 +3,171 @@ title: Metrics
 description: Create, list, and query metric definitions and aggregations from the CLI.
 ---
 
-Create, list, and query metrics.
+Metrics track measurable operations in your app, like network request duration, app launch time, or checkout completion. Definitions are scoped to [projects](/docs/cli/projects). SDKs emit metric events using lifecycle operations (`start` / `complete` / `fail` / `cancel`) or single-shot measurements (`record`).
+
+## List metrics
+
+```bash
+owlmetry metrics --project <id>
+```
+
+Lists all metric definitions for a project.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project <id>` | Yes | Project UUID |
+
+## View a metric
+
+```bash
+owlmetry metrics view <slug> --project <id>
+```
+
+Shows the metric definition including name, slug, status, description, aggregation rules, and documentation.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Metric slug |
+| `--project <id>` | Yes | Project UUID |
+
+## Create a metric
+
+```bash
+owlmetry metrics create --project <id> --name <name> --slug <slug> [options]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project <id>` | Yes | Project UUID |
+| `--name <name>` | Yes | Display name |
+| `--slug <slug>` | Yes | Unique identifier (lowercase letters, numbers, hyphens only) |
+| `--description <desc>` | No | Short description |
+| `--docs <markdown>` | No | Detailed documentation in markdown |
+| `--lifecycle` | No | Mark as a lifecycle metric (has start/complete/fail phases) |
+
+Slugs must match the pattern `[a-z0-9-]+`.
+
+```bash
+# Simple single-shot metric
+owlmetry metrics create \
+  --project 550e8400-... \
+  --name "Page Load Time" \
+  --slug page-load-time \
+  --description "Time to interactive for the main page"
+
+# Lifecycle metric with documentation
+owlmetry metrics create \
+  --project 550e8400-... \
+  --name "Checkout Flow" \
+  --slug checkout-flow \
+  --lifecycle \
+  --docs "Tracks the entire checkout process from cart to confirmation."
+```
+
+## Query metric aggregation
+
+```bash
+owlmetry metrics query <slug> --project <id> [options]
+```
+
+Returns aggregated statistics for a metric: event counts by phase, success rate, duration percentiles, error breakdown, and optional grouping.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Metric slug |
+| `--project <id>` | Yes | Project UUID |
+| `--since <date>` | No | Start date (ISO 8601) |
+| `--until <date>` | No | End date (ISO 8601) |
+| `--app <id>` | No | Filter by app UUID |
+| `--app-version <version>` | No | Filter by app version |
+| `--device-model <model>` | No | Filter by device model |
+| `--os-version <version>` | No | Filter by OS version |
+| `--user <id>` | No | Filter by user ID |
+| `--environment <env>` | No | Filter by environment: `ios`, `ipados`, `macos`, `android`, `web`, `backend` |
+| `--group-by <field>` | No | Group results (see below) |
+| `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
+
+### Group-by options
+
+| Value | Description |
+|-------|-------------|
+| `app_id` | Group by app |
+| `app_version` | Group by app version |
+| `device_model` | Group by device model |
+| `os_version` | Group by OS version |
+| `environment` | Group by environment |
+| `time:hour` | Group by hour |
+| `time:day` | Group by day |
+| `time:week` | Group by week |
+
+```bash
+# Overall stats for the last 7 days
+owlmetry metrics query checkout-flow --project 550e8400-... --since 2025-01-08
+
+# Success rate by app version
+owlmetry metrics query checkout-flow --project 550e8400-... --group-by app_version
+
+# Duration stats for iOS only
+owlmetry metrics query page-load-time --project 550e8400-... --environment ios
+```
+
+## Query raw metric events
+
+```bash
+owlmetry metrics events <slug> --project <id> [options]
+```
+
+Returns individual metric events rather than aggregations. Useful for debugging specific occurrences.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Metric slug |
+| `--project <id>` | Yes | Project UUID |
+| `--phase <phase>` | No | Filter by phase: `start`, `complete`, `fail`, `cancel`, `record` |
+| `--tracking-id <id>` | No | Filter by tracking UUID (correlates start/complete/fail of one operation) |
+| `--user <id>` | No | Filter by user ID |
+| `--since <time>` | No | Start time (default: `24h`). Relative or ISO 8601. |
+| `--until <time>` | No | End time |
+| `--environment <env>` | No | Filter by environment |
+| `--limit <n>` | No | Max events to return |
+| `--cursor <cursor>` | No | Pagination cursor |
+| `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
+
+```bash
+# All failures in the last day
+owlmetry metrics events checkout-flow --project 550e8400-... --phase fail
+
+# Trace a specific operation by tracking ID
+owlmetry metrics events checkout-flow --project 550e8400-... --tracking-id a1b2c3d4-...
+```
+
+## Update a metric
+
+```bash
+owlmetry metrics update <slug> --project <id> [options]
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Metric slug |
+| `--project <id>` | Yes | Project UUID |
+| `--name <name>` | No | New display name |
+| `--description <desc>` | No | New description |
+| `--status <status>` | No | `active` or `paused` |
+
+```bash
+owlmetry metrics update checkout-flow --project 550e8400-... --status paused
+```
+
+## Delete a metric
+
+```bash
+owlmetry metrics delete <slug> --project <id>
+```
+
+Soft-deletes the metric definition. Existing metric events are not removed.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<slug>` | Yes | Metric slug |
+| `--project <id>` | Yes | Project UUID |

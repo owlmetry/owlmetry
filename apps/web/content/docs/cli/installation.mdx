@@ -3,4 +3,46 @@ title: Installation
 description: Install the @owlmetry/cli package globally with npm.
 ---
 
-Install the `@owlmetry/cli` package globally.
+## Install
+
+Install the CLI globally with npm:
+
+```bash
+npm install -g @owlmetry/cli
+```
+
+Verify the installation:
+
+```bash
+owlmetry --version
+```
+
+## AI skill files
+
+The CLI ships with AI skill files that teach coding agents (Claude, GPT, Cursor, etc.) how to use OwlMetry. Each skill file covers a different part of the platform:
+
+- **CLI** — command syntax, flags, and workflows
+- **Node SDK** — server-side instrumentation with `@owlmetry/node`
+- **Swift SDK** — iOS/macOS instrumentation with the Swift package
+
+To see the file paths on your system:
+
+```bash
+owlmetry skills
+```
+
+Output:
+
+```
+OwlMetry AI Skills
+
+  CLI        /path/to/skills/owlmetry-cli/SKILL.md
+  Node SDK   /path/to/skills/owlmetry-node/SKILL.md
+  Swift SDK  /path/to/skills/owlmetry-swift/SKILL.md
+```
+
+Point your AI agent to the relevant skill file so it can reference the correct API surface, command syntax, and code examples. The skill files are updated with each CLI release.
+
+## Next steps
+
+After installing, authenticate with your OwlMetry server. See [Authentication](/docs/cli/authentication).

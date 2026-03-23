@@ -3,4 +3,124 @@ title: Identity
 description: Manage anonymous and known user identities, and claim anonymous events after login.
 ---
 
-Manage anonymous and known user identities.
+The Swift SDK manages user identity automatically. Every device starts with an anonymous ID and can be upgraded to a known user identity after login. When a user is identified, all their previous anonymous events are retroactively linked to the real user ID on the server.
+
+## Anonymous Identity
+
+On first launch, the SDK generates a unique anonymous ID with the prefix `owl_anon_` followed by a UUID:
+
+```
+owl_anon_A1B2C3D4-E5F6-7890-ABCD-EF1234567890
+```
+
+This ID is stored in the device Keychain under the service `com.owlmetry.sdk`, which means it persists across app restarts and even survives app reinstalls. All events are tagged with this ID until a real user is identified.
+
+You do not need to generate or manage this ID -- the SDK handles it automatically on `Owl.configure()`.
+
+## Setting a User
+
+After your app authenticates a user, call `Owl.setUser()` with their identifier:
+
+```swift
+func handleLoginSuccess(user: User) {
+    Owl.setUser(user.id)
+    // All future events are tagged with user.id
+}
+```
+
+This does two things:
+
+1. **Future events** are tagged with the real user ID instead of the anonymous ID.
+2. **Previous events** emitted with the anonymous ID are retroactively claimed for this user on the server. The SDK automatically flushes all buffered events before sending the claim request, so no in-flight events are missed.
+
+The user ID is persisted in `UserDefaults`, so it survives app restarts. On the next launch, `Owl.configure()` will use the saved user ID automatically -- you do not need to call `setUser()` again unless the user has logged out.
+
+## Clearing a User
+
+On logout, call `Owl.clearUser()` to revert to anonymous tracking:
+
+```swift
+func handleLogout() {
+    Owl.clearUser()
+    // Future events use the original anonymous ID
+}
+```
+
+By default, `clearUser()` reverts to the same anonymous ID that was generated before login. This links pre-login and post-logout events to the same anonymous identity.
+
+### Shared Devices
+
+If the device may be used by different people (e.g., a shared iPad), pass `newAnonymousId: true` to generate a fresh anonymous ID on logout:
+
+```swift
+func handleLogout() {
+    Owl.clearUser(newAnonymousId: true)
+    // Future events use a brand-new anonymous ID
+}
+```
+
+This prevents the next user's anonymous events from being grouped with the previous user's.
+
+## Complete Example
+
+```swift
+class AuthManager: ObservableObject {
+    @Published var currentUser: User?
+
+    func login(email: String, password: String) async throws {
+        let user = try await authService.login(email: email, password: password)
+        currentUser = user
+
+        // Link all previous anonymous events to this user
+        Owl.setUser(user.id)
+        Owl.info("User logged in", screenName: "Login")
+    }
+
+    func logout() {
+        Owl.info("User logged out")
+        authService.logout()
+        currentUser = nil
+
+        // Revert to anonymous tracking
+        Owl.clearUser()
+    }
+
+    func logoutSharedDevice() {
+        Owl.info("User logged out (shared device)")
+        authService.logout()
+        currentUser = nil
+
+        // Generate a new anonymous ID for the next user
+        Owl.clearUser(newAnonymousId: true)
+    }
+}
+```
+
+## Identity Flow
+
+```
+App Launch
+  -> Owl.configure()
+  -> Events tagged with owl_anon_XXXX
+
+User Logs In
+  -> Owl.setUser("user_123")
+  -> Buffered events flushed
+  -> Server claims all owl_anon_XXXX events for user_123
+  -> Future events tagged with user_123
+
+User Logs Out
+  -> Owl.clearUser()
+  -> Future events tagged with owl_anon_XXXX again
+
+  OR (shared device)
+  -> Owl.clearUser(newAnonymousId: true)
+  -> Future events tagged with owl_anon_YYYY (new ID)
+```
+
+## Persistence Summary
+
+| Data | Storage | Survives Reinstall |
+|------|---------|--------------------|
+| Anonymous ID | Keychain (`com.owlmetry.sdk`) | Yes |
+| Real User ID | UserDefaults | No |

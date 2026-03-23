@@ -3,4 +3,156 @@ title: Serverless & Edge
 description: Use wrapHandler() to guarantee event flush in Lambda, Vercel, and other serverless environments.
 ---
 
-Guarantee event flush in serverless environments.
+In serverless environments, your function may terminate before the SDK's background flush timer fires. `Owl.wrapHandler()` solves this by flushing all buffered events after every invocation.
+
+## The Problem
+
+The SDK buffers events and flushes them on a timer (default every 5 seconds) or when the buffer reaches a threshold (default 20 events). In a traditional server, this works well because the process is long-lived. In serverless:
+
+- The function may return and freeze before the timer fires
+- Buffered events are lost when the execution context is recycled
+- The `beforeExit` handler may not fire reliably in all runtimes
+
+## wrapHandler
+
+`Owl.wrapHandler()` wraps an async function so that `Owl.flush()` is called automatically after every invocation, regardless of whether it succeeded or threw:
+
+```typescript
+import { Owl } from "@owlmetry/node";
+
+Owl.configure({
+  endpoint: "https://ingest.owlmetry.com",
+  apiKey: "owl_client_...",
+  serviceName: "order-lambda",
+});
+
+export const handler = Owl.wrapHandler(async (event, context) => {
+  Owl.info("Processing order", { order_id: event.orderId });
+
+  const op = Owl.startOperation("process-order");
+  try {
+    const result = await processOrder(event.orderId);
+    op.complete();
+    return { statusCode: 200, body: JSON.stringify(result) };
+  } catch (err) {
+    op.fail(err.message);
+    return { statusCode: 500, body: "Internal error" };
+  }
+});
+```
+
+The wrapper preserves the return value and re-throws any exceptions after flushing. It works with any async function signature -- Lambda handlers, Vercel serverless functions, or custom wrappers.
+
+## beforeExit Handler
+
+When you call `Owl.configure()`, the SDK registers a `process.on("beforeExit")` handler that flushes any remaining buffered events. This is a safety net for graceful process shutdown but should not be relied on in serverless -- use `wrapHandler()` instead.
+
+The handler is registered once and does not prevent the process from exiting (the flush timer uses `unref()` to avoid keeping the event loop alive).
+
+## Graceful Shutdown
+
+For long-running servers, call `Owl.shutdown()` to flush events and stop the background timer:
+
+```typescript
+process.on("SIGTERM", async () => {
+  console.log("Shutting down...");
+  await Owl.shutdown();
+  server.close();
+  process.exit(0);
+});
+```
+
+`Owl.shutdown()` emits a `sdk:session_ended` event, flushes all buffered events, and clears internal state.
+
+## Express Middleware
+
+In Express, you can use `wrapHandler()` per route or build middleware that flushes after every request:
+
+```typescript
+import express from "express";
+import { Owl } from "@owlmetry/node";
+
+Owl.configure({
+  endpoint: "https://ingest.owlmetry.com",
+  apiKey: "owl_client_...",
+  serviceName: "express-api",
+});
+
+const app = express();
+
+// Flush after every request
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    Owl.flush().catch(() => {});
+  });
+  next();
+});
+
+app.post("/api/orders", async (req, res) => {
+  Owl.info("Order received");
+  // ...
+  res.json({ ok: true });
+});
+```
+
+## Fastify Hooks
+
+In Fastify, use the `onResponse` hook to flush after each request:
+
+```typescript
+import Fastify from "fastify";
+import { Owl } from "@owlmetry/node";
+
+Owl.configure({
+  endpoint: "https://ingest.owlmetry.com",
+  apiKey: "owl_client_...",
+  serviceName: "fastify-api",
+});
+
+const app = Fastify();
+
+app.addHook("onResponse", async () => {
+  await Owl.flush();
+});
+
+app.addHook("onClose", async () => {
+  await Owl.shutdown();
+});
+```
+
+## Complete Serverless Example
+
+An AWS Lambda function with user scoping, operation tracking, and automatic flush:
+
+```typescript
+import { Owl } from "@owlmetry/node";
+
+Owl.configure({
+  endpoint: "https://ingest.owlmetry.com",
+  apiKey: "owl_client_...",
+  serviceName: "checkout-lambda",
+  appVersion: "2.1.0",
+});
+
+export const handler = Owl.wrapHandler(async (event) => {
+  const body = JSON.parse(event.body);
+  const owl = Owl.withUser(body.userId);
+
+  const op = owl.startOperation("checkout", {
+    item_count: String(body.items.length),
+  });
+
+  try {
+    const charge = await processPayment(body);
+    owl.track("payment-completed");
+    op.complete({ charge_id: charge.id });
+
+    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+  } catch (err) {
+    op.fail(err.message);
+    return { statusCode: 500, body: JSON.stringify({ error: "Payment failed" }) };
+  }
+});
+```
+
+Every event -- the operation start, track step, and operation complete/fail -- is flushed before the Lambda returns.

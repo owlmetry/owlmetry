@@ -3,4 +3,127 @@ title: Using OwlMetry Cloud
 description: Start tracking metrics with the hosted OwlMetry instance at owlmetry.com.
 ---
 
-Start tracking metrics with the hosted OwlMetry instance.
+The hosted instance at [owlmetry.com](https://owlmetry.com) is the fastest way to get started. No server setup, no database configuration -- sign up and start sending events in minutes.
+
+## 1. Sign Up
+
+Go to [owlmetry.com](https://owlmetry.com) and enter your email address. OwlMetry uses passwordless authentication -- you will receive a 6-digit verification code by email. Enter the code to sign in.
+
+There is no separate registration step. Your account is created automatically the first time you verify your email.
+
+## 2. Create a Team
+
+After your first sign-in, you will be prompted to create a team. Teams are the top-level organizational unit in OwlMetry -- all projects, apps, and API keys belong to a team.
+
+You can invite other members to your team later from the Team page in the dashboard. Members can have one of three roles: **owner**, **admin**, or **member**.
+
+## 3. Create a Project
+
+Navigate to **Projects** in the dashboard sidebar and click **Create Project**. A project groups related apps across platforms. For example, a "MyApp" project might contain an iOS app and a backend service.
+
+Give your project a name and a URL-friendly slug (lowercase letters, numbers, and hyphens).
+
+## 4. Create an App
+
+From your project's detail page, click **Create App**. Choose the platform that matches your target:
+
+| Platform | Use for |
+|----------|---------|
+| Apple | iOS, iPadOS, macOS apps |
+| Android | Android apps |
+| Web | Browser-based apps |
+| Backend | API servers, workers, serverless functions |
+
+For Apple, Android, and Web platforms, provide a **bundle ID** (e.g., `com.example.myapp`). Backend apps do not require a bundle ID.
+
+When you create an app, a client API key (`owl_client_...`) is generated automatically. Copy this key -- you will need it to configure the SDK.
+
+## 5. Get Your Client API Key
+
+The client key is shown when you create the app. You can also find it later on the app's detail page or on the **API Keys** page in the dashboard.
+
+Client keys use the `owl_client_` prefix and are scoped to a single app. They can only ingest events -- they cannot read data or manage resources.
+
+<Callout>
+Keep your client key secure. While it can only write events, anyone with the key can send events to your app. For non-backend platforms, the key is validated against the app's registered bundle ID on every request.
+</Callout>
+
+## 6. Install and Configure Your SDK
+
+### Swift (iOS / macOS)
+
+Add the Swift Package and configure in your app's entry point:
+
+```swift
+import OwlMetry
+
+@main
+struct MyApp: App {
+    init() {
+        do {
+            try Owl.configure(
+                endpoint: "https://ingest.owlmetry.com",
+                apiKey: "owl_client_your_key_here"
+            )
+        } catch {
+            print("OwlMetry configuration failed: \(error)")
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+See the [Swift SDK installation guide](/docs/sdks/swift/installation) for full setup instructions.
+
+### Node.js (Backend)
+
+Install the package and configure in your server's entry point:
+
+```typescript
+import { Owl } from '@owlmetry/node';
+
+Owl.configure({
+  endpoint: 'https://ingest.owlmetry.com',
+  apiKey: 'owl_client_your_key_here',
+  serviceName: 'my-api',
+  appVersion: '1.0.0',
+});
+```
+
+See the [Node.js SDK installation guide](/docs/sdks/node/installation) for full setup instructions.
+
+## 7. Verify Events in the Dashboard
+
+After configuring the SDK and running your app, navigate to **Events** in the dashboard sidebar. You should see events appearing within a few seconds.
+
+The SDK automatically emits a `sdk:session_started` event on configuration, so you will see at least one event immediately after launching your app.
+
+Use the filters at the top of the Events page to narrow by app, log level, time range, and more. Click any event to see its full details including device info, session ID, and custom attributes.
+
+## Using the CLI
+
+For agent-driven workflows, install the CLI and authenticate with an agent API key:
+
+```bash
+npm install -g @owlmetry/cli
+
+# Set up with your endpoint and agent key
+owlmetry setup --endpoint https://api.owlmetry.com --api-key owl_agent_your_key_here
+```
+
+You can create agent keys from the **API Keys** page in the dashboard. Agent keys have read access to events, metrics, funnels, and other resources.
+
+See the [CLI documentation](/docs/cli) for the full command reference.
+
+## Next Steps
+
+- [Events](/docs/concepts/events) -- Learn about log levels, sessions, and event structure
+- [Projects and Apps](/docs/concepts/projects-and-apps) -- Understand how projects organize apps across platforms
+- [Authentication](/docs/concepts/authentication) -- Learn about key types, permissions, and team roles
+- [Swift SDK](/docs/sdks/swift) -- Full SDK reference for iOS, iPadOS, and macOS
+- [Node.js SDK](/docs/sdks/node) -- Full SDK reference for backend services

@@ -3,4 +3,99 @@ title: Experiments
 description: Run A/B experiments with getVariant() and setExperiment() in the Swift SDK. Assignments persist in Keychain.
 ---
 
-Run A/B experiments with persistent variant assignment.
+The Swift SDK provides lightweight client-side A/B testing. Variant assignments are persisted in Keychain and automatically included on all events, allowing you to segment metric and funnel analytics by experiment group.
+
+## Assigning a Variant
+
+Call `Owl.getVariant()` with an experiment name and a list of options. On the first call for a given experiment, a random variant is selected and persisted. All subsequent calls return the stored variant -- the `options` parameter is ignored after the initial assignment.
+
+```swift
+let variant = Owl.getVariant("checkout-redesign", options: ["control", "variant-a", "variant-b"])
+
+switch variant {
+case "variant-a":
+    showNewCheckoutFlow()
+case "variant-b":
+    showMinimalCheckoutFlow()
+default:
+    showOriginalCheckoutFlow()
+}
+```
+
+### Method Signature
+
+```swift
+@discardableResult
+public static func getVariant(_ name: String, options: [String]) -> String
+```
+
+The return value is marked `@discardableResult`, so you can call it without using the result if you only need the assignment to be recorded on events.
+
+## Force-Setting a Variant
+
+Use `Owl.setExperiment()` to override the assignment for a specific experiment. This is useful when variant assignment comes from a server-side feature flag system rather than random client-side selection.
+
+```swift
+Owl.setExperiment("checkout-redesign", variant: "variant-a")
+```
+
+## Clearing Experiments
+
+Remove all experiment assignments from memory and Keychain:
+
+```swift
+Owl.clearExperiments()
+```
+
+This is useful during development and testing, or when you need to reset experiment state for a user.
+
+## Persistence
+
+Experiment assignments are stored in the device Keychain under the service `com.owlmetry.experiments`. This means assignments survive app restarts and even app reinstalls, providing a consistent experience for each device.
+
+## Auto-Inclusion on Events
+
+All events emitted by the SDK automatically include an `experiments` field containing the current set of assignments. You do not need to pass experiment data manually -- it is attached to every `info()`, `debug()`, `warn()`, `error()`, `track()`, `startOperation()`, `recordMetric()`, and all automatic lifecycle events.
+
+This enables segmenting any data by variant without additional instrumentation.
+
+## Example: A/B Testing a Feature
+
+```swift
+struct PaywallView: View {
+    let variant = Owl.getVariant("paywall-design", options: ["control", "minimal", "social-proof"])
+
+    var body: some View {
+        Group {
+            switch variant {
+            case "minimal":
+                MinimalPaywall()
+            case "social-proof":
+                SocialProofPaywall()
+            default:
+                OriginalPaywall()
+            }
+        }
+        .owlScreen("Paywall")
+    }
+}
+```
+
+With this setup:
+
+1. Each user is randomly assigned to a variant on first view. The assignment is persisted in Keychain.
+2. Every event from this user (screen views, funnel steps, metrics) includes `"paywall-design": "minimal"` (or whichever variant was assigned) in its experiments field.
+3. You can query funnel conversion or metric performance grouped by the `paywall-design` experiment to compare variants.
+
+## Combining with Funnels
+
+Experiment assignments are especially useful with [funnels](/docs/sdks/swift/funnels). Track funnel steps as normal and query results with experiment grouping to measure which variant produces higher conversion rates.
+
+```swift
+let variant = Owl.getVariant("onboarding-flow", options: ["control", "streamlined"])
+
+// All track() calls automatically carry the experiment assignment
+Owl.track("welcome-screen")
+Owl.track("create-account")
+Owl.track("complete-profile")
+```

@@ -3,4 +3,66 @@ title: Experiments
 description: Run A/B experiments with getVariant() and setExperiment() in the Node.js SDK.
 ---
 
-Run A/B experiments with persistent variant assignment.
+The SDK supports lightweight [A/B experiments](/docs/concepts/experiments) with persistent variant assignment. Once a variant is assigned, it is included on every subsequent event, enabling segmented funnel and metric analysis.
+
+## Assigning Variants
+
+`Owl.getVariant(name, options)` returns a variant string. On the first call for a given experiment name, it picks a random option and persists the assignment. Future calls return the stored variant regardless of the options passed.
+
+```typescript
+const variant = Owl.getVariant("checkout-flow", ["control", "streamlined"]);
+// variant is "control" or "streamlined" — stable across restarts
+```
+
+Assignments are saved to `~/.owlmetry/experiments.json` on disk. This means:
+
+- On long-running servers, assignments persist across restarts
+- All events automatically include the current experiment assignments in their `experiments` field
+
+## Force-Setting a Variant
+
+Use `Owl.setExperiment()` to force a specific variant. This is useful when the variant is determined server-side (e.g., from a feature flag service) rather than randomly assigned:
+
+```typescript
+Owl.setExperiment("pricing-model", "usage-based");
+```
+
+The assignment is persisted immediately.
+
+## Clearing Experiments
+
+Remove all experiment assignments:
+
+```typescript
+Owl.clearExperiments();
+```
+
+This clears both the in-memory state and the persisted file. Events emitted after this call will not include any experiment assignments.
+
+## Serverless Caveat
+
+In serverless environments (AWS Lambda, Vercel Functions, etc.), the filesystem is ephemeral. Assignments saved by `getVariant()` may not survive across invocations. For serverless, use `setExperiment()` with a variant determined by your own persistence layer:
+
+```typescript
+// Fetch assignment from your database or feature flag service
+const variant = await getFeatureFlag(userId, "checkout-flow");
+Owl.setExperiment("checkout-flow", variant);
+```
+
+This ensures consistent assignment regardless of filesystem state.
+
+## How Events Are Tagged
+
+Every event emitted after experiments are configured includes an `experiments` field:
+
+```json
+{
+  "message": "Order placed",
+  "experiments": {
+    "checkout-flow": "streamlined",
+    "pricing-model": "usage-based"
+  }
+}
+```
+
+This enables experiment-segmented queries in the dashboard and CLI. Funnel queries support `group_by=experiment:<name>` to compare conversion rates across variants. See [Experiments](/docs/concepts/experiments) for details on querying experiment data.

@@ -3,4 +3,147 @@ title: Getting Started
 description: Get up and running with OwlMetry in minutes.
 ---
 
-Get up and running with OwlMetry in minutes.
+This guide walks you through sending your first event to OwlMetry. Choose your deployment model and SDK, then follow the quickstart below.
+
+## Choose Your Deployment
+
+- **[Hosted](/docs/getting-started/hosted)** -- Use the instance running at owlmetry.com. Sign up, create a project, and start sending events immediately.
+- **[Self-hosted](/docs/getting-started/self-hosting)** -- Run OwlMetry on your own server. Full control over your data, single PostgreSQL backend, deployed in under 30 minutes.
+
+## Choose Your SDK
+
+OwlMetry provides two SDKs depending on your platform:
+
+| SDK | Platforms | Install |
+|-----|-----------|---------|
+| [Swift SDK](/docs/sdks/swift) | iOS, iPadOS, macOS | Swift Package Manager |
+| [Node.js SDK](/docs/sdks/node) | Any Node.js backend | `npm install @owlmetry/node` |
+
+## Swift Quickstart
+
+For iOS, iPadOS, and macOS apps. Requires an Apple-platform app and client key from OwlMetry.
+
+### 1. Add the Swift Package
+
+In Xcode: **File > Add Package Dependencies**, enter the repository URL, select branch `main`, and add `OwlMetry` to your target.
+
+Or in `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/Jasonvdb/owlmetry.git", branch: "main")
+]
+```
+
+Add to your target:
+
+```swift
+.target(name: "YourApp", dependencies: [
+    .product(name: "OwlMetry", package: "owlmetry")
+])
+```
+
+Minimum platforms: iOS 16.0, macOS 13.0. Zero external dependencies.
+
+### 2. Configure
+
+Call `Owl.configure()` as early as possible -- in your `@main` App `init()` or AppDelegate `didFinishLaunching`:
+
+```swift
+import OwlMetry
+
+@main
+struct MyApp: App {
+    init() {
+        do {
+            try Owl.configure(
+                endpoint: "https://ingest.owlmetry.com",
+                apiKey: "owl_client_your_key_here"
+            )
+        } catch {
+            print("OwlMetry configuration failed: \(error)")
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+### 3. Log an Event
+
+```swift
+Owl.info("App launched")
+Owl.error("Failed to load profile", screenName: "ProfileView")
+Owl.warn("Slow network response", customAttributes: ["latency_ms": "1200"])
+```
+
+Events are buffered and flushed automatically in batches. They appear in the OwlMetry dashboard within seconds.
+
+<Callout>
+For the full Swift SDK reference -- screen tracking, metrics, funnels, identity, and experiments -- see the [Swift SDK documentation](/docs/sdks/swift).
+</Callout>
+
+## Node.js Quickstart
+
+For API servers, job workers, and serverless functions. Requires a backend-platform app and client key from OwlMetry.
+
+### 1. Install
+
+```bash
+npm install @owlmetry/node
+```
+
+Zero runtime dependencies. Node.js 20+. ESM only.
+
+### 2. Configure
+
+Call `Owl.configure()` in your main entry point, before any other `Owl` calls:
+
+```typescript
+import { Owl } from '@owlmetry/node';
+
+Owl.configure({
+  endpoint: 'https://ingest.owlmetry.com',
+  apiKey: 'owl_client_your_key_here',
+  serviceName: 'my-api',
+  appVersion: '1.0.0',
+});
+```
+
+### 3. Log an Event
+
+```typescript
+Owl.info('Server started', { port: 4000 });
+Owl.error('Database connection failed', { host: 'db.example.com' });
+Owl.warn('Rate limit approaching', { current: 95, limit: 100 });
+```
+
+Events are buffered in memory and flushed every 5 seconds or when 20 events accumulate. A `beforeExit` handler auto-flushes on graceful shutdown.
+
+### 4. Scoped Logging (Optional)
+
+In multi-user backends, create a scoped logger to automatically tag events with a user ID:
+
+```typescript
+const owl = Owl.withUser('user_42');
+owl.info('Order placed', { order_id: 'ord_123' });
+owl.error('Payment failed', { reason: 'insufficient_funds' });
+```
+
+<Callout>
+For the full Node.js SDK reference -- serverless support, metrics, funnels, identity, and experiments -- see the [Node.js SDK documentation](/docs/sdks/node).
+</Callout>
+
+## What's Next
+
+Once events are flowing, explore these areas:
+
+- [Events](/docs/concepts/events) -- Understand log levels, sessions, and timestamps
+- [Metrics](/docs/concepts/metrics) -- Track operation durations and success rates
+- [Funnels](/docs/concepts/funnels) -- Measure conversion across multi-step flows
+- [CLI](/docs/cli) -- Query and manage everything from the terminal
+- [API Reference](/docs/api-reference) -- Full REST API documentation

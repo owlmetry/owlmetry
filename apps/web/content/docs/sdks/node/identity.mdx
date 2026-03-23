@@ -3,4 +3,117 @@ title: Identity
 description: Manage anonymous and known user identities in the Node.js SDK.
 ---
 
-Manage anonymous and known user identities.
+The Node.js SDK provides `Owl.withUser()` to associate events with a specific user. This is the primary mechanism for per-user analytics, funnel tracking, and session tracing.
+
+## withUser
+
+`Owl.withUser(userId)` returns a `ScopedOwl` instance. Every event emitted through this instance includes the given `user_id`:
+
+```typescript
+const owl = Owl.withUser("user_42");
+owl.info("Profile updated");
+owl.warn("Rate limit approaching");
+owl.track("onboarding-complete");
+```
+
+The returned `ScopedOwl` has the same API as `Owl` -- `info()`, `debug()`, `warn()`, `error()`, `track()`, `startOperation()`, and `recordMetric()`.
+
+## Middleware Pattern
+
+In HTTP servers, create a scoped instance per request based on the authenticated user. This is the recommended approach for associating backend events with users.
+
+### Express
+
+```typescript
+import express from "express";
+import { Owl, type ScopedOwl } from "@owlmetry/node";
+
+// Extend the Request type
+declare global {
+  namespace Express {
+    interface Request {
+      owl: typeof Owl | ScopedOwl;
+    }
+  }
+}
+
+const app = express();
+
+app.use((req, res, next) => {
+  req.owl = req.auth?.userId
+    ? Owl.withUser(req.auth.userId)
+    : Owl;
+  next();
+});
+
+app.get("/api/profile", (req, res) => {
+  req.owl.info("Viewed profile");
+  res.json(req.user);
+});
+
+app.post("/api/settings", (req, res) => {
+  req.owl.info("Updated settings", { theme: req.body.theme });
+  res.json({ ok: true });
+});
+```
+
+### Fastify
+
+```typescript
+import Fastify from "fastify";
+import { Owl } from "@owlmetry/node";
+
+const app = Fastify();
+
+app.decorateRequest("owl", null);
+
+app.addHook("onRequest", async (request) => {
+  request.owl = request.user?.id
+    ? Owl.withUser(request.user.id)
+    : Owl;
+});
+
+app.get("/api/orders", async (request, reply) => {
+  request.owl.info("Listing orders");
+  const orders = await getOrders(request.user.id);
+  return orders;
+});
+```
+
+## Anonymous vs Known Users
+
+When no user ID is set (i.e., you use `Owl` directly instead of `Owl.withUser()`), events are emitted without a `user_id` field. They are still grouped by `session_id`, but cannot be attributed to a specific user.
+
+For backend services that handle both authenticated and unauthenticated requests, the middleware pattern above handles this naturally -- unauthenticated requests fall through to the base `Owl` instance.
+
+## User Scoping with Operations
+
+Operations started from a scoped instance carry the user ID across all lifecycle events (start, complete, fail, cancel):
+
+```typescript
+const owl = Owl.withUser(userId);
+const op = owl.startOperation("data-export");
+
+try {
+  const result = await exportUserData(userId);
+  op.complete({ rows: String(result.rowCount) });
+} catch (err) {
+  op.fail(err.message);
+}
+```
+
+Both the `start` and `complete` (or `fail`) events will have `user_id` set.
+
+## User Scoping with Funnels
+
+Funnel analytics correlate steps by user ID. Always use a scoped instance when tracking funnel steps:
+
+```typescript
+const owl = Owl.withUser(userId);
+owl.track("signup-started");
+// ... later
+owl.track("email-verified");
+owl.track("first-project-created");
+```
+
+Without a user ID, the server cannot determine which user completed which steps. See the [Funnels guide](/docs/sdks/node/funnels) for more backend funnel patterns.

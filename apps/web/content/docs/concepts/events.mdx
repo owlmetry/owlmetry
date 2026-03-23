@@ -3,4 +3,121 @@ title: Events
 description: Understand how OwlMetry captures, stores, and queries events with log levels, sessions, and timestamps.
 ---
 
-Understand how OwlMetry captures, stores, and queries events.
+Events are the core data unit in OwlMetry. Every interaction your app records -- a screen view, a button tap, a warning, an error -- is captured as an event and sent to the server for storage and analysis.
+
+## Event Structure
+
+Each event contains the following fields:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `message` | string | Yes | What happened -- a human-readable description of the event |
+| `level` | string | Yes | Log level: `info`, `debug`, `warn`, or `error` |
+| `session_id` | string (UUID) | Yes | Groups events from a single app session |
+| `client_event_id` | string (UUID) | No | Client-generated ID used for deduplication |
+| `user_id` | string | No | User identifier (anonymous or real) |
+| `source_module` | string | No | Module or component that generated the event |
+| `screen_name` | string | No | Current screen or page name |
+| `custom_attributes` | object | No | Arbitrary string key-value pairs (200 char value limit) |
+| `environment` | string | No | Runtime environment (`ios`, `ipados`, `macos`, `android`, `web`, `backend`) |
+| `os_version` | string | No | Operating system version |
+| `app_version` | string | No | App version string |
+| `build_number` | string | No | App build number |
+| `device_model` | string | No | Device hardware model |
+| `locale` | string | No | User locale (e.g., `en_US`) |
+| `is_dev` | boolean | No | Whether the event came from a development build |
+| `experiments` | object | No | Active A/B experiment variant assignments |
+| `timestamp` | string (ISO 8601) | No | When the event occurred (server uses receipt time if omitted) |
+
+Events are sent to the server in batches via the [ingest endpoint](/docs/api-reference/ingest). The SDKs handle batching automatically.
+
+## Log Levels
+
+Every event has a log level that indicates its severity:
+
+| Level | Purpose |
+|---|---|
+| `info` | Normal activity -- screen views, user actions, lifecycle events |
+| `debug` | Diagnostic information useful during development |
+| `warn` | Something unexpected happened but the app continued normally |
+| `error` | Something failed -- a network request, a parse operation, etc. |
+
+The dashboard and CLI support filtering events by level to help you focus on what matters.
+
+## Sessions
+
+A `session_id` is a UUID generated fresh every time an SDK calls `configure()`. This typically happens once per app launch, so a session corresponds to a single run of your app from open to close.
+
+All events emitted during that session share the same `session_id`, which allows you to:
+
+- Reconstruct a user's journey through a single app session
+- Filter the event timeline to a specific session
+- Count unique sessions over a time period
+
+The SDKs generate the session ID automatically. You do not need to manage it yourself.
+
+## Timestamp Validation
+
+The server validates event timestamps on ingestion:
+
+- **Future limit**: Events with timestamps more than 5 minutes in the future are rejected.
+- **Past limit**: Events with timestamps more than 30 days in the past are rejected.
+- **Invalid format**: Events with unparseable timestamps are rejected.
+
+If a timestamp is omitted, the server uses the time the event was received.
+
+## Deduplication
+
+If an event includes a `client_event_id`, the server checks for duplicates within a 48-hour window. If an event with the same `client_event_id` and `app_id` was already ingested, the duplicate is silently dropped.
+
+This makes it safe for SDKs to retry failed ingestion requests without creating duplicate data. The 48-hour window is bounded so Postgres can skip older partitions during the lookup.
+
+## Custom Attributes
+
+Events can carry arbitrary metadata as `custom_attributes` -- a flat object of string keys and string values. Each value is limited to 200 characters.
+
+```json
+{
+  "custom_attributes": {
+    "plan": "pro",
+    "feature_flag": "new-checkout",
+    "item_count": "3"
+  }
+}
+```
+
+The SDKs also auto-capture certain fields as custom attributes. For example, the Swift SDK records `_connection` (wifi, cellular, ethernet, offline) via its network monitor.
+
+## Auto-Captured Fields
+
+The SDKs automatically populate device and app metadata on every event without any additional configuration:
+
+- **`device_model`** -- hardware model (e.g., "iPhone15,2")
+- **`os_version`** -- operating system version (e.g., "17.4.1")
+- **`app_version`** -- the app's version string from its bundle or package
+- **`build_number`** -- the app's build number
+- **`locale`** -- the device locale (e.g., "en_US")
+- **`environment`** -- the runtime platform (ios, ipados, macos, android, web, backend)
+- **`is_dev`** -- whether this is a development build (see [Data Mode](/docs/concepts/data-mode))
+
+For SDK-specific details, see the [Swift SDK events guide](/docs/sdks/swift/events) or the [Node SDK events guide](/docs/sdks/node/events).
+
+## Partitioned Storage
+
+Events are stored in a PostgreSQL table partitioned by month on the `timestamp` column. Partitions for the current month and the next two months are created automatically on server startup and during migrations.
+
+Monthly partitioning allows Postgres to scan only the relevant partitions when querying a date range, keeping event queries fast as your data grows. The events table has no primary key or foreign keys due to PostgreSQL partition constraints -- data integrity is enforced at the application level.
+
+## Querying Events
+
+Events can be queried through the [dashboard](/docs/concepts/projects-and-apps), the [CLI](/docs/cli/events), or the [API](/docs/api-reference/events). Common filters include:
+
+- **Team, project, or app** -- scope events to a specific context
+- **Log level** -- filter by severity
+- **User ID or session ID** -- trace a specific user or session
+- **Environment** -- filter by platform (ios, android, web, etc.)
+- **Screen name** -- find events from a specific screen
+- **Date range** -- query a time window
+- **Data mode** -- filter by production, development, or all (see [Data Mode](/docs/concepts/data-mode))
+
+Results are paginated with cursor-based pagination.

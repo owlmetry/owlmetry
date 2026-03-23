@@ -3,4 +3,70 @@ title: Configuration
 description: Environment variables, database connection, email (Resend), cookie domain, and optional settings.
 ---
 
-Environment variables and configuration options.
+Environment variables and configuration options. All values are set in the `.env` file at the repository root.
+
+The API server auto-loads `.env` via dotenv on startup. The web dashboard reads environment variables at build time (Next.js) and runtime (standalone mode).
+
+## Required variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string. Format: `postgresql://user:password@host:5432/dbname`. The setup script prints this value after creating the database. |
+| `JWT_SECRET` | Random string used to sign JWT tokens. Generate with `openssl rand -base64 48`. Must be kept secret. Changing this value invalidates all existing sessions. |
+| `CORS_ORIGINS` | Allowed origin for cross-origin requests from the web dashboard. Set to your dashboard URL (e.g., `https://yourdomain.com`). |
+| `COOKIE_DOMAIN` | Cookie domain for cross-subdomain authentication. Set to `.yourdomain.com` (note the leading dot) so the auth cookie is shared between `yourdomain.com` and `api.yourdomain.com`. Required when the API and dashboard are on different subdomains. |
+
+## Optional variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `4000` | Port the API server listens on. |
+| `HOST` | `0.0.0.0` | Bind address for the API server. |
+| `MAX_DATABASE_SIZE_GB` | `0` (disabled) | When set to a positive number, enables automatic pruning. An hourly check (plus one on startup) drops the oldest monthly event partitions when the database exceeds this size. |
+| `RESEND_API_KEY` | (empty) | API key from [Resend](https://resend.com) for sending verification emails. If not set, verification codes are printed to the server console (useful for single-user or development setups). |
+| `EMAIL_FROM` | `noreply@owlmetry.com` | The "from" address used when sending verification and invitation emails via Resend. |
+| `NODE_ENV` | `development` | Set to `production` for production deployments. Affects logging, cookie security, and Next.js behavior. |
+
+## Example `.env` file
+
+```bash
+DATABASE_URL=postgresql://owlmetry:yourpassword@localhost:5432/owlmetry
+JWT_SECRET=your-random-64-char-secret-here
+PORT=4000
+HOST=0.0.0.0
+CORS_ORIGINS=https://yourdomain.com
+MAX_DATABASE_SIZE_GB=8
+RESEND_API_KEY=re_abc123...
+EMAIL_FROM=noreply@yourdomain.com
+COOKIE_DOMAIN=.yourdomain.com
+```
+
+## Migration note
+
+Database migrations (`pnpm db:migrate`) run from the `packages/db` directory and do not auto-load the `.env` file. When running migrations over SSH, prefix the command with the `DATABASE_URL`:
+
+```bash
+DATABASE_URL='postgresql://owlmetry:password@localhost:5432/owlmetry' pnpm db:migrate
+```
+
+The API server loads `.env` automatically via its config module, so this is only relevant for running migrations in isolation (e.g., during deployment scripts).
+
+## Cookie configuration
+
+The `COOKIE_DOMAIN` variable controls the `domain` attribute of the `token` cookie:
+
+- **Set to `.yourdomain.com`** when the dashboard (`yourdomain.com`) and API (`api.yourdomain.com`) are on different subdomains. The leading dot allows the cookie to be shared across subdomains.
+- **Leave empty** for local development where everything runs on `localhost`.
+
+The auth cookie is always `httpOnly`, `sameSite: lax`, and `secure` in production (`NODE_ENV=production`). It expires after 7 days, matching the JWT expiry.
+
+## Database size management
+
+When `MAX_DATABASE_SIZE_GB` is set to a positive value:
+
+1. On server startup, a size check runs (fire-and-forget, does not block startup).
+2. An hourly interval checks the database size.
+3. If the database exceeds the threshold, the oldest monthly partitions are dropped from `events`, `metric_events`, and `funnel_events` tables.
+4. If only the current month's partition remains and the database is still over the limit, row-level deletion is used as a fallback.
+
+Set this to a value safely below your disk capacity (e.g., `8` for a 25 GB disk) to prevent the server from running out of storage.

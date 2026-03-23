@@ -3,4 +3,124 @@ title: Self-Hosting Quickstart
 description: Deploy OwlMetry on your own server in under 30 minutes.
 ---
 
-Deploy OwlMetry on your own server.
+OwlMetry is designed to be self-hosted. All your analytics data stays on your infrastructure -- no third-party vendor, no external data transfers. The entire backend is a single Fastify API server backed by PostgreSQL.
+
+This page covers the quick-start path. For the full deployment guide with nginx, SSL, Cloudflare, firewall rules, and production hardening, see the [Self-Hosting section](/docs/self-hosting).
+
+## Requirements
+
+| Component | Minimum |
+|-----------|---------|
+| OS | Ubuntu 24.04 LTS (or any Linux with systemd) |
+| Node.js | 22+ |
+| PostgreSQL | 16+ |
+| RAM | 1 GB |
+| Disk | 25 GB recommended |
+| pnpm | 9+ |
+
+You also need a domain with three A records pointing to your server: root (`yourdomain.com`), `api`, and `ingest`.
+
+## Quick Setup
+
+### 1. Install System Dependencies
+
+The setup script installs Node.js, PostgreSQL, nginx, pm2, and pnpm, then creates the database:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/deploy/setup-ubuntu-vps.sh -o setup-ubuntu-vps.sh
+bash setup-ubuntu-vps.sh
+```
+
+Save the `DATABASE_URL` printed at the end -- you will need it in step 3.
+
+<Callout>
+The setup script is idempotent. It is safe to run again if interrupted.
+</Callout>
+
+### 2. Clone and Build
+
+```bash
+cd /opt/owlmetry
+git clone https://github.com/Jasonvdb/owlmetry.git .
+pnpm install
+pnpm build
+```
+
+### 3. Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your values:
+
+```bash
+DATABASE_URL=postgresql://owlmetry:<password>@localhost:5432/owlmetry
+JWT_SECRET=<random-64-char-string>
+PORT=4000
+HOST=0.0.0.0
+CORS_ORIGINS=https://yourdomain.com
+COOKIE_DOMAIN=.yourdomain.com
+```
+
+Generate a random JWT secret:
+
+```bash
+openssl rand -base64 48
+```
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string from the setup script |
+| `JWT_SECRET` | Yes | Random string for signing authentication tokens |
+| `CORS_ORIGINS` | Yes | Your dashboard URL (e.g., `https://yourdomain.com`) |
+| `COOKIE_DOMAIN` | Yes | For cross-subdomain auth (e.g., `.yourdomain.com`) |
+| `RESEND_API_KEY` | No | [Resend](https://resend.com) API key for email delivery. If unset, verification codes print to the server console. |
+| `MAX_DATABASE_SIZE_GB` | No | Auto-prune old events when the database exceeds this size |
+
+### 4. Run Migrations
+
+```bash
+pnpm db:migrate
+```
+
+This creates all tables, indexes, and monthly event partitions. Your first user account is created automatically when you sign in through the dashboard or CLI.
+
+### 5. Start Services
+
+Using pm2 for process management:
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 status
+```
+
+You should see `owlmetry-api` and `owlmetry-web` both with status `online`.
+
+### 6. Verify
+
+```bash
+curl -s http://localhost:4000/health
+# {"status":"ok"}
+```
+
+Open `https://yourdomain.com` in a browser to access the dashboard (requires nginx configuration -- see the full guide).
+
+## What This Does Not Cover
+
+This quickstart gets the services running. For a production deployment, you will also need:
+
+- **nginx** as a reverse proxy routing `yourdomain.com`, `api.yourdomain.com`, and `ingest.yourdomain.com` to the appropriate ports
+- **SSL** via Cloudflare (recommended) or Let's Encrypt
+- **Firewall** rules to restrict access to Cloudflare IPs and Tailscale for SSH
+- **Updating** procedure for pulling new releases and running migrations
+
+All of these are covered in the [full Self-Hosting guide](/docs/self-hosting).
+
+## Next Steps
+
+- [Self-Hosting: Requirements](/docs/self-hosting/requirements) -- Detailed system requirements
+- [Self-Hosting: Installation](/docs/self-hosting/installation) -- Step-by-step server setup
+- [Self-Hosting: Configuration](/docs/self-hosting/configuration) -- Environment variables and nginx
+- [Self-Hosting: Deployment](/docs/self-hosting/deployment) -- pm2, updates, and maintenance

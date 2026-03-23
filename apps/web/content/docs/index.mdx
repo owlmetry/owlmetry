@@ -3,4 +3,45 @@ title: OwlMetry Documentation
 description: Self-hosted metrics tracking platform for mobile apps. SDKs for Swift and Node.js, CLI for agents, and a REST API.
 ---
 
-Welcome to the OwlMetry documentation.
+OwlMetry is a self-hosted observability platform built for the agentic development era. It captures events, metrics, and funnels from your apps and backend services, stores everything in a single PostgreSQL instance, and exposes it all through a REST API, CLI, and optional web dashboard.
+
+Your agent can set up the entire integration, query events, diagnose issues, and act on what it finds -- without a human opening a dashboard.
+
+## Key Features
+
+- **Event ingestion** with batch processing, deduplication, and gzip compression
+- **Structured metrics** with lifecycle tracking (start/complete/fail) and aggregation queries
+- **Funnel analytics** to measure conversion and drop-off across multi-step flows
+- **A/B experiments** with client-side variant assignment and server-side analysis
+- **Agent-native API** where every operation is available through `owl_agent_` keys
+- **Single PostgreSQL** backend with monthly-partitioned event tables -- no Kafka, no ClickHouse, no Redis
+
+## Documentation Sections
+
+### [Getting Started](/docs/getting-started)
+
+Set up your first project and start sending events in minutes. Covers both the hosted instance at owlmetry.com and self-hosted deployments.
+
+### [Concepts](/docs/concepts)
+
+Understand the core building blocks: [events](/docs/concepts/events), [metrics](/docs/concepts/metrics), [funnels](/docs/concepts/funnels), [experiments](/docs/concepts/experiments), [projects and apps](/docs/concepts/projects-and-apps), [authentication](/docs/concepts/authentication), and [data mode](/docs/concepts/data-mode).
+
+### [Swift SDK](/docs/sdks/swift)
+
+Native SDK for iOS, iPadOS, and macOS apps. Distributed as a Swift Package with zero external dependencies. Covers installation, configuration, event logging, screen tracking, metrics, funnels, identity, and experiments.
+
+### [Node.js SDK](/docs/sdks/node)
+
+Zero-dependency server-side SDK for API servers, job workers, and serverless functions. Covers installation, configuration, event logging, metrics, funnels, identity, serverless support, and experiments.
+
+### [CLI](/docs/cli)
+
+Command-line interface for agents and humans. Query events, manage projects and apps, define metrics and funnels, and inspect audit logs -- all from the terminal. Supports `--format json` for machine consumption and `--format table` for humans.
+
+### [API Reference](/docs/api-reference)
+
+Complete REST API documentation covering authentication, event ingestion, querying, project and app management, metrics, funnels, teams, and identity.
+
+### [Self-Hosting](/docs/self-hosting)
+
+Deploy OwlMetry on your own infrastructure. Covers system requirements, PostgreSQL setup, nginx configuration, SSL, process management with pm2, and ongoing maintenance.

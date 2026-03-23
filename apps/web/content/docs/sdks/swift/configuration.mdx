@@ -3,4 +3,114 @@ title: Configuration
 description: Configure the Swift SDK with Owl.configure() — API key, endpoint, and options.
 ---
 
-Configure the Swift SDK with `Owl.configure()`.
+Call `Owl.configure()` once, as early as possible in your app's lifecycle. This initializes the SDK, starts a new session, and begins capturing events.
+
+## Basic Setup
+
+In a SwiftUI app, call `configure()` in the `@main` App `init()`:
+
+```swift
+import SwiftUI
+import OwlMetry
+
+@main
+struct MyApp: App {
+    init() {
+        do {
+            try Owl.configure(
+                endpoint: "https://ingest.owlmetry.com",
+                apiKey: "owl_client_..."
+            )
+        } catch {
+            print("OwlMetry configuration failed: \(error)")
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+For UIKit apps, call it in `application(_:didFinishLaunchingWithOptions:)`:
+
+```swift
+import OwlMetry
+
+func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+) -> Bool {
+    do {
+        try Owl.configure(
+            endpoint: "https://ingest.owlmetry.com",
+            apiKey: "owl_client_..."
+        )
+    } catch {
+        print("OwlMetry configuration failed: \(error)")
+    }
+    return true
+}
+```
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `endpoint` | `String` | required | Your OwlMetry ingest server URL. |
+| `apiKey` | `String` | required | Client API key. Must start with `owl_client_`. |
+| `flushOnBackground` | `Bool` | `true` | Automatically flush buffered events when the app enters the background. |
+| `compressionEnabled` | `Bool` | `true` | Gzip-compress request bodies before sending. |
+| `networkTrackingEnabled` | `Bool` | `true` | Automatically track URLSession HTTP requests. |
+
+## Full Example with All Options
+
+```swift
+try Owl.configure(
+    endpoint: "https://ingest.owlmetry.com",
+    apiKey: "owl_client_...",
+    flushOnBackground: true,
+    compressionEnabled: true,
+    networkTrackingEnabled: false  // disable if you don't want HTTP request tracking
+)
+```
+
+## What Happens on Configure
+
+1. **Session ID** -- a fresh UUID is generated to group all events from this launch.
+2. **Bundle ID** -- automatically read from `Bundle.main.bundleIdentifier`.
+3. **Debug mode** -- `is_dev` is set to `true` in DEBUG builds (`#if DEBUG`), `false` in release builds.
+4. **Launch time** -- the SDK measures the time from process start to the `configure()` call and includes it as `_launch_ms` on the `session_started` event. Place `configure()` as early as possible for an accurate cold-start measurement.
+5. **Session event** -- a `sdk:session_started` event is emitted immediately with the `_launch_ms` attribute.
+6. **Lifecycle observer** -- if `flushOnBackground` is `true`, the SDK registers for app lifecycle notifications to flush on background and persist on termination.
+7. **Network monitor** -- starts tracking connection type (wifi, cellular, ethernet, offline) via `NWPathMonitor`.
+
+## Configuration Errors
+
+`Owl.configure()` is a throwing function. The `ConfigurationError` enum covers three cases:
+
+| Error | When it occurs |
+|-------|---------------|
+| `invalidEndpoint` | The endpoint string is not a valid URL. |
+| `invalidApiKey` | The API key does not start with `owl_client_`. |
+| `missingBundleId` | `Bundle.main.bundleIdentifier` is nil or empty. This can happen in command-line tools or certain test environments. |
+
+## Calling Configure More Than Once
+
+Calling `configure()` again is safe. The SDK will shut down the previous transport, stop the old lifecycle observer, and start fresh with a new session ID. This generates a new `sdk:session_started` event.
+
+## Shutdown
+
+In most cases, the SDK handles cleanup automatically via background task flushing and termination persistence. If you need to guarantee delivery at a specific point, call `shutdown()` explicitly:
+
+```swift
+await Owl.shutdown()
+```
+
+## Next Steps
+
+- [Events](/docs/sdks/swift/events) -- start logging events
+- [Identity](/docs/sdks/swift/identity) -- connect events to real users
+- [Screen Tracking](/docs/sdks/swift/screen-tracking) -- add automatic screen view tracking

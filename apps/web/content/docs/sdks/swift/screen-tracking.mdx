@@ -3,4 +3,128 @@ title: Screen Tracking
 description: Automatically track screen views with the .owlScreen() SwiftUI view modifier.
 ---
 
-Automatically track screen views with `.owlScreen()`.
+The `.owlScreen()` SwiftUI view modifier automatically tracks screen appearances and time-on-screen with no manual event calls needed.
+
+## Usage
+
+Attach `.owlScreen()` to the outermost view of each screen:
+
+```swift
+struct HomeView: View {
+    var body: some View {
+        ScrollView {
+            // ...
+        }
+        .owlScreen("Home")
+    }
+}
+
+struct SettingsView: View {
+    var body: some View {
+        Form {
+            // ...
+        }
+        .owlScreen("Settings")
+    }
+}
+```
+
+## What It Emits
+
+| Event | Level | When | Attributes |
+|-------|-------|------|------------|
+| `sdk:screen_appeared` | info | View appears | `screenName` set to the provided name |
+| `sdk:screen_disappeared` | debug | View disappears | `screenName` set, `_duration_ms` with time the screen was visible |
+
+The `screen_appeared` event is info-level and included in production data. The `screen_disappeared` event is debug-level and only visible when viewing development data, keeping production data focused on screen visits rather than departures.
+
+## Placement Guidelines
+
+Apply `.owlScreen()` to the outermost container of each distinct screen in your app. Typical attachment points are `NavigationStack`, `Form`, `ScrollView`, or the root `VStack`:
+
+```swift
+struct ProfileView: View {
+    var body: some View {
+        VStack {
+            ProfileHeader()
+            PostList()
+        }
+        .owlScreen("Profile")
+    }
+}
+```
+
+## Example with NavigationStack
+
+```swift
+struct ContentView: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                NavigationLink("Profile") {
+                    ProfileView()
+                }
+                NavigationLink("Settings") {
+                    SettingsView()
+                }
+            }
+            .navigationTitle("Home")
+        }
+        .owlScreen("Home")
+    }
+}
+
+struct ProfileView: View {
+    var body: some View {
+        VStack {
+            Text("Profile content")
+        }
+        .owlScreen("Profile")
+        .navigationTitle("Profile")
+    }
+}
+
+struct SettingsView: View {
+    var body: some View {
+        Form {
+            Section("General") {
+                Toggle("Notifications", isOn: .constant(true))
+            }
+        }
+        .owlScreen("Settings")
+        .navigationTitle("Settings")
+    }
+}
+```
+
+Each navigation destination tracks its own screen view and duration independently.
+
+## Naming Conventions
+
+Choose screen names that are short, readable, and consistent across the app:
+
+- `"Home"`, `"Profile"`, `"Settings"`, `"Checkout"`
+- For detail screens: `"Product Detail"`, `"Order Detail"`
+- For flows: `"Signup Step 1"`, `"Signup Step 2"`
+
+The `screenName` value is also available as a filter in the [events](/docs/concepts/events) dashboard, so consistent naming makes filtering straightforward.
+
+## Screen Tracking vs Manual Events
+
+Use `.owlScreen()` for tracking when a screen is viewed and how long a user stays. Use manual `Owl.info()` with the `screenName` parameter for events that happen within a screen (button taps, state changes, errors):
+
+```swift
+struct CartView: View {
+    var body: some View {
+        VStack {
+            // ...
+            Button("Place Order") {
+                Owl.info("Order placed", screenName: "Cart", customAttributes: ["items": "\(cart.count)"])
+            }
+        }
+        .owlScreen("Cart")
+    }
+}
+```
+
+The `.owlScreen()` modifier handles the screen view tracking, while `Owl.info()` with `screenName: "Cart"` ties the button tap event to the same screen context.

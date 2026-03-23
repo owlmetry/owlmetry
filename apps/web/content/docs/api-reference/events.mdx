@@ -3,4 +3,108 @@ title: Events
 description: GET /v1/events — query events with filters for app, level, date range, session, and more.
 ---
 
-Query events with filters.
+Query stored events with filters and cursor-based pagination.
+
+## GET /v1/events
+
+List events with optional filters. Results are ordered by timestamp descending (newest first).
+
+**Auth required:** Yes (`events:read` permission or JWT)
+
+**Rate limited:** Yes
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Filter to a specific team. |
+| `project_id` | string | Filter to apps within a project. |
+| `app_id` | string | Filter to a specific app. |
+| `level` | string | Filter by log level: `info`, `debug`, `warn`, `error`. |
+| `user_id` | string | Filter by user ID. |
+| `session_id` | string | Filter by session ID. |
+| `environment` | string | Filter by environment: `ios`, `ipados`, `macos`, `android`, `web`, `backend`. |
+| `screen_name` | string | Filter by screen name (exact match). |
+| `since` | string | ISO 8601 timestamp. Only events at or after this time. |
+| `until` | string | ISO 8601 timestamp. Only events at or before this time. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+| `cursor` | string | Cursor from previous response for pagination. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+```json
+{
+  "events": [
+    {
+      "id": "uuid",
+      "app_id": "uuid",
+      "client_event_id": "uuid",
+      "session_id": "uuid",
+      "user_id": "owl_anon_abc123",
+      "api_key_id": "uuid",
+      "level": "info",
+      "source_module": "HomeViewController",
+      "message": "screen_viewed",
+      "screen_name": "Home",
+      "custom_attributes": {
+        "button_color": "blue"
+      },
+      "environment": "ios",
+      "os_version": "17.4",
+      "app_version": "1.2.0",
+      "build_number": "42",
+      "device_model": "iPhone15,2",
+      "locale": "en_US",
+      "is_dev": false,
+      "experiments": {
+        "onboarding_flow": "variant_b"
+      },
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "received_at": "2024-01-15T10:30:01.000Z"
+    }
+  ],
+  "cursor": "2024-01-15T10:29:00.000Z",
+  "has_more": true
+}
+```
+
+When `has_more` is `true`, pass the `cursor` value to the next request to fetch the next page. When `has_more` is `false`, `cursor` is `null`.
+
+## GET /v1/events/:id
+
+Get a single event by ID.
+
+**Auth required:** Yes (`events:read` permission or JWT)
+
+### Response
+
+```json
+{
+  "id": "uuid",
+  "app_id": "uuid",
+  "client_event_id": "uuid",
+  "session_id": "uuid",
+  "user_id": "owl_anon_abc123",
+  "api_key_id": "uuid",
+  "level": "info",
+  "source_module": "HomeViewController",
+  "message": "screen_viewed",
+  "screen_name": "Home",
+  "custom_attributes": {
+    "button_color": "blue"
+  },
+  "environment": "ios",
+  "os_version": "17.4",
+  "app_version": "1.2.0",
+  "build_number": "42",
+  "device_model": "iPhone15,2",
+  "locale": "en_US",
+  "is_dev": false,
+  "experiments": null,
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "received_at": "2024-01-15T10:30:01.000Z"
+}
+```
+
+Returns `404` if the event does not exist or belongs to an app outside the caller's team.

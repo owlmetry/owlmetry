@@ -3,4 +3,140 @@ title: Structured Metrics
 description: Track performance with lifecycle operations (start, complete, fail, cancel) and single-shot measurements.
 ---
 
-Track performance with structured metric operations.
+Structured metrics let you measure the performance of specific operations in your app -- network requests, file uploads, checkout flows, or any timed process. Unlike raw events, metrics follow a defined lifecycle and produce aggregated performance data.
+
+## How Metrics Work
+
+There are two ways to record a metric:
+
+### Lifecycle Operations
+
+For operations that have a start and an end, use the lifecycle pattern:
+
+1. **Start** an operation -- records the beginning and returns a handle
+2. **Complete**, **fail**, or **cancel** it -- records the outcome and automatically calculates `duration_ms`
+
+```
+startOperation("photo-upload")   → start phase
+  ... operation runs ...
+operation.complete()             → complete phase (duration auto-calculated)
+```
+
+Each lifecycle operation gets a unique `tracking_id` (UUID) that correlates the start and end phases.
+
+### Single-Shot Measurements
+
+For point-in-time measurements where there is no start/end lifecycle, use `recordMetric()`:
+
+```
+recordMetric("cache-hit-rate", { value: "0.87" })  → record phase
+```
+
+Single-shot measurements emit a single event with the `record` phase.
+
+## Metric Phases
+
+Every metric event has one of five phases:
+
+| Phase | Description |
+|---|---|
+| `start` | The operation began |
+| `complete` | The operation finished successfully |
+| `fail` | The operation failed (includes an `error` field) |
+| `cancel` | The operation was cancelled before completing |
+| `record` | A single-shot measurement (no lifecycle) |
+
+## Tracking IDs
+
+Lifecycle operations use a `tracking_id` (UUID) to link the start phase with its corresponding complete, fail, or cancel phase. This allows the server to:
+
+- Calculate duration from start to completion
+- Match failures back to their originating start event
+- Detect operations that started but never finished
+
+The SDKs generate and manage tracking IDs automatically via the `Operation` object returned by `startOperation()`.
+
+## Duration
+
+For lifecycle operations, `duration_ms` is automatically calculated by the SDK as the elapsed time between `startOperation()` and the completion call (complete, fail, or cancel). You do not need to track timing yourself.
+
+The server aggregates durations into percentiles (p50, p95, p99) and averages for performance analysis.
+
+## Metric Definitions
+
+Metric definitions are project-scoped records that describe what a metric measures. They live under a project and are identified by a unique slug.
+
+Each definition includes:
+
+| Field | Description |
+|---|---|
+| `name` | Human-readable name (e.g., "Photo Upload") |
+| `slug` | URL-safe identifier (e.g., `photo-upload`) |
+| `description` | Optional explanation of what the metric measures |
+| `documentation` | Optional long-form documentation |
+| `schema_definition` | Optional schema for expected attributes on start/complete/record phases |
+| `aggregation_rules` | Optional rules for how to aggregate this metric |
+| `status` | `active` or `paused` |
+
+Definitions are managed through the [dashboard](/docs/concepts/projects-and-apps), the [CLI](/docs/cli/metrics), or the [API](/docs/api-reference/metrics).
+
+You do not need to create a definition before sending metric events. Events are stored regardless. Definitions provide metadata and enable richer dashboard features.
+
+## Slug Validation
+
+Metric slugs must match the pattern `/^[a-z0-9-]+$/` -- lowercase letters, numbers, and hyphens only. For example: `photo-upload`, `checkout-flow`, `api-latency`.
+
+Both the [Swift SDK](/docs/sdks/swift/metrics) and [Node SDK](/docs/sdks/node/metrics) auto-slugify invalid slugs (lowercasing, stripping invalid characters, collapsing consecutive hyphens) and log a warning. The server rejects events with invalid slugs.
+
+## Event Format
+
+Under the hood, SDKs emit metric events as regular events with a specially formatted `message` field:
+
+```
+metric:<slug>:<phase>
+```
+
+For example: `metric:photo-upload:start`, `metric:photo-upload:complete`, `metric:cache-hit-rate:record`.
+
+The server parses this format during ingestion and writes a structured row to the `metric_events` table with extracted fields (`metric_slug`, `phase`, `tracking_id`, `duration_ms`, `error`, `attributes`).
+
+## Aggregation Queries
+
+The metric query endpoint returns aggregated performance data for a given metric slug:
+
+| Aggregation | Description |
+|---|---|
+| `total_count` | Total metric events in the time range |
+| `start_count` | Number of start events |
+| `complete_count` | Number of successful completions |
+| `fail_count` | Number of failures |
+| `cancel_count` | Number of cancellations |
+| `record_count` | Number of single-shot records |
+| `success_rate` | Completions / (completions + failures), as a ratio |
+| `duration_avg_ms` | Average duration of completed operations |
+| `duration_p50_ms` | Median (50th percentile) duration |
+| `duration_p95_ms` | 95th percentile duration |
+| `duration_p99_ms` | 99th percentile duration |
+| `unique_users` | Distinct user count |
+| `error_breakdown` | Top errors with counts |
+
+### Grouping
+
+Queries support a `group_by` parameter to segment results:
+
+- `app_id` -- by app
+- `app_version` -- by app version
+- `device_model` -- by device hardware
+- `os_version` -- by OS version
+- `environment` -- by runtime platform
+- `time:hour`, `time:day`, `time:week` -- by time bucket
+
+### Filtering
+
+Queries accept optional filters: `since`, `until`, `app_id`, `app_version`, `device_model`, `os_version`, `user_id`, `environment`, and `data_mode`.
+
+For API details, see the [metrics API reference](/docs/api-reference/metrics). For SDK usage, see the [Swift SDK](/docs/sdks/swift/metrics) or [Node SDK](/docs/sdks/node/metrics) guides.
+
+## Storage
+
+Metric events are stored in a dedicated `metric_events` table, partitioned monthly by `timestamp` -- the same strategy used for [regular events](/docs/concepts/events). Partitions are created automatically on server startup.

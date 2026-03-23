@@ -3,4 +3,41 @@ title: Installation
 description: Install the @owlmetry/node package with npm, pnpm, or yarn.
 ---
 
-Install the `@owlmetry/node` package.
+Install the `@owlmetry/node` package from npm.
+
+## Install
+
+```bash tab="npm"
+npm install @owlmetry/node
+```
+
+```bash tab="pnpm"
+pnpm add @owlmetry/node
+```
+
+```bash tab="yarn"
+yarn add @owlmetry/node
+```
+
+## Import
+
+The SDK is ESM-only. Import it in your application entry point:
+
+```typescript
+import { Owl } from "@owlmetry/node";
+```
+
+If your project still uses CommonJS (`require`), you will need to switch your `package.json` to `"type": "module"` or use dynamic `import()`.
+
+## Zero Dependencies
+
+`@owlmetry/node` has no runtime dependencies. It uses only Node.js built-in modules (`node:crypto`, `node:zlib`, `node:fs`, `node:os`, `node:path`) and the global `fetch` API available in Node.js 20+.
+
+## Requirements
+
+- **Node.js 20+** -- required for native `fetch` and `AbortSignal.timeout` support
+- **ESM** -- the package ships as pure ESM with `.js` extensions
+
+## Next Steps
+
+Once installed, [configure the SDK](/docs/sdks/node/configuration) with your API key and endpoint.

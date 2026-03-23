@@ -3,4 +3,98 @@ title: Installation
 description: Step-by-step VPS setup — clone the repo, install dependencies, configure the database, and build.
 ---
 
-Step-by-step VPS installation guide.
+Step-by-step guide to installing OwlMetry on a fresh Ubuntu 24.04 VPS. Estimated time: 15-20 minutes.
+
+## 1. Run the setup script
+
+SSH into your VPS as root and run the setup script. It installs Node.js 22, PostgreSQL 16, nginx, pm2, pnpm, and creates the database.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/deploy/setup-ubuntu-vps.sh -o setup-ubuntu-vps.sh
+bash setup-ubuntu-vps.sh
+```
+
+Save the `DATABASE_URL` printed at the end. You will need it in step 3.
+
+The script is idempotent and safe to run again if interrupted.
+
+## 2. Clone and build
+
+```bash
+cd /opt/owlmetry
+git clone https://github.com/Jasonvdb/owlmetry.git .
+pnpm install
+pnpm build
+```
+
+The build compiles all packages in dependency order: `shared` then `db` then `server`, plus the Next.js web dashboard.
+
+## 3. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your values:
+
+```bash
+DATABASE_URL=postgresql://owlmetry:<password>@localhost:5432/owlmetry
+JWT_SECRET=<random-64-char-string>
+PORT=4000
+HOST=0.0.0.0
+CORS_ORIGINS=https://yourdomain.com
+MAX_DATABASE_SIZE_GB=8
+RESEND_API_KEY=<your-resend-key>
+EMAIL_FROM=noreply@yourdomain.com
+COOKIE_DOMAIN=.yourdomain.com
+```
+
+Generate a random JWT secret:
+
+```bash
+openssl rand -base64 48
+```
+
+See [Configuration](/docs/self-hosting/configuration) for a full reference of all environment variables.
+
+## 4. Run migrations
+
+```bash
+pnpm db:migrate
+```
+
+This creates all database tables and sets up monthly event partitions. The events table uses `PARTITION BY RANGE` on the `timestamp` column. Partitions for the current month plus the next 2 months are created automatically.
+
+Your first user account will be auto-created when you log in through the dashboard or CLI.
+
+## 5. Verify the server starts
+
+Test that the API server runs:
+
+```bash
+node apps/server/dist/index.js
+```
+
+You should see output indicating the server is listening on port 4000. Press Ctrl+C to stop.
+
+Test the health endpoint:
+
+```bash
+curl -s http://localhost:4000/health
+# {"status":"ok"}
+```
+
+## Next steps
+
+Continue to [Deployment](/docs/self-hosting/deployment) to configure nginx, pm2, SSL, and firewall for production use.
+
+## Development seed data
+
+For development or testing only, you can populate the database with sample data:
+
+```bash
+pnpm dev:seed         # Creates admin user, team, project, app, and API keys
+pnpm dev:seed-events  # Generates 200 random test events across 24 hours
+```
+
+Do not run the seed commands in production. The seed API keys are committed to the repository and publicly known.

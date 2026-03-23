@@ -3,4 +3,340 @@ title: Teams
 description: Team management endpoints — create, rename, delete teams, invite members, and manage roles.
 ---
 
-Team management, invitations, and role management.
+Team management, invitations, role management, and audit logs. All team routes require JWT authentication (user-only, not API key accessible) unless otherwise noted.
+
+## POST /v1/teams
+
+Create a new team. The creating user becomes the owner.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Request
+{
+  "name": "Acme Inc",
+  "slug": "acme-inc"
+}
+
+// Response (201)
+{
+  "id": "uuid",
+  "name": "Acme Inc",
+  "slug": "acme-inc",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+The `slug` must match `^[a-z0-9-]+$`. Returns `409` if a team with the same slug already exists.
+
+## GET /v1/teams/:teamId
+
+Get team details including members and pending invitations.
+
+**Auth required:** Yes (JWT only, member role minimum)
+
+```json
+// Response (200)
+{
+  "id": "uuid",
+  "name": "Acme Inc",
+  "slug": "acme-inc",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z",
+  "members": [
+    {
+      "user_id": "uuid",
+      "email": "owner@example.com",
+      "name": "Owner",
+      "role": "owner",
+      "joined_at": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "pending_invitations": [
+    {
+      "id": "uuid",
+      "team_id": "uuid",
+      "email": "invited@example.com",
+      "role": "member",
+      "invited_by": {
+        "user_id": "uuid",
+        "name": "Owner",
+        "email": "owner@example.com"
+      },
+      "expires_at": "2024-01-08T00:00:00.000Z",
+      "accepted_at": null,
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## PATCH /v1/teams/:teamId
+
+Rename a team.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+```json
+// Request
+{
+  "name": "Acme Corp"
+}
+
+// Response (200)
+{
+  "id": "uuid",
+  "name": "Acme Corp",
+  "slug": "acme-inc",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-15T12:00:00.000Z"
+}
+```
+
+## DELETE /v1/teams/:teamId
+
+Soft-delete a team and cascade to all children (projects, apps, API keys, metric definitions, funnel definitions). Team members and invitations are hard-deleted.
+
+**Auth required:** Yes (JWT only, owner role required)
+
+Cannot delete your only team. Returns `400` if the user has no other team membership.
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```
+
+## GET /v1/teams/:teamId/members
+
+List all members of a team.
+
+**Auth required:** Yes (JWT only, member role minimum)
+
+```json
+// Response (200)
+{
+  "members": [
+    {
+      "user_id": "uuid",
+      "email": "user@example.com",
+      "name": "User",
+      "role": "owner",
+      "joined_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## PATCH /v1/teams/:teamId/members/:userId
+
+Change a member's role.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+Role hierarchy: `owner` > `admin` > `member`. Only owners can promote to owner. Admins can only change the role of members with a lower role. Cannot change your own role. Cannot demote the last owner.
+
+```json
+// Request
+{
+  "role": "admin"
+}
+
+// Response (200)
+{
+  "user_id": "uuid",
+  "role": "admin"
+}
+```
+
+## DELETE /v1/teams/:teamId/members/:userId
+
+Remove a member from the team. If `userId` matches the authenticated user, this acts as "leave team."
+
+**Auth required:** Yes (JWT only, admin role required for removing others)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `revoke_agent_keys` | string | Query param. Set to `"true"` to soft-delete the removed member's agent API keys for this team. |
+
+Owners can remove anyone. Admins can only remove members with a lower role. Self-removal is allowed for any role (except the sole owner).
+
+```json
+// Response (200)
+{
+  "removed": true,
+  "revoked_agent_keys": 2
+}
+```
+
+## POST /v1/teams/:teamId/invitations
+
+Send or resend an email invitation to join the team.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+Only owners can invite as `owner`. Re-inviting an existing pending invite regenerates the token and resets the 7-day expiry.
+
+```json
+// Request
+{
+  "email": "newmember@example.com",
+  "role": "member"  // optional, defaults to "member"
+}
+
+// Response (201)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "email": "newmember@example.com",
+  "role": "member",
+  "invited_by": {
+    "user_id": "uuid",
+    "name": "Owner",
+    "email": "owner@example.com"
+  },
+  "expires_at": "2024-01-08T00:00:00.000Z",
+  "accepted_at": null,
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+Returns `409` if the email is already a team member.
+
+## GET /v1/teams/:teamId/invitations
+
+List pending invitations for a team.
+
+**Auth required:** Yes (JWT only, member role minimum)
+
+```json
+// Response (200)
+{
+  "invitations": [
+    {
+      "id": "uuid",
+      "team_id": "uuid",
+      "email": "newmember@example.com",
+      "role": "member",
+      "invited_by": {
+        "user_id": "uuid",
+        "name": "Owner",
+        "email": "owner@example.com"
+      },
+      "expires_at": "2024-01-08T00:00:00.000Z",
+      "accepted_at": null,
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## DELETE /v1/teams/:teamId/invitations/:invitationId
+
+Revoke (hard-delete) a pending invitation.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```
+
+## GET /v1/invites/:token
+
+Get public information about an invitation. No authentication required.
+
+Returns `410` if the invitation has already been accepted or has expired.
+
+```json
+// Response (200)
+{
+  "team_name": "Acme Inc",
+  "team_slug": "acme-inc",
+  "role": "member",
+  "email": "invited@example.com",
+  "invited_by_name": "Owner",
+  "expires_at": "2024-01-08T00:00:00.000Z"
+}
+```
+
+## POST /v1/invites/accept
+
+Accept an invitation and join the team. The authenticated user's email must match the invitation email.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Request
+{
+  "token": "invitation-token-uuid"
+}
+
+// Response (200)
+{
+  "team_id": "uuid",
+  "team_name": "Acme Inc",
+  "role": "member"
+}
+```
+
+Returns `403` if the authenticated email does not match the invitation. Returns `410` if expired or already accepted.
+
+## GET /v1/teams/:teamId/audit-logs
+
+Query the audit log for a team. Returns a paginated list of actions performed on team resources.
+
+**Auth required:** Yes (`audit_logs:read` permission for agent keys, or JWT with admin role)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `resource_type` | string | Filter by resource type: `app`, `project`, `api_key`, `team`, `team_member`, `invitation`, `metric_definition`, `funnel_definition`, `user`. |
+| `resource_id` | string | Filter by resource ID. |
+| `actor_id` | string | Filter by actor (user or API key) ID. |
+| `action` | string | Filter by action: `create`, `update`, `delete`. |
+| `since` | string | ISO 8601 timestamp. |
+| `until` | string | ISO 8601 timestamp. |
+| `cursor` | string | Cursor from previous response (format: `timestamp|id`). |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+```json
+{
+  "audit_logs": [
+    {
+      "id": "uuid",
+      "team_id": "uuid",
+      "actor_type": "user",
+      "actor_id": "uuid",
+      "action": "create",
+      "resource_type": "app",
+      "resource_id": "uuid",
+      "changes": null,
+      "metadata": {
+        "name": "iOS App",
+        "platform": "apple"
+      },
+      "timestamp": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "cursor": "2024-01-15T10:29:00.000Z|uuid",
+  "has_more": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `actor_type` | string | `user`, `api_key`, or `system`. |
+| `actor_id` | string | ID of the user or API key that performed the action. |
+| `action` | string | `create`, `update`, or `delete`. |
+| `resource_type` | string | Type of resource affected. |
+| `resource_id` | string | ID of the affected resource. |
+| `changes` | object or null | For `update` actions, contains `{ field: { before, after } }` diffs. |
+| `metadata` | object or null | Additional context about the action. |

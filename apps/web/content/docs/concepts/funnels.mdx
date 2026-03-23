@@ -3,4 +3,108 @@ title: Funnels
 description: Define multi-step funnels to measure user conversion and drop-off across your app.
 ---
 
-Define multi-step funnels to measure conversion and drop-off.
+Funnels let you define an ordered sequence of steps that users should complete, then measure how many users reach each step and where they drop off. They are useful for tracking conversion flows like onboarding, checkout, or signup.
+
+## Funnel Definitions
+
+A funnel definition is a project-scoped record with an ordered list of steps. Each definition includes:
+
+| Field | Description |
+|---|---|
+| `name` | Human-readable name (e.g., "Onboarding Flow") |
+| `slug` | URL-safe identifier (e.g., `onboarding-flow`) -- must match `/^[a-z0-9-]+$/` |
+| `description` | Optional explanation of what this funnel measures |
+| `steps` | Ordered array of step definitions (max 20) |
+
+Funnels are managed through the [dashboard](/docs/concepts/projects-and-apps), the [CLI](/docs/cli/funnels), or the [API](/docs/api-reference/funnels).
+
+## Steps
+
+Each step has a `name` and an `event_filter` that determines which events count as completing that step:
+
+```json
+{
+  "name": "Viewed Pricing",
+  "event_filter": {
+    "message": "track:viewed-pricing",
+    "screen_name": "PricingScreen"
+  }
+}
+```
+
+The `event_filter` can match on `message`, `screen_name`, or both. When both are provided, an event must match both fields to satisfy the step.
+
+A funnel can have up to 20 steps.
+
+## Tracking Funnel Steps
+
+SDKs provide a `track()` method that emits an event with the message format `track:<stepName>`:
+
+```
+track("viewed-pricing")    → event with message "track:viewed-pricing"
+track("started-trial")     → event with message "track:started-trial"
+```
+
+The server matches these events against funnel step filters during analytics queries. For SDK-specific usage, see the [Swift SDK](/docs/sdks/swift/funnels) or [Node SDK](/docs/sdks/node/funnels) guides.
+
+You can also define steps that match on any event field -- funnel steps are not limited to `track:` messages. A step filter matching `screen_name: "CheckoutScreen"` would count any event from that screen.
+
+## Analysis Modes
+
+Funnel queries support two modes that change how step completion is evaluated:
+
+### Open Mode (Default)
+
+Each step is evaluated independently. A user counts toward a step if they completed it at any point during the time range, regardless of whether they completed earlier steps.
+
+Open mode answers: "How many users performed each action?"
+
+### Closed Mode
+
+Steps are evaluated sequentially. A user only counts toward step N if they also completed all preceding steps (1 through N-1), and in the correct order based on event timestamps.
+
+Closed mode answers: "How many users completed the full progression from step 1 through step N?"
+
+## Analytics Results
+
+A funnel query returns per-step analytics:
+
+| Field | Description |
+|---|---|
+| `step_name` | Name of the step |
+| `unique_users` | Number of distinct users who completed this step |
+| `percentage` | Percentage of total users who completed this step |
+| `drop_off_count` | Users who completed the previous step but not this one |
+| `drop_off_percentage` | Drop-off as a percentage of the previous step |
+
+The `total_users` at the top level represents the total number of users in the funnel (all users who completed at least step 1 in closed mode, or any step in open mode).
+
+## Grouping and Segmentation
+
+Funnel queries support a `group_by` parameter to break down results by a dimension:
+
+| Group By | Description |
+|---|---|
+| `environment` | Segment by runtime platform (ios, android, web, etc.) |
+| `app_version` | Segment by app version |
+| `experiment:<name>` | Segment by A/B experiment variant |
+
+Experiment grouping is particularly useful for measuring how different [A/B variants](/docs/concepts/experiments) affect conversion through a funnel.
+
+## Filtering
+
+Funnel queries accept optional filters to narrow the data:
+
+- **`since` / `until`** -- date range
+- **`app_id`** -- restrict to a specific app
+- **`app_version`** -- restrict to a specific version
+- **`environment`** -- restrict to a runtime platform
+- **`experiment`** -- filter to a specific experiment variant (format: `name:variant`)
+- **`mode`** -- `open` or `closed`
+- **`data_mode`** -- `production`, `development`, or `all` (see [Data Mode](/docs/concepts/data-mode))
+
+## Storage
+
+Funnel events are stored in a dedicated `funnel_events` table, partitioned monthly by `timestamp`. The server parses `track:` messages during ingestion and writes structured rows with fields like `step_name`, `user_id`, `screen_name`, and `experiments`.
+
+For API details, see the [funnels API reference](/docs/api-reference/funnels).

@@ -3,4 +3,124 @@ title: Events
 description: Query and filter events from the CLI with flexible date ranges, levels, and output formats.
 ---
 
-Query and filter events from the command line.
+Query events ingested by your apps. The CLI supports filtering by project, app, time range, log level, user, session, and screen name.
+
+## Query events
+
+```bash
+owlmetry events [options]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project <id>` | No | Filter by project UUID |
+| `--app <id>` | No | Filter by app UUID |
+| `--since <time>` | No | Start time (default: `24h`) |
+| `--until <time>` | No | End time (default: now) |
+| `--level <level>` | No | Filter by log level: `info`, `debug`, `warn`, `error` |
+| `--user <id>` | No | Filter by user ID |
+| `--session <id>` | No | Filter by session UUID |
+| `--screen <name>` | No | Filter by screen name |
+| `--limit <n>` | No | Max events to return |
+| `--cursor <cursor>` | No | Pagination cursor (from previous response) |
+| `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
+
+### Time formats
+
+The `--since` and `--until` flags accept two formats:
+
+**Relative** — a number followed by a unit suffix:
+
+| Suffix | Unit |
+|--------|------|
+| `s` | Seconds |
+| `m` | Minutes |
+| `h` | Hours |
+| `d` | Days |
+| `w` | Weeks |
+
+**Absolute** — ISO 8601 timestamps:
+
+```
+2025-01-15T10:00:00Z
+2025-01-15
+```
+
+### Examples
+
+```bash
+# Events from the last hour
+owlmetry events --since 1h
+
+# Errors from a specific app in the last 7 days
+owlmetry events --app 550e8400-... --level error --since 7d
+
+# Events for a specific user session
+owlmetry events --session a1b2c3d4-...
+
+# Development events only
+owlmetry events --since 1h --data-mode development
+```
+
+### Pagination
+
+When there are more results, the response includes a `next_cursor` value. Pass it with `--cursor` to fetch the next page:
+
+```bash
+owlmetry events --since 7d --limit 50
+# Output includes: "More results available. Use --cursor <value>"
+
+owlmetry events --since 7d --limit 50 --cursor eyJsYXN0...
+```
+
+## View a single event
+
+```bash
+owlmetry events view <id>
+```
+
+Shows full event details including custom attributes, device info, and experiment assignments.
+
+| Argument | Description |
+|----------|-------------|
+| `<id>` | Event UUID |
+
+## Investigate an event
+
+```bash
+owlmetry investigate <eventId> [--window <minutes>]
+```
+
+Shows events surrounding a specific event, scoped to the same app and user. Useful for understanding the context around an error or notable event.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<eventId>` | Yes | Target event UUID |
+| `--window <minutes>` | No | Time window in minutes before and after the target event (default: `5`) |
+
+The target event is highlighted in the output. The default output format is `log` (even when `--format table` is set).
+
+```bash
+# See 5 minutes of context around an event
+owlmetry investigate a1b2c3d4-...
+
+# Wider window: 30 minutes of context
+owlmetry investigate a1b2c3d4-... --window 30
+```
+
+## Output formats
+
+Events support all three output formats:
+
+```bash
+# Table (default) — columnar summary
+owlmetry events --since 1h
+
+# Log — chronological log-style view
+owlmetry events --since 1h --format log
+
+# JSON — raw data for scripting
+owlmetry events --since 1h --format json
+```
+
+The `log` format is particularly useful for reading event streams chronologically, similar to tailing a log file. The `investigate` command defaults to `log` format.

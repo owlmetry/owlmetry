@@ -3,4 +3,166 @@ title: Apps
 description: CRUD endpoints for managing apps — create, list, get, update, and delete apps within projects.
 ---
 
-Create, list, get, update, and delete apps.
+Create, list, get, update, and delete apps within projects.
+
+Apps represent a specific platform build (e.g., iOS, Android, Web) within a project. Each app has its own client API key for SDK event ingestion.
+
+## GET /v1/apps
+
+List all apps the caller has access to.
+
+**Auth required:** Yes (`apps:read` permission or JWT)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Optional. Filter to a specific team. |
+
+```json
+// Response (200)
+{
+  "apps": [
+    {
+      "id": "uuid",
+      "team_id": "uuid",
+      "project_id": "uuid",
+      "name": "iOS App",
+      "platform": "apple",
+      "bundle_id": "com.example.myapp",
+      "client_key": "owl_client_abc123...",
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## GET /v1/apps/:id
+
+Get a single app by ID.
+
+**Auth required:** Yes (`apps:read` permission or JWT)
+
+```json
+// Response (200)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "project_id": "uuid",
+  "name": "iOS App",
+  "platform": "apple",
+  "bundle_id": "com.example.myapp",
+  "client_key": "owl_client_abc123...",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+## POST /v1/apps
+
+Create a new app within a project. A client API key is automatically generated and stored on the `client_key` field.
+
+**Auth required:** Yes (`apps:write` permission or JWT, admin role required)
+
+```json
+// Request
+{
+  "name": "iOS App",
+  "platform": "apple",
+  "bundle_id": "com.example.myapp",
+  "project_id": "uuid"
+}
+
+// Response (201)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "project_id": "uuid",
+  "name": "iOS App",
+  "platform": "apple",
+  "bundle_id": "com.example.myapp",
+  "client_key": "owl_client_full_key...",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name for the app. |
+| `platform` | string | Yes | One of: `apple`, `android`, `web`, `backend`. |
+| `bundle_id` | string | Conditional | Required for non-backend platforms. Immutable after creation. |
+| `project_id` | string | Yes | The project this app belongs to. Team is derived from the project. |
+
+### Platform notes
+
+- **Backend** apps do not require a `bundle_id` (it is set to `null`). The ingest route skips bundle_id validation for these apps.
+- **bundle_id is immutable.** It cannot be changed after app creation. To change a bundle_id, delete and recreate the app.
+
+## PATCH /v1/apps/:id
+
+Update an app. Only the `name` field can be changed.
+
+**Auth required:** Yes (`apps:write` permission or JWT, admin role required)
+
+```json
+// Request
+{
+  "name": "Renamed App"
+}
+
+// Response (200)
+{
+  "id": "uuid",
+  "team_id": "uuid",
+  "project_id": "uuid",
+  "name": "Renamed App",
+  "platform": "apple",
+  "bundle_id": "com.example.myapp",
+  "client_key": "owl_client_abc123...",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+## DELETE /v1/apps/:id
+
+Soft-delete an app and its associated API keys.
+
+**Auth required:** Yes (JWT only, admin role required. Agent keys receive 403.)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```
+
+## GET /v1/apps/:id/users
+
+List users seen by a specific app, ordered by most recently seen.
+
+**Auth required:** Yes (`apps:read` permission or JWT)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `search` | string | Filter by user_id substring (case-insensitive). |
+| `is_anonymous` | string | `"true"` for anonymous users only, `"false"` for identified users only. |
+| `cursor` | string | Cursor from previous response. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+```json
+// Response (200)
+{
+  "users": [
+    {
+      "id": "uuid",
+      "app_id": "uuid",
+      "user_id": "owl_anon_abc123",
+      "is_anonymous": true,
+      "first_seen_at": "2024-01-01T00:00:00.000Z",
+      "last_seen_at": "2024-01-15T10:30:00.000Z",
+      "claimed_from": null
+    }
+  ],
+  "cursor": "2024-01-14T08:00:00.000Z",
+  "has_more": false
+}
+```

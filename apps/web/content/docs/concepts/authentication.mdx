@@ -3,4 +3,102 @@ title: Authentication & API Keys
 description: Passwordless email auth, client vs agent API keys, permissions, and team-based access control.
 ---
 
-Passwordless auth, API keys, and team-based access control.
+OwlMetry uses passwordless email verification for human users and API keys for programmatic access. All resources are scoped to teams with role-based access control.
+
+## Passwordless Email Authentication
+
+There are no passwords or separate registration flows. Authentication works in two steps:
+
+1. **Send a verification code** -- `POST /v1/auth/send-code` with your email address. The server sends a 6-digit code.
+2. **Verify the code** -- `POST /v1/auth/verify-code` with the email and code. The server returns a JWT.
+
+If the email has never been seen before, an account is automatically created on first verification.
+
+The JWT is identity-only (contains `sub` and `email`) and is set as an HTTP cookie. Cross-subdomain auth is supported via the `COOKIE_DOMAIN` environment variable.
+
+## API Keys
+
+API keys are used by SDKs, the CLI, and automated systems to interact with the OwlMetry API. There are two types:
+
+| Type | Prefix | Used By | Purpose |
+|---|---|---|---|
+| Client | `owl_client_` | SDKs | Event ingestion from apps |
+| Agent | `owl_agent_` | CLI, automation | Querying data and managing resources |
+
+### Security
+
+API keys are **hashed with SHA-256 before storage**. The full key is shown only once at creation time. If you lose a key, you must create a new one.
+
+When an app is created, a client key is automatically generated and stored on the app record for easy retrieval. See [Projects & Apps](/docs/concepts/projects-and-apps) for details.
+
+### Key Management
+
+API keys are managed by users through the dashboard or the API (`POST /v1/auth/keys`). Key management operations (create, update, delete) require user authentication -- agent keys cannot manage other keys.
+
+Each key records who created it via the `created_by` field (linked to a user). Keys support soft deletion and optional expiration (`expires_in_days`).
+
+## Permissions
+
+Each API key has a `permissions` array that controls what it can do. Permissions are scoped by key type -- client keys and agent keys have different allowed permissions.
+
+| Permission | Client | Agent | Description |
+|---|---|---|---|
+| `events:write` | Yes | -- | Ingest events and identity claims |
+| `events:read` | -- | Yes | Query events |
+| `funnels:read` | -- | Yes | Read funnel definitions and analytics |
+| `funnels:write` | -- | Yes | Create and update funnel definitions |
+| `apps:read` | -- | Yes | List and get apps |
+| `apps:write` | -- | Yes | Create and update apps |
+| `projects:read` | -- | Yes | List and get projects |
+| `projects:write` | -- | Yes | Create and update projects |
+| `metrics:read` | -- | Yes | Read metric definitions and query metrics |
+| `metrics:write` | -- | Yes | Create and update metric definitions |
+| `audit_logs:read` | -- | Yes | View audit log entries |
+
+**Default permissions**: Client keys get `events:write`. Agent keys get all allowed agent permissions. Custom permissions can be specified at creation time.
+
+Routes enforce permissions via the `requirePermission()` middleware. Users authenticated with a JWT bypass permission checks -- their access is governed by team role instead.
+
+### Restrictions
+
+Certain operations are user-only regardless of API key permissions:
+
+- Deleting apps and projects (agent keys receive 403)
+- Managing API keys (create, update, delete)
+- Team management (members, invitations, settings)
+
+## Team Roles
+
+Users belong to teams with one of three roles:
+
+| Role | Level | Can Manage |
+|---|---|---|
+| `owner` | 3 (highest) | Everything, including promoting others to owner |
+| `admin` | 2 | Members, invitations, resources |
+| `member` | 1 | Read access, limited write access |
+
+Role hierarchy is strictly enforced: you can only manage users with a lower role than your own. The last owner of a team cannot be demoted or removed.
+
+Users can belong to multiple teams. The dashboard includes a team switcher when you have more than one team, and the CLI supports [multi-team profiles](/docs/cli/authentication).
+
+## Team Invitations
+
+New members are added via email invitations, not directly:
+
+1. An admin or owner sends an invitation via `POST /teams/:teamId/invitations`
+2. The invitee receives an email with a token-based accept link
+3. The invitee visits the link, authenticates (or creates an account), and joins the team
+
+Invitations expire after **7 days** and can be re-sent (which regenerates the token). The public route `GET /invites/:token` shows invitation details without requiring authentication.
+
+When a member is removed from a team, their agent API keys for that team are automatically revoked.
+
+## Auth Flow Summary
+
+| Actor | Auth Method | Access Control |
+|---|---|---|
+| Dashboard user | JWT (email verification) | Team role (owner > admin > member) |
+| SDK (client) | `owl_client_` API key | `permissions` array on the key |
+| CLI / automation (agent) | `owl_agent_` API key | `permissions` array on the key |
+
+For CLI authentication details, see the [CLI authentication guide](/docs/cli/authentication). For API details, see the [authentication API reference](/docs/api-reference/authentication).

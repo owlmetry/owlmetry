@@ -3,4 +3,48 @@ title: Self-Hosting
 description: Deploy OwlMetry on your own infrastructure with full control over your data.
 ---
 
-Deploy OwlMetry on your own infrastructure.
+Deploy OwlMetry on your own infrastructure with full control over your data.
+
+## What self-hosting means
+
+OwlMetry is designed to run on a single VPS. You get the same platform as the hosted version at owlmetry.com, but everything runs on your hardware, your database, your domain.
+
+All event data, user accounts, and API keys stay on your server. There is no telemetry or phone-home behavior.
+
+## Architecture
+
+A self-hosted OwlMetry deployment consists of three components behind a reverse proxy:
+
+```
+Cloudflare (SSL termination, DDoS protection)
+  |
+  v
+nginx (reverse proxy)
+  |
+  +-- owlmetry-api  (Fastify, port 4000)
+  |
+  +-- owlmetry-web  (Next.js standalone, port 3000)
+  |
+  +-- PostgreSQL 16  (localhost:5432)
+```
+
+Both the API server and the web dashboard are Node.js processes managed by pm2. PostgreSQL runs locally on the same machine.
+
+## Domains
+
+You need three DNS records pointing to your VPS, all on the same IP address:
+
+| Domain | Service | Purpose |
+|--------|---------|---------|
+| `yourdomain.com` | Web dashboard (port 3000) | User-facing dashboard |
+| `api.yourdomain.com` | API server (port 4000) | Dashboard API, CLI, agent keys |
+| `ingest.yourdomain.com` | API server (port 4000) | SDK event ingestion |
+
+The `api` and `ingest` subdomains both route to the same Fastify server. They are separated at the DNS level for operational clarity -- you can apply different Cloudflare rules, rate limits, or monitoring to each.
+
+## Next steps
+
+1. [Requirements](/docs/self-hosting/requirements) -- check your server meets the minimum specs.
+2. [Installation](/docs/self-hosting/installation) -- clone, build, and initialize the database.
+3. [Configuration](/docs/self-hosting/configuration) -- set environment variables.
+4. [Deployment](/docs/self-hosting/deployment) -- configure nginx, pm2, SSL, and firewall.

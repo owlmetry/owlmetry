@@ -3,4 +3,88 @@ title: Events
 description: Log events at different levels (info, debug, warn, error) from your Node.js backend.
 ---
 
-Log events at different levels from your backend.
+The SDK provides four logging methods corresponding to the standard [log levels](/docs/concepts/events#log-levels).
+
+## Log Levels
+
+```typescript
+Owl.info("Order placed", { order_id: "abc-123" });
+Owl.debug("Cache miss for user lookup", { cache_key: "user:42" });
+Owl.warn("Retry attempt on payment gateway", { attempt: "2" });
+Owl.error("Failed to send notification email", { email: "user@example.com" });
+```
+
+Each method accepts:
+
+| Parameter | Type | Description |
+|---|---|---|
+| `message` | `string` | What happened -- a human-readable description |
+| `attrs` | `Record<string, unknown>` | Optional custom attributes. Values are converted to strings and truncated to 200 characters. |
+
+## Automatic Source Module
+
+The SDK captures the calling file and line number automatically by inspecting the call stack. This value is sent as `source_module` on each event, so you can trace an event back to the exact line of code that emitted it.
+
+```
+server.mjs:47
+routes/orders.ts:123
+```
+
+No configuration is required -- this works out of the box.
+
+## Custom Attributes
+
+Attributes are key-value pairs attached to an event. Pass any object as the second argument -- values are stringified automatically:
+
+```typescript
+Owl.info("Request completed", {
+  method: "POST",
+  path: "/api/orders",
+  status: 201,
+  duration_ms: 42,
+});
+```
+
+Values longer than 200 characters are truncated. See [Events](/docs/concepts/events#custom-attributes) for more on how attributes are stored and queried.
+
+## User-Scoped Events
+
+Use `Owl.withUser()` to create a scoped instance that tags every event with a user ID:
+
+```typescript
+const owl = Owl.withUser("user_42");
+owl.info("Profile updated");
+owl.warn("Rate limit approaching", { requests: "95" });
+```
+
+This is particularly useful in request handlers where you know the authenticated user. See the [Identity guide](/docs/sdks/node/identity) for the full pattern.
+
+## Per-Request Logging Pattern
+
+In a typical HTTP server, create a scoped instance at the start of each request:
+
+```typescript
+app.use((req, res, next) => {
+  const userId = req.auth?.userId;
+  req.owl = userId ? Owl.withUser(userId) : Owl;
+  next();
+});
+
+app.post("/api/orders", (req, res) => {
+  req.owl.info("Creating order", { items: String(req.body.items.length) });
+  // ...
+  req.owl.info("Order created", { order_id: order.id });
+  res.json(order);
+});
+```
+
+## Event Lifecycle
+
+Events are not sent immediately. They are buffered in memory and flushed in batches:
+
+1. Calling `Owl.info()` (or any log method) creates an event and adds it to the buffer
+2. When the buffer reaches `flushThreshold` (default 20) or the flush timer fires (default every 5 seconds), the batch is sent to the server
+3. If the request fails, it retries with exponential backoff up to 5 times
+4. Payloads over 512 bytes are gzip-compressed automatically
+
+For serverless functions where the process may terminate before the timer fires, use [`Owl.wrapHandler()`](/docs/sdks/node/serverless) to flush after each invocation.

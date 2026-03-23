@@ -4,3 +4,63 @@ description: Server requirements for self-hosting OwlMetry — OS, Node.js, Post
 ---
 
 Server requirements for self-hosting OwlMetry.
+
+## Operating system
+
+**Ubuntu 24.04 LTS** is the tested and recommended OS. Other Linux distributions will likely work but are not officially supported. The automated setup script targets Ubuntu specifically.
+
+## Hardware
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| RAM | 1 GB | 2 GB |
+| Disk | 10 GB | 25 GB |
+| CPU | 1 vCPU | 2 vCPU |
+
+The setup script creates a 2 GB swap file if one does not already exist, which helps on 1 GB RAM machines during `pnpm install` and Next.js builds.
+
+Disk usage depends on event volume. The `MAX_DATABASE_SIZE_GB` environment variable enables automatic pruning of old event partitions when the database exceeds a size threshold.
+
+## Software dependencies
+
+| Dependency | Version | Notes |
+|------------|---------|-------|
+| Node.js | 22+ | Installed via NodeSource repository |
+| pnpm | Latest | Installed via corepack |
+| PostgreSQL | 16 | Installed from official PostgreSQL apt repository |
+| nginx | Latest | Reverse proxy for the API and web dashboard |
+| pm2 | Latest | Process manager for Node.js services |
+
+All dependencies are installed automatically by the setup script (see [Installation](/docs/self-hosting/installation)).
+
+## Domain and DNS
+
+You need a domain with DNS control. Three A records are required, all pointing to your VPS public IP:
+
+- `yourdomain.com` (or `@`)
+- `api.yourdomain.com`
+- `ingest.yourdomain.com`
+
+## SSL
+
+Two options:
+
+1. **Cloudflare (recommended):** Put your domain behind Cloudflare with proxy enabled (orange cloud). Cloudflare handles SSL termination. nginx listens on port 80 only. Set Cloudflare SSL mode to "Full."
+2. **Let's Encrypt:** Use certbot to obtain and auto-renew certificates directly on the VPS. No Cloudflare required.
+
+## Email (optional)
+
+OwlMetry uses email to send verification codes for passwordless authentication. You have two options:
+
+- **Resend API key:** Set `RESEND_API_KEY` in your environment to send real emails via [Resend](https://resend.com).
+- **Console mode:** If no Resend key is configured, verification codes are printed to the server console. This is fine for single-user or development setups.
+
+## Network
+
+The VPS needs outbound internet access for:
+
+- `apt` package installation
+- `pnpm install` (npm registry)
+- Resend API (if configured for email)
+
+Inbound, only ports 80 and 443 need to be open (or just port 80 if Cloudflare handles SSL). SSH access should be restricted to a VPN or trusted IP range.

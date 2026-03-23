@@ -3,4 +3,115 @@ title: Metrics
 description: Track performance with startOperation() and recordMetric() in the Swift SDK.
 ---
 
-Track performance with structured metric operations.
+Structured metrics give you aggregated statistics -- p50, p95, p99 latencies, success/failure rates, and trends over time. Use them when you need more than a list of individual events. For a broader overview, see [Metrics](/docs/concepts/metrics).
+
+The SDK supports two patterns: **lifecycle operations** for things with a duration, and **single-shot measurements** for point-in-time values.
+
+## Lifecycle Operations
+
+Use `Owl.startOperation()` when you are measuring something that has a start and an end, such as a network request, file upload, or data processing task. The SDK tracks duration automatically.
+
+```swift
+let op = Owl.startOperation("photo-upload", attributes: ["format": "heic"])
+
+do {
+    let result = try await uploadPhoto(image)
+    op.complete(attributes: ["size_bytes": "\(result.byteCount)"])
+} catch {
+    op.fail(error: error.localizedDescription)
+}
+```
+
+### Starting an Operation
+
+`Owl.startOperation()` returns an `Operation` object and immediately emits a `metric:<slug>:start` event. The operation records its start time and a unique `tracking_id` (UUID) that correlates all phases together.
+
+```swift
+public static func startOperation(
+    _ metric: String,
+    attributes: [String: String]? = nil
+) -> Operation
+```
+
+### Completing an Operation
+
+Call one of three methods on the `Operation` to finish it:
+
+```swift
+// Success -- emits metric:<slug>:complete (info level)
+op.complete(attributes: ["output_format": "jpeg"])
+
+// Failure -- emits metric:<slug>:fail (error level)
+op.fail(error: "timeout", attributes: ["retry_count": "3"])
+
+// Cancellation -- emits metric:<slug>:cancel (info level)
+op.cancel(attributes: ["reason": "user_cancelled"])
+```
+
+Each completion method automatically includes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `tracking_id` | UUID linking this phase to the corresponding start event. |
+| `duration_ms` | Milliseconds elapsed since `startOperation()` was called. |
+| `error` | Error description (only on `fail()`). |
+
+### Full Example
+
+```swift
+func syncUserData() async {
+    let op = Owl.startOperation("data-sync", attributes: ["source": "cloud"])
+
+    do {
+        let records = try await fetchRecords()
+        try await mergeRecords(records)
+        op.complete(attributes: ["record_count": "\(records.count)"])
+    } catch is CancellationError {
+        op.cancel()
+    } catch {
+        op.fail(error: error.localizedDescription)
+    }
+}
+```
+
+## Single-Shot Measurements
+
+Use `Owl.recordMetric()` for values that do not have a duration -- a point-in-time measurement or a count.
+
+```swift
+Owl.recordMetric("items-in-cart", attributes: ["count": "\(cart.items.count)"])
+Owl.recordMetric("app-cold-start", attributes: ["screen": "home"])
+```
+
+This emits a single `metric:<slug>:record` event at info level.
+
+```swift
+public static func recordMetric(
+    _ metric: String,
+    attributes: [String: String]? = nil
+)
+```
+
+## Slug Rules
+
+Metric slugs must contain only lowercase letters, numbers, and hyphens (matching the pattern `^[a-z0-9-]+$`). Examples: `photo-upload`, `data-sync`, `api-request`.
+
+If you pass an invalid slug, the SDK auto-corrects it by lowercasing, replacing invalid characters with hyphens, and collapsing consecutive hyphens. A warning is logged to the console when this happens.
+
+```swift
+// "Photo Upload" is auto-corrected to "photo-upload" with a console warning
+let op = Owl.startOperation("Photo Upload")
+```
+
+## Server-Side Metric Definitions
+
+Metric definitions must exist on the server before the SDK emits events for a given slug. Create them through the CLI or the dashboard. Events for undefined slugs will still be ingested but will not appear in metric queries until the definition is created.
+
+## When to Use Metrics vs Events
+
+| Use case | Approach |
+|----------|----------|
+| You want aggregated stats (p50, p95, error rates) | Structured metrics |
+| You want a timeline of individual occurrences | Plain events (`Owl.info()`, `Owl.error()`) |
+| You need to measure how long something takes | Lifecycle operation (`startOperation`) |
+| You want to record a single value at a point in time | Single-shot (`recordMetric`) |

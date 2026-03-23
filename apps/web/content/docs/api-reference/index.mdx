@@ -4,3 +4,109 @@ description: Complete REST API reference for OwlMetry. Base URL, authentication,
 ---
 
 Complete REST API reference for OwlMetry.
+
+## Base URL
+
+All API endpoints are served from:
+
+```
+https://api.owlmetry.com/v1
+```
+
+SDK event ingestion uses a separate subdomain:
+
+```
+https://ingest.owlmetry.com/v1
+```
+
+Both subdomains route to the same Fastify server on port 4000. The split exists for operational clarity and independent rate limiting.
+
+## Authentication
+
+OwlMetry supports two authentication methods:
+
+### JWT Cookie (Dashboard)
+
+Used by the web dashboard. Obtained by verifying an email code via `POST /v1/auth/verify-code`. The server sets an `httpOnly` cookie named `token` with a 7-day expiry.
+
+```
+Cookie: token=eyJhbGciOiJIUzI1NiIs...
+```
+
+### Bearer Token (API Keys)
+
+Used by SDKs, the CLI, and programmatic access. Pass the API key in the `Authorization` header:
+
+```
+Authorization: Bearer owl_agent_abc123...
+```
+
+There are two key types:
+
+| Type | Prefix | Purpose |
+|------|--------|---------|
+| Client | `owl_client_` | SDK event ingestion (`events:write` only) |
+| Agent | `owl_agent_` | CLI and programmatic read/write access |
+
+Client keys are scoped to a single app. Agent keys are scoped to a team.
+
+## Error Responses
+
+All error responses follow a consistent format:
+
+```json
+{
+  "error": "Description of what went wrong"
+}
+```
+
+Common HTTP status codes:
+
+| Code | Meaning |
+|------|---------|
+| 400 | Bad request -- missing or invalid parameters |
+| 401 | Unauthorized -- missing or invalid credentials |
+| 403 | Forbidden -- insufficient permissions or role |
+| 404 | Not found -- resource does not exist or is not accessible |
+| 409 | Conflict -- duplicate resource (e.g., slug already exists) |
+| 410 | Gone -- invitation expired or already accepted |
+| 429 | Rate limited -- too many requests |
+
+## Pagination
+
+List endpoints use cursor-based pagination. Responses include:
+
+```json
+{
+  "events": [...],
+  "cursor": "2024-01-15T10:30:00.000Z",
+  "has_more": true
+}
+```
+
+Pass the `cursor` value as a query parameter to fetch the next page. Default page size is 50, maximum is 200.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | number | Items per page (1-200, default 50) |
+| `cursor` | string | Cursor from previous response for next page |
+
+## Rate Limiting
+
+The ingest and events endpoints use an in-memory token bucket rate limiter:
+
+- **100 tokens max** per identity (API key, user, or IP)
+- **10 tokens refilled per second**
+- One token consumed per request
+
+When the limit is exceeded, the server returns `429 Too Many Requests` with a `Retry-After: 1` header.
+
+## Data Mode
+
+Most read endpoints accept a `data_mode` query parameter to filter development vs. production data:
+
+| Value | Behavior |
+|-------|----------|
+| `production` | Only production events (default) |
+| `development` | Only development events (`is_dev: true`) |
+| `all` | Both production and development events |

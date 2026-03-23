@@ -3,4 +3,129 @@ title: Ingest
 description: POST /v1/ingest — send events from SDKs and backends. Supports gzip compression and batch payloads.
 ---
 
-Send events from SDKs and backends.
+Send events from SDKs and backends. This is the primary endpoint used by OwlMetry SDKs.
+
+## POST /v1/ingest
+
+Accept a batch of events for a specific app.
+
+**Auth required:** Yes (client API key with `events:write` permission)
+
+**Rate limited:** Yes (token bucket: 100 max tokens, 10 tokens/sec refill)
+
+### Request body
+
+```json
+{
+  "bundle_id": "com.example.myapp",
+  "events": [
+    {
+      "client_event_id": "550e8400-e29b-41d4-a716-446655440000",
+      "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "user_id": "owl_anon_xyz789",
+      "level": "info",
+      "message": "screen_viewed",
+      "source_module": "HomeViewController",
+      "screen_name": "Home",
+      "custom_attributes": {
+        "button_color": "blue",
+        "experiment_group": "variant_a"
+      },
+      "environment": "ios",
+      "os_version": "17.4",
+      "app_version": "1.2.0",
+      "build_number": "42",
+      "device_model": "iPhone15,2",
+      "locale": "en_US",
+      "is_dev": false,
+      "experiments": {
+        "onboarding_flow": "variant_b"
+      },
+      "timestamp": "2024-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `bundle_id` | string | Conditional | Required for non-backend apps. Must match the app's registered bundle_id. |
+| `events` | array | Yes | Array of event objects (max 100 per batch). |
+
+### Event fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message` | string | Yes | Event name or description. |
+| `level` | string | Yes | One of: `info`, `debug`, `warn`, `error`. |
+| `session_id` | string | Yes | UUID generated per SDK session. |
+| `client_event_id` | string | No | UUID for deduplication. Events with duplicate IDs (within 48h) are silently skipped. |
+| `user_id` | string | No | User identifier. Anonymous IDs use `owl_anon_` prefix. |
+| `source_module` | string | No | Module or class that emitted the event. |
+| `screen_name` | string | No | Current screen/page name. |
+| `custom_attributes` | object | No | Key-value string pairs. Values truncated to 200 characters. |
+| `environment` | string | No | Runtime environment. Must match the app's platform. See table below. |
+| `os_version` | string | No | Operating system version. |
+| `app_version` | string | No | Application version string. |
+| `build_number` | string | No | Build number. |
+| `device_model` | string | No | Device model identifier. |
+| `locale` | string | No | User locale (e.g., `en_US`). |
+| `is_dev` | boolean | No | Whether this event is from a development build. Default `false`. |
+| `experiments` | object | No | A/B experiment assignments as `{ name: variant }` pairs. |
+| `timestamp` | string | No | ISO 8601 timestamp. Defaults to server time if omitted. |
+
+### Allowed environments by platform
+
+| App platform | Allowed environments |
+|-------------|---------------------|
+| apple | ios, ipados, macos |
+| android | android |
+| web | web |
+| backend | backend |
+
+### Validation rules
+
+- **Batch size:** Maximum 100 events per request.
+- **Timestamps:** Must be valid ISO 8601. Cannot be more than 5 minutes in the future or more than 30 days in the past.
+- **Custom attributes:** Values are strings, truncated to 200 characters.
+- **Deduplication:** Events with a `client_event_id` that matches an existing event (within the last 48 hours) are silently skipped.
+- **Bundle ID:** For non-backend apps, the `bundle_id` in the request must match the app's registered bundle_id exactly.
+
+### Gzip compression
+
+The endpoint accepts gzip-compressed request bodies. Set the `Content-Encoding: gzip` header. Compressed payloads must be under 1 MB (enforced via `Content-Length` check). The Swift SDK compresses payloads automatically.
+
+### Dual-write behavior
+
+Events matching specific message patterns are automatically written to specialized tables:
+
+- **Metric events:** Messages matching `metric:<slug>:<phase>` are parsed and inserted into the `metric_events` table.
+- **Funnel events:** Messages matching `track:<step_name>` are parsed and inserted into the `funnel_events` table.
+
+These dual-writes are fire-and-forget and do not block the ingest response.
+
+### Response
+
+```json
+// Success (200)
+{
+  "accepted": 5,
+  "rejected": 1,
+  "errors": [
+    {
+      "index": 3,
+      "message": "events[3]: level must be one of info, debug, warn, error"
+    }
+  ]
+}
+```
+
+The `errors` array is only present when `rejected > 0`. Each error includes the event's array index and a description.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `accepted` | number | Number of events successfully stored. |
+| `rejected` | number | Number of events that failed validation. |
+| `errors` | array | Validation errors, one per rejected event. Only present when `rejected > 0`. |

@@ -3,4 +3,97 @@ title: Apps
 description: Create, list, and manage apps within projects from the CLI.
 ---
 
-Create, list, and manage apps within projects.
+Apps represent a specific platform build within a [project](/docs/cli/projects). Each app has a platform (apple, android, web, backend) and an optional bundle identifier used for SDK validation.
+
+## List apps
+
+```bash
+owlmetry apps [--project <id>]
+```
+
+Lists all apps accessible to the authenticated team. Optionally filter by project.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project <id>` | No | Filter results to a specific project UUID |
+
+```bash
+# All apps
+owlmetry apps
+
+# Apps in a specific project
+owlmetry apps --project 550e8400-...
+```
+
+## View an app
+
+```bash
+owlmetry apps view <id>
+```
+
+Shows app details including platform, bundle ID, and client key.
+
+| Argument | Description |
+|----------|-------------|
+| `<id>` | App UUID |
+
+## Create an app
+
+```bash
+owlmetry apps create --project-id <id> --name <name> --platform <platform> [--bundle-id <bundleId>]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | Yes | Parent project UUID |
+| `--name <name>` | Yes | Display name for the app |
+| `--platform <platform>` | Yes | One of: `apple`, `android`, `web`, `backend` |
+| `--bundle-id <bundleId>` | Conditional | Required for `apple`, `android`, and `web` platforms. Not used for `backend`. |
+
+### Platforms
+
+| Platform | Description | Bundle ID |
+|----------|-------------|-----------|
+| `apple` | iOS, iPadOS, macOS apps | Required (e.g., `com.example.myapp`) |
+| `android` | Android apps | Required (e.g., `com.example.myapp`) |
+| `web` | Web applications | Required (e.g., `com.example.webapp`) |
+| `backend` | Server-side services | Not applicable |
+
+```bash
+# iOS app
+owlmetry apps create \
+  --project-id 550e8400-... \
+  --name "My iOS App" \
+  --platform apple \
+  --bundle-id com.example.myapp
+
+# Backend service
+owlmetry apps create \
+  --project-id 550e8400-... \
+  --name "API Server" \
+  --platform backend
+```
+
+A client API key is automatically generated when an app is created. The key is returned in the response and stored on the app record.
+
+## Update an app
+
+```bash
+owlmetry apps update <id> --name <name>
+```
+
+Only the app name can be updated. Bundle IDs are immutable after creation.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<id>` | Yes | App UUID |
+| `--name <name>` | Yes | New app name |
+
+## JSON output
+
+All app commands support `--format json` for machine-readable output:
+
+```bash
+owlmetry apps --format json
+owlmetry apps view <id> --format json
+```

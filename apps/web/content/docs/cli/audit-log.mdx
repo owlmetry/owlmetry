@@ -3,4 +3,94 @@ title: Audit Log
 description: View audit log entries for team actions from the CLI.
 ---
 
-View audit log entries for team actions.
+The audit log records who performed what action on which resource within your team. Use it to track changes to apps, projects, API keys, team membership, and more.
+
+## List audit log entries
+
+```bash
+owlmetry audit-log list --team <id> [options]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--team <id>` | Yes | Team UUID |
+| `--resource-type <type>` | No | Filter by resource type (see table below) |
+| `--resource-id <id>` | No | Filter by specific resource UUID |
+| `--actor <id>` | No | Filter by actor ID (user UUID or API key ID) |
+| `--action <action>` | No | Filter by action: `create`, `update`, `delete` |
+| `--since <time>` | No | Start time (relative like `1h`, `7d`, or ISO 8601) |
+| `--until <time>` | No | End time |
+| `--limit <n>` | No | Max entries to return |
+| `--cursor <cursor>` | No | Pagination cursor |
+
+### Resource types
+
+| Type | Description |
+|------|-------------|
+| `app` | App created, updated, or deleted |
+| `project` | Project created, updated, or deleted |
+| `api_key` | API key created, updated, or revoked |
+| `team` | Team settings changed |
+| `team_member` | Member added, role changed, or removed |
+| `invitation` | Team invitation sent, accepted, or revoked |
+| `metric_definition` | Metric definition created, updated, or deleted |
+| `funnel_definition` | Funnel definition created, updated, or deleted |
+| `user` | User account changes |
+
+### Actions
+
+| Action | Description |
+|--------|-------------|
+| `create` | Resource was created |
+| `update` | Resource was modified |
+| `delete` | Resource was removed or revoked |
+
+### Actor types
+
+Each audit log entry records who performed the action:
+
+| Type | Description |
+|------|-------------|
+| `user` | A logged-in user via the dashboard or CLI |
+| `api_key` | An agent API key (used by CLI or automation) |
+| `system` | An automated system action |
+
+### Examples
+
+```bash
+# All entries for a team in the last 24 hours
+owlmetry audit-log list --team 550e8400-... --since 24h
+
+# API key changes only
+owlmetry audit-log list --team 550e8400-... --resource-type api_key
+
+# Deletions in the last week
+owlmetry audit-log list --team 550e8400-... --action delete --since 7d
+
+# Actions by a specific user
+owlmetry audit-log list --team 550e8400-... --actor a1b2c3d4-...
+
+# Changes to a specific project
+owlmetry audit-log list --team 550e8400-... --resource-type project --resource-id 550e8400-...
+```
+
+## JSON output
+
+Use `--format json` for machine-readable output, including full `changes` and `metadata` fields that are not shown in the table view:
+
+```bash
+owlmetry audit-log list --team 550e8400-... --format json
+```
+
+Each entry in the JSON response includes:
+
+- `id` — audit log entry UUID
+- `team_id` — team UUID
+- `actor_type` — `user`, `api_key`, or `system`
+- `actor_id` — UUID of the actor
+- `action` — `create`, `update`, or `delete`
+- `resource_type` — type of resource affected
+- `resource_id` — UUID of the affected resource
+- `changes` — object with `before` and `after` values for each changed field (null for creates/deletes)
+- `metadata` — additional context (e.g., resource name at time of action)
+- `timestamp` — ISO 8601 timestamp

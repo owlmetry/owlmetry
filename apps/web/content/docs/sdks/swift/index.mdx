@@ -3,4 +3,47 @@ title: Swift SDK
 description: Integrate OwlMetry into iOS, iPadOS, and macOS apps with the Swift SDK.
 ---
 
-Integrate OwlMetry into your Apple platform apps.
+The OwlMetry Swift SDK captures events from iOS, iPadOS, and macOS apps and delivers them to your OwlMetry server. It has zero external dependencies and handles buffering, delivery, and retry logic automatically.
+
+The SDK is a static `Owl` enum. All calls are non-blocking -- events are buffered in memory and flushed in batches. A single `configure()` call initializes everything.
+
+## Platform Support
+
+| Platform | Minimum Version |
+|----------|----------------|
+| iOS      | 16.0           |
+| iPadOS   | 16.0           |
+| macOS    | 13.0           |
+
+## Features
+
+- **[Event logging](/docs/sdks/swift/events)** -- four log levels (info, debug, warn, error) with optional screen name and custom attributes. Source file, function, and line are captured automatically.
+- **[Structured metrics](/docs/sdks/swift/metrics)** -- lifecycle operations (`startOperation` / `complete` / `fail` / `cancel`) with automatic duration tracking, and single-shot measurements via `recordMetric`.
+- **[Funnel tracking](/docs/sdks/swift/funnels)** -- track user progression through multi-step flows with `Owl.track()`.
+- **[A/B experiments](/docs/sdks/swift/experiments)** -- client-side variant assignment persisted in Keychain, automatically included on all events.
+- **[Screen tracking](/docs/sdks/swift/screen-tracking)** -- `.owlScreen()` SwiftUI view modifier for automatic screen view and time-on-screen tracking.
+- **[Identity management](/docs/sdks/swift/identity)** -- anonymous IDs generated and persisted in Keychain, with server-side claim to link anonymous events to real users after login.
+- **Network monitoring** -- connection type (wifi, cellular, ethernet, offline) included on every event via `NWPathMonitor`.
+- **Network request tracking** -- automatic instrumentation of `URLSession` HTTP requests, emitting `sdk:network_request` events with method, URL, status code, and duration.
+- **Offline queue** -- events are persisted to disk when the network is unavailable and retried automatically when connectivity returns.
+- **Gzip compression** -- request bodies are compressed before sending to reduce bandwidth usage.
+- **Automatic lifecycle events** -- `session_started`, `app_foregrounded`, and `app_backgrounded` are emitted without any manual calls.
+
+## Auto-Captured Data
+
+Every event automatically includes:
+
+- `session_id` -- fresh UUID generated on each `configure()` call
+- Device model, OS version, and locale
+- `app_version` and `build_number` from the app bundle
+- `is_dev` -- `true` when built in DEBUG mode
+- `_connection` -- current network type (wifi, cellular, ethernet, offline)
+- `experiments` -- all current A/B experiment assignments
+- `environment` -- specific runtime platform (ios, ipados, macos)
+
+## Getting Started
+
+Add the SDK to your project via Swift Package Manager, then call `Owl.configure()` in your app's entry point.
+
+- [Installation](/docs/sdks/swift/installation)
+- [Configuration](/docs/sdks/swift/configuration)

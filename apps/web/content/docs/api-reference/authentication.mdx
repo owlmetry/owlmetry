@@ -3,4 +3,341 @@ title: Authentication
 description: Auth endpoints — send verification code, verify code, whoami, and agent login.
 ---
 
-Auth endpoints for email verification and API key login.
+Auth endpoints for email verification, user profiles, and API key management. All auth routes are prefixed with `/v1/auth`.
+
+## POST /v1/auth/send-code
+
+Send a 6-digit verification code to an email address. Rate limited to 5 codes per email per hour. Codes expire after 10 minutes.
+
+**Auth required:** No
+
+```json
+// Request
+{
+  "email": "user@example.com"
+}
+
+// Response (200)
+{
+  "message": "Verification code sent"
+}
+```
+
+## POST /v1/auth/verify-code
+
+Verify the code and authenticate. Sets a JWT cookie (`token`, httpOnly, 7-day expiry). If the email has no account, one is created automatically along with a default team.
+
+**Auth required:** No
+
+```json
+// Request
+{
+  "email": "user@example.com",
+  "code": "123456"
+}
+
+// Response (200 existing user, 201 new user)
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "User",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z"
+  },
+  "teams": [
+    {
+      "id": "uuid",
+      "name": "User's Team",
+      "slug": "user-abc12345",
+      "role": "owner"
+    }
+  ],
+  "is_new_user": false
+}
+```
+
+## POST /v1/auth/agent-login
+
+Verify code and provision an agent API key in one step. Used by the CLI. Does not set a JWT cookie.
+
+If the user belongs to multiple teams and `team_id` is not specified, returns 400 with the list of teams.
+
+**Auth required:** No
+
+```json
+// Request
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "team_id": "uuid"  // optional if user has one team
+}
+
+// Response (201)
+{
+  "api_key": "owl_agent_abc123...",
+  "team": {
+    "id": "uuid",
+    "name": "My Team",
+    "slug": "my-team"
+  }
+}
+
+// Error: multiple teams, no team_id specified (400)
+{
+  "error": "Multiple teams found. Specify team_id.",
+  "teams": [
+    { "id": "uuid1", "name": "Team A", "slug": "team-a", "role": "owner" },
+    { "id": "uuid2", "name": "Team B", "slug": "team-b", "role": "member" }
+  ]
+}
+```
+
+## POST /v1/auth/logout
+
+Clear the JWT cookie.
+
+**Auth required:** No
+
+```json
+// Response (200)
+{
+  "success": true
+}
+```
+
+## GET /v1/auth/whoami
+
+Return identity info for the current auth context. Works with both JWT and API key auth.
+
+**Auth required:** Yes (JWT or API key)
+
+```json
+// Response — API key auth
+{
+  "type": "api_key",
+  "key_type": "agent",
+  "team": {
+    "id": "uuid",
+    "name": "My Team",
+    "slug": "my-team"
+  },
+  "permissions": ["events:read", "apps:read", "apps:write", "..."]
+}
+
+// Response — JWT auth
+{
+  "type": "user",
+  "email": "user@example.com",
+  "teams": [
+    { "id": "uuid", "name": "My Team", "slug": "my-team", "role": "owner" }
+  ]
+}
+```
+
+## GET /v1/auth/teams
+
+List all teams the authenticated user belongs to.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Response (200)
+{
+  "teams": [
+    {
+      "id": "uuid",
+      "name": "My Team",
+      "slug": "my-team",
+      "role": "owner"
+    }
+  ]
+}
+```
+
+## GET /v1/auth/me
+
+Get the current user's profile and team memberships.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Response (200)
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "User",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z"
+  },
+  "teams": [
+    { "id": "uuid", "name": "My Team", "slug": "my-team", "role": "owner" }
+  ]
+}
+```
+
+## PATCH /v1/auth/me
+
+Update the current user's profile.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Request
+{
+  "name": "New Name"
+}
+
+// Response (200)
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "New Name",
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-15T12:00:00.000Z"
+  }
+}
+```
+
+## GET /v1/auth/keys
+
+List all API keys for teams the user belongs to.
+
+**Auth required:** Yes (JWT only)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Optional. Filter to keys from a specific team. |
+
+```json
+// Response (200)
+{
+  "api_keys": [
+    {
+      "id": "uuid",
+      "key_prefix": "owl_client_abc1",
+      "key_type": "client",
+      "app_id": "uuid",
+      "team_id": "uuid",
+      "name": "iOS App Client Key",
+      "created_by": "uuid",
+      "created_by_email": "user@example.com",
+      "permissions": ["events:write"],
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z",
+      "last_used_at": "2024-01-15T10:00:00.000Z",
+      "expires_at": null,
+      "app_name": "iOS App"
+    }
+  ]
+}
+```
+
+## GET /v1/auth/keys/:id
+
+Get a single API key by ID.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Response (200)
+{
+  "api_key": {
+    "id": "uuid",
+    "key_prefix": "owl_agent_xyz9",
+    "key_type": "agent",
+    "app_id": null,
+    "team_id": "uuid",
+    "name": "CLI Agent Key",
+    "created_by": "uuid",
+    "permissions": ["events:read", "apps:read", "apps:write", "..."],
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z",
+    "last_used_at": null,
+    "expires_at": null
+  }
+}
+```
+
+## POST /v1/auth/keys
+
+Create a new API key. The full key is returned once and cannot be retrieved again.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+```json
+// Request
+{
+  "name": "Production Agent Key",
+  "key_type": "agent",          // "client" or "agent"
+  "team_id": "uuid",            // required for agent keys without app_id
+  "app_id": "uuid",             // required for client keys
+  "permissions": ["events:read", "apps:read"],  // optional, defaults applied per key type
+  "expires_in_days": 90         // optional, key never expires if omitted
+}
+
+// Response (201)
+{
+  "key": "owl_agent_full_key_shown_only_once...",
+  "api_key": {
+    "id": "uuid",
+    "key_prefix": "owl_agent_full",
+    "key_type": "agent",
+    "app_id": null,
+    "team_id": "uuid",
+    "name": "Production Agent Key",
+    "created_by": "uuid",
+    "permissions": ["events:read", "apps:read"],
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z",
+    "last_used_at": null,
+    "expires_at": "2024-04-01T00:00:00.000Z"
+  }
+}
+```
+
+### Permission defaults
+
+If `permissions` is omitted, defaults are applied:
+
+| Key type | Default permissions |
+|----------|-------------------|
+| Client | `["events:write"]` |
+| Agent | All agent permissions: `events:read`, `funnels:read`, `funnels:write`, `apps:read`, `apps:write`, `projects:read`, `projects:write`, `metrics:read`, `metrics:write`, `audit_logs:read` |
+
+Client keys can only have `events:write`. Agent keys cannot have `events:write`.
+
+## PATCH /v1/auth/keys/:id
+
+Update an API key's name or permissions.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+```json
+// Request
+{
+  "name": "Renamed Key",
+  "permissions": ["events:read", "apps:read"]
+}
+
+// Response (200)
+{
+  "api_key": { ... }
+}
+```
+
+## DELETE /v1/auth/keys/:id
+
+Revoke (soft-delete) an API key.
+
+**Auth required:** Yes (JWT only, admin role required)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```

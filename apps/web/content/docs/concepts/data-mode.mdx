@@ -3,4 +3,73 @@ title: Data Mode
 description: Filter between production and development data across the dashboard, CLI, and API.
 ---
 
-Filter between production and development data.
+OwlMetry separates production and development data so you can analyze real user behavior without noise from test builds. Every event, metric event, and funnel event carries an `is_dev` boolean that indicates whether it came from a development build.
+
+## The `is_dev` Flag
+
+The `is_dev` field is set by the SDK at event creation time:
+
+| SDK | How `is_dev` is determined |
+|---|---|
+| Swift | `true` when the app is compiled with the `DEBUG` flag (`#if DEBUG`), which is the default for Xcode debug builds |
+| Node | `true` when `isDev` is set in the SDK config, which defaults to `process.env.NODE_ENV !== "production"` |
+
+You can also override `is_dev` explicitly in the SDK configuration if the automatic detection does not match your needs.
+
+## Data Modes
+
+When querying data, you choose one of three modes:
+
+| Mode | Filter | Description |
+|---|---|---|
+| `production` | `is_dev = false` | Only production data -- real users, release builds |
+| `development` | `is_dev = true` | Only development data -- debug builds, test environments |
+| `all` | No filter | Everything combined |
+
+The default mode is **`production`**, so you see real user data by default.
+
+## Dashboard Toggle
+
+The web dashboard has a data mode toggle in the sidebar. Switching between Production, Development, and All applies the filter globally to every page -- events, metrics, funnels, and all summary views.
+
+The selection is persisted to `localStorage`, so it survives page reloads and browser restarts.
+
+## CLI Flag
+
+The CLI accepts a `--data-mode` flag on commands that query data:
+
+```bash
+owlmetry events list --data-mode development
+owlmetry metrics query photo-upload --data-mode all
+owlmetry funnels query onboarding --data-mode production
+```
+
+If omitted, the default is `production`.
+
+## API Parameter
+
+API endpoints that return event data accept a `data_mode` query parameter:
+
+```
+GET /v1/events?data_mode=development
+GET /v1/projects/:projectId/metrics/:slug/query?data_mode=all
+GET /v1/projects/:projectId/funnels/:slug/query?data_mode=production
+```
+
+Valid values are `production`, `development`, and `all`. The default is `production`.
+
+## Affected Tables
+
+The `is_dev` column exists on all three event tables:
+
+- **`events`** -- regular events
+- **`metric_events`** -- structured metric events
+- **`funnel_events`** -- funnel step events
+
+Each table has a composite index on `(app_id, is_dev, timestamp)` to make filtered queries fast.
+
+## When to Use Each Mode
+
+- **Production** (default) -- day-to-day monitoring, dashboards, alerting. This is where real user data lives.
+- **Development** -- verifying that new instrumentation is working correctly before shipping. Use this during QA and integration testing.
+- **All** -- debugging ingestion issues where you need to see everything, or comparing development and production behavior side by side.

@@ -3,4 +3,134 @@ title: Authentication
 description: Log in with agent-login, manage multi-team profiles, and switch between teams.
 ---
 
-Log in, manage profiles, and switch between teams.
+The CLI authenticates using agent API keys, which are scoped to a specific team. You can authenticate interactively via email verification or manually with an existing API key.
+
+## Email verification (recommended)
+
+This is the standard login flow. It sends a verification code to your email, then exchanges it for an agent API key.
+
+### Step 1: Send a verification code
+
+```bash
+owlmetry auth send-code --email you@example.com
+```
+
+Check your email (or server console in dev mode) for the 6-digit code.
+
+### Step 2: Verify and get an API key
+
+```bash
+owlmetry auth verify --email you@example.com --code 847291
+```
+
+If your account belongs to multiple teams, the command will list them and ask you to specify one:
+
+```bash
+owlmetry auth verify --email you@example.com --code 847291 --team-id <team-uuid>
+```
+
+On success, the CLI saves the API key and team info to `~/.owlmetry/config.json`. You can repeat this flow for additional teams to build up multi-team profiles.
+
+### Pointing to a self-hosted server
+
+By default the CLI targets `https://api.owlmetry.com`. To authenticate against a self-hosted instance, pass `--endpoint`:
+
+```bash
+owlmetry --endpoint https://api.myserver.com auth send-code --email you@example.com
+owlmetry --endpoint https://api.myserver.com auth verify --email you@example.com --code 123456
+```
+
+## Manual setup
+
+If you already have an agent API key, use `setup` to configure the CLI directly without the email flow:
+
+```bash
+owlmetry --endpoint https://api.owlmetry.com --api-key owl_agent_xxx setup
+```
+
+The command validates the key by calling the `/v1/auth/whoami` endpoint, then saves the config.
+
+## Config file
+
+The CLI stores configuration in `~/.owlmetry/config.json`. The file supports multiple team profiles:
+
+```json
+{
+  "endpoint": "https://api.owlmetry.com",
+  "ingest_endpoint": "https://ingest.owlmetry.com",
+  "active_team": "team-uuid-1",
+  "teams": {
+    "team-uuid-1": {
+      "api_key": "owl_agent_xxx",
+      "team_name": "Acme Corp",
+      "team_slug": "acme"
+    },
+    "team-uuid-2": {
+      "api_key": "owl_agent_yyy",
+      "team_name": "Side Project",
+      "team_slug": "side-project"
+    }
+  }
+}
+```
+
+The `active_team` field determines which team profile is used by default. All commands use the active team's API key unless overridden.
+
+## Check your identity
+
+```bash
+owlmetry whoami
+```
+
+Shows the current authentication status: key type, team, and permissions. Also lists all configured team profiles. Use `--format json` for machine-readable output.
+
+## Multi-team profiles
+
+Each time you run `owlmetry auth verify` for a different team, a new profile is added to the config file. Existing profiles are preserved.
+
+### List profiles
+
+```bash
+owlmetry switch
+```
+
+Running `switch` without an argument lists all configured profiles, marking the active one.
+
+### Switch active team
+
+```bash
+owlmetry switch <team>
+```
+
+The `<team>` argument matches by team ID (exact), team slug (exact), or team name (case-insensitive).
+
+```bash
+# By slug
+owlmetry switch acme
+
+# By name
+owlmetry switch "Acme Corp"
+
+# By UUID
+owlmetry switch 550e8400-e29b-41d4-a716-446655440000
+```
+
+### Per-command override
+
+Use the global `--team` flag to run a single command against a different team without switching:
+
+```bash
+owlmetry --team side-project projects
+```
+
+## Environment variables
+
+The CLI checks these environment variables as a fallback when flags and config file values are absent:
+
+| Variable | Description |
+|----------|-------------|
+| `OWLMETRY_ENDPOINT` | API server URL |
+| `OWLMETRY_API_KEY` | Agent API key |
+| `OWLMETRY_INGEST_ENDPOINT` | Ingest endpoint URL |
+
+Resolution order: flags > environment variables > config file.

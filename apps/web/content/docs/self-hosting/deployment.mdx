@@ -3,4 +3,278 @@ title: Deployment
 description: Production deployment with pm2, nginx reverse proxy, Cloudflare SSL, and firewall configuration.
 ---
 
-Production deployment with pm2, nginx, and Cloudflare.
+Production deployment with pm2, nginx, Cloudflare, and firewall. This guide assumes you have completed the [Installation](/docs/self-hosting/installation) and [Configuration](/docs/self-hosting/configuration) steps.
+
+## pm2 process manager
+
+Create the pm2 ecosystem file at `/opt/owlmetry/ecosystem.config.cjs`:
+
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: "owlmetry-api",
+      script: "apps/server/dist/index.js",
+      cwd: "/opt/owlmetry",
+      env: {
+        NODE_ENV: "production",
+      },
+    },
+    {
+      name: "owlmetry-web",
+      script: "node_modules/.bin/next",
+      args: "start",
+      cwd: "/opt/owlmetry/apps/web",
+      env: {
+        NODE_ENV: "production",
+        PORT: 3000,
+      },
+    },
+  ],
+};
+```
+
+Start the services and persist them across reboots:
+
+```bash
+cd /opt/owlmetry
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+Verify both services are running:
+
+```bash
+pm2 status
+# owlmetry-api    online
+# owlmetry-web    online
+```
+
+### Useful pm2 commands
+
+```bash
+pm2 logs owlmetry-api --lines 50    # View recent API server logs
+pm2 logs owlmetry-web --lines 50    # View recent web dashboard logs
+pm2 restart all                      # Restart both services
+pm2 reload all                       # Zero-downtime reload
+```
+
+## nginx reverse proxy
+
+Create the nginx config at `/etc/nginx/sites-available/owlmetry`:
+
+```nginx
+# API server (agent keys, dashboard API, auth)
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# Ingest (SDK client keys)
+server {
+    listen 80;
+    server_name ingest.yourdomain.com;
+
+    client_max_body_size 2m;
+
+    location / {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Web dashboard
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Enable and test:
+
+```bash
+ln -sf /etc/nginx/sites-available/owlmetry /etc/nginx/sites-enabled/owlmetry
+rm -f /etc/nginx/sites-enabled/default
+nginx -t
+systemctl reload nginx
+```
+
+The ingest server block sets `client_max_body_size 2m` to allow compressed event batches. The API and web server blocks include WebSocket upgrade headers for potential future use.
+
+## Cloudflare setup (recommended)
+
+Using Cloudflare provides SSL termination, DDoS protection, and CDN caching.
+
+### DNS records
+
+Create three A records in Cloudflare, all pointing to your VPS public IP with **Proxy enabled** (orange cloud):
+
+| Type | Name | Content | Proxy |
+|------|------|---------|-------|
+| A | `@` | VPS IP | Proxied |
+| A | `api` | VPS IP | Proxied |
+| A | `ingest` | VPS IP | Proxied |
+
+### SSL settings
+
+Set the SSL/TLS encryption mode to **Full** (not "Full (Strict)"). This tells Cloudflare to connect to your origin over HTTPS but does not require a valid certificate on the origin. Since nginx listens on port 80 behind Cloudflare, "Full" mode works with the default setup.
+
+If you prefer, you can generate a Cloudflare Origin Certificate (10-year validity) and configure nginx to listen on port 443 with that certificate. In that case, you can use "Full (Strict)" mode.
+
+## SSL without Cloudflare
+
+If you are not using Cloudflare, use Let's Encrypt for free SSL certificates:
+
+```bash
+apt install -y certbot python3-certbot-nginx
+certbot --nginx -d yourdomain.com -d api.yourdomain.com -d ingest.yourdomain.com
+```
+
+Certbot automatically modifies the nginx config to listen on port 443 and sets up auto-renewal.
+
+## Firewall (UFW)
+
+Lock down the VPS to accept SSH only from a VPN (Tailscale) and HTTP/HTTPS only from Cloudflare IP ranges:
+
+```bash
+ufw default deny incoming
+ufw default allow outgoing
+
+# SSH via Tailscale only
+ufw allow in on tailscale0 to any port 22 proto tcp
+
+# HTTP/HTTPS from Cloudflare IPs
+for cidr in $(curl -s https://www.cloudflare.com/ips-v4/); do
+  ufw allow from "$cidr" to any port 80,443 proto tcp
+done
+for cidr in $(curl -s https://www.cloudflare.com/ips-v6/); do
+  ufw allow from "$cidr" to any port 80,443 proto tcp
+done
+
+ufw --force enable
+```
+
+If you are not using Cloudflare, replace the Cloudflare IP rules with:
+
+```bash
+ufw allow 80/tcp
+ufw allow 443/tcp
+```
+
+## Deploying updates
+
+Pull the latest code, rebuild, run migrations, and restart:
+
+```bash
+cd /opt/owlmetry
+git pull
+pnpm install
+pnpm build
+DATABASE_URL='postgresql://owlmetry:yourpassword@localhost:5432/owlmetry' pnpm db:migrate
+pm2 restart all
+```
+
+The `DATABASE_URL` prefix is required for `pnpm db:migrate` because migrations run from `packages/db` and do not auto-load the root `.env` file.
+
+## Verification
+
+After deployment, verify that everything is working:
+
+```bash
+# Health check (local)
+curl -s http://localhost:4000/health
+# {"status":"ok"}
+
+# Health check (external, via Cloudflare)
+curl -s https://api.yourdomain.com/health
+curl -s https://ingest.yourdomain.com/health
+```
+
+Open `https://yourdomain.com` in a browser to access the dashboard.
+
+## Monitoring
+
+### Service status
+
+```bash
+pm2 status
+```
+
+### Logs
+
+```bash
+pm2 logs owlmetry-api --lines 50 --nostream   # Last 50 lines, no follow
+pm2 logs owlmetry-web --lines 50 --nostream
+```
+
+### Disk and memory
+
+```bash
+df -h /         # Disk usage
+free -h         # Memory usage
+```
+
+### Database size
+
+```bash
+PGPASSWORD='yourpassword' psql -U owlmetry -h 127.0.0.1 -d owlmetry \
+  -c "SELECT pg_size_pretty(pg_database_size('owlmetry'));"
+```
+
+## Database maintenance
+
+- **Partitions** are auto-created on server startup (current month plus 2 months ahead). No manual intervention required.
+- **Auto-pruning** runs hourly when `MAX_DATABASE_SIZE_GB` is set. It drops the oldest monthly partitions first.
+- **Backups:** `pg_dump owlmetry > backup.sql`
+- **Size check:** `psql -c "SELECT pg_size_pretty(pg_database_size('owlmetry'));"`
+
+## Troubleshooting
+
+```bash
+# Check if services are running
+pm2 status
+
+# Check service logs for errors
+pm2 logs owlmetry-api --lines 100
+
+# Validate nginx config
+nginx -t
+
+# Test database connectivity
+psql $DATABASE_URL -c "SELECT 1;"
+
+# Check disk space
+df -h
+
+# Restart everything
+pm2 restart all
+systemctl reload nginx
+```
