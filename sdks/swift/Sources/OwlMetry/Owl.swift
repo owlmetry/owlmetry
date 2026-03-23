@@ -28,9 +28,10 @@ public enum Owl {
         endpoint: String,
         apiKey: String,
         flushOnBackground: Bool = true,
-        compressionEnabled: Bool = true
+        compressionEnabled: Bool = true,
+        networkTrackingEnabled: Bool = true
     ) throws {
-        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled)
+        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
         try configureWith(config)
     }
 
@@ -40,9 +41,10 @@ public enum Owl {
         apiKey: String,
         bundleId: String,
         flushOnBackground: Bool = true,
-        compressionEnabled: Bool = true
+        compressionEnabled: Bool = true,
+        networkTrackingEnabled: Bool = true
     ) throws {
-        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled)
+        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
         try configureWith(config)
     }
 
@@ -94,6 +96,15 @@ public enum Owl {
         }
 
         lifecycleObserver?.start()
+
+        // Network request instrumentation
+        #if canImport(ObjectiveC)
+        if config.networkTrackingEnabled {
+            URLSessionInstrumentation.install(endpointHost: config.endpoint.host ?? "")
+        } else {
+            URLSessionInstrumentation.disable()
+        }
+        #endif
 
         Task {
             await transport.start()
@@ -308,6 +319,9 @@ public enum Owl {
     /// Persistent state (Keychain anonymous ID, UserDefaults) is NOT cleared,
     /// matching real app restart behavior.
     static func reset() async {
+        #if canImport(ObjectiveC)
+        URLSessionInstrumentation.disable()
+        #endif
         let (oldTransport, oldObserver) = state.withLock { s -> (EventTransport?, LifecycleObserver?) in
             let old = (s.transport, s.lifecycleObserver)
             s = State()

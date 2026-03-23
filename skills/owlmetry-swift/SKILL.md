@@ -94,6 +94,7 @@ struct MyApp: App {
 - `apiKey: String` — client key, must start with `owl_client_` (required)
 - `flushOnBackground: Bool` — auto-flush when app backgrounds (default: `true`)
 - `compressionEnabled: Bool` — gzip request bodies (default: `true`)
+- `networkTrackingEnabled: Bool` — auto-track URLSession HTTP requests (default: `true`)
 
 Auto-detects: bundle ID, debug mode (`#if DEBUG`). Auto-generates: session ID (fresh each launch).
 
@@ -152,6 +153,32 @@ struct SettingsView: View {
 **Where to place it:** Attach `.owlScreen("ScreenName")` to the outermost view of each screen — typically on the `NavigationStack`, `Form`, `ScrollView`, or root `VStack`. Use it on every distinct screen in the app. Choose names that are short, readable, and consistent (e.g., `"Home"`, `"Settings"`, `"Profile"`, `"Checkout"`).
 
 **Prefer `.owlScreen()` over manual `Owl.info()` for screen views** — it handles both appear and disappear with duration tracking. Use manual `Owl.info()` with `screenName:` only for events within a screen (button taps, state changes), not for screen appearances themselves.
+
+## Network Request Tracking
+
+The SDK automatically tracks all URLSession HTTP requests made via completion handler APIs. This is **enabled by default** — no code needed beyond `Owl.configure()`. To disable:
+
+```swift
+try Owl.configure(
+    endpoint: "https://ingest.owlmetry.com",
+    apiKey: "owl_client_...",
+    networkTrackingEnabled: false
+)
+```
+
+**What it captures automatically:**
+- `_http_method` — GET, POST, etc.
+- `_http_url` — sanitized URL (scheme + host + path only, query params stripped for privacy)
+- `_http_status` — response status code
+- `_http_duration_ms` — request duration in milliseconds
+- `_http_response_size` — response body size in bytes
+- `_http_error` — error description (failures only)
+
+**Log levels:** `.info` for 2xx/3xx responses, `.warn` for 4xx/5xx, `.error` for network failures (no response).
+
+**Safety:** The SDK's own requests to the OwlMetry ingest endpoint are automatically filtered out. Query parameters are stripped from URLs to prevent accidental logging of tokens or user IDs.
+
+**Coverage:** Tracks requests made with `URLSession.dataTask(with:completionHandler:)` (both URL and URLRequest overloads). Delegate-based and async/await requests are not tracked in this version.
 
 ## Log Events
 
@@ -348,3 +375,4 @@ Every event automatically includes:
 - `sdk:app_foregrounded` — when app enters foreground
 - `sdk:app_backgrounded` — when app enters background
 - `sdk:screen_appeared` (info) / `sdk:screen_disappeared` (debug) — when using `.owlScreen()` modifier (disappear includes `_duration_ms`)
+- `sdk:network_request` (info/warn/error) — URLSession HTTP requests with method, URL, status, duration (enabled by default, disable with `networkTrackingEnabled: false`)
