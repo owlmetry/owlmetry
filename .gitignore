@@ -6,6 +6,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.npmrc
 .xcodebuildmcp
 
 # IDE
