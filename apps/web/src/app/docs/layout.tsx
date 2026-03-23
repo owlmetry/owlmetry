@@ -10,11 +10,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         <DocsLayout
           tree={docsSource.pageTree}
           nav={{
-            title: "OwlMetry",
-            url: "/",
+            title: "OwlMetry Docs",
+            url: "/docs",
           }}
           themeSwitch={{ component: null }}
           links={[
+            { text: "Home", url: "/" },
             { text: "Dashboard", url: "/dashboard" },
             {
               text: "GitHub",
