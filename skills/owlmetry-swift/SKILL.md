@@ -68,7 +68,7 @@ Once the user confirms the package is added, retry the build to verify, then pro
 
 ## Configure
 
-Configuration must happen once, before any other `Owl` calls — typically in your `@main` App init or AppDelegate `didFinishLaunching`. Each `configure()` call generates a fresh `session_id` (UUID) that groups all subsequent events together. This means each app launch gets its own session, making it easy to see everything a user did in a single sitting.
+Configuration must happen once, as early as possible — in the `@main` App `init()` or AppDelegate `didFinishLaunching`. **Do not defer it** to a later point (e.g., after async setup or user consent). The SDK measures app launch time (`_launch_ms`) from process start to the `configure()` call, so placing it early gives an accurate cold-start metric. It also ensures no events are dropped before configuration. Each `configure()` call generates a fresh `session_id` (UUID) that groups all subsequent events together.
 
 ```swift
 import OwlMetry
@@ -344,7 +344,7 @@ Every event automatically includes:
 - `environment` — specific runtime (ios, ipados, macos)
 
 **Auto-emitted lifecycle events** (no manual calls needed):
-- `sdk:session_started` — on `configure()`
+- `sdk:session_started` — on `configure()`, includes `_launch_ms` (time from process start to configure)
 - `sdk:app_foregrounded` — when app enters foreground
 - `sdk:app_backgrounded` — when app enters background
 - `sdk:screen_appeared` (info) / `sdk:screen_disappeared` (debug) — when using `.owlScreen()` modifier (disappear includes `_duration_ms`)

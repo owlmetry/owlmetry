@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import os
 
@@ -99,8 +100,12 @@ public enum Owl {
             await filter.start()
         }
 
-        // Emit session start event
-        log("sdk:session_started", level: .info, screenName: nil, customAttributes: nil,
+        // Emit session start event with launch time if available
+        var sessionAttributes: [String: String]? = nil
+        if let launchMs = Self.processLaunchDurationMs() {
+            sessionAttributes = ["_launch_ms": String(launchMs)]
+        }
+        log("sdk:session_started", level: .info, screenName: nil, customAttributes: sessionAttributes,
             file: #file, function: #function, line: #line)
     }
 
@@ -369,5 +374,19 @@ public enum Owl {
             guard await duplicateFilter.shouldAllow(event) else { return }
             await transport.enqueue(event)
         }
+    }
+
+    /// Returns milliseconds from process start to now using sysctl, or nil on failure.
+    private static func processLaunchDurationMs() -> Int? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        guard sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0) == 0 else { return nil }
+        let startSec = Double(info.kp_proc.p_starttime.tv_sec)
+        let startUsec = Double(info.kp_proc.p_starttime.tv_usec)
+        let processStart = startSec + startUsec / 1_000_000
+        let now = Date().timeIntervalSince1970
+        let ms = Int((now - processStart) * 1000)
+        return ms > 0 ? ms : nil
     }
 }
