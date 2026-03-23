@@ -1,0 +1,10 @@
+{
+  "title": "Self-Hosting",
+  "pages": [
+    "index",
+    "requirements",
+    "installation",
+    "configuration",
+    "deployment"
+  ]
+}

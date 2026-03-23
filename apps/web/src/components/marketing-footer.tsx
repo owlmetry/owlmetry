@@ -13,10 +13,12 @@ const columns = [
   {
     title: "Developers",
     links: [
+      { label: "Documentation", href: "/docs" },
+      { label: "Swift SDK", href: "/docs/sdks/swift" },
+      { label: "Node.js SDK", href: "/docs/sdks/node" },
+      { label: "CLI", href: "/docs/cli" },
+      { label: "API Reference", href: "/docs/api-reference" },
       { label: "GitHub", href: "https://github.com/Jasonvdb/owlmetry" },
-      { label: "Swift SDK", href: "https://github.com/Jasonvdb/owlmetry/tree/main/sdks/swift" },
-      { label: "Node.js SDK", href: "https://www.npmjs.com/package/@owlmetry/node" },
-      { label: "CLI", href: "https://www.npmjs.com/package/@owlmetry/cli" },
     ],
   },
   {

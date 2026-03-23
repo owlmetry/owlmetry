@@ -1,0 +1,15 @@
+{
+  "title": "API Reference",
+  "pages": [
+    "index",
+    "authentication",
+    "ingest",
+    "events",
+    "apps",
+    "projects",
+    "metrics",
+    "funnels",
+    "teams",
+    "identity"
+  ]
+}

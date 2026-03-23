@@ -1,0 +1,14 @@
+{
+  "title": "Swift SDK",
+  "pages": [
+    "index",
+    "installation",
+    "configuration",
+    "events",
+    "metrics",
+    "funnels",
+    "experiments",
+    "screen-tracking",
+    "identity"
+  ]
+}

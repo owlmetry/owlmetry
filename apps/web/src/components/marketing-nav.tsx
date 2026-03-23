@@ -7,6 +7,7 @@ import { OwlLogo } from "@/components/owl-logo";
 import { Button } from "@/components/ui/button";
 
 const navLinks = [
+  { href: "/docs", label: "Docs" },
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How It Works" },
   { href: "#pricing", label: "Pricing" },

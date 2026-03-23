@@ -1,0 +1,14 @@
+{
+  "title": "Node.js SDK",
+  "pages": [
+    "index",
+    "installation",
+    "configuration",
+    "events",
+    "metrics",
+    "funnels",
+    "experiments",
+    "serverless",
+    "identity"
+  ]
+}

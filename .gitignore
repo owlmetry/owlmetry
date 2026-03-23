@@ -28,6 +28,9 @@ firebase-debug.log
 .next/
 out/
 
+# Fumadocs (auto-generated)
+.source/
+
 # Swift
 .build/
 sdks/swift/.build/
