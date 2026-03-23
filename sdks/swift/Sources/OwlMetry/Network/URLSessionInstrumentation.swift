@@ -13,15 +13,19 @@ final class URLSessionInstrumentation: @unchecked Sendable {
     private static let logger = Logger(subsystem: Owl.logSubsystem, category: "network")
     private static var isInstalled = false
     private static var isEnabled = false
-    private static var endpointHost: String?
+    /// Full URL prefixes for the SDK's own ingest and claim endpoints, used to filter them out.
+    private static var ingestURLPrefix: String?
+    private static var claimURLPrefix: String?
     private static let lock = OSAllocatedUnfairLock(initialState: ())
     private static var startTimeKey: UInt8 = 0
 
     // MARK: - Public API
 
-    static func install(endpointHost: String) {
+    static func install(endpoint: URL) {
+        let base = endpoint.absoluteString.hasSuffix("/") ? endpoint.absoluteString : endpoint.absoluteString + "/"
         lock.withLock { _ in
-            Self.endpointHost = endpointHost
+            Self.ingestURLPrefix = base + "v1/ingest"
+            Self.claimURLPrefix = base + "v1/identity/claim"
             Self.isEnabled = true
             guard !Self.isInstalled else { return }
             Self.isInstalled = true
@@ -52,8 +56,8 @@ final class URLSessionInstrumentation: @unchecked Sendable {
 
         let block: @convention(block) (AnyObject) -> Void = { task in
             if Self.isEnabled, let urlTask = task as? URLSessionTask,
-               let host = urlTask.currentRequest?.url?.host,
-               host != Self.endpointHost {
+               let url = urlTask.currentRequest?.url,
+               !Self.isOwnRequest(url) {
                 let startTime = CFAbsoluteTimeGetCurrent()
                 objc_setAssociatedObject(
                     urlTask, &Self.startTimeKey,
@@ -78,8 +82,8 @@ final class URLSessionInstrumentation: @unchecked Sendable {
 
         let block: @convention(block) (AnyObject, URLRequest, @escaping (Data?, URLResponse?, (any Error)?) -> Void) -> URLSessionDataTask = { session, request, handler in
             guard Self.isEnabled,
-                  let host = request.url?.host,
-                  host != Self.endpointHost else {
+                  let url = request.url,
+                  !Self.isOwnRequest(url) else {
                 return original(session, selector, request, handler)
             }
 
@@ -109,7 +113,7 @@ final class URLSessionInstrumentation: @unchecked Sendable {
 
         let block: @convention(block) (AnyObject, URL, @escaping (Data?, URLResponse?, (any Error)?) -> Void) -> URLSessionDataTask = { session, url, handler in
             guard Self.isEnabled,
-                  url.host != Self.endpointHost else {
+                  !Self.isOwnRequest(url) else {
                 return original(session, selector, url, handler)
             }
 
@@ -141,7 +145,7 @@ final class URLSessionInstrumentation: @unchecked Sendable {
               let url = request.url else { return }
 
         // Belt-and-suspenders: skip SDK requests even if resume() check missed
-        if url.host == endpointHost { return }
+        if isOwnRequest(url) { return }
 
         let method = request.httpMethod ?? "GET"
         let sanitized = sanitizeURL(url)
@@ -177,6 +181,16 @@ final class URLSessionInstrumentation: @unchecked Sendable {
         } else {
             Owl.info("sdk:network_request", customAttributes: attrs)
         }
+    }
+
+    // MARK: - Request Filtering
+
+    /// Returns true if the URL matches the SDK's own ingest or identity claim endpoints.
+    private static func isOwnRequest(_ url: URL) -> Bool {
+        let urlString = url.absoluteString
+        if let prefix = ingestURLPrefix, urlString.hasPrefix(prefix) { return true }
+        if let prefix = claimURLPrefix, urlString.hasPrefix(prefix) { return true }
+        return false
     }
 
     // MARK: - URL Sanitization

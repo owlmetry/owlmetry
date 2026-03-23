@@ -627,6 +627,131 @@ final class SDKIntegrationTests: XCTestCase {
                        "Trimmed value should be the first 200 characters")
     }
 
+    // MARK: - Network Tracking Tests
+
+    func testNetworkTrackingEmitsEvents() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        // Make a completion-handler-based request (the kind we instrument)
+        let healthURL = URL(string: "\(Self.testEndpoint)/health")!
+        let expectation = XCTestExpectation(description: "Health request completes")
+        URLSession.shared.dataTask(with: healthURL) { _, _, _ in
+            expectation.fulfill()
+        }.resume()
+        await fulfillment(of: [expectation], timeout: 5)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let events = try await queryEvents(level: "info")
+        let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
+
+        XCTAssertGreaterThanOrEqual(networkEvents.count, 1, "Should have at least 1 network tracking event")
+
+        guard let event = networkEvents.first else { return }
+        let attrs = event["custom_attributes"] as? [String: String] ?? [:]
+
+        XCTAssertEqual(attrs["_http_method"], "GET")
+        XCTAssertNotNil(attrs["_http_status"], "Should have status code")
+        XCTAssertNotNil(attrs["_http_duration_ms"], "Should have duration")
+        XCTAssertNotNil(attrs["_http_url"], "Should have sanitized URL")
+
+        // URL should not contain query params
+        let trackedURL = attrs["_http_url"] ?? ""
+        XCTAssertFalse(trackedURL.contains("?"), "URL should have query params stripped")
+        XCTAssertTrue(trackedURL.contains("/health"), "URL should preserve path")
+    }
+
+    func testNetworkTrackingDoesNotTrackSDKRequests() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        // Send events which trigger SDK requests to the ingest endpoint
+        Owl.info("trigger sdk request", screenName: "net_filter_test")
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let events = try await queryEvents(level: "info")
+        let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
+
+        // None of the network events should reference the test endpoint
+        let endpointHost = URL(string: Self.testEndpoint)!.host!
+        for event in networkEvents {
+            let attrs = event["custom_attributes"] as? [String: String] ?? [:]
+            let url = attrs["_http_url"] ?? ""
+            XCTAssertFalse(url.contains(endpointHost),
+                           "SDK's own requests to \(endpointHost) should not be tracked")
+        }
+    }
+
+    func testNetworkTrackingDisabledByFlag() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId, networkTrackingEnabled: false)
+
+        // Make a completion-handler-based request
+        let healthURL = URL(string: "\(Self.testEndpoint)/health")!
+        let expectation = XCTestExpectation(description: "Health request completes")
+        URLSession.shared.dataTask(with: healthURL) { _, _, _ in
+            expectation.fulfill()
+        }.resume()
+        await fulfillment(of: [expectation], timeout: 5)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let events = try await queryEvents(level: "info")
+        let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
+
+        XCTAssertEqual(networkEvents.count, 0,
+                       "No network events should be emitted when tracking is disabled")
+    }
+
+    func testNetworkTrackingCapturesErrorResponses() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        // Hit a path that returns 404
+        let notFoundURL = URL(string: "\(Self.testEndpoint)/nonexistent-path-\(UUID().uuidString.prefix(8))")!
+        let expectation = XCTestExpectation(description: "404 request completes")
+        URLSession.shared.dataTask(with: notFoundURL) { _, _, _ in
+            expectation.fulfill()
+        }.resume()
+        await fulfillment(of: [expectation], timeout: 5)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        // 4xx responses are logged as warn
+        let warnEvents = try await queryEvents(level: "warn")
+        let networkWarns = warnEvents.filter { ($0["message"] as? String) == "sdk:network_request" }
+
+        XCTAssertGreaterThanOrEqual(networkWarns.count, 1, "404 should produce a warn-level network event")
+
+        if let event = networkWarns.first {
+            let attrs = event["custom_attributes"] as? [String: String] ?? [:]
+            XCTAssertEqual(attrs["_http_status"], "404")
+        }
+    }
+
+    func testNetworkTrackingURLRequestOverload() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        // Use the URLRequest overload (vs the URL overload)
+        var request = URLRequest(url: URL(string: "\(Self.testEndpoint)/health")!)
+        request.httpMethod = "GET"
+        let expectation = XCTestExpectation(description: "URLRequest-based request completes")
+        URLSession.shared.dataTask(with: request) { _, _, _ in
+            expectation.fulfill()
+        }.resume()
+        await fulfillment(of: [expectation], timeout: 5)
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+        await Owl.shutdown()
+
+        let events = try await queryEvents(level: "info")
+        let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
+
+        XCTAssertGreaterThanOrEqual(networkEvents.count, 1, "URLRequest overload should also be tracked")
+    }
+
     // MARK: - Helpers
 
     private func waitForServer(timeout: TimeInterval) async -> Bool {

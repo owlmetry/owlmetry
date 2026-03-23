@@ -100,7 +100,7 @@ public enum Owl {
         // Network request instrumentation
         #if canImport(ObjectiveC)
         if config.networkTrackingEnabled {
-            URLSessionInstrumentation.install(endpointHost: config.endpoint.host ?? "")
+            URLSessionInstrumentation.install(endpoint: config.endpoint)
         } else {
             URLSessionInstrumentation.disable()
         }
