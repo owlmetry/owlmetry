@@ -5,24 +5,27 @@ import type { ReactNode } from "react";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <RootProvider>
-      <DocsLayout
-        tree={docsSource.pageTree}
-        nav={{
-          title: "OwlMetry",
-          url: "/",
-        }}
-        links={[
-          { text: "Dashboard", url: "/dashboard" },
-          {
-            text: "GitHub",
-            url: "https://github.com/Jasonvdb/owlmetry",
-            external: true,
-          },
-        ]}
-      >
-        {children}
-      </DocsLayout>
+    <RootProvider theme={{ enabled: false }}>
+      <div className="dark bg-background text-foreground min-h-screen" style={{ colorScheme: "dark" }}>
+        <DocsLayout
+          tree={docsSource.pageTree}
+          nav={{
+            title: "OwlMetry",
+            url: "/",
+          }}
+          themeSwitch={{ component: null }}
+          links={[
+            { text: "Dashboard", url: "/dashboard" },
+            {
+              text: "GitHub",
+              url: "https://github.com/Jasonvdb/owlmetry",
+              external: true,
+            },
+          ]}
+        >
+          {children}
+        </DocsLayout>
+      </div>
     </RootProvider>
   );
 }
