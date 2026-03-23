@@ -139,7 +139,7 @@ export default async function LandingPage() {
                     "linear-gradient(135deg, oklch(0.65 0.2 45) 0%, oklch(0.555 0.163 48.998) 50%, oklch(0.5 0.14 55) 100%)",
                 }}
               >
-                For every app you ship.
+                Set up in one prompt.
               </span>
             </h1>
 
