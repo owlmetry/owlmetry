@@ -1,8 +1,31 @@
 import { createGunzip } from "node:zlib";
+import { Transform, type TransformCallback } from "node:stream";
 import fp from "fastify-plugin";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
-const MAX_COMPRESSED_SIZE = 1024 * 1024; // 1 MiB limit on compressed input
+const MAX_COMPRESSED_SIZE = 1024 * 1024;   // 1 MiB limit on compressed input
+const MAX_DECOMPRESSED_SIZE = 1024 * 1024; // 1 MiB limit on decompressed output
+
+class SizeLimitedStream extends Transform {
+  private bytesRead = 0;
+  private readonly limit: number;
+
+  constructor(limit: number) {
+    super();
+    this.limit = limit;
+  }
+
+  _transform(chunk: Buffer, _encoding: string, callback: TransformCallback): void {
+    this.bytesRead += chunk.length;
+    if (this.bytesRead > this.limit) {
+      const error = new Error("Decompressed payload too large") as Error & { statusCode: number };
+      error.statusCode = 413;
+      this.destroy(error);
+      return;
+    }
+    callback(null, chunk);
+  }
+}
 
 export const decompressPlugin = fp(async function (app: FastifyInstance) {
   app.addHook(
@@ -21,7 +44,12 @@ export const decompressPlugin = fp(async function (app: FastifyInstance) {
       delete request.headers["content-encoding"];
       delete request.headers["content-length"];
 
-      return payload.pipe(createGunzip());
+      const gunzip = createGunzip();
+      const limiter = new SizeLimitedStream(MAX_DECOMPRESSED_SIZE);
+      gunzip.on("error", (err) => limiter.destroy(err));
+      limiter.on("error", () => gunzip.destroy());
+
+      return payload.pipe(gunzip).pipe(limiter);
     }
   );
 });

@@ -365,6 +365,54 @@ describe("POST /v1/ingest", () => {
     expect(res.json().error).toBe("Compressed payload too large");
   });
 
+  it("rejects gzip bomb (decompressed payload exceeding 1 MiB)", async () => {
+    // 2 MiB of repeated data compresses to a few KiB
+    const bomb = Buffer.from("x".repeat(2 * 1024 * 1024));
+    const compressed = gzipSync(bomb);
+
+    // Verify the compressed size is under the 1 MiB compressed limit
+    expect(compressed.length).toBeLessThan(1024 * 1024);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_KEY}`,
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+      },
+      body: compressed,
+    });
+
+    expect(res.statusCode).toBe(413);
+  });
+
+  it("accepts gzip-compressed batch of 100 events", async () => {
+    const events = Array.from({ length: 100 }, (_, i) => ({
+      level: "info",
+      message: `Compressed batch event ${i} with padding ${"x".repeat(100)}`,
+      session_id: TEST_SESSION_ID,
+      custom_attributes: { key: "value", padding: "y".repeat(200) },
+    }));
+
+    const json = JSON.stringify({ bundle_id: TEST_BUNDLE_ID, events });
+    const compressed = gzipSync(Buffer.from(json));
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers: {
+        authorization: `Bearer ${TEST_CLIENT_KEY}`,
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+      },
+      body: compressed,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().accepted).toBe(100);
+  });
+
   describe("environment validation against app platform", () => {
     it("apple app accepts ios, ipados, and macos environments", async () => {
       const res = await ingest([
