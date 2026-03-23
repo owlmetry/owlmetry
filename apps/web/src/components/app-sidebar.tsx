@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Filter, KeyRound, Users, ClipboardList } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Filter, KeyRound, Users, ClipboardList, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
@@ -26,6 +26,7 @@ const navItems = [
   { href: "/dashboard/projects", label: "Projects", icon: FolderOpen },
   { href: "/dashboard/team", label: "Team", icon: Users },
   { href: "/dashboard/audit-log", label: "Audit Log", icon: ClipboardList },
+  { href: "/docs", label: "Docs", icon: BookOpen },
 ];
 
 export function AppSidebar() {
@@ -37,15 +38,15 @@ export function AppSidebar() {
     <aside className="flex w-56 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-14 items-center border-b px-4 gap-2.5">
         <OwlLogo className="h-6 w-6" />
-        <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
+        <Link href="/" className="text-lg font-semibold tracking-tight">
           OwlMetry
         </Link>
       </div>
       {currentTeam && (
-        <div className="border-b px-4 py-2">
+        <div className="border-b px-3 py-2">
           {teams.length >= 2 ? (
             <Select value={currentTeam.id} onValueChange={setCurrentTeam}>
-              <SelectTrigger className="h-7 text-xs font-medium text-muted-foreground border-0 px-0 shadow-none focus:ring-0">
+              <SelectTrigger className="h-8 w-full text-xs font-medium text-muted-foreground bg-sidebar-accent/50 border-sidebar-border shadow-none focus:ring-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -57,26 +58,28 @@ export function AppSidebar() {
               </SelectContent>
             </Select>
           ) : (
-            <p className="text-xs font-medium text-muted-foreground truncate">
-              {currentTeam.name}
-            </p>
+            <div className="flex h-8 w-full items-center rounded-md bg-sidebar-accent/50 border border-sidebar-border px-3">
+              <p className="text-xs font-medium text-muted-foreground truncate">
+                {currentTeam.name}
+              </p>
+            </div>
           )}
         </div>
       )}
-      <div className="border-b px-4 py-2">
+      <div className="border-b px-3 py-2">
         <ToggleGroup
           type="single"
           value={dataMode}
           onValueChange={(v) => { if (v) setDataMode(v as DataMode); }}
-          className="w-full"
+          className="w-full bg-background/40 rounded-md p-0.5"
         >
-          <ToggleGroupItem value="production" className="flex-1 text-xs h-7 px-2">
+          <ToggleGroupItem value="production" className="flex-1 text-xs h-7 px-2 data-[state=on]:bg-primary/15 data-[state=on]:text-primary">
             Prod
           </ToggleGroupItem>
-          <ToggleGroupItem value="development" className="flex-1 text-xs h-7 px-2">
+          <ToggleGroupItem value="development" className="flex-1 text-xs h-7 px-2 data-[state=on]:bg-primary/15 data-[state=on]:text-primary">
             Dev
           </ToggleGroupItem>
-          <ToggleGroupItem value="all" className="flex-1 text-xs h-7 px-2">
+          <ToggleGroupItem value="all" className="flex-1 text-xs h-7 px-2 data-[state=on]:bg-primary/15 data-[state=on]:text-primary">
             All
           </ToggleGroupItem>
         </ToggleGroup>

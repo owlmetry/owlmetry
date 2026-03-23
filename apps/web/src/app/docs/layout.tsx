@@ -2,6 +2,7 @@ import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider";
 import { docsSource } from "@/lib/docs-source";
 import { OwlLogo } from "@/components/owl-logo";
+import { BookOpen, LayoutDashboard, Github } from "lucide-react";
 import type { ReactNode } from "react";
 
 function DocsNavTitle() {
@@ -27,12 +28,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           }}
           themeSwitch={{ enabled: false }}
           links={[
-            { text: "Docs", url: "/docs" },
-            { text: "Dashboard", url: "/dashboard" },
+            { text: "Docs", url: "/docs", icon: <BookOpen /> },
+            { text: "Dashboard", url: "/dashboard", icon: <LayoutDashboard /> },
             {
               text: "GitHub",
               url: "https://github.com/Jasonvdb/owlmetry",
               external: true,
+              icon: <Github />,
             },
           ]}
         >

@@ -1,4 +1,5 @@
 {
   "title": "SDKs",
+  "icon": "Code",
   "pages": ["swift", "node"]
 }

@@ -119,7 +119,7 @@
 
 /* Docs sidebar — match dashboard sidebar styling */
 #nd-docs-layout {
-  --fd-sidebar-width: 224px;
+  --fd-sidebar-width: calc(14rem - var(--spacing, 0.25rem));
 }
 
 .dark #nd-docs-layout {
@@ -140,6 +140,10 @@
 
 #nd-sidebar > div:first-child {
   border-bottom: 1px solid oklch(0.284 0.011 247.839);
+}
+
+#nd-sidebar .p-4.overscroll-contain {
+  padding: 12px;
 }
 
 @layer base {
