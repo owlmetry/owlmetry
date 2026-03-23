@@ -7,7 +7,9 @@ actor OfflineQueue {
     private var pendingWrite = false
 
     init(directory: URL? = nil) {
-        let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let base = directory
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
         let dir = base.appendingPathComponent("OwlMetry", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.fileURL = dir.appendingPathComponent("offline_queue.json")

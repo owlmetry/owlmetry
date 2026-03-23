@@ -44,9 +44,13 @@ struct DeviceInfo: Sendable {
 
     private static func getDeviceModel() -> String {
         var size = 0
-        sysctlbyname("hw.machine", nil, &size, nil, 0)
+        guard sysctlbyname("hw.machine", nil, &size, nil, 0) == 0, size > 0 else {
+            return "Unknown"
+        }
         var machine = [CChar](repeating: 0, count: size)
-        sysctlbyname("hw.machine", &machine, &size, nil, 0)
+        guard sysctlbyname("hw.machine", &machine, &size, nil, 0) == 0 else {
+            return "Unknown"
+        }
         return String(cString: machine)
     }
 }
