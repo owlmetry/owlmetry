@@ -106,7 +106,7 @@ pnpm test:coverage     # Server tests with code coverage reporting
 
 ## Self-Hosting
 
-See [INSTALL.md](INSTALL.md) for the complete self-hosting guide, or the [self-hosting docs](https://owlmetry.com/docs/self-hosting) for the full walkthrough.
+See the [self-hosting guide](https://owlmetry.com/docs/self-hosting) for the full walkthrough — covers system dependencies, PostgreSQL, nginx, pm2, SSL, Cloudflare, firewall, and maintenance.
 
 ## Documentation
 
@@ -123,6 +123,6 @@ Full documentation is available at [owlmetry.com/docs](https://owlmetry.com/docs
 
 - [Website](https://owlmetry.com)
 - [Documentation](https://owlmetry.com/docs)
-- [Self-Hosting Guide](INSTALL.md)
+- [Self-Hosting Guide](https://owlmetry.com/docs/self-hosting)
 - [CLI on npm](https://www.npmjs.com/package/@owlmetry/cli)
 - [Node SDK on npm](https://www.npmjs.com/package/@owlmetry/node)
