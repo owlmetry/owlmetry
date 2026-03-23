@@ -1,7 +1,19 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider";
 import { docsSource } from "@/lib/docs-source";
+import { OwlLogo } from "@/components/owl-logo";
 import type { ReactNode } from "react";
+
+function DocsNavTitle() {
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      <OwlLogo className="h-6 w-6" />
+      <span className="text-lg font-semibold tracking-tight">
+        OwlMetry
+      </span>
+    </span>
+  );
+}
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
@@ -10,12 +22,12 @@ export default function Layout({ children }: { children: ReactNode }) {
         <DocsLayout
           tree={docsSource.pageTree}
           nav={{
-            title: "OwlMetry Docs",
-            url: "/docs",
+            title: <DocsNavTitle />,
+            url: "/",
           }}
           themeSwitch={{ enabled: false }}
           links={[
-            { text: "Home", url: "/" },
+            { text: "Docs", url: "/docs" },
             { text: "Dashboard", url: "/dashboard" },
             {
               text: "GitHub",
