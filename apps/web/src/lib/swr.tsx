@@ -6,6 +6,7 @@ import { api } from "./api";
 const swrConfig = {
   fetcher: (url: string) => api.get(url),
   revalidateOnFocus: true,
+  refreshWhenHidden: false,
   shouldRetryOnError: false,
 };
 
