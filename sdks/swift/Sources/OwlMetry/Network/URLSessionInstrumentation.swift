@@ -171,7 +171,7 @@ final class URLSessionInstrumentation: @unchecked Sendable {
             let status = httpResponse.statusCode
             attrs["_http_status"] = String(status)
             if (200..<400).contains(status) {
-                Owl.info("sdk:network_request", customAttributes: attrs)
+                Owl.debug("sdk:network_request", customAttributes: attrs)
             } else {
                 Owl.warn("sdk:network_request", customAttributes: attrs)
             }

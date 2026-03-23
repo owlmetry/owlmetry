@@ -643,7 +643,7 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let events = try await queryEvents(level: "info")
+        let events = try await queryEvents(level: "debug")
         let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
 
         XCTAssertGreaterThanOrEqual(networkEvents.count, 1, "Should have at least 1 network tracking event")
@@ -671,7 +671,7 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let events = try await queryEvents(level: "info")
+        let events = try await queryEvents(level: "debug")
         let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
 
         // None of the network events should reference the test endpoint
@@ -698,7 +698,7 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let events = try await queryEvents(level: "info")
+        let events = try await queryEvents(level: "debug")
         let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
 
         XCTAssertEqual(networkEvents.count, 0,
@@ -746,7 +746,7 @@ final class SDKIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
 
-        let events = try await queryEvents(level: "info")
+        let events = try await queryEvents(level: "debug")
         let networkEvents = events.filter { ($0["message"] as? String) == "sdk:network_request" }
 
         XCTAssertGreaterThanOrEqual(networkEvents.count, 1, "URLRequest overload should also be tracked")
