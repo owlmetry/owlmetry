@@ -13,7 +13,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             title: "OwlMetry Docs",
             url: "/docs",
           }}
-          themeSwitch={{ component: null }}
+          themeSwitch={{ enabled: false }}
           links={[
             { text: "Home", url: "/" },
             { text: "Dashboard", url: "/dashboard" },
