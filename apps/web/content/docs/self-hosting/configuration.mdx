@@ -25,7 +25,8 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `MAX_DATABASE_SIZE_GB` | `0` (disabled) | When set to a positive number, enables automatic pruning. An hourly check (plus one on startup) drops the oldest monthly event partitions when the database exceeds this size. |
 | `RESEND_API_KEY` | (empty) | API key from [Resend](https://resend.com) for sending verification emails. If not set, verification codes are printed to the server console (useful for single-user or development setups). |
 | `EMAIL_FROM` | `noreply@owlmetry.com` | The "from" address used when sending verification and invitation emails via Resend. |
-| `NODE_ENV` | `development` | Set to `production` for production deployments. Affects logging, cookie security, and Next.js behavior. |
+| `NODE_ENV` | `development` | Set to `production` for production deployments. Affects cookie security (`secure` flag) and Next.js behavior. |
+| `WEB_APP_URL` | `http://localhost:3000` | Base URL of the web dashboard. Used for links in invitation emails and redirects. Set to your dashboard URL in production (e.g., `https://yourdomain.com`). |
 
 ## Example `.env` file
 
