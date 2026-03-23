@@ -8,6 +8,7 @@ import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 const FALLBACK_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/events": "Events",
+  "/dashboard/users": "Users",
   "/dashboard/funnels": "Funnels",
   "/dashboard/metrics": "Metrics",
   "/dashboard/api-keys": "API Keys",

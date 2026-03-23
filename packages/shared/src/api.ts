@@ -332,6 +332,18 @@ export interface AppUsersQueryParams {
   limit?: number;
 }
 
+export interface TeamAppUsersQueryParams {
+  team_id?: string;
+  project_id?: string;
+  app_id?: string;
+  search?: string;
+  is_anonymous?: string;
+  since?: string;
+  until?: string;
+  cursor?: string;
+  limit?: number;
+}
+
 // Metrics
 export interface CreateMetricDefinitionRequest {
   name: string;

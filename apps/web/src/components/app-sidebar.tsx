@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Filter, KeyRound, Users, ClipboardList, BookOpen } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Filter, KeyRound, Users, UserSearch, ClipboardList, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
@@ -20,6 +20,7 @@ import type { DataMode } from "@owlmetry/shared";
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/events", label: "Events", icon: ScrollText },
+  { href: "/dashboard/users", label: "Users", icon: UserSearch },
   { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
   { href: "/dashboard/funnels", label: "Funnels", icon: Filter },
   { href: "/dashboard/api-keys", label: "API Keys", icon: KeyRound },
