@@ -39,3 +39,4 @@ sdks/swift/.build/
 CLAUDE.md
 *PLAN.md
 .claude
+scripts/loc.sh
