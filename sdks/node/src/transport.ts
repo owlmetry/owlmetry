@@ -16,7 +16,7 @@ export class Transport {
 
   constructor(config: ValidatedConfig) {
     this.config = config;
-    this.timer = setInterval(() => this.flush(), config.flushIntervalMs);
+    this.timer = setInterval(() => this.flush().catch((err) => this.logError("flush failed", err)), config.flushIntervalMs);
     // Prevent timer from keeping the process alive
     if (this.timer.unref) {
       this.timer.unref();
@@ -31,7 +31,7 @@ export class Transport {
     this.buffer.push(event);
 
     if (this.buffer.length >= this.config.flushThreshold) {
-      this.flush();
+      this.flush().catch((err) => this.logError("flush failed", err));
     }
   }
 
@@ -61,66 +61,78 @@ export class Transport {
     return this.buffer.length;
   }
 
-  private async sendBatch(events: LogEvent[]): Promise<void> {
-    const body: IngestRequest = { events };
-    const json = JSON.stringify(body);
-
-    let payload: Uint8Array | string;
-    let contentEncoding: string | undefined;
-
-    if (json.length > GZIP_THRESHOLD) {
-      payload = new Uint8Array(gzipSync(json));
-      contentEncoding = "gzip";
-    } else {
-      payload = json;
+  private logError(message: string, err: unknown): void {
+    if (this.config.debug) {
+      console.error(`OwlMetry: ${message}`, err);
     }
+  }
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.config.apiKey}`,
-        };
-        if (contentEncoding) {
-          headers["Content-Encoding"] = contentEncoding;
-        }
+  private async sendBatch(events: LogEvent[]): Promise<void> {
+    try {
+      const body: IngestRequest = { events };
+      const json = JSON.stringify(body);
 
-        const res = await fetch(`${this.config.endpoint}/v1/ingest`, {
-          method: "POST",
-          headers,
-          body: payload as BodyInit,
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
+      let payload: Uint8Array | string;
+      let contentEncoding: string | undefined;
 
-        if (res.ok) return;
+      if (json.length > GZIP_THRESHOLD) {
+        payload = new Uint8Array(gzipSync(json));
+        contentEncoding = "gzip";
+      } else {
+        payload = json;
+      }
 
-        // Don't retry client errors (except 429)
-        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
-          if (this.config.debug) {
-            const text = await res.text().catch(() => "");
-            console.error(`OwlMetry: ingest failed with ${res.status}: ${text}`);
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${this.config.apiKey}`,
+          };
+          if (contentEncoding) {
+            headers["Content-Encoding"] = contentEncoding;
           }
-          return;
-        }
 
-        // Server error or 429 — retry with backoff
-        if (attempt < MAX_RETRIES) {
-          const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
-          await new Promise((r) => setTimeout(r, backoff));
-        }
-      } catch (err) {
-        if (this.config.debug) {
-          console.error("OwlMetry: network error during ingest", err);
-        }
-        if (attempt < MAX_RETRIES) {
-          const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
-          await new Promise((r) => setTimeout(r, backoff));
+          const res = await fetch(`${this.config.endpoint}/v1/ingest`, {
+            method: "POST",
+            headers,
+            body: payload as BodyInit,
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          });
+
+          if (res.ok) return;
+
+          // Don't retry client errors (except 429)
+          if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+            if (this.config.debug) {
+              const text = await res.text().catch(() => "");
+              console.error(`OwlMetry: ingest failed with ${res.status}: ${text}`);
+            }
+            return;
+          }
+
+          // Server error or 429 — retry with backoff
+          if (attempt < MAX_RETRIES) {
+            const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
+            await new Promise((r) => setTimeout(r, backoff));
+          }
+        } catch (err) {
+          if (this.config.debug) {
+            console.error("OwlMetry: network error during ingest", err);
+          }
+          if (attempt < MAX_RETRIES) {
+            const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
+            await new Promise((r) => setTimeout(r, backoff));
+          }
         }
       }
-    }
 
-    if (this.config.debug) {
-      console.error(`OwlMetry: failed to send batch after ${MAX_RETRIES + 1} attempts, dropping ${events.length} events`);
+      if (this.config.debug) {
+        console.error(`OwlMetry: failed to send batch after ${MAX_RETRIES + 1} attempts, dropping ${events.length} events`);
+      }
+    } catch (err) {
+      if (this.config.debug) {
+        console.error("OwlMetry: failed to prepare batch for sending", err);
+      }
     }
   }
 }

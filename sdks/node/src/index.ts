@@ -230,8 +230,12 @@ export const Owl = {
     if (!beforeExitRegistered) {
       beforeExitRegistered = true;
       process.on("beforeExit", async () => {
-        if (transport && transport.bufferSize > 0) {
-          await transport.flush();
+        try {
+          if (transport && transport.bufferSize > 0) {
+            await transport.flush();
+          }
+        } catch {
+          // Best-effort flush on exit — never crash the host process
         }
       });
     }
@@ -274,7 +278,10 @@ export const Owl = {
       return experiments[name];
     }
     if (options.length === 0) {
-      throw new Error(`OwlMetry: getVariant("${name}") called with empty options array.`);
+      if (config?.debug) {
+        console.error(`OwlMetry: getVariant("${name}") called with empty options array`);
+      }
+      return "";
     }
     const variant = options[Math.floor(Math.random() * options.length)];
     experiments[name] = variant;
