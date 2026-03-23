@@ -97,16 +97,21 @@ Events are the core data unit. Use the four log levels to capture different kind
 
 - **`info`** — normal operations: server started, request handled, job completed, user action processed.
 - **`debug`** — verbose detail for development: cache lookups, query plans, config loading, intermediate state.
-- **`warn`** — recoverable problems: slow queries, rate limits approaching, fallback paths, deprecated API usage.
-- **`error`** — failures: database connection errors, external API failures, unhandled rejections, missing resources.
+- **`warn`** — something didn't go as expected but the process can continue: failed validation, precondition checks that fail, slow queries, rate limits approaching, fallback paths, deprecated API usage, missing optional config.
+- **`error`** — a caught exception or hard failure inside a `try`/`catch`: database connection errors, external API timeouts, unhandled rejections, file system errors. Reserve for actual thrown errors, not for anticipated validation outcomes.
 
 Choose **message strings** that are specific and searchable. Prefer `"Payment processing failed"` over `"error occurred"`. Use attributes for structured data you'll filter on later.
 
 ```typescript
 Owl.info('Server started', { port: 4000 });
 Owl.debug('Cache miss', { key: 'user:123' });
-Owl.warn('Slow query', { duration_ms: 2500, table: 'events' });
-Owl.error('Database connection failed', { host: 'db.example.com' });
+Owl.warn('Invalid request payload', { field: 'email', reason: 'missing' });
+
+try {
+  await db.connect();
+} catch (err) {
+  Owl.error('Database connection failed', { host: 'db.example.com', error: String(err) });
+}
 ```
 
 All methods: `Owl.info/debug/warn/error(message: string, attrs?: Record<string, unknown>)`.
@@ -118,7 +123,12 @@ Source module (file:line) is auto-captured from the call stack.
 Owl.info('Request handled', { method: 'POST', path: '/api/orders', status: 201 });
 Owl.info('Background job completed', { job: 'send-emails', processed: 150 });
 Owl.warn('Rate limit approaching', { current: 95, limit: 100, client_id: 'abc' });
-Owl.error('External API timeout', { service: 'stripe', endpoint: '/charges', timeout_ms: 10000 });
+
+try {
+  await stripe.charges.create(params);
+} catch (err) {
+  Owl.error('Stripe charge failed', { endpoint: '/charges', error: String(err) });
+}
 ```
 
 ## Per-Request User Scoping
@@ -339,7 +349,8 @@ When instrumenting a backend service, follow this priority:
 **Always instrument (events — no CLI setup needed):**
 - Server startup and shutdown (`info`)
 - Request handling: key route hits, responses sent (`info` with method/path/status)
-- Errors and failures: catch blocks, unhandled rejections, external API failures (`error`)
+- Caught exceptions: catch blocks, unhandled rejections, external API failures (`error`)
+- Validation failures and pre-checks: bad input, missing optional config, rate limits (`warn`)
 - Authentication events: login, logout, token refresh (`info`)
 - Core business actions: order placed, payment processed, email sent (`info`)
 - Background jobs: started, completed, failed (`info`/`error`)

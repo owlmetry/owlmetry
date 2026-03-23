@@ -187,16 +187,21 @@ Events are the core unit of data in OwlMetry. Use the four log levels to capture
 
 - **`info`** — normal operations worth recording: screen views, user actions, feature usage, successful completions. This is your default level.
 - **`debug`** — verbose detail useful only during development: cache hits, state transitions, intermediate values. These are filtered out in production data mode.
-- **`warn`** — something unexpected that the app recovered from: slow responses, fallback paths taken, retries needed.
-- **`error`** — something failed: network errors, parse failures, missing data, caught exceptions.
+- **`warn`** — something didn't go as expected but the app can continue: failed validation, precondition checks that fail, slow responses, fallback paths taken, deprecated API usage, missing optional data.
+- **`error`** — a caught exception or hard failure inside a `do`/`catch` block: network errors, JSON decode failures, file I/O errors, keychain access failures. Reserve for actual thrown errors, not for anticipated validation outcomes.
 
 Choose **message strings** that are specific and searchable. Prefer `"Failed to load profile image"` over `"error"`. Use `screenName` to tie events to where they happened in the UI. Use `customAttributes` for structured data you'll want to filter or search on later.
 
 ```swift
 Owl.info("User opened settings", screenName: "SettingsView")
 Owl.debug("Cache hit", screenName: "HomeView", customAttributes: ["key": "user_prefs"])
-Owl.warn("Slow network response", customAttributes: ["latency_ms": "1200"])
-Owl.error("Failed to load profile", screenName: "ProfileView")
+Owl.warn("Invalid email format", screenName: "SignUpView", customAttributes: ["input": email])
+
+do {
+    let profile = try await api.loadProfile(id: userId)
+} catch {
+    Owl.error("Failed to load profile", screenName: "ProfileView", customAttributes: ["error": "\(error)"])
+}
 ```
 
 All logging methods share the same signature:
@@ -328,7 +333,8 @@ When instrumenting a new app, follow this priority:
 - Screen views (`.owlScreen("ScreenName")` on every distinct screen)
 - App launch / cold start (`info` in `init()` or `didFinishLaunching`)
 - Authentication events (login, logout, signup)
-- Errors and failures (`error` in `catch` blocks, error handlers)
+- Caught exceptions (`error` in `catch` blocks, error handlers)
+- Validation failures and pre-checks (`warn` for bad input, missing optional data, fallback paths)
 - Core business actions (purchase, share, create, delete)
 
 **Instrument when relevant (metrics — requires CLI `owlmetry metrics create` first):**
