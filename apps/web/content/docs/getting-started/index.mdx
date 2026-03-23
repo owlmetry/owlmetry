@@ -1,29 +1,89 @@
 ---
 title: Getting Started
-description: Get up and running with OwlMetry in minutes.
+description: Get up and running with OwlMetry in minutes. Your coding agent handles the setup.
 ---
 
-This guide walks you through sending your first event to OwlMetry. Choose your deployment model and SDK, then follow the quickstart below.
+OwlMetry is designed to be set up by your coding agent. Install the CLI, give your agent a prompt, and it handles authentication, project creation, and SDK integration.
+
+You can also [set everything up manually](#manual-setup) if you prefer.
+
+## Install the CLI
+
+```bash
+npm install -g @owlmetry/cli
+```
+
+Requires Node.js 20+. The CLI ships with built-in skill files that teach your agent the full command reference and SDK integration patterns.
+
+## Tell Your Agent to Set Up OwlMetry
+
+Give your coding agent a prompt like this:
+
+```
+Set up OwlMetry in this project. Run `owlmetry skills` to get the
+skill file paths, then install the CLI and relevant SDK skill files.
+Use the CLI skill to authenticate and create a project/app, then use
+the SDK skill to instrument the code.
+```
+
+That's it. Your agent reads the skill files and takes it from there. The only thing you'll need to do is provide a **6-digit verification code** — the agent will ask for your email, OwlMetry sends you a code, and you paste it back. This creates your account, generates an API key, and the agent handles the rest: creating a project, setting up an app, installing the SDK, and wiring up event tracking.
+
+<Callout>
+**Self-hosting?** Add `--endpoint https://your-server.example.com` to point the CLI at your own instance. See [Self-hosted setup](/docs/getting-started/self-hosting).
+</Callout>
 
 ## Choose Your Deployment
 
-- **[Hosted](/docs/getting-started/hosted)** -- Use the instance running at owlmetry.com. Sign up, create a project, and start sending events immediately.
-- **[Self-hosted](/docs/getting-started/self-hosting)** -- Run OwlMetry on your own server. Full control over your data, single PostgreSQL backend, deployed in under 30 minutes.
+- **[Hosted](/docs/getting-started/hosted)** — Use the instance at owlmetry.com. No server setup required.
+- **[Self-hosted](/docs/getting-started/self-hosting)** — Run OwlMetry on your own server. Full control over your data, deployed in under 30 minutes.
 
-## Choose Your SDK
+---
 
-OwlMetry provides two SDKs depending on your platform:
+## Manual Setup
+
+Prefer to set things up yourself? Here's what to do.
+
+### 1. Sign Up
+
+Go to [owlmetry.com](https://owlmetry.com) and enter your email. You'll receive a 6-digit verification code — enter it to sign in. No password needed. Your account is created automatically on first verification.
+
+If you're self-hosting, use your own instance URL instead.
+
+### 2. Create a Project
+
+In the dashboard sidebar, go to **Projects** and click **Create Project**. A project groups related apps across platforms (e.g., an iOS app and a backend service under one project).
+
+### 3. Create an App
+
+From your project's detail page, click **Create App**. Choose the platform that matches your target:
+
+| Platform | Use for |
+|----------|---------|
+| Apple | iOS, iPadOS, macOS apps |
+| Android | Android apps |
+| Web | Browser-based apps |
+| Backend | API servers, workers, serverless functions |
+
+For Apple, Android, and Web platforms, provide a **bundle ID** (e.g., `com.example.myapp`). Backend apps don't need one.
+
+When you create the app, a client API key (`owl_client_...`) is generated automatically. **Copy this key** — you'll need it to configure the SDK.
+
+<Callout>
+For a more detailed walkthrough of these steps, see [Using OwlMetry Cloud](/docs/getting-started/hosted).
+</Callout>
+
+### 4. Install and Configure Your SDK
 
 | SDK | Platforms | Install |
 |-----|-----------|---------|
 | [Swift SDK](/docs/sdks/swift) | iOS, iPadOS, macOS | Swift Package Manager |
 | [Node.js SDK](/docs/sdks/node) | Any Node.js backend | `npm install @owlmetry/node` |
 
-## Swift Quickstart
+### Swift Quickstart
 
 For iOS, iPadOS, and macOS apps. Requires an Apple-platform app and client key from OwlMetry.
 
-### 1. Add the Swift Package
+#### 1. Add the Swift Package
 
 In Xcode: **File > Add Package Dependencies**, enter the repository URL, select branch `main`, and add `OwlMetry` to your target.
 
@@ -45,7 +105,7 @@ Add to your target:
 
 Minimum platforms: iOS 16.0, macOS 13.0. Zero external dependencies.
 
-### 2. Configure
+#### 2. Configure
 
 Call `Owl.configure()` as early as possible -- in your `@main` App `init()` or AppDelegate `didFinishLaunching`:
 
@@ -73,7 +133,7 @@ struct MyApp: App {
 }
 ```
 
-### 3. Log an Event
+#### 3. Log an Event
 
 ```swift
 Owl.info("App launched")
@@ -87,11 +147,11 @@ Events are buffered and flushed automatically in batches. They appear in the Owl
 For the full Swift SDK reference -- screen tracking, metrics, funnels, identity, and experiments -- see the [Swift SDK documentation](/docs/sdks/swift).
 </Callout>
 
-## Node.js Quickstart
+### Node.js Quickstart
 
 For API servers, job workers, and serverless functions. Requires a backend-platform app and client key from OwlMetry.
 
-### 1. Install
+#### 1. Install
 
 ```bash
 npm install @owlmetry/node
@@ -99,7 +159,7 @@ npm install @owlmetry/node
 
 Zero runtime dependencies. Node.js 20+. ESM only.
 
-### 2. Configure
+#### 2. Configure
 
 Call `Owl.configure()` in your main entry point, before any other `Owl` calls:
 
@@ -114,7 +174,7 @@ Owl.configure({
 });
 ```
 
-### 3. Log an Event
+#### 3. Log an Event
 
 ```typescript
 Owl.info('Server started', { port: 4000 });
@@ -124,7 +184,7 @@ Owl.warn('Rate limit approaching', { current: 95, limit: 100 });
 
 Events are buffered in memory and flushed every 5 seconds or when 20 events accumulate. A `beforeExit` handler auto-flushes on graceful shutdown.
 
-### 4. Scoped Logging (Optional)
+#### 4. Scoped Logging (Optional)
 
 In multi-user backends, create a scoped logger to automatically tag events with a user ID:
 
