@@ -95,7 +95,7 @@ Accept a batch of events for a specific app.
 
 ### Gzip compression
 
-The endpoint accepts gzip-compressed request bodies. Set the `Content-Encoding: gzip` header. Compressed payloads must be under 1 MB (enforced via `Content-Length` check). The Swift SDK compresses payloads automatically.
+The endpoint accepts gzip-compressed request bodies. Set the `Content-Encoding: gzip` header. Both the compressed input and the decompressed output are limited to 1 MiB each. The compressed size is enforced via `Content-Length` check; the decompressed size is enforced during streaming decompression to prevent gzip bomb attacks (HTTP 413 if exceeded). The Swift SDK compresses payloads automatically.
 
 ### Dual-write behavior
 
