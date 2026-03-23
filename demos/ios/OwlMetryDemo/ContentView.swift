@@ -23,6 +23,7 @@ struct ContentView: View {
             }
             .navigationTitle("OwlMetry Demo")
         }
+        .owlScreen("Home")
         .onAppear {
             Owl.recordMetric("demo_app_opened")
             appendLog("App opened — recorded demo_app_opened")

@@ -125,6 +125,34 @@ Once `Owl.configure()` is in place and the project builds successfully, **you MU
 
 After the user chooses, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
 
+## Screen Tracking (`.owlScreen()`)
+
+The SDK provides a SwiftUI view modifier that automatically tracks screen appearances and time-on-screen with zero manual event calls.
+
+```swift
+struct HomeView: View {
+    var body: some View {
+        VStack { ... }
+            .owlScreen("Home")
+    }
+}
+
+struct SettingsView: View {
+    var body: some View {
+        Form { ... }
+            .owlScreen("Settings")
+    }
+}
+```
+
+**What it does automatically:**
+- On appear: emits `sdk:screen_appeared` (info level) with `screenName` set — included in production data
+- On disappear: emits `sdk:screen_disappeared` (debug level) with `screenName` set and `_duration_ms` attribute — only visible in dev data mode
+
+**Where to place it:** Attach `.owlScreen("ScreenName")` to the outermost view of each screen — typically on the `NavigationStack`, `Form`, `ScrollView`, or root `VStack`. Use it on every distinct screen in the app. Choose names that are short, readable, and consistent (e.g., `"Home"`, `"Settings"`, `"Profile"`, `"Checkout"`).
+
+**Prefer `.owlScreen()` over manual `Owl.info()` for screen views** — it handles both appear and disappear with duration tracking. Use manual `Owl.info()` with `screenName:` only for events within a screen (button taps, state changes), not for screen appearances themselves.
+
 ## Log Events
 
 Events are the core unit of data in OwlMetry. Use the four log levels to capture different kinds of information:
@@ -269,8 +297,8 @@ Owl.clearExperiments()
 When instrumenting a new app, follow this priority:
 
 **Always instrument (events — no CLI setup needed):**
+- Screen views (`.owlScreen("ScreenName")` on every distinct screen)
 - App launch / cold start (`info` in `init()` or `didFinishLaunching`)
-- Key screen views (`info` with `screenName` in `onAppear`)
 - Authentication events (login, logout, signup)
 - Errors and failures (`error` in `catch` blocks, error handlers)
 - Core business actions (purchase, share, create, delete)
@@ -284,7 +312,7 @@ When instrumenting a new app, follow this priority:
 - A/B experiments when testing alternative UI or flows
 
 **Where to place calls:**
-- Screen views: `.onAppear` modifiers in SwiftUI, `viewDidAppear` in UIKit
+- Screen views: `.owlScreen("Name")` on the outermost view of each screen (SwiftUI), `viewDidAppear` in UIKit
 - User actions: button action handlers, gesture callbacks
 - Errors: `catch` blocks, `Result.failure` handlers
 - Metrics: wrap the async operation between `startOperation()` and `complete()`/`fail()`
@@ -314,3 +342,9 @@ Every event automatically includes:
 - `_connection` — network type (wifi, cellular, ethernet, offline) via `NWPathMonitor`
 - `experiments` — current A/B experiment assignments
 - `environment` — specific runtime (ios, ipados, macos)
+
+**Auto-emitted lifecycle events** (no manual calls needed):
+- `sdk:session_started` — on `configure()`
+- `sdk:app_foregrounded` — when app enters foreground
+- `sdk:app_backgrounded` — when app enters background
+- `sdk:screen_appeared` (info) / `sdk:screen_disappeared` (debug) — when using `.owlScreen()` modifier (disappear includes `_duration_ms`)
