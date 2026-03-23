@@ -370,7 +370,6 @@ describe("POST /v1/ingest", () => {
     const bomb = Buffer.from("x".repeat(2 * 1024 * 1024));
     const compressed = gzipSync(bomb);
 
-    // Verify the compressed size is under the 1 MiB compressed limit
     expect(compressed.length).toBeLessThan(1024 * 1024);
 
     const res = await app.inject({

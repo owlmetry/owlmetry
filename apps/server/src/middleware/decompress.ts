@@ -1,5 +1,5 @@
 import { createGunzip } from "node:zlib";
-import { Transform, type TransformCallback } from "node:stream";
+import { Transform, type TransformCallback, pipeline } from "node:stream";
 import fp from "fastify-plugin";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
@@ -46,10 +46,9 @@ export const decompressPlugin = fp(async function (app: FastifyInstance) {
 
       const gunzip = createGunzip();
       const limiter = new SizeLimitedStream(MAX_DECOMPRESSED_SIZE);
-      gunzip.on("error", (err) => limiter.destroy(err));
-      limiter.on("error", () => gunzip.destroy());
+      pipeline(payload, gunzip, limiter, () => {});
 
-      return payload.pipe(gunzip).pipe(limiter);
+      return limiter;
     }
   );
 });
