@@ -311,7 +311,45 @@ op.fail(error: "timeout", attributes: ["retry_count": "3"])
 op.cancel(attributes: ["reason": "user_cancelled"])
 ```
 
-`duration_ms` and `tracking_id` (UUID) are auto-added. Create the metric definition first:
+`duration_ms` and `tracking_id` (UUID) are auto-added.
+
+**Rules for lifecycle operations:**
+
+- **Every `startOperation()` must end** with exactly one `.complete()`, `.fail()`, or `.cancel()`. An operation that starts but never ends creates orphaned metric data with no duration.
+- **`.complete()`** — the operation succeeded and produced its intended result.
+- **`.fail(error:)`** — the operation attempted work but encountered an error.
+- **`.cancel()`** — the operation was intentionally stopped before completion (user cancelled, view disappeared, became irrelevant).
+- **Don't start for no-ops** — if the operation is skipped entirely (cache hit, dedup, precondition not met), don't call `startOperation()` at all. Only start when actual work begins.
+- **Don't track duration manually** — `duration_ms` is auto-calculated from start to complete/fail/cancel. Never pass a manual duration attribute.
+- **Long-lived operations** — if the operation outlives the scope where it was started (e.g., recording that spans a view lifecycle), store the `Operation` handle as a property. Cancel it on cleanup (`.onDisappear`, `deinit`) if it hasn't ended yet:
+
+```swift
+// Store handle for operations that span a lifecycle
+@State private var recordingOp: Operation?
+
+func startRecording() {
+    recordingOp = Owl.startOperation("video-recording")
+    // ... begin recording
+}
+
+func stopRecording(url: URL) {
+    recordingOp?.complete(attributes: ["format": "mp4"])
+    recordingOp = nil
+}
+
+func onError(_ error: Error) {
+    recordingOp?.fail(error: error.localizedDescription)
+    recordingOp = nil
+}
+
+// Safety net: cancel if view disappears mid-operation
+.onDisappear {
+    recordingOp?.cancel()
+    recordingOp = nil
+}
+```
+
+Create the metric definition first:
 ```bash
 owlmetry metrics create --project-id <id> --name "Photo Upload" --slug photo-upload --lifecycle --format json
 ```
