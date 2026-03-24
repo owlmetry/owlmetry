@@ -18,7 +18,7 @@ The SDK has zero runtime dependencies. All calls are non-blocking — events are
 
 Run these checks silently. Only inform the user if updates are available.
 
-1. **Skill version**: `curl -sf https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/skills/owlmetry-node/SKILL.md | head -5` — compare the `version:` field to `0.1.0`. If newer, ask the user if they want to update.
+1. **Skill version**: `curl -sf https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/skills/owlmetry-node/SKILL.md | head -5` — compare the remote `version:` field to this file's `version:` frontmatter above. If the remote version is newer, ask the user if they want to update.
 2. **SDK version**: `npm ls @owlmetry/node --json 2>/dev/null` for current version, `npm view @owlmetry/node version 2>/dev/null` for latest. If newer, offer `npm install @owlmetry/node@latest`.
 
 ## Prerequisite
@@ -62,12 +62,23 @@ Owl.configure({
 **Serverless (Firebase Cloud Functions, AWS Lambda, Vercel):** After adding `Owl.configure()`, also wrap your exported handler functions with `Owl.wrapHandler()` to guarantee events are flushed before the runtime freezes. This is essential boilerplate for serverless — without it, buffered events are lost:
 
 ```typescript
-// Before:
-export const myFunction = onCall(async (request) => { ... });
+// AWS Lambda / generic serverless:
+export const handler = Owl.wrapHandler(async (event, context) => { ... });
 
-// After:
-export const myFunction = onCall(Owl.wrapHandler(async (request) => { ... }));
+// Firebase Cloud Functions v2:
+// IMPORTANT: Explicitly type the request parameter — TypeScript cannot infer
+// the CallableRequest type through wrapHandler's generics.
+import { onCall, type CallableRequest } from 'firebase-functions/v2/https';
+
+export const myFunction = onCall(
+  Owl.wrapHandler(async (request: CallableRequest) => {
+    const { data, auth } = request;  // works — TypeScript knows the type
+    // ...
+  })
+);
 ```
+
+**TypeScript note:** `wrapHandler()` uses generic rest parameters (`<TArgs extends unknown[]>`), which means TypeScript sometimes infers handler parameters as `unknown` when the outer function (like Firebase's `onCall`) expects a specific callback type. If you see type errors like `Property 'data' does not exist on type 'unknown'`, explicitly annotate the handler's parameters (e.g., `request: CallableRequest`, `event: APIGatewayEvent`).
 
 ## Next Steps — Codebase Instrumentation
 

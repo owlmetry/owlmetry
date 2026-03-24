@@ -18,7 +18,7 @@ The SDK is a static `Owl` enum with no external dependencies. All calls are non-
 
 Run these checks silently. Only inform the user if updates are available.
 
-1. **Skill version**: `curl -sf https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/skills/owlmetry-swift/SKILL.md | head -5` — compare the `version:` field to `0.1.0`. If newer, ask the user if they want to update.
+1. **Skill version**: `curl -sf https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/skills/owlmetry-swift/SKILL.md | head -5` — compare the remote `version:` field to this file's `version:` frontmatter above. If the remote version is newer, ask the user if they want to update.
 2. **SDK version**: Read `Package.resolved` for the current resolved revision, then compare against `curl -sf https://api.github.com/repos/Jasonvdb/owlmetry/releases/latest | jq -r .tag_name`. If newer, inform the user.
 
 ## Prerequisite
@@ -29,7 +29,12 @@ If the user doesn't have these yet, follow the `/owlmetry-cli` skill first — i
 
 ## Add Swift Package
 
-**Swift Package Manager (Package.swift):**
+**Minimum platforms:** iOS 16.0, macOS 13.0. Zero external dependencies.
+
+### Option A — Package.swift projects
+
+If the project has a `Package.swift`, add the dependency there:
+
 ```swift
 dependencies: [
     .package(url: "https://github.com/Jasonvdb/owlmetry.git", branch: "main")
@@ -42,29 +47,31 @@ Add to your target:
 ])
 ```
 
-**Xcode:** File > Add Package Dependencies > enter `https://github.com/Jasonvdb/owlmetry.git`, select branch `main`, add `OwlMetry` to your target.
+Then run `swift package resolve` to fetch the dependency.
 
-**Minimum platforms:** iOS 16.0, macOS 13.0. Zero external dependencies.
+### Option B — Xcode projects (.xcodeproj)
+
+For `.xcodeproj`-based projects with no `Package.swift`, add the OwlMetry Swift package by editing `<Project>.xcodeproj/project.pbxproj` directly to add a remote Swift package reference for `https://github.com/Jasonvdb/owlmetry.git` (branch: `main`, product: `OwlMetry`). Do not ask the user to add it manually in Xcode.
+
+### Option C — Ask the user (last resort)
+
+If pbxproj editing fails or the project structure is too complex, ask the user to add the package in Xcode:
+
+1. File > Add Package Dependencies
+2. Enter URL: `https://github.com/Jasonvdb/owlmetry.git`
+3. Set rule to **Branch** > `main`
+4. Add **OwlMetry** to the app target
 
 ## Verify Package Integration
 
-After adding the package, build the project to verify the dependency resolves and `import OwlMetry` compiles. Do not proceed with configuration until the build succeeds.
+After adding the package, resolve dependencies and build:
 
-If the build fails with a "No such module 'OwlMetry'" error, ask the user to add the package manually in Xcode:
+```bash
+xcodebuild -resolvePackageDependencies -project <path>.xcodeproj -quiet
+xcodebuild -project <path>.xcodeproj -scheme <SchemeName> -destination 'platform=iOS Simulator,name=iPhone 16' build -quiet
+```
 
-1. Open the `.xcodeproj` or `.xcworkspace` in Xcode
-2. Select the project in the navigator (blue icon at the top)
-3. Select the app target under "Targets"
-4. Go to the "General" tab
-5. Scroll to "Frameworks, Libraries, and Embedded Content"
-6. Click the **+** button
-7. Click "Add Other…" > "Add Package Dependency…"
-8. Enter the URL: `https://github.com/Jasonvdb/owlmetry.git`
-9. Set "Dependency Rule" to **Branch** → `main`
-10. Click "Add Package"
-11. Select the **OwlMetry** library and click "Add Package"
-
-Once the user confirms the package is added, retry the build to verify, then proceed with configuration.
+If the build succeeds, proceed with configuration. The "No such module 'OwlMetry'" warning in editors (SourceKit) is expected and resolves during a real `xcodebuild`.
 
 ## Configure
 
