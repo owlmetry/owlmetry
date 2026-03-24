@@ -13,14 +13,14 @@ owlmetry events [options]
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--project <id>` | No | Filter by project UUID |
-| `--app <id>` | No | Filter by app UUID |
+| `--project-id <id>` | No | Filter by project UUID |
+| `--app-id <id>` | No | Filter by app UUID |
 | `--since <time>` | No | Start time (default: `24h`) |
 | `--until <time>` | No | End time (default: now) |
 | `--level <level>` | No | Filter by log level: `info`, `debug`, `warn`, `error` |
-| `--user <id>` | No | Filter by user ID |
-| `--session <id>` | No | Filter by session UUID |
-| `--screen <name>` | No | Filter by screen name |
+| `--user-id <id>` | No | Filter by user ID |
+| `--session-id <id>` | No | Filter by session UUID |
+| `--screen-name <name>` | No | Filter by screen name |
 | `--limit <n>` | No | Max events to return |
 | `--cursor <cursor>` | No | Pagination cursor (from previous response) |
 | `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
@@ -53,10 +53,10 @@ The `--since` and `--until` flags accept two formats:
 owlmetry events --since 1h
 
 # Errors from a specific app in the last 7 days
-owlmetry events --app 550e8400-... --level error --since 7d
+owlmetry events --app-id 550e8400-... --level error --since 7d
 
 # Events for a specific user session
-owlmetry events --session a1b2c3d4-...
+owlmetry events --session-id a1b2c3d4-...
 
 # Development events only
 owlmetry events --since 1h --data-mode development

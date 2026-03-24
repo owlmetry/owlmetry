@@ -8,21 +8,21 @@ Apps represent a specific platform build within a [project](/docs/cli/projects).
 ## List apps
 
 ```bash
-owlmetry apps [--project <id>]
+owlmetry apps [--project-id <id>]
 ```
 
 Lists all apps accessible to the authenticated team. Optionally filter by project.
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--project <id>` | No | Filter results to a specific project UUID |
+| `--project-id <id>` | No | Filter results to a specific project UUID |
 
 ```bash
 # All apps
 owlmetry apps
 
 # Apps in a specific project
-owlmetry apps --project 550e8400-...
+owlmetry apps --project-id 550e8400-...
 ```
 
 ## View an app

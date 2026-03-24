@@ -8,15 +8,15 @@ The audit log records who performed what action on which resource within your te
 ## List audit log entries
 
 ```bash
-owlmetry audit-log list --team <id> [options]
+owlmetry audit-log list --team-id <id> [options]
 ```
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--team <id>` | Yes | Team UUID |
+| `--team-id <id>` | Yes | Team UUID |
 | `--resource-type <type>` | No | Filter by resource type (see table below) |
 | `--resource-id <id>` | No | Filter by specific resource UUID |
-| `--actor <id>` | No | Filter by actor ID (user UUID or API key ID) |
+| `--actor-id <id>` | No | Filter by actor ID (user UUID or API key ID) |
 | `--action <action>` | No | Filter by action: `create`, `update`, `delete` |
 | `--since <time>` | No | Start time (relative like `1h`, `7d`, or ISO 8601) |
 | `--until <time>` | No | End time |
@@ -59,19 +59,19 @@ Each audit log entry records who performed the action:
 
 ```bash
 # All entries for a team in the last 24 hours
-owlmetry audit-log list --team 550e8400-... --since 24h
+owlmetry audit-log list --team-id 550e8400-... --since 24h
 
 # API key changes only
-owlmetry audit-log list --team 550e8400-... --resource-type api_key
+owlmetry audit-log list --team-id 550e8400-... --resource-type api_key
 
 # Deletions in the last week
-owlmetry audit-log list --team 550e8400-... --action delete --since 7d
+owlmetry audit-log list --team-id 550e8400-... --action delete --since 7d
 
 # Actions by a specific user
-owlmetry audit-log list --team 550e8400-... --actor a1b2c3d4-...
+owlmetry audit-log list --team-id 550e8400-... --actor-id a1b2c3d4-...
 
 # Changes to a specific project
-owlmetry audit-log list --team 550e8400-... --resource-type project --resource-id 550e8400-...
+owlmetry audit-log list --team-id 550e8400-... --resource-type project --resource-id 550e8400-...
 ```
 
 ## JSON output
@@ -79,7 +79,7 @@ owlmetry audit-log list --team 550e8400-... --resource-type project --resource-i
 Use `--format json` for machine-readable output, including full `changes` and `metadata` fields that are not shown in the table view:
 
 ```bash
-owlmetry audit-log list --team 550e8400-... --format json
+owlmetry audit-log list --team-id 550e8400-... --format json
 ```
 
 Each entry in the JSON response includes:

@@ -8,19 +8,19 @@ Funnels track user progression through a sequence of steps, like an onboarding f
 ## List funnels
 
 ```bash
-owlmetry funnels --project <id>
+owlmetry funnels --project-id <id>
 ```
 
 Lists all funnel definitions for a project.
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--project <id>` | Yes | Project UUID |
+| `--project-id <id>` | Yes | Project UUID |
 
 ## View a funnel
 
 ```bash
-owlmetry funnels view <slug> --project <id>
+owlmetry funnels view <slug> --project-id <id>
 ```
 
 Shows the funnel definition including its steps, event filters, and description.
@@ -28,21 +28,24 @@ Shows the funnel definition including its steps, event filters, and description.
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<slug>` | Yes | Funnel slug |
-| `--project <id>` | Yes | Project UUID |
+| `--project-id <id>` | Yes | Project UUID |
 
 ## Create a funnel
 
 ```bash
-owlmetry funnels create --project <id> --name <name> --slug <slug> --steps <json> [--description <desc>]
+owlmetry funnels create --project-id <id> --name <name> --slug <slug> --steps <json> [--steps-file <path>] [--description <desc>]
 ```
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--project <id>` | Yes | Project UUID |
+| `--project-id <id>` | Yes | Project UUID |
 | `--name <name>` | Yes | Display name |
 | `--slug <slug>` | Yes | Unique identifier (lowercase letters, numbers, hyphens only) |
-| `--steps <json>` | Yes | Steps as a JSON array (see format below) |
+| `--steps <json>` | Yes* | Steps as a JSON array (see format below) |
+| `--steps-file <path>` | Yes* | Path to a JSON file containing steps (alternative to `--steps`) |
 | `--description <desc>` | No | Short description |
+
+*One of `--steps` or `--steps-file` is required. They are mutually exclusive.
 
 ### Step format
 
@@ -62,7 +65,7 @@ Maximum 20 steps per funnel.
 
 ```bash
 owlmetry funnels create \
-  --project 550e8400-... \
+  --project-id 550e8400-... \
   --name "Onboarding" \
   --slug onboarding \
   --description "New user onboarding flow" \
@@ -72,7 +75,7 @@ owlmetry funnels create \
 ## Query funnel analytics
 
 ```bash
-owlmetry funnels query <slug> --project <id> [options]
+owlmetry funnels query <slug> --project-id <id> [options]
 ```
 
 Returns step-by-step analytics: unique users at each step, percentage of start, and drop-off rates.
@@ -80,7 +83,7 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<slug>` | Yes | Funnel slug |
-| `--project <id>` | Yes | Project UUID |
+| `--project-id <id>` | Yes | Project UUID |
 | `--since <date>` | No | Start date (ISO 8601) |
 | `--until <date>` | No | End date (ISO 8601) |
 | `--open` | No | Use open (independent) mode instead of closed (sequential) mode |
@@ -107,45 +110,46 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 
 ```bash
 # Closed funnel for the last 30 days
-owlmetry funnels query onboarding --project 550e8400-... --since 2025-01-01
+owlmetry funnels query onboarding --project-id 550e8400-... --since 2025-01-01
 
 # Open funnel
-owlmetry funnels query onboarding --project 550e8400-... --open
+owlmetry funnels query onboarding --project-id 550e8400-... --open
 
 # A/B test comparison
-owlmetry funnels query onboarding --project 550e8400-... --group-by experiment:onboarding-variant
+owlmetry funnels query onboarding --project-id 550e8400-... --group-by experiment:onboarding-variant
 
 # Filter to a specific experiment arm
-owlmetry funnels query onboarding --project 550e8400-... --experiment onboarding-variant:control
+owlmetry funnels query onboarding --project-id 550e8400-... --experiment onboarding-variant:control
 ```
 
 ## Update a funnel
 
 ```bash
-owlmetry funnels update <slug> --project <id> [options]
+owlmetry funnels update <slug> --project-id <id> [options]
 ```
 
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<slug>` | Yes | Funnel slug |
-| `--project <id>` | Yes | Project UUID |
+| `--project-id <id>` | Yes | Project UUID |
 | `--name <name>` | No | New display name |
 | `--description <desc>` | No | New description |
 | `--steps <json>` | No | New steps as JSON array |
+| `--steps-file <path>` | No | Path to a JSON file containing new steps (alternative to `--steps`) |
 
 ```bash
 # Rename a funnel
-owlmetry funnels update onboarding --project 550e8400-... --name "New User Onboarding"
+owlmetry funnels update onboarding --project-id 550e8400-... --name "New User Onboarding"
 
 # Replace steps
-owlmetry funnels update onboarding --project 550e8400-... \
+owlmetry funnels update onboarding --project-id 550e8400-... \
   --steps '[{"name":"sign-up","event_filter":{"message":"track:sign-up"}},{"name":"tutorial","event_filter":{"message":"track:tutorial"}}]'
 ```
 
 ## Delete a funnel
 
 ```bash
-owlmetry funnels delete <slug> --project <id>
+owlmetry funnels delete <slug> --project-id <id>
 ```
 
 Soft-deletes the funnel definition. Existing funnel events are not removed.
@@ -153,4 +157,4 @@ Soft-deletes the funnel definition. Existing funnel events are not removed.
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<slug>` | Yes | Funnel slug |
-| `--project <id>` | Yes | Project UUID |
+| `--project-id <id>` | Yes | Project UUID |
