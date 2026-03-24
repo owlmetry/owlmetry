@@ -8,6 +8,7 @@ import {
   Terminal,
   FileCode,
   Server,
+  CircleHelp,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -18,6 +19,7 @@ const icons: Record<string, ReactNode> = {
   Terminal: <Terminal className="h-4 w-4" />,
   FileCode: <FileCode className="h-4 w-4" />,
   Server: <Server className="h-4 w-4" />,
+  CircleHelp: <CircleHelp className="h-4 w-4" />,
 };
 
 export const docsSource = loader({
