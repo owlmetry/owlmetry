@@ -116,6 +116,59 @@ OwlMetry organises resources in a `Team → Project → Apps` hierarchy:
 
 Projects group apps cross-platform: an iOS app and its backend API can share the same project, enabling unified funnel and metric analysis across both.
 
+## Command Quick Reference
+
+Copy-paste ready. All commands support `--format json` for machine-readable output. Global flags: `--endpoint <url>`, `--api-key <key>`, `--team <name-or-id>`.
+
+```
+# Auth
+owlmetry auth send-code --email <email>
+owlmetry auth verify --email <email> --code <code> --format json
+owlmetry whoami --format json
+owlmetry switch [<name-or-slug>]
+owlmetry setup --endpoint <url> --api-key <key> [--ingest-endpoint <url>]
+
+# Projects
+owlmetry projects --format json
+owlmetry projects view <id> --format json
+owlmetry projects create --name <name> --slug <slug> [--team-id <id>] --format json
+owlmetry projects update <id> --name <name> --format json
+
+# Apps
+owlmetry apps list [--project-id <id>] --format json
+owlmetry apps view <id> --format json
+owlmetry apps create --project-id <id> --name <name> --platform <platform> [--bundle-id <id>] --format json
+owlmetry apps update <id> --name <name> --format json
+
+# Metrics
+owlmetry metrics list --project-id <id> --format json
+owlmetry metrics view <slug> --project-id <id> --format json
+owlmetry metrics create --project-id <id> --name <name> --slug <slug> [--lifecycle] [--description <desc>] --format json
+owlmetry metrics update <slug> --project-id <id> [--name <name>] [--status active|paused] --format json
+owlmetry metrics delete <slug> --project-id <id>
+owlmetry metrics events <slug> --project-id <id> [--phase <phase>] [--user-id <id>] [--since <time>] [--until <time>] --format json
+owlmetry metrics query <slug> --project-id <id> [--since <date>] [--until <date>] [--app-id <id>] [--user-id <id>] [--group-by <field>] --format json
+
+# Funnels
+owlmetry funnels list --project-id <id> --format json
+owlmetry funnels view <slug> --project-id <id> --format json
+owlmetry funnels create --project-id <id> --name <name> --slug <slug> --steps-file <path> [--description <desc>] --format json
+owlmetry funnels update <slug> --project-id <id> --steps-file <path> --format json
+owlmetry funnels delete <slug> --project-id <id>
+owlmetry funnels query <slug> --project-id <id> [--since <date>] [--until <date>] [--open] [--group-by <field>] --format json
+
+# Events
+owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] --format json
+owlmetry events view <id> --format json
+owlmetry investigate <eventId> [--window <minutes>] --format json
+
+# Users
+owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--limit <n>] --format json
+
+# Audit Logs
+owlmetry audit-log list --team-id <id> [--resource-type <type>] [--actor-id <id>] [--action <action>] [--since <time>] --format json
+```
+
 ## Resource Management
 
 ### Projects
