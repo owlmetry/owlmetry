@@ -1,10 +1,10 @@
-import fs from "node:fs";
 import { Command, Option } from "commander";
 import chalk from "chalk";
 import type { FunnelDefinitionResponse, FunnelQueryResponse, FunnelStepAnalytics } from "@owlmetry/shared";
 import { validateFunnelSlug } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
+import { resolveJsonArray } from "../utils/parse.js";
 
 function formatFunnelsTable(funnels: FunnelDefinitionResponse[]): string {
   if (funnels.length === 0) return chalk.dim("No funnels defined");
@@ -106,13 +106,8 @@ function formatQueryResult(result: FunnelQueryResponse): string {
 export const funnelsCommand = new Command("funnels")
   .description("List funnel definitions")
   .enablePositionalOptions()
-  .option("--project-id <id>", "Project ID")
-  .action(async (opts: { projectId?: string }, cmd) => {
-    if (!opts.projectId) {
-      console.error(chalk.red("Error: --project-id is required"));
-      process.exitCode = 1;
-      return;
-    }
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     const result = await client.listFunnels(opts.projectId);
     output(globals.format, result.funnels, () => formatFunnelsTable(result.funnels));
@@ -145,41 +140,9 @@ funnelsCommand
       return;
     }
 
-    if (!opts.steps && !opts.stepsFile) {
-      console.error(chalk.red("Error: either --steps or --steps-file is required"));
-      process.exitCode = 1;
-      return;
-    }
-    if (opts.steps && opts.stepsFile) {
-      console.error(chalk.red("Error: --steps and --steps-file are mutually exclusive"));
-      process.exitCode = 1;
-      return;
-    }
-
-    let stepsJson: string;
-    if (opts.stepsFile) {
-      try {
-        stepsJson = fs.readFileSync(opts.stepsFile, "utf-8");
-      } catch (err: any) {
-        console.error(chalk.red(`Error reading --steps-file: ${err.message}`));
-        process.exitCode = 1;
-        return;
-      }
-    } else {
-      stepsJson = opts.steps!;
-    }
-
-    let steps: unknown;
-    try {
-      steps = JSON.parse(stepsJson);
-    } catch {
-      console.error(chalk.red("Error: steps must be valid JSON"));
-      process.exitCode = 1;
-      return;
-    }
-
-    if (!Array.isArray(steps) || steps.length === 0) {
-      console.error(chalk.red("Error: steps must be a non-empty JSON array"));
+    const stepsResult = resolveJsonArray(opts.steps, opts.stepsFile, { required: true });
+    if (typeof stepsResult === "string") {
+      console.error(chalk.red(stepsResult));
       process.exitCode = 1;
       return;
     }
@@ -189,7 +152,7 @@ funnelsCommand
       name: opts.name,
       slug: opts.slug,
       description: opts.description,
-      steps,
+      steps: stepsResult,
     });
     output(globals.format, funnel, () => formatFunnelDetail(funnel));
   });
@@ -203,42 +166,18 @@ funnelsCommand
   .option("--steps <json>", "New steps as JSON array")
   .option("--steps-file <path>", "Read steps from a JSON file")
   .action(async (slug: string, opts: { projectId: string; name?: string; description?: string; steps?: string; stepsFile?: string }, cmd) => {
-    if (opts.steps && opts.stepsFile) {
-      console.error(chalk.red("Error: --steps and --steps-file are mutually exclusive"));
-      process.exitCode = 1;
-      return;
-    }
-
-    const body: { name?: string; description?: string; steps?: unknown } = {};
+    const body: { name?: string; description?: string; steps?: unknown[] } = {};
     if (opts.name !== undefined) body.name = opts.name;
     if (opts.description !== undefined) body.description = opts.description;
 
-    let stepsJson: string | undefined;
-    if (opts.stepsFile) {
-      try {
-        stepsJson = fs.readFileSync(opts.stepsFile, "utf-8");
-      } catch (err: any) {
-        console.error(chalk.red(`Error reading --steps-file: ${err.message}`));
+    if (opts.steps || opts.stepsFile) {
+      const stepsResult = resolveJsonArray(opts.steps, opts.stepsFile, { required: false });
+      if (typeof stepsResult === "string") {
+        console.error(chalk.red(stepsResult));
         process.exitCode = 1;
         return;
       }
-    } else if (opts.steps) {
-      stepsJson = opts.steps;
-    }
-
-    if (stepsJson !== undefined) {
-      try {
-        body.steps = JSON.parse(stepsJson);
-      } catch {
-        console.error(chalk.red("Error: steps must be valid JSON"));
-        process.exitCode = 1;
-        return;
-      }
-      if (!Array.isArray(body.steps) || (body.steps as unknown[]).length === 0) {
-        console.error(chalk.red("Error: steps must be a non-empty JSON array"));
-        process.exitCode = 1;
-        return;
-      }
+      body.steps = stepsResult;
     }
 
     const { client, globals } = createClient(cmd);

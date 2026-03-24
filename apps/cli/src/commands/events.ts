@@ -20,7 +20,7 @@ export const eventsCommand = new Command("events")
   )
   .option("--user-id <id>", "Filter by user ID")
   .option("--session-id <id>", "Filter by session ID")
-  .option("--screen <name>", "Filter by screen name")
+  .option("--screen-name <name>", "Filter by screen name")
   .addOption(
     new Option("--limit <n>", "Max events to return")
       .argParser((v) => parsePositiveInt(v, "--limit")),
@@ -39,7 +39,7 @@ export const eventsCommand = new Command("events")
     level?: string;
     userId?: string;
     sessionId?: string;
-    screen?: string;
+    screenName?: string;
     limit?: number;
     cursor?: string;
     dataMode: string;
@@ -61,7 +61,7 @@ export const eventsCommand = new Command("events")
       level: opts.level,
       user_id: opts.userId,
       session_id: opts.sessionId,
-      screen_name: opts.screen,
+      screen_name: opts.screenName,
       limit: opts.limit,
       cursor: opts.cursor,
       data_mode: opts.dataMode as any,
