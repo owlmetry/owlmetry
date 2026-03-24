@@ -200,6 +200,7 @@ Events are the core unit of data in OwlMetry. Use the four log levels to capture
 Choose **message strings** that are specific and searchable. Prefer `"Failed to load profile image"` over `"error"`. Use `screenName` to tie events to where they happened in the UI. Use `customAttributes` for structured data you'll want to filter or search on later.
 
 ```swift
+// In a screen context — pass screenName to tie the event to the screen
 Owl.info("User opened settings", screenName: "SettingsView")
 Owl.debug("Cache hit", screenName: "HomeView", customAttributes: ["key": "user_prefs"])
 Owl.warn("Invalid email format", screenName: "SignUpView", customAttributes: ["input": email])
@@ -209,12 +210,18 @@ do {
 } catch {
     Owl.error("Failed to load profile", screenName: "ProfileView", customAttributes: ["error": "\(error)"])
 }
+
+// Outside a screen context — omit screenName entirely
+Owl.info("Background sync completed", customAttributes: ["items": "\(count)"])
+Owl.error("Keychain write failed", customAttributes: ["error": "\(error)"])
 ```
 
 All logging methods share the same signature:
 ```swift
 Owl.info(_ message: String, screenName: String? = nil, customAttributes: [String: String]? = nil)
 ```
+
+**`screenName` is optional.** Only pass it when the event originates from a specific screen in the UI (e.g., a button tap handler inside a view). **Do NOT pass `screenName`** when logging from utility functions, services, managers, network layers, background tasks, or anywhere that isn't directly tied to a visible screen. Passing a fabricated or guessed screen name is worse than omitting it — it pollutes screen-level analytics.
 
 Source file, function, and line are auto-captured.
 
@@ -354,8 +361,9 @@ When instrumenting a new app, follow this priority:
 
 **Where to place calls:**
 - Screen views: `.owlScreen("Name")` on the outermost view of each screen (SwiftUI), `viewDidAppear` in UIKit
-- User actions: button action handlers, gesture callbacks
-- Errors: `catch` blocks, `Result.failure` handlers
+- User actions: button action handlers, gesture callbacks — pass `screenName` since you know which screen the user is on
+- Errors: `catch` blocks, `Result.failure` handlers — pass `screenName` only if the error is caught inside a view; omit it if caught in a service, manager, or utility
+- Services, utilities, background tasks: log freely but **never pass `screenName`** — these are not screen-bound
 - Metrics: wrap the async operation between `startOperation()` and `complete()`/`fail()`
 
 **What NOT to instrument:**
