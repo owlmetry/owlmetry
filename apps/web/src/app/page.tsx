@@ -117,9 +117,10 @@ export default async function LandingPage() {
               />
               <Image
                 src="/owl-logo.png"
-                alt="OwlMetry"
+                alt="OwlMetry — agent-first observability for mobile apps"
                 width={128}
                 height={128}
+                priority
                 className="relative h-24 w-24 md:h-28 md:w-28 landing-float drop-shadow-[0_0_30px_oklch(0.555_0.163_48.998_/_0.3)]"
               />
             </div>
@@ -613,6 +614,76 @@ export default async function LandingPage() {
       </section>
     </main>
       <MarketingFooter />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([
+            {
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              name: "OwlMetry",
+              applicationCategory: "DeveloperApplication",
+              operatingSystem: "iOS, iPadOS, macOS, Node.js",
+              description:
+                "Agent-first observability platform. Structured events, performance metrics, and conversion funnels for mobile and backend apps.",
+              url: "https://owlmetry.com",
+              image: "https://owlmetry.com/owl-logo.png",
+              author: {
+                "@type": "Organization",
+                name: "Adapted Hub LLC",
+                url: "https://owlmetry.com",
+                logo: "https://owlmetry.com/owl-logo.png",
+                email: "jason@owlmetry.com",
+                sameAs: ["https://github.com/Jasonvdb/owlmetry"],
+              },
+              offers: [
+                {
+                  "@type": "Offer",
+                  name: "Free",
+                  price: "0",
+                  priceCurrency: "USD",
+                  description: "1 app, 10,000 events per month",
+                },
+                {
+                  "@type": "Offer",
+                  name: "Pro",
+                  price: "0",
+                  priceCurrency: "USD",
+                  description:
+                    "Unlimited apps and events. Free during alpha.",
+                },
+                {
+                  "@type": "Offer",
+                  name: "Self-Hosted",
+                  price: "0",
+                  priceCurrency: "USD",
+                  description:
+                    "Unlimited everything on your own infrastructure",
+                },
+              ],
+              featureList: [
+                "Agent-native API",
+                "Structured event ingestion",
+                "Performance metrics with lifecycle tracking",
+                "Funnel analytics with A/B experiments",
+                "Swift SDK for iOS/iPadOS/macOS",
+                "Node.js SDK for backends",
+                "CLI for agents and humans",
+                "Self-hosted with single PostgreSQL",
+              ],
+              isAccessibleForFree: true,
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "OwlMetry",
+              url: "https://owlmetry.com",
+              description:
+                "Self-hosted observability platform for mobile and backend apps",
+            },
+          ]),
+        }}
+      />
     </>
   );
 }

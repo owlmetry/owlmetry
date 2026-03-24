@@ -5,6 +5,7 @@ const withMDX = createMDX();
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  poweredByHeader: false,
   transpilePackages: ["@owlmetry/shared"],
 };
 
