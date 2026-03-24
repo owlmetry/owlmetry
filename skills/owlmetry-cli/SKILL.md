@@ -116,6 +116,14 @@ OwlMetry organises resources in a `Team → Project → Apps` hierarchy:
 
 Projects group apps cross-platform: an iOS app and its backend API can share the same project, enabling unified funnel and metric analysis across both.
 
+## Discovering IDs
+
+Always use CLI commands to get IDs — never read `~/.owlmetry/config.json` directly.
+
+- **Team ID**: `owlmetry whoami --format json` → `.teams[].id`
+- **Project ID**: `owlmetry projects --format json` → `[].id`
+- **App ID**: `owlmetry apps list --format json` → `[].id` (also returns `client_key`)
+
 ## Command Quick Reference
 
 Copy-paste ready. All commands support `--format json` for machine-readable output. Global flags: `--endpoint <url>`, `--api-key <key>`, `--team <name-or-id>`.
