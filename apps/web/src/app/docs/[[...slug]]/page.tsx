@@ -41,7 +41,7 @@ export async function generateMetadata(props: {
   if (!page) notFound();
 
   return {
-    title: `${page.data.title} — OwlMetry Docs`,
+    title: { absolute: `${page.data.title} — OwlMetry Docs` },
     description: page.data.description,
   };
 }
