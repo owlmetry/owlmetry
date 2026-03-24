@@ -6,6 +6,7 @@
     "sdks",
     "cli",
     "api-reference",
-    "self-hosting"
+    "self-hosting",
+    "faq"
   ]
 }

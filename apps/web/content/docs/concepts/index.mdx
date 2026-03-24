@@ -3,12 +3,14 @@ title: Concepts
 description: Core building blocks of OwlMetry — events, metrics, funnels, experiments, projects, authentication, and data mode.
 ---
 
-Understand the core building blocks that make up OwlMetry.
+OwlMetry's data model is built around a small set of composable primitives. Events capture what happened, metrics measure how long things take, funnels track multi-step conversions, and experiments let you compare variants. Everything is scoped to projects and apps, secured by API keys, and filterable by data mode.
 
-- **[Events](/docs/concepts/events)** -- The core data unit. Log levels, sessions, timestamps, deduplication, and custom attributes.
-- **[Structured Metrics](/docs/concepts/metrics)** -- Lifecycle operations (start/complete/fail/cancel), single-shot measurements, duration tracking, and aggregation queries.
-- **[Funnels](/docs/concepts/funnels)** -- Multi-step conversion tracking with open and closed analysis modes, drop-off rates, and experiment segmentation.
-- **[A/B Experiments](/docs/concepts/experiments)** -- Client-side variant assignment with persistent storage and automatic event tagging.
-- **[Projects & Apps](/docs/concepts/projects-and-apps)** -- How projects group apps across platforms, bundle ID validation, and auto-created client keys.
-- **[Authentication & API Keys](/docs/concepts/authentication)** -- Passwordless email auth, client vs agent keys, permissions, team roles, and invitations.
-- **[Data Mode](/docs/concepts/data-mode)** -- Filtering between production and development data across the dashboard, CLI, and API.
+Understanding these concepts will help you instrument your app effectively and get the most out of the dashboard and CLI.
+
+- **[Events](/docs/concepts/events)** — The core data unit. Every interaction, error, and state change becomes a structured event with log levels, session tracking, timestamps, deduplication, and custom attributes. Events are the foundation that metrics and funnels build on.
+- **[Structured Metrics](/docs/concepts/metrics)** — Lifecycle operations (start/complete/fail/cancel), single-shot measurements, duration tracking, and aggregation queries. Use metrics to track performance-critical operations like API calls, image uploads, or checkout flows.
+- **[Funnels](/docs/concepts/funnels)** — Multi-step conversion tracking with open and closed analysis modes, drop-off rates, and experiment segmentation. Funnels answer "where are users dropping off?" and "which variant converts better?"
+- **[A/B Experiments](/docs/concepts/experiments)** — Client-side variant assignment with persistent storage and automatic event tagging. Assign variants, measure impact through funnel segmentation, and ship the winner.
+- **[Projects & Apps](/docs/concepts/projects-and-apps)** — How projects group apps across platforms, bundle ID validation, and auto-created client keys. A single project can have iOS, Android, web, and backend apps — all sharing the same dashboard.
+- **[Authentication & API Keys](/docs/concepts/authentication)** — Passwordless email auth, client vs agent keys, permissions, team roles, and invitations. Client keys are for SDKs (write-only), agent keys are for the CLI and API (read/write).
+- **[Data Mode](/docs/concepts/data-mode)** — Filtering between production and development data across the dashboard, CLI, and API. Keep debug noise out of production views without losing visibility into dev builds.
