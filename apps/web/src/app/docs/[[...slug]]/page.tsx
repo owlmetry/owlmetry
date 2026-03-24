@@ -40,8 +40,10 @@ export async function generateMetadata(props: {
   const page = docsSource.getPage(params.slug);
   if (!page) notFound();
 
+  const slug = params.slug?.join("/") ?? "";
   return {
     title: { absolute: `${page.data.title} — OwlMetry Docs` },
     description: page.data.description,
+    alternates: { canonical: `/docs${slug ? `/${slug}` : ""}` },
   };
 }
