@@ -22,6 +22,13 @@ const columns = [
     ],
   },
   {
+    title: "Legal",
+    links: [
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms of Service", href: "/terms" },
+    ],
+  },
+  {
     title: "Contact",
     links: [
       { label: "jason@owlmetry.com", href: "mailto:jason@owlmetry.com" },
@@ -33,7 +40,7 @@ export function MarketingFooter() {
   return (
     <footer style={{ background: "oklch(0.10 0.012 55)" }}>
       <div className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid gap-12 md:grid-cols-4">
+        <div className="grid gap-12 md:grid-cols-5">
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
               <OwlLogo className="h-7 w-7" />

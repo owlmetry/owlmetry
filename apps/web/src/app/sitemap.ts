@@ -16,6 +16,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
 			changeFrequency: "weekly",
 			priority: 1.0,
 		},
+		{
+			url: `${BASE_URL}/privacy`,
+			changeFrequency: "yearly",
+			priority: 0.3,
+		},
+		{
+			url: `${BASE_URL}/terms`,
+			changeFrequency: "yearly",
+			priority: 0.3,
+		},
 		...docPages,
 	];
 }
