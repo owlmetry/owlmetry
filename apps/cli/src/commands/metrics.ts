@@ -86,8 +86,11 @@ function formatQueryResult(result: MetricQueryResponse): string {
 }
 
 export const metricsCommand = new Command("metrics")
+  .description("Manage metric definitions");
+
+metricsCommand
+  .command("list")
   .description("List metric definitions")
-  .enablePositionalOptions()
   .requiredOption("--project-id <id>", "Project ID")
   .action(async (opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);

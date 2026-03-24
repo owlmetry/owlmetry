@@ -104,8 +104,11 @@ function formatQueryResult(result: FunnelQueryResponse): string {
 }
 
 export const funnelsCommand = new Command("funnels")
+  .description("Manage funnel definitions");
+
+funnelsCommand
+  .command("list")
   .description("List funnel definitions")
-  .enablePositionalOptions()
   .requiredOption("--project-id <id>", "Project ID")
   .action(async (opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);

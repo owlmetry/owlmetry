@@ -6,8 +6,11 @@ import { output } from "../formatters/index.js";
 import { formatAppsTable, formatAppDetail } from "../formatters/table.js";
 
 export const appsCommand = new Command("apps")
+  .description("Manage apps");
+
+appsCommand
+  .command("list")
   .description("List apps")
-  .enablePositionalOptions()
   .option("--project-id <id>", "Filter by project ID")
   .action(async (opts: { projectId?: string }, cmd) => {
     const { client, globals } = createClient(cmd);

@@ -134,8 +134,8 @@ owlmetry projects update <id> --name <new-name> --format json
 An app represents a single deployable target. The `client_key` returned on creation is what SDKs use for event ingestion. The `bundle_id` is **immutable after creation** — to change it, delete and recreate the app. Backend apps have no bundle_id.
 
 ```bash
-owlmetry apps --format json                                            # List all
-owlmetry apps --project-id <id> --format json                          # List by project
+owlmetry apps list --format json                                       # List all
+owlmetry apps list --project-id <id> --format json                     # List by project
 owlmetry apps view <id> --format json                                  # View details
 owlmetry apps create --project-id <id> --name <name> --platform <platform> [--bundle-id <id>] --format json
 owlmetry apps update <id> --name <new-name> --format json
@@ -155,7 +155,7 @@ Metrics are project-scoped definitions that tell OwlMetry what structured data t
 The metric definition must exist on the server **before** the SDK emits events for that slug, otherwise the server will reject the events.
 
 ```bash
-owlmetry metrics --project-id <id> --format json                       # List all
+owlmetry metrics list --project-id <id> --format json                   # List all
 owlmetry metrics view <slug> --project-id <id> --format json           # View details
 owlmetry metrics create --project-id <id> --name <name> --slug <slug> [--lifecycle] [--description <desc>] --format json
 owlmetry metrics update <slug> --project-id <id> [--name <name>] [--status active|paused] --format json
@@ -177,7 +177,7 @@ Funnels support two analysis modes:
 Maximum 20 steps per funnel.
 
 ```bash
-owlmetry funnels --project-id <id> --format json                       # List all
+owlmetry funnels list --project-id <id> --format json                   # List all
 owlmetry funnels view <slug> --project-id <id> --format json           # View details
 owlmetry funnels delete <slug> --project-id <id>
 ```

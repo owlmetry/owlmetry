@@ -8,7 +8,7 @@ Apps represent a specific platform build within a [project](/docs/cli/projects).
 ## List apps
 
 ```bash
-owlmetry apps [--project-id <id>]
+owlmetry apps list [--project-id <id>]
 ```
 
 Lists all apps accessible to the authenticated team. Optionally filter by project.
@@ -19,10 +19,10 @@ Lists all apps accessible to the authenticated team. Optionally filter by projec
 
 ```bash
 # All apps
-owlmetry apps
+owlmetry apps list
 
 # Apps in a specific project
-owlmetry apps --project-id 550e8400-...
+owlmetry apps list --project-id 550e8400-...
 ```
 
 ## View an app
@@ -94,6 +94,6 @@ Only the app name can be updated. Bundle IDs are immutable after creation.
 All app commands support `--format json` for machine-readable output:
 
 ```bash
-owlmetry apps --format json
+owlmetry apps list --format json
 owlmetry apps view <id> --format json
 ```
