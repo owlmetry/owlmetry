@@ -321,11 +321,11 @@ op.cancel(attributes: ["reason": "user_cancelled"])
 - **`.cancel()`** — the operation was intentionally stopped before completion (user cancelled, view disappeared, became irrelevant).
 - **Don't start for no-ops** — if the operation is skipped entirely (cache hit, dedup, precondition not met), don't call `startOperation()` at all. Only start when actual work begins.
 - **Don't track duration manually** — `duration_ms` is auto-calculated from start to complete/fail/cancel. Never pass a manual duration attribute.
-- **Long-lived operations** — if the operation outlives the scope where it was started (e.g., recording that spans a view lifecycle), store the `Operation` handle as a property. Cancel it on cleanup (`.onDisappear`, `deinit`) if it hasn't ended yet:
+- **Long-lived operations** — if the operation outlives the scope where it was started (e.g., recording that spans a view lifecycle), store the `OwlOperation` handle as a property. Cancel it on cleanup (`.onDisappear`, `deinit`) if it hasn't ended yet:
 
 ```swift
 // Store handle for operations that span a lifecycle
-@State private var recordingOp: Operation?
+@State private var recordingOp: OwlOperation?
 
 func startRecording() {
     recordingOp = Owl.startOperation("video-recording")

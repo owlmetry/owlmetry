@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Configuration: Sendable {
+public struct OwlConfiguration: Sendable {
     let endpoint: URL
     let apiKey: String
     let bundleId: String
@@ -12,7 +12,7 @@ public struct Configuration: Sendable {
 
     public init(endpoint: String, apiKey: String, flushOnBackground: Bool = true, compressionEnabled: Bool = true, networkTrackingEnabled: Bool = true) throws {
         guard let bundleId = Bundle.main.bundleIdentifier, !bundleId.isEmpty else {
-            throw ConfigurationError.missingBundleId
+            throw OwlConfigurationError.missingBundleId
         }
         try self.init(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
     }
@@ -20,13 +20,13 @@ public struct Configuration: Sendable {
     /// Internal initializer for testing with an explicit bundle ID.
     init(endpoint: String, apiKey: String, bundleId: String, flushOnBackground: Bool = true, compressionEnabled: Bool = true, networkTrackingEnabled: Bool = true) throws {
         guard let url = URL(string: endpoint) else {
-            throw ConfigurationError.invalidEndpoint(endpoint)
+            throw OwlConfigurationError.invalidEndpoint(endpoint)
         }
         guard apiKey.hasPrefix(Self.clientKeyPrefix) else {
-            throw ConfigurationError.invalidApiKey("API key must start with \"\(Self.clientKeyPrefix)\"")
+            throw OwlConfigurationError.invalidApiKey("API key must start with \"\(Self.clientKeyPrefix)\"")
         }
         guard !bundleId.isEmpty else {
-            throw ConfigurationError.missingBundleId
+            throw OwlConfigurationError.missingBundleId
         }
         self.endpoint = url
         self.apiKey = apiKey
@@ -37,7 +37,7 @@ public struct Configuration: Sendable {
     }
 }
 
-public enum ConfigurationError: LocalizedError {
+public enum OwlConfigurationError: LocalizedError {
     case invalidEndpoint(String)
     case invalidApiKey(String)
     case missingBundleId

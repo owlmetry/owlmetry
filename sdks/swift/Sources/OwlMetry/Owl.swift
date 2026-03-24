@@ -7,7 +7,7 @@ public enum Owl {
     private static let logger = Logger(subsystem: logSubsystem, category: "owl")
 
     private struct State {
-        var configuration: Configuration?
+        var configuration: OwlConfiguration?
         var deviceInfo: DeviceInfo?
         var transport: EventTransport?
         var duplicateFilter: DuplicateFilter?
@@ -31,7 +31,7 @@ public enum Owl {
         compressionEnabled: Bool = true,
         networkTrackingEnabled: Bool = true
     ) throws {
-        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
+        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
         try configureWith(config)
     }
 
@@ -44,11 +44,11 @@ public enum Owl {
         compressionEnabled: Bool = true,
         networkTrackingEnabled: Bool = true
     ) throws {
-        let config = try Configuration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
+        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
         try configureWith(config)
     }
 
-    private static func configureWith(_ config: Configuration) throws {
+    private static func configureWith(_ config: OwlConfiguration) throws {
 
         let monitor = NetworkMonitor()
         let queue = OfflineQueue()
@@ -279,9 +279,9 @@ public enum Owl {
         file: String = #file,
         function: String = #function,
         line: Int = #line
-    ) -> Operation {
+    ) -> OwlOperation {
         let slug = normalizeSlug(metric)
-        let op = Operation(metric: slug)
+        let op = OwlOperation(metric: slug)
         var attrs = attributes ?? [:]
         attrs["tracking_id"] = op.trackingId
         info("metric:\(slug):start", customAttributes: attrs, file: file, function: function, line: line)
@@ -340,7 +340,7 @@ public enum Owl {
 
     private static func log(
         _ message: String,
-        level: LogLevel,
+        level: OwlLogLevel,
         screenName: String?,
         customAttributes: [String: String]?,
         file: String,

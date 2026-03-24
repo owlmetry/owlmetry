@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LogLevel: String, Codable, Sendable {
+public enum OwlLogLevel: String, Codable, Sendable {
     case info
     case debug
     case warn

@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { validateConfiguration, type ValidatedConfig } from "./configuration.js";
 import { Transport } from "./transport.js";
-import type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
-import { Operation } from "./operation.js";
+import type { OwlConfiguration, OwlLogLevel, LogEvent } from "./types.js";
+import { OwlOperation } from "./operation.js";
 
-export type { OwlConfiguration, LogLevel, LogEvent } from "./types.js";
-export { Operation } from "./operation.js";
+export type { OwlConfiguration, OwlLogLevel, LogEvent } from "./types.js";
+export { OwlOperation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 const SLUG_REGEX = /^[a-z0-9-]+$/;
@@ -113,7 +113,7 @@ function ensureConfigured(): { config: ValidatedConfig; transport: Transport; se
 
 function createEvent(
   ctx: { config: ValidatedConfig; sessionId: string },
-  level: LogLevel,
+  level: OwlLogLevel,
   message: string,
   attrs?: Record<string, unknown>,
   userId?: string,
@@ -134,7 +134,7 @@ function createEvent(
   };
 }
 
-function log(level: LogLevel, message: string, attrs?: Record<string, unknown>, userId?: string): void {
+function log(level: OwlLogLevel, message: string, attrs?: Record<string, unknown>, userId?: string): void {
   try {
     const ctx = ensureConfigured();
     const event = createEvent(ctx, level, message, attrs, userId);
@@ -185,8 +185,8 @@ export class ScopedOwl {
    * numbers, and hyphens (e.g. "photo-conversion", "api-request"). Invalid characters
    * are auto-corrected with a warning logged in debug mode.
    */
-  startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
-    return new Operation(log, normalizeSlug(metric), attrs, this.userId);
+  startOperation(metric: string, attrs?: Record<string, unknown>): OwlOperation {
+    return new OwlOperation(log, normalizeSlug(metric), attrs, this.userId);
   }
 
   /**
@@ -310,8 +310,8 @@ export const Owl = {
    * numbers, and hyphens (e.g. "photo-conversion", "api-request"). Invalid characters
    * are auto-corrected with a warning logged in debug mode.
    */
-  startOperation(metric: string, attrs?: Record<string, unknown>): Operation {
-    return new Operation(log, normalizeSlug(metric), attrs);
+  startOperation(metric: string, attrs?: Record<string, unknown>): OwlOperation {
+    return new OwlOperation(log, normalizeSlug(metric), attrs);
   },
 
   /**

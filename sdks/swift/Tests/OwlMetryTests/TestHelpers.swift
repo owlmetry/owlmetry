@@ -4,7 +4,7 @@ import Foundation
 extension LogEvent {
     static func stub(
         message: String,
-        level: LogLevel = .info,
+        level: OwlLogLevel = .info,
         screenName: String? = nil,
         customAttributes: [String: String]? = nil,
         userId: String? = nil

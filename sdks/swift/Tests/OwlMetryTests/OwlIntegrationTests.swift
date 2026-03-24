@@ -10,16 +10,16 @@ final class OwlIntegrationTests: XCTestCase {
     }
 
     func testConfigurationRejectsAgentKey() {
-        XCTAssertThrowsError(try Configuration(endpoint: "https://api.test.com", apiKey: "owl_agent_abc")) { error in
+        XCTAssertThrowsError(try OwlConfiguration(endpoint: "https://api.test.com", apiKey: "owl_agent_abc")) { error in
             XCTAssertTrue(error.localizedDescription.contains("owl_client_"))
         }
     }
 
     func testConfigurationRejectsInvalidEndpoint() {
-        XCTAssertThrowsError(try Configuration(endpoint: "", apiKey: "owl_client_abc"))
+        XCTAssertThrowsError(try OwlConfiguration(endpoint: "", apiKey: "owl_client_abc"))
     }
 
     func testConfigurationAcceptsValidInput() {
-        XCTAssertNoThrow(try Configuration(endpoint: "https://api.example.com", apiKey: "owl_client_test123"))
+        XCTAssertNoThrow(try OwlConfiguration(endpoint: "https://api.example.com", apiKey: "owl_client_test123"))
     }
 }

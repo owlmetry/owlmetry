@@ -4,7 +4,7 @@ struct LogEvent: Codable, Sendable {
     let clientEventId: String
     let sessionId: String
     var userId: String?
-    let level: LogLevel
+    let level: OwlLogLevel
     let sourceModule: String?
     let message: String
     let screenName: String?

@@ -11,7 +11,7 @@ enum EventBuilder {
 
     static func build(
         message: String,
-        level: LogLevel,
+        level: OwlLogLevel,
         screenName: String?,
         customAttributes: [String: String]?,
         userId: String?,

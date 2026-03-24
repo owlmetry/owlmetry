@@ -24,18 +24,18 @@ do {
 
 ### Starting an Operation
 
-`Owl.startOperation()` returns an `Operation` object and immediately emits a `metric:<slug>:start` event. The operation records its start time and a unique `tracking_id` (UUID) that correlates all phases together.
+`Owl.startOperation()` returns an `OwlOperation` object and immediately emits a `metric:<slug>:start` event. The operation records its start time and a unique `tracking_id` (UUID) that correlates all phases together.
 
 ```swift
 public static func startOperation(
     _ metric: String,
     attributes: [String: String]? = nil
-) -> Operation
+) -> OwlOperation
 ```
 
 ### Completing an Operation
 
-Call one of three methods on the `Operation` to finish it:
+Call one of three methods on the `OwlOperation` to finish it:
 
 ```swift
 // Success -- emits metric:<slug>:complete (info level)

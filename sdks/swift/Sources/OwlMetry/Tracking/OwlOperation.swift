@@ -2,7 +2,7 @@ import Foundation
 
 /// Tracks a metric operation lifecycle (start → complete/fail/cancel).
 /// Created by `Owl.startOperation()` — do not instantiate directly.
-public final class Operation: Sendable {
+public final class OwlOperation: Sendable {
     public let trackingId: String
     let metric: String
     let startTime: ContinuousClock.Instant

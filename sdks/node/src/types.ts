@@ -1,4 +1,4 @@
-export type LogLevel = "info" | "debug" | "warn" | "error";
+export type OwlLogLevel = "info" | "debug" | "warn" | "error";
 
 export interface OwlConfiguration {
   /** OwlMetry server endpoint URL */
@@ -25,7 +25,7 @@ export interface LogEvent {
   client_event_id: string;
   session_id: string;
   user_id?: string;
-  level: LogLevel;
+  level: OwlLogLevel;
   source_module?: string;
   message: string;
   custom_attributes?: Record<string, string>;

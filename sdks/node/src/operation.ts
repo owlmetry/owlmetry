@@ -6,7 +6,7 @@ export type LogFn = (level: "info" | "error", message: string, attrs?: Record<st
  * Tracks a metric operation lifecycle (start → complete/fail/cancel).
  * Created by `Owl.startOperation()` or `ScopedOwl.startOperation()`.
  */
-export class Operation {
+export class OwlOperation {
   readonly trackingId: string;
   private metric: string;
   private startTime: number;
