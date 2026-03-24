@@ -6,6 +6,7 @@ import {
   DocsTitle,
 } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 
@@ -75,6 +76,28 @@ export default async function Page(props: {
         <DocsDescription>{page.data.description}</DocsDescription>
         <DocsBody>
           <MDX components={{ ...defaultMdxComponents }} />
+          <div className="not-prose mt-12 rounded-lg border border-fd-border bg-fd-card p-6 text-center">
+            <p className="text-sm font-medium text-fd-foreground">
+              Ready to get started?
+            </p>
+            <p className="mt-1 text-sm text-fd-muted-foreground">
+              Install the CLI and let your agent handle the rest.
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <Link
+                href="/docs/getting-started"
+                className="inline-flex h-9 items-center rounded-md bg-fd-primary px-4 text-sm font-medium text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
+              >
+                Get Started
+              </Link>
+              <Link
+                href="https://github.com/Jasonvdb/owlmetry"
+                className="inline-flex h-9 items-center rounded-md border border-fd-border px-4 text-sm font-medium text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
+              >
+                GitHub
+              </Link>
+            </div>
+          </div>
         </DocsBody>
       </DocsPage>
       <script
