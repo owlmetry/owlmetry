@@ -7,7 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 	const docPages = docsSource.getPages().map((page) => ({
 		url: `${BASE_URL}${page.url}`,
 		changeFrequency: "weekly" as const,
-		priority: 0.7,
+		priority: page.url === "/docs" ? 0.9 : 0.7,
 	}));
 
 	return [
@@ -15,11 +15,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
 			url: BASE_URL,
 			changeFrequency: "weekly",
 			priority: 1.0,
-		},
-		{
-			url: `${BASE_URL}/docs`,
-			changeFrequency: "weekly",
-			priority: 0.9,
 		},
 		...docPages,
 	];

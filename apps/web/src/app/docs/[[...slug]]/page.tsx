@@ -42,12 +42,13 @@ export async function generateMetadata(props: {
 
   const slug = params.slug?.join("/") ?? "";
   const url = `/docs${slug ? `/${slug}` : ""}`;
+  const title = `${page.data.title} — OwlMetry Docs`;
   return {
-    title: { absolute: `${page.data.title} — OwlMetry Docs` },
+    title: { absolute: title },
     description: page.data.description,
     alternates: { canonical: url },
     openGraph: {
-      title: `${page.data.title} — OwlMetry Docs`,
+      title,
       description: page.data.description,
       url,
     },
