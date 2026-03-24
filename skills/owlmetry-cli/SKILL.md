@@ -1,6 +1,6 @@
 ---
 name: owlmetry-cli
-version: 0.1.10
+version: 0.1.11
 description: >-
   Install the OwlMetry CLI, sign up, and manage projects, apps, metrics,
   funnels, and events. Use when adding OwlMetry to a project, querying
