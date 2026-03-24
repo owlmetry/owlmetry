@@ -27,6 +27,8 @@ You need an **ingest endpoint** and a **client key** (`owl_client_...`) for an A
 
 If the user doesn't have these yet, follow the `/owlmetry-cli` skill first — it handles sign-up, project creation, and app creation. The ingest endpoint is saved to `~/.owlmetry/config.json` (`ingest_endpoint` field) and the client key is returned when creating an app.
 
+> **Any time you need to run an `owlmetry` CLI command** (querying events, creating metrics/funnels, listing apps, etc.), **load the `/owlmetry-cli` skill first**. Do not guess CLI syntax — it has non-obvious subcommand patterns and flags.
+
 ## Add Swift Package
 
 **Minimum platforms:** iOS 16.0, macOS 13.0. Zero external dependencies.

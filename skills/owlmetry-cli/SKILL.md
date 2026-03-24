@@ -5,6 +5,8 @@ description: >-
   Install the OwlMetry CLI, sign up, and manage projects, apps, metrics,
   funnels, and events. Use when adding OwlMetry to a project, querying
   analytics, or when another OwlMetry skill needs CLI setup as a prerequisite.
+  IMPORTANT: You MUST load this skill before running ANY `owlmetry` CLI
+  command. The CLI has non-obvious subcommand syntax and flags — do not guess.
 allowed-tools: Bash
 ---
 
@@ -13,6 +15,8 @@ allowed-tools: Bash
 OwlMetry is a self-hosted analytics platform for mobile and backend apps. It captures events, structured metrics, and funnel conversions from client SDKs (Swift, Node.js), stores them in a partitioned PostgreSQL database, and exposes query and management APIs.
 
 The **CLI** is the management and query tool — it does not ingest events. You use it to create projects and apps, define metrics and funnels, query event data, and view analytics. SDKs handle event ingestion using client keys (`owl_client_...`). The CLI uses agent keys (`owl_agent_...`) for reading data and managing resources.
+
+> **Do not guess CLI syntax.** The `owlmetry` command has specific subcommand patterns (e.g., `owlmetry apps` not `owlmetry apps list`, flags like `--format json` not `--message`). Always reference the command documentation in this skill file before running a command. If you haven't loaded this skill yet, load it first.
 
 ## Version Check
 
