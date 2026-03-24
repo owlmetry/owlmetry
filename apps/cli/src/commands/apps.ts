@@ -7,12 +7,13 @@ import { formatAppsTable, formatAppDetail } from "../formatters/table.js";
 
 export const appsCommand = new Command("apps")
   .description("List apps")
-  .option("--project <id>", "Filter by project ID")
-  .action(async (opts: { project?: string }, cmd) => {
+  .enablePositionalOptions()
+  .option("--project-id <id>", "Filter by project ID")
+  .action(async (opts: { projectId?: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     let apps = await client.listApps();
-    if (opts.project) {
-      apps = apps.filter((a) => a.project_id === opts.project);
+    if (opts.projectId) {
+      apps = apps.filter((a) => a.project_id === opts.projectId);
     }
     output(globals.format, apps, () => formatAppsTable(apps));
   });

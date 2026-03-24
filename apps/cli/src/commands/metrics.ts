@@ -87,23 +87,24 @@ function formatQueryResult(result: MetricQueryResponse): string {
 
 export const metricsCommand = new Command("metrics")
   .description("List metric definitions")
-  .requiredOption("--project <id>", "Project ID")
-  .action(async (opts: { project: string }, cmd) => {
+  .enablePositionalOptions()
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
-    const metrics = await client.listMetrics(opts.project);
+    const metrics = await client.listMetrics(opts.projectId);
     output(globals.format, metrics, () => formatMetricsTable(metrics));
   });
 
 metricsCommand
   .command("events <slug>")
   .description("Query raw metric events for a metric")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .addOption(
     new Option("--phase <phase>", "Filter by phase")
       .choices(METRIC_PHASES as unknown as string[]),
   )
   .option("--tracking-id <id>", "Filter by tracking ID")
-  .option("--user <id>", "Filter by user ID")
+  .option("--user-id <id>", "Filter by user ID")
   .option("--since <time>", "Start time (e.g. 1h, 30m, 7d, or ISO 8601)")
   .option("--until <time>", "End time")
   .addOption(
@@ -118,10 +119,10 @@ metricsCommand
       .default("production"),
   )
   .action(async (slug: string, opts: {
-    project: string;
+    projectId: string;
     phase?: string;
     trackingId?: string;
-    user?: string;
+    userId?: string;
     environment?: string;
     since?: string;
     until?: string;
@@ -138,10 +139,10 @@ metricsCommand
         : undefined;
     const until = opts.until ? parseTimeInput(opts.until) : undefined;
 
-    const result = await client.queryMetricEvents(slug, opts.project, {
+    const result = await client.queryMetricEvents(slug, opts.projectId, {
       phase: opts.phase as any,
       tracking_id: opts.trackingId,
-      user_id: opts.user,
+      user_id: opts.userId,
       environment: opts.environment,
       since,
       until,
@@ -162,23 +163,23 @@ metricsCommand
 metricsCommand
   .command("view <slug>")
   .description("View metric definition details")
-  .requiredOption("--project <id>", "Project ID")
-  .action(async (slug: string, opts: { project: string }, cmd) => {
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (slug: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
-    const metric = await client.getMetric(slug, opts.project);
+    const metric = await client.getMetric(slug, opts.projectId);
     output(globals.format, metric, () => formatMetricDetail(metric));
   });
 
 metricsCommand
   .command("create")
   .description("Create a new metric definition")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .requiredOption("--name <name>", "Metric name")
   .requiredOption("--slug <slug>", "Metric slug")
   .option("--description <desc>", "Description")
   .option("--docs <markdown>", "Documentation (markdown)")
   .option("--lifecycle", "Mark as lifecycle metric (has start/complete/fail phases)")
-  .action(async (opts: { project: string; name: string; slug: string; description?: string; docs?: string; lifecycle?: boolean }, cmd) => {
+  .action(async (opts: { projectId: string; name: string; slug: string; description?: string; docs?: string; lifecycle?: boolean }, cmd) => {
     const slugError = validateMetricSlug(opts.slug);
     if (slugError) {
       console.error(chalk.red(`Error: ${slugError}`));
@@ -186,7 +187,7 @@ metricsCommand
       return;
     }
     const { client, globals } = createClient(cmd);
-    const metric = await client.createMetric(opts.project, {
+    const metric = await client.createMetric(opts.projectId, {
       name: opts.name,
       slug: opts.slug,
       description: opts.description,
@@ -199,14 +200,14 @@ metricsCommand
 metricsCommand
   .command("query <slug>")
   .description("Query metric aggregation")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .option("--since <date>", "Start date (ISO)")
   .option("--until <date>", "End date (ISO)")
-  .option("--app <id>", "Filter by app ID")
+  .option("--app-id <id>", "Filter by app ID")
   .option("--app-version <version>", "Filter by app version")
   .option("--device-model <model>", "Filter by device model")
   .option("--os-version <version>", "Filter by OS version")
-  .option("--user <id>", "Filter by user ID")
+  .option("--user-id <id>", "Filter by user ID")
   .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
   .option("--group-by <field>", "Group by: app_id, app_version, device_model, os_version, environment, time:hour, time:day, time:week")
   .addOption(
@@ -215,27 +216,27 @@ metricsCommand
       .default("production"),
   )
   .action(async (slug: string, opts: {
-    project: string;
+    projectId: string;
     since?: string;
     until?: string;
-    app?: string;
+    appId?: string;
     appVersion?: string;
     deviceModel?: string;
     osVersion?: string;
-    user?: string;
+    userId?: string;
     environment?: string;
     groupBy?: string;
     dataMode: string;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
-    const result = await client.queryMetric(slug, opts.project, {
+    const result = await client.queryMetric(slug, opts.projectId, {
       since: opts.since,
       until: opts.until,
-      app_id: opts.app,
+      app_id: opts.appId,
       app_version: opts.appVersion,
       device_model: opts.deviceModel,
       os_version: opts.osVersion,
-      user_id: opts.user,
+      user_id: opts.userId,
       environment: opts.environment,
       data_mode: opts.dataMode as any,
       group_by: opts.groupBy,
@@ -246,13 +247,13 @@ metricsCommand
 metricsCommand
   .command("update <slug>")
   .description("Update a metric definition")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .option("--name <name>", "New name")
   .option("--description <desc>", "New description")
   .option("--status <status>", "active or paused")
-  .action(async (slug: string, opts: { project: string; name?: string; description?: string; status?: string }, cmd) => {
+  .action(async (slug: string, opts: { projectId: string; name?: string; description?: string; status?: string }, cmd) => {
     const { client, globals } = createClient(cmd);
-    const metric = await client.updateMetric(slug, opts.project, {
+    const metric = await client.updateMetric(slug, opts.projectId, {
       name: opts.name,
       description: opts.description,
       status: opts.status as "active" | "paused" | undefined,
@@ -263,9 +264,9 @@ metricsCommand
 metricsCommand
   .command("delete <slug>")
   .description("Delete a metric definition")
-  .requiredOption("--project <id>", "Project ID")
-  .action(async (slug: string, opts: { project: string }, cmd) => {
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (slug: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
-    await client.deleteMetric(slug, opts.project);
+    await client.deleteMetric(slug, opts.projectId);
     console.log(chalk.green(`Metric "${slug}" deleted.`));
   });

@@ -272,9 +272,18 @@ Owl.track("first-post")
 
 Each `track()` call emits an info-level event with message `"track:<stepName>"`. Define matching funnel definitions via `/owlmetry-cli`:
 ```bash
-owlmetry funnels create --project <id> --name "Onboarding" --slug onboarding \
-  --steps '[{"name":"Welcome","event_filter":{"message":"track:welcome-screen"}},{"name":"Account","event_filter":{"message":"track:create-account"}},{"name":"Profile","event_filter":{"message":"track:complete-profile"}},{"name":"First Post","event_filter":{"message":"track:first-post"}}]' \
-  --format json
+# Write steps to a JSON file (avoids shell quoting issues)
+cat > /tmp/funnel-steps.json << 'EOF'
+[
+  {"name": "Welcome", "event_filter": {"message": "track:welcome-screen"}},
+  {"name": "Account", "event_filter": {"message": "track:create-account"}},
+  {"name": "Profile", "event_filter": {"message": "track:complete-profile"}},
+  {"name": "First Post", "event_filter": {"message": "track:first-post"}}
+]
+EOF
+
+owlmetry funnels create --project-id <id> --name "Onboarding" --slug onboarding \
+  --steps-file /tmp/funnel-steps.json --format json
 ```
 
 ## Structured Metrics
@@ -304,7 +313,7 @@ op.cancel(attributes: ["reason": "user_cancelled"])
 
 `duration_ms` and `tracking_id` (UUID) are auto-added. Create the metric definition first:
 ```bash
-owlmetry metrics create --project <id> --name "Photo Upload" --slug photo-upload --lifecycle --format json
+owlmetry metrics create --project-id <id> --name "Photo Upload" --slug photo-upload --lifecycle --format json
 ```
 
 ### Single-shot measurements

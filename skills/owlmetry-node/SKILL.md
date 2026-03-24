@@ -206,7 +206,7 @@ op.cancel({ reason: 'timeout' });
 
 `duration_ms` and `tracking_id` (UUID) are auto-added. Create the metric definition first:
 ```bash
-owlmetry metrics create --project <id> --name "Database Query" --slug database-query --lifecycle --format json
+owlmetry metrics create --project-id <id> --name "Database Query" --slug database-query --lifecycle --format json
 ```
 
 ### Single-shot measurements

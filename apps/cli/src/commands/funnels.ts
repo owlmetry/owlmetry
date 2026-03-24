@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { Command, Option } from "commander";
 import chalk from "chalk";
 import type { FunnelDefinitionResponse, FunnelQueryResponse, FunnelStepAnalytics } from "@owlmetry/shared";
@@ -104,37 +105,39 @@ function formatQueryResult(result: FunnelQueryResponse): string {
 
 export const funnelsCommand = new Command("funnels")
   .description("List funnel definitions")
-  .option("--project <id>", "Project ID")
-  .action(async (opts: { project?: string }, cmd) => {
-    if (!opts.project) {
-      console.error(chalk.red("Error: --project is required"));
+  .enablePositionalOptions()
+  .option("--project-id <id>", "Project ID")
+  .action(async (opts: { projectId?: string }, cmd) => {
+    if (!opts.projectId) {
+      console.error(chalk.red("Error: --project-id is required"));
       process.exitCode = 1;
       return;
     }
     const { client, globals } = createClient(cmd);
-    const result = await client.listFunnels(opts.project);
+    const result = await client.listFunnels(opts.projectId);
     output(globals.format, result.funnels, () => formatFunnelsTable(result.funnels));
   });
 
 funnelsCommand
   .command("view <slug>")
   .description("View funnel definition details")
-  .requiredOption("--project <id>", "Project ID")
-  .action(async (slug: string, opts: { project: string }, cmd) => {
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (slug: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
-    const funnel = await client.getFunnel(slug, opts.project);
+    const funnel = await client.getFunnel(slug, opts.projectId);
     output(globals.format, funnel, () => formatFunnelDetail(funnel));
   });
 
 funnelsCommand
   .command("create")
   .description("Create a new funnel definition")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .requiredOption("--name <name>", "Funnel name")
   .requiredOption("--slug <slug>", "Funnel slug")
   .option("--description <desc>", "Description")
-  .requiredOption("--steps <json>", "Steps as JSON array")
-  .action(async (opts: { project: string; name: string; slug: string; description?: string; steps: string }, cmd) => {
+  .option("--steps <json>", "Steps as JSON array")
+  .option("--steps-file <path>", "Read steps from a JSON file")
+  .action(async (opts: { projectId: string; name: string; slug: string; description?: string; steps?: string; stepsFile?: string }, cmd) => {
     const slugError = validateFunnelSlug(opts.slug);
     if (slugError) {
       console.error(chalk.red(`Error: ${slugError}`));
@@ -142,23 +145,47 @@ funnelsCommand
       return;
     }
 
+    if (!opts.steps && !opts.stepsFile) {
+      console.error(chalk.red("Error: either --steps or --steps-file is required"));
+      process.exitCode = 1;
+      return;
+    }
+    if (opts.steps && opts.stepsFile) {
+      console.error(chalk.red("Error: --steps and --steps-file are mutually exclusive"));
+      process.exitCode = 1;
+      return;
+    }
+
+    let stepsJson: string;
+    if (opts.stepsFile) {
+      try {
+        stepsJson = fs.readFileSync(opts.stepsFile, "utf-8");
+      } catch (err: any) {
+        console.error(chalk.red(`Error reading --steps-file: ${err.message}`));
+        process.exitCode = 1;
+        return;
+      }
+    } else {
+      stepsJson = opts.steps!;
+    }
+
     let steps: unknown;
     try {
-      steps = JSON.parse(opts.steps);
+      steps = JSON.parse(stepsJson);
     } catch {
-      console.error(chalk.red("Error: --steps must be valid JSON"));
+      console.error(chalk.red("Error: steps must be valid JSON"));
       process.exitCode = 1;
       return;
     }
 
     if (!Array.isArray(steps) || steps.length === 0) {
-      console.error(chalk.red("Error: --steps must be a non-empty JSON array"));
+      console.error(chalk.red("Error: steps must be a non-empty JSON array"));
       process.exitCode = 1;
       return;
     }
 
     const { client, globals } = createClient(cmd);
-    const funnel = await client.createFunnel(opts.project, {
+    const funnel = await client.createFunnel(opts.projectId, {
       name: opts.name,
       slug: opts.slug,
       description: opts.description,
@@ -170,49 +197,69 @@ funnelsCommand
 funnelsCommand
   .command("update <slug>")
   .description("Update a funnel definition")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .option("--name <name>", "New name")
   .option("--description <desc>", "New description")
   .option("--steps <json>", "New steps as JSON array")
-  .action(async (slug: string, opts: { project: string; name?: string; description?: string; steps?: string }, cmd) => {
+  .option("--steps-file <path>", "Read steps from a JSON file")
+  .action(async (slug: string, opts: { projectId: string; name?: string; description?: string; steps?: string; stepsFile?: string }, cmd) => {
+    if (opts.steps && opts.stepsFile) {
+      console.error(chalk.red("Error: --steps and --steps-file are mutually exclusive"));
+      process.exitCode = 1;
+      return;
+    }
+
     const body: { name?: string; description?: string; steps?: unknown } = {};
     if (opts.name !== undefined) body.name = opts.name;
     if (opts.description !== undefined) body.description = opts.description;
 
-    if (opts.steps !== undefined) {
+    let stepsJson: string | undefined;
+    if (opts.stepsFile) {
       try {
-        body.steps = JSON.parse(opts.steps);
+        stepsJson = fs.readFileSync(opts.stepsFile, "utf-8");
+      } catch (err: any) {
+        console.error(chalk.red(`Error reading --steps-file: ${err.message}`));
+        process.exitCode = 1;
+        return;
+      }
+    } else if (opts.steps) {
+      stepsJson = opts.steps;
+    }
+
+    if (stepsJson !== undefined) {
+      try {
+        body.steps = JSON.parse(stepsJson);
       } catch {
-        console.error(chalk.red("Error: --steps must be valid JSON"));
+        console.error(chalk.red("Error: steps must be valid JSON"));
         process.exitCode = 1;
         return;
       }
       if (!Array.isArray(body.steps) || (body.steps as unknown[]).length === 0) {
-        console.error(chalk.red("Error: --steps must be a non-empty JSON array"));
+        console.error(chalk.red("Error: steps must be a non-empty JSON array"));
         process.exitCode = 1;
         return;
       }
     }
 
     const { client, globals } = createClient(cmd);
-    const funnel = await client.updateFunnel(slug, opts.project, body as any);
+    const funnel = await client.updateFunnel(slug, opts.projectId, body as any);
     output(globals.format, funnel, () => formatFunnelDetail(funnel));
   });
 
 funnelsCommand
   .command("delete <slug>")
   .description("Delete a funnel definition")
-  .requiredOption("--project <id>", "Project ID")
-  .action(async (slug: string, opts: { project: string }, cmd) => {
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (slug: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
-    await client.deleteFunnel(slug, opts.project);
+    await client.deleteFunnel(slug, opts.projectId);
     console.log(chalk.green(`Funnel "${slug}" deleted.`));
   });
 
 funnelsCommand
   .command("query <slug>")
   .description("Query funnel analytics")
-  .requiredOption("--project <id>", "Project ID")
+  .requiredOption("--project-id <id>", "Project ID")
   .option("--since <date>", "Start date (ISO)")
   .option("--until <date>", "End date (ISO)")
   .option("--open", "Make this an open funnel. In an open funnel, users don't have to complete a previous step in order to be included in a subsequent step.")
@@ -226,7 +273,7 @@ funnelsCommand
       .default("production"),
   )
   .action(async (slug: string, opts: {
-    project: string;
+    projectId: string;
     since?: string;
     until?: string;
     open?: boolean;
@@ -237,7 +284,7 @@ funnelsCommand
     dataMode: string;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
-    const result = await client.queryFunnel(slug, opts.project, {
+    const result = await client.queryFunnel(slug, opts.projectId, {
       since: opts.since,
       until: opts.until,
       mode: opts.open ? "open" : "closed",

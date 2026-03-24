@@ -10,16 +10,16 @@ import { paginationHint } from "../utils/pagination.js";
 
 export const eventsCommand = new Command("events")
   .description("Query events")
-  .option("--project <id>", "Filter by project ID")
-  .option("--app <id>", "Filter by app ID")
+  .option("--project-id <id>", "Filter by project ID")
+  .option("--app-id <id>", "Filter by app ID")
   .option("--since <time>", "Start time (e.g. 1h, 30m, 7d, or ISO 8601)")
   .option("--until <time>", "End time")
   .addOption(
     new Option("--level <level>", "Filter by log level")
       .choices(LOG_LEVELS as unknown as string[]),
   )
-  .option("--user <id>", "Filter by user ID")
-  .option("--session <id>", "Filter by session ID")
+  .option("--user-id <id>", "Filter by user ID")
+  .option("--session-id <id>", "Filter by session ID")
   .option("--screen <name>", "Filter by screen name")
   .addOption(
     new Option("--limit <n>", "Max events to return")
@@ -32,13 +32,13 @@ export const eventsCommand = new Command("events")
       .default("production"),
   )
   .action(async (opts: {
-    project?: string;
-    app?: string;
+    projectId?: string;
+    appId?: string;
     since?: string;
     until?: string;
     level?: string;
-    user?: string;
-    session?: string;
+    userId?: string;
+    sessionId?: string;
     screen?: string;
     limit?: number;
     cursor?: string;
@@ -54,13 +54,13 @@ export const eventsCommand = new Command("events")
     const until = opts.until ? parseTimeInput(opts.until) : undefined;
 
     const result = await client.queryEvents({
-      project_id: opts.project,
-      app_id: opts.app,
+      project_id: opts.projectId,
+      app_id: opts.appId,
       since,
       until,
       level: opts.level,
-      user_id: opts.user,
-      session_id: opts.session,
+      user_id: opts.userId,
+      session_id: opts.sessionId,
       screen_name: opts.screen,
       limit: opts.limit,
       cursor: opts.cursor,

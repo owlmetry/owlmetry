@@ -135,7 +135,7 @@ An app represents a single deployable target. The `client_key` returned on creat
 
 ```bash
 owlmetry apps --format json                                            # List all
-owlmetry apps --project <id> --format json                             # List by project
+owlmetry apps --project-id <id> --format json                          # List by project
 owlmetry apps view <id> --format json                                  # View details
 owlmetry apps create --project-id <id> --name <name> --platform <platform> [--bundle-id <id>] --format json
 owlmetry apps update <id> --name <new-name> --format json
@@ -155,11 +155,11 @@ Metrics are project-scoped definitions that tell OwlMetry what structured data t
 The metric definition must exist on the server **before** the SDK emits events for that slug, otherwise the server will reject the events.
 
 ```bash
-owlmetry metrics --project <id> --format json                          # List all
-owlmetry metrics view <slug> --project <id> --format json              # View details
-owlmetry metrics create --project <id> --name <name> --slug <slug> [--lifecycle] [--description <desc>] --format json
-owlmetry metrics update <slug> --project <id> [--name <name>] [--status active|paused] --format json
-owlmetry metrics delete <slug> --project <id>
+owlmetry metrics --project-id <id> --format json                       # List all
+owlmetry metrics view <slug> --project-id <id> --format json           # View details
+owlmetry metrics create --project-id <id> --name <name> --slug <slug> [--lifecycle] [--description <desc>] --format json
+owlmetry metrics update <slug> --project-id <id> [--name <name>] [--status active|paused] --format json
+owlmetry metrics delete <slug> --project-id <id>
 ```
 
 Slugs: lowercase letters, numbers, hyphens only (`/^[a-z0-9-]+$/`).
@@ -177,12 +177,33 @@ Funnels support two analysis modes:
 Maximum 20 steps per funnel.
 
 ```bash
-owlmetry funnels --project <id> --format json                          # List all
-owlmetry funnels view <slug> --project <id> --format json              # View details
-owlmetry funnels create --project <id> --name <name> --slug <slug> --steps '<json>' [--description <desc>] --format json
-owlmetry funnels update <slug> --project <id> [--name <name>] [--steps '<json>'] --format json
-owlmetry funnels delete <slug> --project <id>
+owlmetry funnels --project-id <id> --format json                       # List all
+owlmetry funnels view <slug> --project-id <id> --format json           # View details
+owlmetry funnels delete <slug> --project-id <id>
 ```
+
+**Creating funnels** — use `--steps-file` to avoid shell quoting issues with JSON:
+
+```bash
+# 1. Write steps to a JSON file
+cat > /tmp/funnel-steps.json << 'EOF'
+[
+  {"name": "Step Name", "event_filter": {"message": "track:step-name"}},
+  {"name": "Next Step", "event_filter": {"message": "track:next-step"}}
+]
+EOF
+
+# 2. Create the funnel referencing the file
+owlmetry funnels create --project-id <id> --name <name> --slug <slug> \
+  --steps-file /tmp/funnel-steps.json [--description <desc>] --format json
+```
+
+**Updating funnel steps** — same pattern:
+```bash
+owlmetry funnels update <slug> --project-id <id> --steps-file /tmp/updated-steps.json --format json
+```
+
+Inline `--steps '<json>'` also works but is error-prone in shell environments due to JSON quoting. Prefer `--steps-file`.
 
 Steps JSON format: `[{"name":"Step Name","event_filter":{"message":"track:step-name"}}]`
 
@@ -193,7 +214,7 @@ Steps JSON format: `[{"name":"Step Name","event_filter":{"message":"track:step-n
 Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.track()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window.
 
 ```bash
-owlmetry events [--project <id>] [--app <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user <id>] [--session <id>] [--screen <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] --format json
+owlmetry events [--project-id <id>] [--app-id <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user-id <id>] [--session-id <id>] [--screen <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] --format json
 owlmetry events view <id> --format json
 ```
 
@@ -225,8 +246,8 @@ There are two ways to look at metric data:
 - **`metrics query`** — aggregated statistics (count, avg/p50/p95/p99 duration, error rate), useful for spotting trends and regressions. Supports grouping by app, version, environment, device, or time bucket.
 
 ```bash
-owlmetry metrics events <slug> --project <id> [--phase start|complete|fail|cancel|record] [--tracking-id <id>] [--user <id>] [--since <time>] [--until <time>] [--environment <env>] [--data-mode <mode>] --format json
-owlmetry metrics query <slug> --project <id> [--since <date>] [--until <date>] [--app <id>] [--app-version <v>] [--environment <env>] [--user <id>] [--group-by app_id|app_version|device_model|os_version|environment|time:hour|time:day|time:week] [--data-mode <mode>] --format json
+owlmetry metrics events <slug> --project-id <id> [--phase start|complete|fail|cancel|record] [--tracking-id <id>] [--user-id <id>] [--since <time>] [--until <time>] [--environment <env>] [--data-mode <mode>] --format json
+owlmetry metrics query <slug> --project-id <id> [--since <date>] [--until <date>] [--app-id <id>] [--app-version <v>] [--environment <env>] [--user-id <id>] [--group-by app_id|app_version|device_model|os_version|environment|time:hour|time:day|time:week] [--data-mode <mode>] --format json
 ```
 
 ### Funnel Analytics
@@ -234,7 +255,7 @@ owlmetry metrics query <slug> --project <id> [--since <date>] [--until <date>] [
 Funnel queries return conversion rates and drop-off between steps. The output shows how many users entered each step and what percentage continued to the next. Use `--group-by` to segment results and compare conversion across environments, app versions, or A/B experiment variants.
 
 ```bash
-owlmetry funnels query <slug> --project <id> [--since <date>] [--until <date>] [--open] [--app-version <v>] [--environment <env>] [--experiment <name:variant>] [--group-by environment|app_version|experiment:<name>] [--data-mode <mode>] --format json
+owlmetry funnels query <slug> --project-id <id> [--since <date>] [--until <date>] [--open] [--app-version <v>] [--environment <env>] [--experiment <name:variant>] [--group-by environment|app_version|experiment:<name>] [--data-mode <mode>] --format json
 ```
 
 `--open` = open funnel mode (steps evaluated independently, not sequentially).
@@ -244,7 +265,7 @@ owlmetry funnels query <slug> --project <id> [--since <date>] [--until <date>] [
 Audit logs record who performed what action on which resource — creating an app, revoking an API key, changing a team member's role, etc. Query them when investigating configuration changes or tracking administrative activity. Requires `audit_logs:read` permission on the agent key (included in default agent key permissions).
 
 ```bash
-owlmetry audit-log list --team <id> [--resource-type <type>] [--resource-id <id>] [--actor <id>] [--action create|update|delete] [--since <time>] [--until <time>] [--limit <n>] --format json
+owlmetry audit-log list --team-id <id> [--resource-type <type>] [--resource-id <id>] [--actor-id <id>] [--action create|update|delete] [--since <time>] [--until <time>] [--limit <n>] --format json
 ```
 
 ## Key Notes

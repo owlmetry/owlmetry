@@ -11,10 +11,10 @@ export const auditLogCommand = new Command("audit-log")
 auditLogCommand
   .command("list")
   .description("List audit log entries")
-  .requiredOption("--team <id>", "Team ID")
+  .requiredOption("--team-id <id>", "Team ID")
   .option("--resource-type <type>", "Filter by resource type")
   .option("--resource-id <id>", "Filter by resource ID")
-  .option("--actor <id>", "Filter by actor ID")
+  .option("--actor-id <id>", "Filter by actor ID")
   .addOption(
     new Option("--action <action>", "Filter by action")
       .choices(["create", "update", "delete"]),
@@ -27,10 +27,10 @@ auditLogCommand
   )
   .option("--cursor <cursor>", "Pagination cursor")
   .action(async (opts: {
-    team: string;
+    teamId: string;
     resourceType?: string;
     resourceId?: string;
-    actor?: string;
+    actorId?: string;
     action?: string;
     since?: string;
     until?: string;
@@ -42,10 +42,10 @@ auditLogCommand
     const since = opts.since ? parseTimeInput(opts.since) : undefined;
     const until = opts.until ? parseTimeInput(opts.until) : undefined;
 
-    const result = await client.queryAuditLogs(opts.team, {
+    const result = await client.queryAuditLogs(opts.teamId, {
       resource_type: opts.resourceType,
       resource_id: opts.resourceId,
-      actor_id: opts.actor,
+      actor_id: opts.actorId,
       action: opts.action,
       since,
       until,
