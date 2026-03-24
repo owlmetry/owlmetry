@@ -91,6 +91,7 @@ cd "$ROOT_DIR/apps/cli"
 OWLMETRY_TEST_ENDPOINT="http://127.0.0.1:$TEST_PORT" \
 OWLMETRY_TEST_AGENT_KEY="$TEST_CLI_AGENT_KEY" \
 OWLMETRY_TEST_TEAM_ID="$TEAM_ID" \
-    npx vitest run src/__tests__/integration/ 2>&1
+OWLMETRY_TEST_APP_ID="$APP_ID" \
+    npx vitest run src/__tests__/integration/ --test-timeout 15000 2>&1
 
 echo "=== CLI integration tests passed ==="
