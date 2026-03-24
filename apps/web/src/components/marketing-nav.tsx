@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { OwlLogo } from "@/components/owl-logo";
 import { Button } from "@/components/ui/button";
+import { useAuthCta } from "@/hooks/use-auth-cta";
 
 const navLinks = [
   { href: "/docs", label: "Docs" },
@@ -13,12 +14,10 @@ const navLinks = [
   { href: "#pricing", label: "Pricing" },
 ];
 
-export function MarketingNav({ isAuthenticated }: { isAuthenticated: boolean }) {
+export function MarketingNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-
-  const ctaLabel = isAuthenticated ? "Dashboard" : "Get Started";
-  const ctaHref = isAuthenticated ? "/dashboard" : "/login";
+  const { href: ctaHref, label: ctaLabel } = useAuthCta();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);

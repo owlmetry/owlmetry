@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
@@ -8,13 +7,10 @@ export const metadata = {
     "Terms of Service for OwlMetry, the agent-first observability platform for mobile and backend applications.",
 };
 
-export default async function TermsPage() {
-  const cookieStore = await cookies();
-  const isAuthenticated = !!cookieStore.get("token")?.value;
-
+export default function TermsPage() {
   return (
     <>
-      <MarketingNav isAuthenticated={isAuthenticated} />
+      <MarketingNav />
       <main className="pt-14" style={{ background: "oklch(0.12 0.015 55)" }}>
         <div className="mx-auto max-w-4xl px-6 py-16">
           <article className="prose prose-invert prose-lg max-w-none prose-headings:text-white prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-4xl prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-p:text-white/70 prose-p:leading-relaxed prose-li:text-white/70 prose-strong:text-white/90 prose-a:text-amber-400 prose-a:no-underline hover:prose-a:underline prose-ul:my-4 prose-li:my-1">

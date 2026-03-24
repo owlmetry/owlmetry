@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
@@ -9,13 +8,10 @@ export const metadata: Metadata = {
     "Learn how OwlMetry collects, uses, and protects your data. Privacy policy for the OwlMetry analytics platform.",
 };
 
-export default async function PrivacyPolicyPage() {
-  const cookieStore = await cookies();
-  const isAuthenticated = !!cookieStore.get("token")?.value;
-
+export default function PrivacyPolicyPage() {
   return (
     <>
-      <MarketingNav isAuthenticated={isAuthenticated} />
+      <MarketingNav />
       <main
         className="min-h-screen pt-14"
         style={{ background: "oklch(0.12 0.015 55)" }}

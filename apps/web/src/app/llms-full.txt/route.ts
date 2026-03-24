@@ -2,8 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { docsSource } from "@/lib/docs-source";
 
-export const dynamic = "force-dynamic";
-
 function stripFrontmatter(content: string): string {
   const match = content.match(/^---\s*\n[\s\S]*?\n---\s*\n?/);
   return match ? content.slice(match[0].length).trim() : content.trim();
@@ -16,7 +14,7 @@ export function GET() {
   const header = [
     "# OwlMetry",
     "",
-    "> Self-hosted metrics tracking platform for mobile apps. SDKs for Swift and Node.js, CLI for agents, REST API.",
+    "> Self-hosted observability platform for mobile and backend apps. Structured events, performance metrics, and conversion funnels — purpose-built for AI coding agents.",
     "",
     "## About OwlMetry",
     "",
@@ -35,6 +33,17 @@ export function GET() {
     "- Docs: https://owlmetry.com/docs",
     "- GitHub: https://github.com/Jasonvdb/owlmetry",
     "- Dashboard: https://owlmetry.com/dashboard",
+    "",
+    "## Pricing",
+    "",
+    "- **Free**: $0/month — 1 app, 10,000 events/month",
+    "- **Pro**: $0/month during alpha (normally $19/mo) — unlimited apps and events",
+    "- **Self-Hosted**: $0 forever — unlimited everything on your own infrastructure",
+    "",
+    "## Alternatives",
+    "",
+    "OwlMetry is an open-source alternative to Mixpanel, Amplitude, PostHog, and Firebase Analytics,",
+    "differentiated by its agent-first API design and single-database self-hosted architecture.",
     "",
     "## Docs",
     "",

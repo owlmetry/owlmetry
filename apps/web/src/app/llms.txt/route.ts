@@ -1,20 +1,18 @@
 import { docsSource } from "@/lib/docs-source";
 
-export const dynamic = "force-dynamic";
-
 export function GET() {
   const pages = docsSource.getPages();
 
   const lines = [
     "# OwlMetry",
     "",
-    "> Self-hosted metrics tracking platform for mobile apps. SDKs for Swift and Node.js, CLI for agents, REST API.",
+    "> Self-hosted observability platform for mobile and backend apps. Structured events, performance metrics, and conversion funnels — purpose-built for AI coding agents.",
     "",
     "## Docs",
     "",
     ...pages.map(
       (page) =>
-        `- [${page.data.title}](${page.url})${page.data.description ? `: ${page.data.description}` : ""}`
+        `- [${page.data.title}](https://owlmetry.com${page.url})${page.data.description ? `: ${page.data.description}` : ""}`
     ),
   ];
 

@@ -1,5 +1,3 @@
-import { cookies } from "next/headers";
-import Link from "next/link";
 import Image from "next/image";
 import {
   Bot,
@@ -14,6 +12,7 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { TerminalCopyButton } from "@/components/terminal-copy-button";
+import { AuthCTA } from "@/components/auth-cta";
 
 const features = [
   {
@@ -66,15 +65,10 @@ const steps = [
   },
 ];
 
-export default async function LandingPage() {
-  const cookieStore = await cookies();
-  const isAuthenticated = !!cookieStore.get("token")?.value;
-  const ctaLabel = isAuthenticated ? "Dashboard" : "Get Started";
-  const ctaHref = isAuthenticated ? "/dashboard" : "/login";
-
+export default function LandingPage() {
   return (
     <>
-      <MarketingNav isAuthenticated={isAuthenticated} />
+      <MarketingNav />
       <main>
       {/* Hero */}
       <section
@@ -494,13 +488,9 @@ export default async function LandingPage() {
                 ))}
               </ul>
 
-              <Link
-                href={ctaHref}
+              <AuthCTA
                 className="group mt-8 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border text-sm font-medium text-muted-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:text-foreground"
-              >
-                {ctaLabel}
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
+              />
             </div>
 
             {/* Pro tier */}
@@ -536,14 +526,10 @@ export default async function LandingPage() {
                 ))}
               </ul>
 
-              <Link
-                href={ctaHref}
+              <AuthCTA
                 className="group mt-8 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-medium text-white transition-all duration-200 hover:shadow-[0_0_24px_oklch(0.555_0.163_48.998_/_0.4)] hover:brightness-110"
                 style={{ background: "oklch(0.555 0.163 48.998)" }}
-              >
-                {ctaLabel}
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
+              />
             </div>
 
             {/* Self-hosted tier */}
@@ -601,14 +587,10 @@ export default async function LandingPage() {
             and acts on what it finds.
           </p>
           <div className="mt-10">
-            <Link
-              href={ctaHref}
+            <AuthCTA
               className="group inline-flex h-12 items-center justify-center rounded-lg px-10 text-sm font-medium text-white transition-all duration-200 hover:shadow-[0_0_24px_oklch(0.555_0.163_48.998_/_0.4)] hover:brightness-110"
               style={{ background: "oklch(0.555 0.163 48.998)" }}
-            >
-              {ctaLabel}
-              <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-            </Link>
+            />
           </div>
         </div>
       </section>
