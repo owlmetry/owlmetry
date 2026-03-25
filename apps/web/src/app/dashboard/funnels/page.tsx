@@ -30,12 +30,12 @@ import { Filter, Plus, Trash2 } from "lucide-react";
 
 interface StepDraft {
   name: string;
-  message: string;
+  step_name: string;
   screen_name: string;
 }
 
 function emptyStep(): StepDraft {
-  return { name: "", message: "", screen_name: "" };
+  return { name: "", step_name: "", screen_name: "" };
 }
 
 export default function FunnelsPage() {
@@ -97,11 +97,11 @@ export default function FunnelsPage() {
     if (!newName || !newSlug || !selectedProjectId || slugError) return;
 
     const funnelSteps: FunnelStep[] = steps
-      .filter((s) => s.name && (s.message || s.screen_name))
+      .filter((s) => s.name && (s.step_name || s.screen_name))
       .map((s) => ({
         name: s.name,
         event_filter: {
-          ...(s.message ? { message: s.message } : {}),
+          ...(s.step_name ? { step_name: s.step_name } : {}),
           ...(s.screen_name ? { screen_name: s.screen_name } : {}),
         },
       }));
@@ -243,9 +243,9 @@ export default function FunnelsPage() {
                       className="h-7 text-xs"
                     />
                     <Input
-                      value={step.message}
-                      onChange={(e) => updateStep(i, "message", e.target.value)}
-                      placeholder="Message filter (e.g. screen_viewed)"
+                      value={step.step_name}
+                      onChange={(e) => updateStep(i, "step_name", e.target.value)}
+                      placeholder="Step name (e.g. welcome-screen)"
                       className="h-7 text-xs"
                     />
                     <Input

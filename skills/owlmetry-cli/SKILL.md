@@ -236,9 +236,9 @@ Slugs: lowercase letters, numbers, hyphens only (`/^[a-z0-9-]+$/`).
 
 ### Funnel Definitions
 
-Funnels measure how users progress through a multi-step flow and where they drop off. Each funnel has an ordered list of steps, and each step has an `event_filter` that matches incoming events (by `message` and/or `screen_name`).
+Funnels measure how users progress through a multi-step flow and where they drop off. Each funnel has an ordered list of steps, and each step has an `event_filter` that matches on `step_name` and/or `screen_name`.
 
-SDKs emit funnel events via `track("step-name")`, which generates events with message `"track:step-name"`. The `event_filter` in each step must match these messages exactly.
+Step definitions match directly on the step name passed to `track()` in the SDK — no prefix or transformation needed.
 
 Funnels support two analysis modes:
 - **Closed mode** (default): sequential — a user must complete steps in order (step 2 only counts if step 1 was completed first). Use for linear flows like onboarding or checkout.
@@ -258,8 +258,8 @@ owlmetry funnels delete <slug> --project-id <id>
 # 1. Write steps to a JSON file
 cat > /tmp/funnel-steps.json << 'EOF'
 [
-  {"name": "Step Name", "event_filter": {"message": "track:step-name"}},
-  {"name": "Next Step", "event_filter": {"message": "track:next-step"}}
+  {"name": "Step Name", "event_filter": {"step_name": "step-name"}},
+  {"name": "Next Step", "event_filter": {"step_name": "next-step"}}
 ]
 EOF
 
@@ -275,7 +275,7 @@ owlmetry funnels update <slug> --project-id <id> --steps-file /tmp/updated-steps
 
 Inline `--steps '<json>'` also works but is error-prone in shell environments due to JSON quoting. Prefer `--steps-file`.
 
-Steps JSON format: `[{"name":"Step Name","event_filter":{"message":"track:step-name"}}]`
+Steps JSON format: `[{"name":"Step Name","event_filter":{"step_name":"step-name"}}]`
 
 ## Querying
 

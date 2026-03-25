@@ -175,7 +175,7 @@ const owl = Owl.withUser(userId);
 owl.track('checkout-completed', { item_count: '3' });
 ```
 
-Each `track()` call emits an info-level event with message `"track:<stepName>"`. Define matching funnels via `/owlmetry-cli`.
+The step name you pass to `track()` must match the `step_name` in the funnel definition's `event_filter`. For example, if the step filter is `{"step_name": "signup-started"}`, then call `Owl.track('signup-started')`. Define matching funnels via `/owlmetry-cli`.
 
 **Note:** `track()` attributes must be `Record<string, string>` (string values only).
 

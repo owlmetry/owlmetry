@@ -290,7 +290,7 @@ export const funnelDefinitions = pgTable(
     slug: varchar("slug", { length: 255 }).notNull(),
     description: text("description"),
     steps: jsonb("steps")
-      .$type<Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>>()
+      .$type<Array<{ name: string; event_filter: { step_name?: string; screen_name?: string } }>>()
       .notNull(),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()

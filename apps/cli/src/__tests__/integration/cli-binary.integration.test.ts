@@ -212,8 +212,8 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
     it("creates a funnel with --project-id and --steps", () => {
       funnelSlug = `cli-bin-funnel-${UNIQUE}`;
       const steps = JSON.stringify([
-        { name: "step-one", event_filter: { message: "track:step-one" } },
-        { name: "step-two", event_filter: { message: "track:step-two" } },
+        { name: "step-one", event_filter: { step_name: "step-one" } },
+        { name: "step-two", event_filter: { step_name: "step-two" } },
       ]);
       const result = cli("funnels", "create", "--project-id", createdProjectId, "--name", "CLI Test Funnel", "--slug", funnelSlug, "--steps", steps);
       expect(result.slug).toBe(funnelSlug);

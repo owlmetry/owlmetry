@@ -3,7 +3,7 @@ title: Funnels
 description: Track funnel step completions with Owl.track() in the Node.js SDK.
 ---
 
-Use `Owl.track()` to emit named step completions that feed into [funnel analytics](/docs/concepts/funnels). Each call sends an info-level event with a `track:<stepName>` message that the server matches against funnel step definitions.
+Use `Owl.track()` to emit named step completions that feed into [funnel analytics](/docs/concepts/funnels). The step name you pass must match the `step_name` in your funnel definition's `event_filter`.
 
 ## Tracking Steps
 
@@ -72,6 +72,6 @@ async function processOnboarding(userId: string) {
 
 ## Defining Funnels
 
-Funnel steps recorded by the SDK are matched against funnel definitions on the server. Define your funnels in the dashboard or CLI with the step names you use in `track()` calls. Each step's `event_filter` matches on the `message` field (which will be `track:<stepName>`).
+Funnel steps recorded by the SDK are matched against funnel definitions on the server. Define your funnels in the dashboard or CLI with the step names you use in `track()` calls. Each step's `event_filter.step_name` should match the string you pass to `track()`.
 
 See [Funnels](/docs/concepts/funnels) for details on how funnel definitions, analytics, and query modes work.

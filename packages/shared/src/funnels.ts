@@ -1,7 +1,7 @@
 // ── Funnel Definitions ─────────────────────────────────────────────────
 
 export interface FunnelStepFilter {
-  message?: string;
+  step_name?: string;
   screen_name?: string;
 }
 

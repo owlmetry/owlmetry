@@ -387,7 +387,7 @@ describe("createFunnel", () => {
     const body = {
       name: "Onboarding",
       slug: "onboarding",
-      steps: [{ name: "signup", event_filter: { message: "track:signup" } }],
+      steps: [{ name: "signup", event_filter: { step_name: "signup" } }],
     };
     await makeClient().createFunnel("p-1", body);
     const call = getLastFetchCall();

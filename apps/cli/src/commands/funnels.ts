@@ -32,7 +32,7 @@ function formatFunnelDetail(funnel: FunnelDefinitionResponse): string {
     const step = funnel.steps[i];
     const filter = step.event_filter;
     const filterParts: string[] = [];
-    if (filter.message) filterParts.push(`message=${filter.message}`);
+    if (filter.step_name) filterParts.push(`step=${filter.step_name}`);
     if (filter.screen_name) filterParts.push(`screen=${filter.screen_name}`);
     lines.push(`  ${i + 1}. ${step.name}  ${chalk.dim(filterParts.join(", "))}`);
   }

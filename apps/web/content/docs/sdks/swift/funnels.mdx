@@ -7,7 +7,7 @@ Funnels measure how users progress through a multi-step flow and where they drop
 
 ## Tracking Steps
 
-Call `Owl.track()` when a user completes a funnel step. Each call emits an info-level event with the message `"track:<stepName>"`.
+Call `Owl.track()` when a user completes a funnel step. The step name you pass must match the `step_name` in your funnel definition's `event_filter`.
 
 ```swift
 Owl.track("welcome-screen")
@@ -27,20 +27,20 @@ public static func track(
 
 | Parameter | Description |
 |-----------|-------------|
-| `stepName` | The name of the funnel step. Must match the `event_filter` in your funnel definition. |
+| `stepName` | The name of the funnel step. Must match the `step_name` in your funnel definition's `event_filter`. |
 | `attributes` | Optional key-value pairs for segmenting funnel analytics later (e.g., signup method, referral source). |
 
 ## How It Works
 
-`Owl.track("welcome-screen")` is equivalent to calling `Owl.info("track:welcome-screen")`. The server matches these events against funnel definitions by looking at the `message` field.
+`Owl.track("welcome-screen")` emits a funnel event that the server matches against funnel definitions by the step name.
 
-For a funnel step with the filter `{"message": "track:welcome-screen"}`, the SDK call is:
+For a funnel step with the filter `{"step_name": "welcome-screen"}`, the SDK call is:
 
 ```swift
 Owl.track("welcome-screen")
 ```
 
-Step names must match exactly between your SDK calls and your funnel definition's event filters.
+Step names must match exactly between your SDK calls and your funnel definition's `event_filter.step_name` values.
 
 ## Example: Onboarding Funnel
 
@@ -48,10 +48,10 @@ Define the funnel on the server with steps that match your `track()` calls:
 
 | Step | Event Filter | SDK Call |
 |------|-------------|----------|
-| Welcome | `{"message": "track:welcome-screen"}` | `Owl.track("welcome-screen")` |
-| Account Created | `{"message": "track:create-account"}` | `Owl.track("create-account")` |
-| Profile Complete | `{"message": "track:complete-profile"}` | `Owl.track("complete-profile")` |
-| First Post | `{"message": "track:first-post"}` | `Owl.track("first-post")` |
+| Welcome | `{"step_name": "welcome-screen"}` | `Owl.track("welcome-screen")` |
+| Account Created | `{"step_name": "create-account"}` | `Owl.track("create-account")` |
+| Profile Complete | `{"step_name": "complete-profile"}` | `Owl.track("complete-profile")` |
+| First Post | `{"step_name": "first-post"}` | `Owl.track("first-post")` |
 
 In your SwiftUI views:
 

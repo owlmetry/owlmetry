@@ -185,10 +185,10 @@ async function main() {
       slug: "onboarding",
       description: "Tracks user progression through the onboarding flow",
       steps: [
-        { name: "Welcome Screen", event_filter: { message: "track:welcome-screen" } },
-        { name: "Create Account", event_filter: { message: "track:create-account" } },
-        { name: "Complete Profile", event_filter: { message: "track:complete-profile" } },
-        { name: "First Post", event_filter: { message: "track:first-post" } },
+        { name: "Welcome Screen", event_filter: { step_name: "welcome-screen" } },
+        { name: "Create Account", event_filter: { step_name: "create-account" } },
+        { name: "Complete Profile", event_filter: { step_name: "complete-profile" } },
+        { name: "First Post", event_filter: { step_name: "first-post" } },
       ],
     },
   ]).onConflictDoNothing();

@@ -3,7 +3,7 @@ title: Funnels
 description: Create, list, and query funnel definitions and analytics from the CLI.
 ---
 
-Funnels track user progression through a sequence of steps, like an onboarding flow or checkout process. Definitions are scoped to [projects](/docs/cli/projects). Each step has a name and an event filter that matches on `message` and/or `screen_name`.
+Funnels track user progression through a sequence of steps, like an onboarding flow or checkout process. Definitions are scoped to [projects](/docs/cli/projects). Each step has a name and an event filter that matches on `step_name` and/or `screen_name`.
 
 ## List funnels
 
@@ -49,13 +49,13 @@ owlmetry funnels create --project-id <id> --name <name> --slug <slug> --steps <j
 
 ### Step format
 
-Each step is a JSON object with `name` and `event_filter`. The `event_filter` matches events by `message` and/or `screen_name`.
+Each step is a JSON object with `name` and `event_filter`. The `event_filter` matches events by `step_name` and/or `screen_name`. The `step_name` value should match the string you pass to `track()` in the SDK.
 
 ```json
 [
-  { "name": "sign-up", "event_filter": { "message": "track:sign-up" } },
-  { "name": "onboarding", "event_filter": { "message": "track:onboarding" } },
-  { "name": "first-purchase", "event_filter": { "message": "track:first-purchase" } }
+  { "name": "sign-up", "event_filter": { "step_name": "sign-up" } },
+  { "name": "onboarding", "event_filter": { "step_name": "onboarding" } },
+  { "name": "first-purchase", "event_filter": { "step_name": "first-purchase" } }
 ]
 ```
 
@@ -69,7 +69,7 @@ owlmetry funnels create \
   --name "Onboarding" \
   --slug onboarding \
   --description "New user onboarding flow" \
-  --steps '[{"name":"sign-up","event_filter":{"message":"track:sign-up"}},{"name":"profile-setup","event_filter":{"message":"track:profile-setup"}},{"name":"first-action","event_filter":{"message":"track:first-action"}}]'
+  --steps '[{"name":"sign-up","event_filter":{"step_name":"sign-up"}},{"name":"profile-setup","event_filter":{"step_name":"profile-setup"}},{"name":"first-action","event_filter":{"step_name":"first-action"}}]'
 ```
 
 ## Query funnel analytics
@@ -143,7 +143,7 @@ owlmetry funnels update onboarding --project-id 550e8400-... --name "New User On
 
 # Replace steps
 owlmetry funnels update onboarding --project-id 550e8400-... \
-  --steps '[{"name":"sign-up","event_filter":{"message":"track:sign-up"}},{"name":"tutorial","event_filter":{"message":"track:tutorial"}}]'
+  --steps '[{"name":"sign-up","event_filter":{"step_name":"sign-up"}},{"name":"tutorial","event_filter":{"step_name":"tutorial"}}]'
 ```
 
 ## Delete a funnel

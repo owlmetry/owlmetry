@@ -41,28 +41,28 @@ Each step has a `name` and an `event_filter` that determines which events count 
 {
   "name": "Viewed Pricing",
   "event_filter": {
-    "message": "track:viewed-pricing",
+    "step_name": "viewed-pricing",
     "screen_name": "PricingScreen"
   }
 }
 ```
 
-The `event_filter` can match on `message`, `screen_name`, or both. When both are provided, an event must match both fields to satisfy the step.
+The `event_filter` can match on `step_name`, `screen_name`, or both. When both are provided, an event must match both fields to satisfy the step.
 
 A funnel can have up to 20 steps.
 
 ## Tracking Funnel Steps
 
-SDKs provide a `track()` method that emits an event with the message format `track:<stepName>`:
+SDKs provide a `track()` method that emits an event matching the step name in your funnel definition:
 
 ```
-track("viewed-pricing")    → event with message "track:viewed-pricing"
-track("started-trial")     → event with message "track:started-trial"
+track("viewed-pricing")    → matches event_filter { "step_name": "viewed-pricing" }
+track("started-trial")     → matches event_filter { "step_name": "started-trial" }
 ```
 
-The server matches these events against funnel step filters during analytics queries. For SDK-specific usage, see the [Swift SDK](/docs/sdks/swift/funnels) or [Node SDK](/docs/sdks/node/funnels) guides.
+The step name you pass to `track()` must match the `step_name` in the funnel definition's `event_filter`. For SDK-specific usage, see the [Swift SDK](/docs/sdks/swift/funnels) or [Node SDK](/docs/sdks/node/funnels) guides.
 
-You can also define steps that match on any event field -- funnel steps are not limited to `track:` messages. A step filter matching `screen_name: "CheckoutScreen"` would count any event from that screen.
+You can also define steps that match on `screen_name` instead of or in addition to `step_name`. A step filter matching `screen_name: "CheckoutScreen"` would count any event from that screen.
 
 ## Analysis Modes
 
@@ -120,6 +120,6 @@ Funnel queries accept optional filters to narrow the data:
 
 ## Storage
 
-Funnel events are stored in a dedicated `funnel_events` table, partitioned monthly by `timestamp`. The server parses `track:` messages during ingestion and writes structured rows with fields like `step_name`, `user_id`, `screen_name`, and `experiments`.
+Funnel events are stored in a dedicated `funnel_events` table, partitioned monthly by `timestamp`, with structured rows containing `step_name`, `user_id`, `screen_name`, and `experiments`.
 
 For API details, see the [funnels API reference](/docs/api-reference/funnels).

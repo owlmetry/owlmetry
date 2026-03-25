@@ -294,7 +294,7 @@ describe("DELETE /v1/projects/:id", () => {
     `;
     await client`
       INSERT INTO funnel_definitions (project_id, name, slug, steps)
-      VALUES (${testData.projectId}, 'Test Funnel', 'test-funnel', ${JSON.stringify([{ name: "step1", event_filter: { message: "step1" } }])}::jsonb)
+      VALUES (${testData.projectId}, 'Test Funnel', 'test-funnel', ${JSON.stringify([{ name: "step1", event_filter: { step_name: "step1" } }])}::jsonb)
     `;
 
     await app.inject({

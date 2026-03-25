@@ -102,7 +102,7 @@ The endpoint accepts gzip-compressed request bodies. Set the `Content-Encoding: 
 Events matching specific message patterns are automatically written to specialized tables:
 
 - **Metric events:** Messages matching `metric:<slug>:<phase>` are parsed and inserted into the `metric_events` table.
-- **Funnel events:** Messages matching `track:<step_name>` are parsed and inserted into the `funnel_events` table.
+- **Funnel events:** Events from `track()` calls are parsed and inserted into the `funnel_events` table.
 
 These dual-writes are fire-and-forget and do not block the ingest response.
 

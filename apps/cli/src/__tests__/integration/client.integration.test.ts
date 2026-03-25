@@ -134,8 +134,8 @@ describe.skipIf(!TEST_ENDPOINT)("integration: OwlMetryClient", () => {
         name: "CLI Test Funnel",
         slug,
         steps: [
-          { name: "step-one", event_filter: { message: "track:step-one" } },
-          { name: "step-two", event_filter: { message: "track:step-two" } },
+          { name: "step-one", event_filter: { step_name: "step-one" } },
+          { name: "step-two", event_filter: { step_name: "step-two" } },
         ],
       });
       expect(created.slug).toBe(slug);

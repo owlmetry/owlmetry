@@ -94,8 +94,8 @@ export const FUNNEL_DEFINITION: FunnelDefinitionResponse = {
   slug: "onboarding",
   description: "New user onboarding flow",
   steps: [
-    { name: "signup", event_filter: { message: "track:signup" } },
-    { name: "profile", event_filter: { message: "track:profile" } },
+    { name: "signup", event_filter: { step_name: "signup" } },
+    { name: "profile", event_filter: { step_name: "profile" } },
   ],
   created_at: "2025-01-15T10:00:00.000Z",
   updated_at: "2025-01-15T10:00:00.000Z",

@@ -62,9 +62,9 @@ function ingest(events: any[], key = TEST_CLIENT_KEY) {
 }
 
 const ONBOARDING_STEPS = [
-  { name: "Welcome", event_filter: { message: "track:welcome" } },
-  { name: "Sign Up", event_filter: { message: "track:signup" } },
-  { name: "Complete Profile", event_filter: { message: "track:complete-profile" } },
+  { name: "Welcome", event_filter: { step_name: "welcome" } },
+  { name: "Sign Up", event_filter: { step_name: "signup" } },
+  { name: "Complete Profile", event_filter: { step_name: "complete-profile" } },
 ];
 
 describe("Funnel Definitions CRUD", () => {
@@ -545,7 +545,7 @@ describe("Funnel Analytics", () => {
       name: "Payment",
       slug: "payment",
       steps: [
-        { name: "Pay", event_filter: { message: "track:pay", screen_name: "PaymentView" } },
+        { name: "Pay", event_filter: { step_name: "pay", screen_name: "PaymentView" } },
       ],
     });
 
@@ -656,7 +656,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     await createFunnel({
       name: "Test",
       slug: "test",
-      steps: [{ name: "Welcome", event_filter: { message: "track:welcome" } }],
+      steps: [{ name: "Welcome", event_filter: { step_name: "welcome" } }],
     });
 
     const res = await app.inject({
@@ -684,7 +684,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     await createFunnel({
       name: "Test",
       slug: "test",
-      steps: [{ name: "Welcome", event_filter: { message: "track:welcome" } }],
+      steps: [{ name: "Welcome", event_filter: { step_name: "welcome" } }],
     });
 
     // Query with experiment filter
@@ -711,8 +711,8 @@ describe("Ingest: track events dual-write to funnel_events", () => {
 
 describe("Funnel Cross-Platform Environment", () => {
   const STEPS = [
-    { name: "Landing", event_filter: { message: "track:landing" } },
-    { name: "Signup", event_filter: { message: "track:signup" } },
+    { name: "Landing", event_filter: { step_name: "landing" } },
+    { name: "Signup", event_filter: { step_name: "signup" } },
   ];
 
   function ingestForPlatform(platform: "apple" | "backend" | "android", events: any[]) {

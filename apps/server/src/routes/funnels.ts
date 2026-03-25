@@ -47,8 +47,8 @@ function validateSteps(steps: unknown): string | null {
       return `steps[${i}]: event_filter is required`;
     }
     const filter = step.event_filter;
-    if (!filter.message && !filter.screen_name) {
-      return `steps[${i}]: event_filter must have at least message or screen_name`;
+    if (!filter.step_name && !filter.screen_name) {
+      return `steps[${i}]: event_filter must have at least step_name or screen_name`;
     }
   }
   return null;
@@ -433,7 +433,7 @@ interface FunnelQueryResult {
 
 interface FunnelQueryOptions {
   appIds: string[];
-  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>;
+  steps: Array<{ name: string; event_filter: { step_name?: string; screen_name?: string } }>;
   sinceDate: Date;
   untilDate: Date;
   mode: "closed" | "open";
@@ -497,7 +497,7 @@ async function buildFunnelQuery(
  */
 async function computeStepCounts(
   fastify: FastifyInstance,
-  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>,
+  steps: Array<{ name: string; event_filter: { step_name?: string; screen_name?: string } }>,
   baseConditions: SQL[],
   mode: "closed" | "open",
 ): Promise<number[]> {
@@ -573,7 +573,7 @@ async function computeStepCounts(
 
 async function buildGroupedFunnelQuery(
   fastify: FastifyInstance,
-  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>,
+  steps: Array<{ name: string; event_filter: { step_name?: string; screen_name?: string } }>,
   baseConditions: SQL[],
   mode: "closed" | "open",
   groupBy: string,
@@ -636,10 +636,10 @@ async function buildGroupedFunnelQuery(
   };
 }
 
-function buildStepFilterSql(filter: { message?: string; screen_name?: string }): SQL {
+function buildStepFilterSql(filter: { step_name?: string; screen_name?: string }): SQL {
   const conditions: SQL[] = [];
-  if (filter.message) {
-    conditions.push(sql`${funnelEvents.message} = ${filter.message}`);
+  if (filter.step_name) {
+    conditions.push(sql`${funnelEvents.step_name} = ${filter.step_name}`);
   }
   if (filter.screen_name) {
     conditions.push(sql`${funnelEvents.screen_name} = ${filter.screen_name}`);
@@ -648,7 +648,7 @@ function buildStepFilterSql(filter: { message?: string; screen_name?: string }):
 }
 
 function computeStepAnalytics(
-  steps: Array<{ name: string; event_filter: { message?: string; screen_name?: string } }>,
+  steps: Array<{ name: string; event_filter: { step_name?: string; screen_name?: string } }>,
   stepCounts: number[],
 ): FunnelStepAnalytics[] {
   const analytics: FunnelStepAnalytics[] = [];

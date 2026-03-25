@@ -256,10 +256,10 @@ Owl.clearUser(newAnonymousId: true)
 Funnels measure how users progress through a multi-step flow (onboarding, checkout, activation) and where they drop off. The system has three parts:
 
 1. **Define** the funnel server-side (via CLI or API) with ordered steps and event filters.
-2. **Track** steps client-side with `Owl.track("step-name")` — each call emits an event with message `"track:step-name"`.
+2. **Track** steps client-side with `Owl.track("step-name")`.
 3. **Query** analytics to see conversion rates and drop-off between steps.
 
-Choose step names that match the `event_filter` in your funnel definition. For example, if the step filter is `{"message": "track:welcome-screen"}`, then call `Owl.track("welcome-screen")`.
+The step name you pass to `Owl.track()` must match the `step_name` in the funnel definition's `event_filter`. For example, if the step filter is `{"step_name": "welcome-screen"}`, then call `Owl.track("welcome-screen")`.
 
 **Funnel design rules:**
 - Each step must be a point that **every user in the funnel passes through** on the way to the goal. If a step is conditional (e.g., paywall only shown to free users), it breaks the chain — users who skip it show as 0% conversion from that point.
@@ -277,15 +277,15 @@ Owl.track("complete-profile")
 Owl.track("first-post")
 ```
 
-Each `track()` call emits an info-level event with message `"track:<stepName>"`. Define matching funnel definitions via `/owlmetry-cli`:
+Define matching funnel definitions via `/owlmetry-cli`:
 ```bash
 # Write steps to a JSON file (avoids shell quoting issues)
 cat > /tmp/funnel-steps.json << 'EOF'
 [
-  {"name": "Welcome", "event_filter": {"message": "track:welcome-screen"}},
-  {"name": "Account", "event_filter": {"message": "track:create-account"}},
-  {"name": "Profile", "event_filter": {"message": "track:complete-profile"}},
-  {"name": "First Post", "event_filter": {"message": "track:first-post"}}
+  {"name": "Welcome", "event_filter": {"step_name": "welcome-screen"}},
+  {"name": "Account", "event_filter": {"step_name": "create-account"}},
+  {"name": "Profile", "event_filter": {"step_name": "complete-profile"}},
+  {"name": "First Post", "event_filter": {"step_name": "first-post"}}
 ]
 EOF
 

@@ -5,7 +5,7 @@ description: Funnel definition CRUD and analytics query endpoints with open/clos
 
 Funnel definition CRUD and analytics queries. All routes are nested under `/v1/projects/:projectId`.
 
-Funnels define a series of steps users should complete. Each step has a name and an event filter (matching on `message` and/or `screen_name`). SDKs track funnel steps via `track(stepName)` which emits events with the message `"track:<stepName>"`.
+Funnels define a series of steps users should complete. Each step has a name and an event filter (matching on `step_name` and/or `screen_name`). SDKs track funnel steps via `track(stepName)`, where the step name matches the `event_filter.step_name` in the funnel definition.
 
 ## GET /v1/projects/:projectId/funnels
 
@@ -26,15 +26,15 @@ List all funnel definitions for a project.
       "steps": [
         {
           "name": "Sign Up",
-          "event_filter": { "message": "track:sign-up" }
+          "event_filter": { "step_name": "sign-up" }
         },
         {
           "name": "Profile Setup",
-          "event_filter": { "message": "track:profile-setup" }
+          "event_filter": { "step_name": "profile-setup" }
         },
         {
           "name": "First Action",
-          "event_filter": { "message": "track:first-action" }
+          "event_filter": { "step_name": "first-action" }
         }
       ],
       "created_at": "2024-01-01T00:00:00.000Z",
@@ -75,15 +75,15 @@ Create a new funnel definition.
   "steps": [
     {
       "name": "Sign Up",
-      "event_filter": { "message": "track:sign-up" }
+      "event_filter": { "step_name": "sign-up" }
     },
     {
       "name": "Profile Setup",
-      "event_filter": { "message": "track:profile-setup" }
+      "event_filter": { "step_name": "profile-setup" }
     },
     {
       "name": "First Action",
-      "event_filter": { "message": "track:first-action" }
+      "event_filter": { "step_name": "first-action" }
     }
   ]
 }
@@ -115,8 +115,8 @@ Create a new funnel definition.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Step display name. |
-| `event_filter` | object | Yes | Must have at least `message` or `screen_name`. |
-| `event_filter.message` | string | No | Match events with this exact message. |
+| `event_filter` | object | Yes | Must have at least `step_name` or `screen_name`. |
+| `event_filter.step_name` | string | No | Match events with this step name. Should match the string passed to `track()` in the SDK. |
 | `event_filter.screen_name` | string | No | Match events with this exact screen name. |
 
 Returns `409` if a funnel with the same slug already exists in the project.
@@ -135,7 +135,7 @@ Update a funnel definition.
   "steps": [
     {
       "name": "New Step 1",
-      "event_filter": { "message": "track:new-step" }
+      "event_filter": { "step_name": "new-step" }
     }
   ]
 }
