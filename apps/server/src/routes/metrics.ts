@@ -1,16 +1,15 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { eq, and, inArray, isNull, sql, desc, gte, lte } from "drizzle-orm";
 import { metricDefinitions, metricEvents, projects, apps } from "@owlmetry/db";
-import {
-  parseTimeParam,
-  type CreateMetricDefinitionRequest,
-  type UpdateMetricDefinitionRequest,
-  type MetricQueryParams,
-  type MetricEventsQueryParams,
-  type MetricAggregationResult,
+import { parseTimeParam, validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
+import type {
+  CreateMetricDefinitionRequest,
+  UpdateMetricDefinitionRequest,
+  MetricQueryParams,
+  MetricEventsQueryParams,
+  MetricAggregationResult,
+  MetricPhase,
 } from "@owlmetry/shared";
-import { validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
-import type { MetricPhase } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";

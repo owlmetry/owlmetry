@@ -5,7 +5,6 @@ import { output, type OutputFormat } from "../formatters/index.js";
 import { formatEventsTable, formatEventDetail } from "../formatters/table.js";
 import { formatEventsLog } from "../formatters/log.js";
 import { parsePositiveInt } from "../utils/parse.js";
-
 import { paginationHint } from "../utils/pagination.js";
 
 export const eventsCommand = new Command("events")

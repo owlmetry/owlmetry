@@ -7,7 +7,6 @@ import { output } from "../formatters/index.js";
 import { formatMetricEventsTable } from "../formatters/table.js";
 import { formatMetricEventsLog } from "../formatters/log.js";
 import { parsePositiveInt } from "../utils/parse.js";
-
 import { paginationHint } from "../utils/pagination.js";
 
 function formatMetricsTable(metrics: MetricDefinitionResponse[]): string {
