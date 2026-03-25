@@ -5,6 +5,22 @@ description: Understand how OwlMetry captures, stores, and queries events with l
 
 Events are the core data unit in OwlMetry. Every interaction your app records -- a screen view, a button tap, a warning, an error -- is captured as an event and sent to the server for storage and analysis.
 
+<Callout>
+**Add event logging with your coding agent:**
+
+```
+Instrument this project with OwlMetry event logging.
+Run `owlmetry skills` to find the SDK skill file for this platform.
+
+- Add Owl.info/warn/error calls at key points: caught exceptions,
+  user actions, state transitions, and failure paths.
+- Add .owlScreen() to every distinct screen for automatic screen
+  view tracking.
+- Don't log inside loops or high-frequency callbacks — each call
+  sends a network event.
+```
+</Callout>
+
 ## Event Structure
 
 Each event contains the following fields:

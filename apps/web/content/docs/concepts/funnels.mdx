@@ -5,6 +5,25 @@ description: Define multi-step funnels to measure user conversion and drop-off a
 
 Funnels let you define an ordered sequence of steps that users should complete, then measure how many users reach each step and where they drop off. They are useful for tracking conversion flows like onboarding, checkout, or signup.
 
+<Callout>
+**Add funnel tracking with your coding agent:**
+
+```
+Add OwlMetry funnel tracking to this project.
+Run `owlmetry skills` to find the SDK and CLI skill files.
+
+- Identify 2-3 key user journeys worth measuring conversion on
+  (e.g., onboarding, checkout, activation).
+- For each journey, define the funnel on the server via CLI with
+  3-6 ordered steps, then add Owl.track("step-name") calls at
+  each progression point in the code.
+- Each step must be a point every user passes through — don't
+  include optional side-paths or engagement actions as steps.
+- Split alternative paths into separate funnels (e.g., screenshot
+  export vs video export).
+```
+</Callout>
+
 ## Funnel Definitions
 
 A funnel definition is a project-scoped record with an ordered list of steps. Each definition includes:
