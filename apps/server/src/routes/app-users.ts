@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, desc, inArray, isNull, ilike } from "drizzle-orm";
 import { apps, appUsers } from "@owlmetry/db";
+import { parseTimeParam } from "@owlmetry/shared";
 import type { AppUsersQueryParams, TeamAppUsersQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { serializeAppUser } from "../utils/serialize.js";
@@ -147,10 +148,10 @@ export async function appUsersRoutes(app: FastifyInstance) {
       }
 
       if (since) {
-        conditions.push(gte(appUsers.last_seen_at, new Date(since)));
+        conditions.push(gte(appUsers.last_seen_at, parseTimeParam(since)));
       }
       if (until) {
-        conditions.push(lte(appUsers.last_seen_at, new Date(until)));
+        conditions.push(lte(appUsers.last_seen_at, parseTimeParam(until)));
       }
 
       if (cursor) {

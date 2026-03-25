@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, desc, lt, or } from "drizzle-orm";
 import { auditLogs } from "@owlmetry/db";
+import { AUDIT_ACTIONS, parseTimeParam } from "@owlmetry/shared";
 import type { AuditLogsQueryParams, AuditAction } from "@owlmetry/shared";
-import { AUDIT_ACTIONS } from "@owlmetry/shared";
 import { requirePermission, assertTeamRole, hasTeamAccess } from "../middleware/auth.js";
 import { serializeAuditLog } from "../utils/serialize.js";
 import { normalizeLimit } from "../utils/pagination.js";
@@ -38,8 +38,8 @@ export async function auditLogsRoutes(app: FastifyInstance) {
       if (action && AUDIT_ACTIONS.includes(action as AuditAction)) {
         conditions.push(eq(auditLogs.action, action as AuditAction));
       }
-      if (since) conditions.push(gte(auditLogs.timestamp, new Date(since)));
-      if (until) conditions.push(lte(auditLogs.timestamp, new Date(until)));
+      if (since) conditions.push(gte(auditLogs.timestamp, parseTimeParam(since)));
+      if (until) conditions.push(lte(auditLogs.timestamp, parseTimeParam(until)));
 
       // Cursor-based pagination: cursor is "timestamp|id"
       if (cursor) {

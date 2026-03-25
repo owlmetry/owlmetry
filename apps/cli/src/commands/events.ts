@@ -5,7 +5,7 @@ import { output, type OutputFormat } from "../formatters/index.js";
 import { formatEventsTable, formatEventDetail } from "../formatters/table.js";
 import { formatEventsLog } from "../formatters/log.js";
 import { parsePositiveInt } from "../utils/parse.js";
-import { parseTimeInput } from "../utils/time.js";
+
 import { paginationHint } from "../utils/pagination.js";
 
 export const eventsCommand = new Command("events")
@@ -46,12 +46,8 @@ export const eventsCommand = new Command("events")
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
-    const since = opts.since
-      ? parseTimeInput(opts.since)
-      : !opts.until
-        ? parseTimeInput("24h")
-        : undefined;
-    const until = opts.until ? parseTimeInput(opts.until) : undefined;
+    const since = opts.since ?? (!opts.until ? "24h" : undefined);
+    const until = opts.until;
 
     const result = await client.queryEvents({
       project_id: opts.projectId,

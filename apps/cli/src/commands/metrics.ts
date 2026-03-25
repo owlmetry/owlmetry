@@ -7,7 +7,7 @@ import { output } from "../formatters/index.js";
 import { formatMetricEventsTable } from "../formatters/table.js";
 import { formatMetricEventsLog } from "../formatters/log.js";
 import { parsePositiveInt } from "../utils/parse.js";
-import { parseTimeInput } from "../utils/time.js";
+
 import { paginationHint } from "../utils/pagination.js";
 
 function formatMetricsTable(metrics: MetricDefinitionResponse[]): string {
@@ -135,12 +135,8 @@ metricsCommand
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
-    const since = opts.since
-      ? parseTimeInput(opts.since)
-      : !opts.until
-        ? parseTimeInput("24h")
-        : undefined;
-    const until = opts.until ? parseTimeInput(opts.until) : undefined;
+    const since = opts.since ?? (!opts.until ? "24h" : undefined);
+    const until = opts.until;
 
     const result = await client.queryMetricEvents(slug, opts.projectId, {
       phase: opts.phase as any,
@@ -204,8 +200,8 @@ metricsCommand
   .command("query <slug>")
   .description("Query metric aggregation")
   .requiredOption("--project-id <id>", "Project ID")
-  .option("--since <date>", "Start date (ISO)")
-  .option("--until <date>", "End date (ISO)")
+  .option("--since <date>", "Start time (e.g. 1h, 30m, 7d, or ISO 8601)")
+  .option("--until <date>", "End time (e.g. 1h, 30m, 7d, or ISO 8601)")
   .option("--app-id <id>", "Filter by app ID")
   .option("--app-version <version>", "Filter by app version")
   .option("--device-model <model>", "Filter by device model")

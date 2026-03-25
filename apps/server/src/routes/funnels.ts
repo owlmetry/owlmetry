@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, gte, lte, type SQL } from "drizzle-orm";
 import { funnelDefinitions, funnelEvents, projects } from "@owlmetry/db";
+import { parseTimeParam } from "@owlmetry/shared";
 import type {
   CreateFunnelRequest,
   UpdateFunnelRequest,
@@ -358,8 +359,8 @@ export async function funnelsRoutes(app: FastifyInstance) {
       }
 
       // Build base conditions
-      const sinceDate = since ? new Date(since) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const untilDate = until ? new Date(until) : new Date();
+      const sinceDate = since ? parseTimeParam(since) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const untilDate = until ? parseTimeParam(until) : new Date();
 
       const result = await buildFunnelQuery(app, {
         appIds: filteredAppIds,

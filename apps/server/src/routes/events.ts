@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, desc, inArray, isNull } from "drizzle-orm";
 import { events, apps } from "@owlmetry/db";
+import { parseTimeParam } from "@owlmetry/shared";
 import type { EventsQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
@@ -103,10 +104,10 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(eq(events.screen_name, screen_name));
       }
       if (since) {
-        conditions.push(gte(events.timestamp, new Date(since)));
+        conditions.push(gte(events.timestamp, parseTimeParam(since)));
       }
       if (until) {
-        conditions.push(lte(events.timestamp, new Date(until)));
+        conditions.push(lte(events.timestamp, parseTimeParam(until)));
       }
       if (cursor) {
         conditions.push(lt(events.timestamp, new Date(cursor)));

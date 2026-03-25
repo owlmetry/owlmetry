@@ -2,7 +2,7 @@ import { Command, Option } from "commander";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
-import { parseTimeInput } from "../utils/time.js";
+
 import { paginationHint } from "../utils/pagination.js";
 
 export const auditLogCommand = new Command("audit-log")
@@ -39,8 +39,8 @@ auditLogCommand
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
-    const since = opts.since ? parseTimeInput(opts.since) : undefined;
-    const until = opts.until ? parseTimeInput(opts.until) : undefined;
+    const since = opts.since;
+    const until = opts.until;
 
     const result = await client.queryAuditLogs(opts.teamId, {
       resource_type: opts.resourceType,

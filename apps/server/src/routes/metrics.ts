@@ -1,12 +1,13 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { eq, and, inArray, isNull, sql, desc, gte, lte } from "drizzle-orm";
 import { metricDefinitions, metricEvents, projects, apps } from "@owlmetry/db";
-import type {
-  CreateMetricDefinitionRequest,
-  UpdateMetricDefinitionRequest,
-  MetricQueryParams,
-  MetricEventsQueryParams,
-  MetricAggregationResult,
+import {
+  parseTimeParam,
+  type CreateMetricDefinitionRequest,
+  type UpdateMetricDefinitionRequest,
+  type MetricQueryParams,
+  type MetricEventsQueryParams,
+  type MetricAggregationResult,
 } from "@owlmetry/shared";
 import { validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
 import type { MetricPhase } from "@owlmetry/shared";
@@ -313,10 +314,10 @@ export async function metricsRoutes(app: FastifyInstance) {
       ];
 
       // Time range (default 24h)
-      const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const sinceDate = since ? parseTimeParam(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
       conditions.push(gte(metricEvents.timestamp, sinceDate));
 
-      if (until) conditions.push(lte(metricEvents.timestamp, new Date(until)));
+      if (until) conditions.push(lte(metricEvents.timestamp, parseTimeParam(until)));
       if (app_version) conditions.push(eq(metricEvents.app_version, app_version));
       if (device_model) conditions.push(eq(metricEvents.device_model, device_model));
       if (os_version) conditions.push(eq(metricEvents.os_version, os_version));
@@ -482,8 +483,8 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (tracking_id) conditions.push(eq(metricEvents.tracking_id, tracking_id));
       if (user_id) conditions.push(eq(metricEvents.user_id, user_id));
       if (environment) conditions.push(eq(metricEvents.environment, environment as typeof metricEvents.environment.enumValues[number]));
-      if (since) conditions.push(gte(metricEvents.timestamp, new Date(since)));
-      if (until) conditions.push(lte(metricEvents.timestamp, new Date(until)));
+      if (since) conditions.push(gte(metricEvents.timestamp, parseTimeParam(since)));
+      if (until) conditions.push(lte(metricEvents.timestamp, parseTimeParam(until)));
       const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
       if (devCondition) conditions.push(devCondition);
       if (cursor) conditions.push(lte(metricEvents.timestamp, new Date(cursor)));
