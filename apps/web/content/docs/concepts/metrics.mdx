@@ -5,10 +5,7 @@ description: Track performance with lifecycle operations (start, complete, fail,
 
 Structured metrics let you measure the performance of specific operations in your app -- network requests, file uploads, checkout flows, or any timed process. Unlike raw events, metrics follow a defined lifecycle and produce aggregated performance data.
 
-<Callout>
-**Add structured metrics with your coding agent:**
-
-```
+```text title="Add structured metrics with your coding agent"
 Add OwlMetry structured metrics to this project.
 Run `owlmetry skills` to find the SDK and CLI skill files.
 
@@ -21,7 +18,6 @@ Run `owlmetry skills` to find the SDK and CLI skill files.
 - Every start must have exactly one terminal call — don't leak
   operations. Don't start for no-ops like cache hits.
 ```
-</Callout>
 
 ## How Metrics Work
 
