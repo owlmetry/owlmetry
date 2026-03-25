@@ -261,6 +261,13 @@ Funnels measure how users progress through a multi-step flow (onboarding, checko
 
 Choose step names that match the `event_filter` in your funnel definition. For example, if the step filter is `{"message": "track:welcome-screen"}`, then call `Owl.track("welcome-screen")`.
 
+**Funnel design rules:**
+- Each step must be a point that **every user in the funnel passes through** on the way to the goal. If a step is conditional (e.g., paywall only shown to free users), it breaks the chain — users who skip it show as 0% conversion from that point.
+- Keep funnels focused on **one flow**. Don't combine "import a model" + "explore features" into one funnel — those are separate journeys with separate goals.
+- **Optional interactions are not steps.** Toggling a setting, viewing info, or using a tool are engagement events (log with `Owl.info()`), not funnel progression. A funnel step should represent the user moving closer to the goal.
+- Split alternative paths into **separate funnels**. If users can take a screenshot OR record a video, create two funnels — don't put both paths in one.
+- Aim for **3-6 steps** per funnel. Too few = no drop-off insight. Too many = noise.
+
 Use `attributes` when you need to segment funnel analytics later (e.g., by signup method or referral source).
 
 ```swift
@@ -388,13 +395,27 @@ Owl.clearExperiments()
 - All events automatically include an `experiments` field with current assignments.
 - Query funnel analytics segmented by variant via CLI: `owlmetry funnels query <slug> --project <id> --group-by experiment:checkout-redesign`
 
+## What the SDK Tracks Automatically
+
+Do not re-implement any of these — they are built into the SDK and emitted without any code:
+
+- **`sdk:configured`** — emitted on `Owl.configure()`
+- **`sdk:backgrounded`** / **`sdk:foregrounded`** — app state transitions
+- **`sdk:shutdown`** — on `Owl.shutdown()`
+- **`session_id`** — fresh UUID per `configure()` call, included on every event
+- **`_launch_time_ms`** — app launch time, included in the `session_started` event
+- **`_connection`** — network type (wifi, cellular, etc.), included on every event
+- **Device model, OS version, locale** — included on every event
+- **`is_dev`** — automatically `true` in DEBUG builds
+
+You do NOT need to manually track app launch, app foreground/background, session start, network type, or device info. These are already covered.
+
 ## Instrumentation Strategy
 
 When instrumenting a new app, follow this priority:
 
 **Always instrument (events — no CLI setup needed):**
 - Screen views (`.owlScreen("ScreenName")` on every distinct screen)
-- App launch / cold start (`info` in `init()` or `didFinishLaunching`)
 - Authentication events (login, logout, signup)
 - Caught exceptions (`error` in `catch` blocks, error handlers)
 - Validation failures and pre-checks (`warn` for bad input, missing optional data, fallback paths)

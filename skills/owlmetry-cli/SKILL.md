@@ -106,6 +106,15 @@ Use the `client_key` from Step 3 to configure the appropriate SDK:
 
 Pass the **ingest endpoint** and client key to the SDK's `configure()` call. Read `~/.owlmetry/config.json` for the `ingest_endpoint` value (set during auth). For the hosted platform it's `https://ingest.owlmetry.com`. For self-hosted it defaults to the API endpoint.
 
+### Step 5 — Add to project's CLAUDE.md
+
+Add this to the project's `CLAUDE.md` so future sessions know OwlMetry is integrated and load the right skills:
+
+```markdown
+### OwlMetry
+Load the `/owlmetry-cli` skill before running any `owlmetry` CLI commands or doing analytics work — it links to the appropriate SDK skill for your platform.
+```
+
 ## Resource Hierarchy
 
 OwlMetry organises resources in a `Team → Project → Apps` hierarchy:

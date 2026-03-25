@@ -28,6 +28,15 @@ the SDK skill to instrument the code.
 
 That's it. Your agent reads the skill files and takes it from there. The only thing you'll need to do is provide a **6-digit verification code** — the agent will ask for your email, OwlMetry sends you a code, and you paste it back. This creates your account, generates an API key, and the agent handles the rest: creating a project, setting up an app, installing the SDK, and wiring up event tracking.
 
+**Tip:** Add this line to your project's `CLAUDE.md`, `AGENTS.md`, or whatever default instructions file your coding agent uses:
+
+```markdown
+### OwlMetry
+Load `/owlmetry-cli` before running any `owlmetry` CLI commands or doing analytics work — it links to the appropriate SDK skill for your platform.
+```
+
+This ensures every future session knows OwlMetry is integrated and loads the right skill files automatically — including the full API reference, funnel design rules, and lifecycle metric patterns.
+
 <Callout>
 **Self-hosting?** Add `--endpoint https://your-server.example.com` to point the CLI at your own instance. See [Self-hosted setup](/docs/getting-started/self-hosting).
 </Callout>
