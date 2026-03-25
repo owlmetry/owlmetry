@@ -25,8 +25,8 @@ List events with optional filters. Results are ordered by timestamp descending (
 | `session_id` | string | Filter by session ID. |
 | `environment` | string | Filter by environment: `ios`, `ipados`, `macos`, `android`, `web`, `backend`. |
 | `screen_name` | string | Filter by screen name (exact match). |
-| `since` | string | ISO 8601 timestamp. Only events at or after this time. |
-| `until` | string | ISO 8601 timestamp. Only events at or before this time. |
+| `since` | string | Start time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
+| `until` | string | End time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
 | `data_mode` | string | `production` (default), `development`, or `all`. |
 | `cursor` | string | Cursor from previous response for pagination. |
 | `limit` | number | Items per page (1-200, default 50). |

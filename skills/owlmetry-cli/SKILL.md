@@ -164,7 +164,7 @@ owlmetry metrics create --project-id <id> --name <name> --slug <slug> [--lifecyc
 owlmetry metrics update <slug> --project-id <id> [--name <name>] [--status active|paused] --format json
 owlmetry metrics delete <slug> --project-id <id>
 owlmetry metrics events <slug> --project-id <id> [--phase <phase>] [--user-id <id>] [--since <time>] [--until <time>] --format json
-owlmetry metrics query <slug> --project-id <id> [--since <date>] [--until <date>] [--app-id <id>] [--user-id <id>] [--group-by <field>] --format json
+owlmetry metrics query <slug> --project-id <id> [--since <time>] [--until <time>] [--app-id <id>] [--user-id <id>] [--group-by <field>] --format json
 
 # Funnels
 owlmetry funnels list --project-id <id> --format json
@@ -172,7 +172,7 @@ owlmetry funnels view <slug> --project-id <id> --format json
 owlmetry funnels create --project-id <id> --name <name> --slug <slug> --steps-file <path> [--description <desc>] --format json
 owlmetry funnels update <slug> --project-id <id> --steps-file <path> --format json
 owlmetry funnels delete <slug> --project-id <id>
-owlmetry funnels query <slug> --project-id <id> [--since <date>] [--until <date>] [--open] [--group-by <field>] --format json
+owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--open] [--group-by <field>] --format json
 
 # Events
 owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] --format json
@@ -317,7 +317,7 @@ There are two ways to look at metric data:
 
 ```bash
 owlmetry metrics events <slug> --project-id <id> [--phase start|complete|fail|cancel|record] [--tracking-id <id>] [--user-id <id>] [--since <time>] [--until <time>] [--environment <env>] [--data-mode <mode>] --format json
-owlmetry metrics query <slug> --project-id <id> [--since <date>] [--until <date>] [--app-id <id>] [--app-version <v>] [--environment <env>] [--user-id <id>] [--group-by app_id|app_version|device_model|os_version|environment|time:hour|time:day|time:week] [--data-mode <mode>] --format json
+owlmetry metrics query <slug> --project-id <id> [--since <time>] [--until <time>] [--app-id <id>] [--app-version <v>] [--environment <env>] [--user-id <id>] [--group-by app_id|app_version|device_model|os_version|environment|time:hour|time:day|time:week] [--data-mode <mode>] --format json
 ```
 
 ### Funnel Analytics
@@ -325,7 +325,7 @@ owlmetry metrics query <slug> --project-id <id> [--since <date>] [--until <date>
 Funnel queries return conversion rates and drop-off between steps. The output shows how many users entered each step and what percentage continued to the next. Use `--group-by` to segment results and compare conversion across environments, app versions, or A/B experiment variants.
 
 ```bash
-owlmetry funnels query <slug> --project-id <id> [--since <date>] [--until <date>] [--open] [--app-version <v>] [--environment <env>] [--experiment <name:variant>] [--group-by environment|app_version|experiment:<name>] [--data-mode <mode>] --format json
+owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--open] [--app-version <v>] [--environment <env>] [--experiment <name:variant>] [--group-by environment|app_version|experiment:<name>] [--data-mode <mode>] --format json
 ```
 
 `--open` = open funnel mode (steps evaluated independently, not sequentially).

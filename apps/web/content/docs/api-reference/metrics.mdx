@@ -171,8 +171,8 @@ List raw metric events for a specific metric, ordered by timestamp descending.
 | `tracking_id` | string | Filter by operation tracking ID (UUID). |
 | `user_id` | string | Filter by user ID. |
 | `environment` | string | Filter by environment. |
-| `since` | string | ISO 8601 timestamp. |
-| `until` | string | ISO 8601 timestamp. |
+| `since` | string | Start time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
+| `until` | string | End time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
 | `data_mode` | string | `production` (default), `development`, or `all`. |
 | `cursor` | string | Cursor from previous response. |
 | `limit` | number | Items per page (1-200, default 50). |
@@ -222,8 +222,8 @@ Run an aggregation query over metric events.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `since` | string | ISO 8601 timestamp (default: 24 hours ago). |
-| `until` | string | ISO 8601 timestamp. |
+| `since` | string | Start time (default: 24 hours ago). Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
+| `until` | string | End time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
 | `app_id` | string | Filter to a specific app. |
 | `app_version` | string | Filter by app version. |
 | `device_model` | string | Filter by device model. |

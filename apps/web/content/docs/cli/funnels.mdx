@@ -84,8 +84,8 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 |-----------------|----------|-------------|
 | `<slug>` | Yes | Funnel slug |
 | `--project-id <id>` | Yes | Project UUID |
-| `--since <date>` | No | Start date (ISO 8601) |
-| `--until <date>` | No | End date (ISO 8601) |
+| `--since <time>` | No | Start time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
+| `--until <time>` | No | End time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
 | `--open` | No | Use open (independent) mode instead of closed (sequential) mode |
 | `--app-version <version>` | No | Filter by app version |
 | `--environment <env>` | No | Filter by environment: `ios`, `ipados`, `macos`, `android`, `web`, `backend` |

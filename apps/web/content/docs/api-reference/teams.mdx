@@ -300,8 +300,8 @@ Query the audit log for a team. Returns a paginated list of actions performed on
 | `resource_id` | string | Filter by resource ID. |
 | `actor_id` | string | Filter by actor (user or API key) ID. |
 | `action` | string | Filter by action: `create`, `update`, `delete`. |
-| `since` | string | ISO 8601 timestamp. |
-| `until` | string | ISO 8601 timestamp. |
+| `since` | string | Start time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
+| `until` | string | End time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
 | `cursor` | string | Cursor from previous response (format: `timestamp|id`). |
 | `limit` | number | Items per page (1-200, default 50). |
 

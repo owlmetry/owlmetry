@@ -76,8 +76,8 @@ Returns aggregated statistics for a metric: event counts by phase, success rate,
 |-----------------|----------|-------------|
 | `<slug>` | Yes | Metric slug |
 | `--project-id <id>` | Yes | Project UUID |
-| `--since <date>` | No | Start date (ISO 8601) |
-| `--until <date>` | No | End date (ISO 8601) |
+| `--since <time>` | No | Start time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
+| `--until <time>` | No | End time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
 | `--app-id <id>` | No | Filter by app UUID |
 | `--app-version <version>` | No | Filter by app version |
 | `--device-model <model>` | No | Filter by device model |
