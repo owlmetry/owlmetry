@@ -1,6 +1,6 @@
 ---
 name: owlmetry-swift
-version: 0.1.12
+version: 0.1.13
 description: >-
   Integrate the OwlMetry Swift SDK into an iOS or macOS app for analytics,
   event tracking, metrics, funnels, and A/B experiments. Use when
