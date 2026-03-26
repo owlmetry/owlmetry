@@ -1,6 +1,6 @@
 ---
 name: owlmetry-node
-version: 0.1.13
+version: 0.1.14
 description: >-
   Integrate the OwlMetry Node.js SDK into a backend service for server-side
   analytics, event tracking, metrics, funnels, and A/B experiments. Use when
