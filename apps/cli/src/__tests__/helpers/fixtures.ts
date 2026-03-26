@@ -82,7 +82,6 @@ export const METRIC_DEFINITION: MetricDefinitionResponse = {
   documentation: null,
   schema_definition: null,
   aggregation_rules: null,
-  status: "active",
   created_at: "2025-01-15T10:00:00.000Z",
   updated_at: "2025-01-15T10:00:00.000Z",
 };

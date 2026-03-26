@@ -162,17 +162,6 @@ export default function MetricDetailPage() {
           {metricData?.description && (
             <p className="text-sm text-muted-foreground mt-1">{metricData.description}</p>
           )}
-          {metricData && (
-            <span
-              className={`mt-2 inline-block text-[10px] px-1.5 py-0.5 rounded-full ${
-                metricData.status === "active"
-                  ? "bg-green-500/10 text-green-600"
-                  : "bg-yellow-500/10 text-yellow-600"
-              }`}
-            >
-              {metricData.status === "active" ? "🟢 active" : "⏸️ archived"}
-            </span>
-          )}
         </div>
         {metricData?.documentation && (
           <Button variant="outline" size="sm" onClick={() => setDocsOpen(true)}>

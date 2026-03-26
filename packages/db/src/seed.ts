@@ -165,7 +165,6 @@ async function main() {
       description: "Tracks photo format conversion operations",
       documentation: "## Photo Conversion\n\nTracks HEIC to JPEG conversion operations including duration and output size.",
       aggregation_rules: { lifecycle: true, size_field: "output_size" },
-      status: "active",
     },
     {
       project_id: project.id,
@@ -173,7 +172,6 @@ async function main() {
       slug: "checkout",
       description: "Tracks checkout flow completion",
       aggregation_rules: { lifecycle: true },
-      status: "active",
     },
   ]).onConflictDoNothing();
 

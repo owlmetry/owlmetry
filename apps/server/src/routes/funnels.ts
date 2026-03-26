@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, sql, gte, lte, type SQL } from "drizzle-orm";
+import { eq, and, inArray, isNull, isNotNull, sql, gte, lte, type SQL } from "drizzle-orm";
 import { funnelDefinitions, funnelEvents, projects } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
 import type {
@@ -146,6 +146,42 @@ export async function funnelsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: roleError });
       }
 
+      // Resurrect soft-deleted funnel with same slug (preserves UUID and event history)
+      const [existing] = await app.db
+        .select()
+        .from(funnelDefinitions)
+        .where(
+          and(
+            eq(funnelDefinitions.project_id, projectId),
+            eq(funnelDefinitions.slug, slug),
+            isNotNull(funnelDefinitions.deleted_at),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        const [restored] = await app.db
+          .update(funnelDefinitions)
+          .set({
+            name,
+            description: description ?? null,
+            steps,
+            deleted_at: null,
+          })
+          .where(eq(funnelDefinitions.id, existing.id))
+          .returning();
+
+        logAuditEvent(app.db, auth, {
+          team_id: project.team_id,
+          action: "create",
+          resource_type: "funnel_definition",
+          resource_id: restored.id,
+          metadata: { name, slug, resurrected: true },
+        });
+
+        return reply.code(201).send(serializeFunnelDefinition(restored));
+      }
+
       try {
         const [created] = await app.db
           .insert(funnelDefinitions)
@@ -248,16 +284,12 @@ export async function funnelsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Delete funnel definition (soft delete, user-only)
+  // Delete funnel definition (soft delete)
   app.delete<{ Params: { projectId: string; slug: string } }>(
     "/funnels/:slug",
     { preHandler: requirePermission("funnels:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can delete funnels" });
-      }
 
       const { projectId, slug } = request.params;
 

@@ -161,7 +161,7 @@ owlmetry apps update <id> --name <name> --format json
 owlmetry metrics list --project-id <id> --format json
 owlmetry metrics view <slug> --project-id <id> --format json
 owlmetry metrics create --project-id <id> --name <name> --slug <slug> [--lifecycle] [--description <desc>] --format json
-owlmetry metrics update <slug> --project-id <id> [--name <name>] [--status active|paused] --format json
+owlmetry metrics update <slug> --project-id <id> [--name <name>] [--description <desc>] --format json
 owlmetry metrics delete <slug> --project-id <id>
 owlmetry metrics events <slug> --project-id <id> [--phase <phase>] [--user-id <id>] [--since <time>] [--until <time>] --format json
 owlmetry metrics query <slug> --project-id <id> [--since <time>] [--until <time>] [--app-id <id>] [--user-id <id>] [--group-by <field>] --format json
@@ -228,7 +228,7 @@ The metric definition must exist on the server **before** the SDK emits events f
 owlmetry metrics list --project-id <id> --format json                   # List all
 owlmetry metrics view <slug> --project-id <id> --format json           # View details
 owlmetry metrics create --project-id <id> --name <name> --slug <slug> [--lifecycle] [--description <desc>] --format json
-owlmetry metrics update <slug> --project-id <id> [--name <name>] [--status active|paused] --format json
+owlmetry metrics update <slug> --project-id <id> [--name <name>] [--description <desc>] --format json
 owlmetry metrics delete <slug> --project-id <id>
 ```
 

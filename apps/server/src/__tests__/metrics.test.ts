@@ -171,15 +171,14 @@ describe("Metric Definitions CRUD", () => {
       method: "PATCH",
       url: `/v1/projects/${projectId}/metrics/update-test`,
       headers: { authorization: `Bearer ${token}` },
-      payload: { name: "New Name", status: "paused" },
+      payload: { name: "New Name" },
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json().name).toBe("New Name");
-    expect(res.json().status).toBe("paused");
   });
 
-  it("soft-deletes a metric definition (user-only)", async () => {
+  it("soft-deletes a metric definition", async () => {
     await app.inject({
       method: "POST",
       url: `/v1/projects/${projectId}/metrics`,
@@ -203,6 +202,35 @@ describe("Metric Definitions CRUD", () => {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(listRes.json().metrics).toHaveLength(0);
+  });
+
+  it("resurrects a soft-deleted metric when creating with the same slug", async () => {
+    // Create and then delete
+    const createRes = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Original", slug: "resurrect-test" },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const originalId = createRes.json().id;
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${projectId}/metrics/resurrect-test`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // Recreate with same slug — should resurrect with same UUID
+    const recreateRes = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Resurrected", slug: "resurrect-test" },
+    });
+    expect(recreateRes.statusCode).toBe(201);
+    expect(recreateRes.json().id).toBe(originalId);
+    expect(recreateRes.json().name).toBe("Resurrected");
   });
 });
 

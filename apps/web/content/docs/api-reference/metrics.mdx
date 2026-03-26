@@ -24,7 +24,6 @@ List all metric definitions for a project.
       "documentation": null,
       "schema_definition": null,
       "aggregation_rules": null,
-      "status": "active",
       "created_at": "2024-01-01T00:00:00.000Z",
       "updated_at": "2024-01-01T00:00:00.000Z"
     }
@@ -90,11 +89,12 @@ Create a new metric definition.
   "documentation": "Measured from didFinishLaunchingWithOptions to first frame render.",
   "schema_definition": null,
   "aggregation_rules": null,
-  "status": "active",
   "created_at": "2024-01-01T00:00:00.000Z",
   "updated_at": "2024-01-01T00:00:00.000Z"
 }
 ```
+
+If a soft-deleted metric with the same slug exists, it is restored (preserving its UUID and event history) instead of creating a new one.
 
 ### Field reference
 
@@ -122,8 +122,7 @@ Update a metric definition.
   "description": "Updated description",
   "documentation": "Updated docs",
   "schema_definition": null,
-  "aggregation_rules": null,
-  "status": "archived"
+  "aggregation_rules": null
 }
 
 // Response (200)
@@ -136,19 +135,16 @@ Update a metric definition.
   "documentation": "Updated docs",
   "schema_definition": null,
   "aggregation_rules": null,
-  "status": "archived",
   "created_at": "2024-01-01T00:00:00.000Z",
   "updated_at": "2024-01-15T12:00:00.000Z"
 }
 ```
 
-The `status` field accepts `active` or `archived`.
-
 ## DELETE /v1/projects/:projectId/metrics/:slug
 
 Soft-delete a metric definition.
 
-**Auth required:** Yes (JWT only, admin role required. Agent keys receive 403.)
+**Auth required:** Yes (`metrics:write` permission or JWT, admin role required)
 
 ```json
 // Response (200)

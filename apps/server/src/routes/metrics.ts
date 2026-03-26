@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { eq, and, inArray, isNull, sql, desc, gte, lte } from "drizzle-orm";
+import { eq, and, inArray, isNull, isNotNull, sql, desc, gte, lte } from "drizzle-orm";
 import { metricDefinitions, metricEvents, projects, apps } from "@owlmetry/db";
 import { parseTimeParam, validateMetricSlug, PG_UNIQUE_VIOLATION, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, METRIC_PHASES } from "@owlmetry/shared";
 import type {
@@ -25,7 +25,6 @@ function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
     documentation: row.documentation,
     schema_definition: row.schema_definition,
     aggregation_rules: row.aggregation_rules,
-    status: row.status,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
   };
@@ -133,6 +132,44 @@ export async function metricsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: roleError });
       }
 
+      // Resurrect soft-deleted metric with same slug (preserves UUID and event history)
+      const [existing] = await app.db
+        .select()
+        .from(metricDefinitions)
+        .where(
+          and(
+            eq(metricDefinitions.project_id, projectId),
+            eq(metricDefinitions.slug, slug),
+            isNotNull(metricDefinitions.deleted_at),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        const [restored] = await app.db
+          .update(metricDefinitions)
+          .set({
+            name,
+            description: description ?? null,
+            documentation: documentation ?? null,
+            schema_definition: schema_definition ?? null,
+            aggregation_rules: aggregation_rules ?? null,
+            deleted_at: null,
+          })
+          .where(eq(metricDefinitions.id, existing.id))
+          .returning();
+
+        logAuditEvent(app.db, auth, {
+          team_id: project.team_id,
+          action: "create",
+          resource_type: "metric_definition",
+          resource_id: restored.id,
+          metadata: { name, slug, resurrected: true },
+        });
+
+        return reply.code(201).send(serializeMetricDefinition(restored));
+      }
+
       try {
         const [created] = await app.db
           .insert(metricDefinitions)
@@ -172,7 +209,7 @@ export async function metricsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { projectId, slug } = request.params;
-      const { name, description, documentation, schema_definition, aggregation_rules, status } = request.body;
+      const { name, description, documentation, schema_definition, aggregation_rules } = request.body;
 
       const teamIds = getAuthTeamIds(auth);
       const [metric] = await app.db
@@ -205,7 +242,6 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (documentation !== undefined) updates.documentation = documentation;
       if (schema_definition !== undefined) updates.schema_definition = schema_definition;
       if (aggregation_rules !== undefined) updates.aggregation_rules = aggregation_rules;
-      if (status !== undefined) updates.status = status;
 
       if (Object.keys(updates).length === 0) {
         return reply.code(400).send({ error: "At least one field to update is required" });
@@ -219,7 +255,6 @@ export async function metricsRoutes(app: FastifyInstance) {
 
       const changes: Record<string, { before?: unknown; after?: unknown }> = {};
       if (name !== undefined) changes.name = { before: metric.metric_definitions.name, after: name };
-      if (status !== undefined) changes.status = { before: metric.metric_definitions.status, after: status };
       if (Object.keys(changes).length > 0) {
         logAuditEvent(app.db, auth, {
           team_id: metric.projects.team_id,
@@ -234,17 +269,12 @@ export async function metricsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Delete metric definition (soft delete, user-only)
+  // Delete metric definition (soft delete)
   app.delete<{ Params: { projectId: string; slug: string } }>(
     "/metrics/:slug",
     { preHandler: requirePermission("metrics:write") },
     async (request, reply) => {
       const auth = request.auth;
-
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can delete metrics" });
-      }
-
       const { projectId, slug } = request.params;
 
       const teamIds = getAuthTeamIds(auth);

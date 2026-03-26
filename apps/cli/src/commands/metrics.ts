@@ -13,12 +13,11 @@ function formatMetricsTable(metrics: MetricDefinitionResponse[]): string {
   if (metrics.length === 0) return chalk.dim("No metrics defined");
 
   const lines = [
-    chalk.bold("Slug".padEnd(30) + "Name".padEnd(30) + "Status".padEnd(10)),
-    "─".repeat(70),
+    chalk.bold("Slug".padEnd(30) + "Name".padEnd(30)),
+    "─".repeat(60),
   ];
   for (const m of metrics) {
-    const status = m.status === "active" ? chalk.green("active") : chalk.yellow("paused");
-    lines.push(`${m.slug.padEnd(30)}${m.name.padEnd(30)}${status}`);
+    lines.push(`${m.slug.padEnd(30)}${m.name.padEnd(30)}`);
   }
   return lines.join("\n");
 }
@@ -27,7 +26,6 @@ function formatMetricDetail(metric: MetricDefinitionResponse): string {
   const lines = [
     chalk.bold(metric.name),
     chalk.dim(`slug: ${metric.slug}`),
-    `Status: ${metric.status === "active" ? chalk.green("active") : chalk.yellow("paused")}`,
   ];
   if (metric.description) lines.push(`\n${metric.description}`);
   if (metric.aggregation_rules) {
@@ -248,13 +246,11 @@ metricsCommand
   .requiredOption("--project-id <id>", "Project ID")
   .option("--name <name>", "New name")
   .option("--description <desc>", "New description")
-  .option("--status <status>", "active or paused")
-  .action(async (slug: string, opts: { projectId: string; name?: string; description?: string; status?: string }, cmd) => {
+  .action(async (slug: string, opts: { projectId: string; name?: string; description?: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     const metric = await client.updateMetric(slug, opts.projectId, {
       name: opts.name,
       description: opts.description,
-      status: opts.status as "active" | "paused" | undefined,
     });
     output(globals.format, metric, () => formatMetricDetail(metric));
   });

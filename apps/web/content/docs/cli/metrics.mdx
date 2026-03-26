@@ -23,7 +23,7 @@ Lists all metric definitions for a project.
 owlmetry metrics view <slug> --project-id <id>
 ```
 
-Shows the metric definition including name, slug, status, description, aggregation rules, and documentation.
+Shows the metric definition including name, slug, description, aggregation rules, and documentation.
 
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
@@ -153,11 +153,6 @@ owlmetry metrics update <slug> --project-id <id> [options]
 | `--project-id <id>` | Yes | Project UUID |
 | `--name <name>` | No | New display name |
 | `--description <desc>` | No | New description |
-| `--status <status>` | No | `active` or `paused` |
-
-```bash
-owlmetry metrics update checkout-flow --project-id 550e8400-... --status paused
-```
 
 ## Delete a metric
 

@@ -164,7 +164,6 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
       const result = cli("metrics", "create", "--project-id", createdProjectId, "--name", "CLI Test Metric", "--slug", metricSlug, "--lifecycle");
       expect(result.slug).toBe(metricSlug);
       expect(result.name).toBe("CLI Test Metric");
-      expect(result.status).toBe("active");
     });
 
     it("lists metrics with --project-id", () => {
@@ -196,13 +195,9 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
       expect(Array.isArray(result.events)).toBe(true);
     });
 
-    // Note: metric delete is user-only (agent keys get 403), so we verify the flag parsing
-    // by checking it reaches the server (403) rather than failing at the CLI level
-    it("delete routes --project-id correctly (gets 403, not CLI parse error)", () => {
-      const { status, stderr } = cliExpectFail("metrics", "delete", metricSlug, "--project-id", createdProjectId);
-      expect(status).not.toBe(0);
-      expect(stderr).toContain("403");
-      expect(stderr).not.toContain("--project-id");
+    it("deletes a metric with --project-id", () => {
+      const { status } = cliExpectFail("metrics", "delete", metricSlug, "--project-id", createdProjectId);
+      expect(status).toBe(0);
     });
   });
 
@@ -244,13 +239,9 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
       expect(result).toHaveProperty("analytics");
     });
 
-    // Note: funnel delete is user-only (agent keys get 403), so we verify the flag parsing
-    // by checking it reaches the server (403) rather than failing at the CLI level
-    it("delete routes --project-id correctly (gets 403, not CLI parse error)", () => {
-      const { status, stderr } = cliExpectFail("funnels", "delete", funnelSlug, "--project-id", createdProjectId);
-      expect(status).not.toBe(0);
-      expect(stderr).toContain("403");
-      expect(stderr).not.toContain("--project-id");
+    it("deletes a funnel with --project-id", () => {
+      const { status } = cliExpectFail("funnels", "delete", funnelSlug, "--project-id", createdProjectId);
+      expect(status).toBe(0);
     });
   });
 

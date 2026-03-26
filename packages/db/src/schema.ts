@@ -24,7 +24,6 @@ export const logLevelEnum = pgEnum("log_level", [
   "error",
 ]);
 
-export const metricStatusEnum = pgEnum("metric_status", ["active", "paused"]);
 export const metricPhaseEnum = pgEnum("metric_phase", ["start", "complete", "fail", "cancel", "record"]);
 
 // Users
@@ -321,7 +320,6 @@ export const metricDefinitions = pgTable(
     documentation: text("documentation"),
     schema_definition: jsonb("schema_definition"),
     aggregation_rules: jsonb("aggregation_rules"),
-    status: metricStatusEnum("status").notNull().default("active"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

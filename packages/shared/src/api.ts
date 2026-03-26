@@ -356,7 +356,6 @@ export interface UpdateMetricDefinitionRequest {
   documentation?: string;
   schema_definition?: MetricSchemaDefinition;
   aggregation_rules?: MetricAggregationRules;
-  status?: "active" | "paused";
 }
 
 export type MetricDefinitionResponse = Omit<MetricDefinition, "created_at" | "updated_at" | "deleted_at"> & {

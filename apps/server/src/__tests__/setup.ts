@@ -203,14 +203,6 @@ export async function setupTestDb() {
     await migrationClient.unsafe(`CREATE TYPE metric_phase AS ENUM ('start', 'complete', 'fail', 'cancel', 'record')`);
   }
 
-  // Ensure metric_status enum exists
-  const metricStatusCheck = await migrationClient`
-    SELECT 1 FROM pg_type WHERE typname = 'metric_status'
-  `;
-  if (metricStatusCheck.length === 0) {
-    await migrationClient.unsafe(`CREATE TYPE metric_status AS ENUM ('active', 'paused')`);
-  }
-
   if (meResult.length === 0 || meResult[0].relkind !== "p") {
     await migrationClient.unsafe(`
       CREATE TABLE IF NOT EXISTS metric_events (

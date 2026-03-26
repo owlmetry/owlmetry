@@ -201,18 +201,7 @@ export default function MetricsPage() {
               }
             >
               <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">{m.name}</CardTitle>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                      m.status === "active"
-                        ? "bg-green-500/10 text-green-600"
-                        : "bg-yellow-500/10 text-yellow-600"
-                    }`}
-                  >
-                    {m.status === "active" ? "🟢 active" : "⏸️ archived"}
-                  </span>
-                </div>
+                <CardTitle className="text-sm font-medium">{m.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground font-mono">{m.slug}</p>

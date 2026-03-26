@@ -36,7 +36,6 @@ export interface MetricDefinition {
   documentation: string | null;
   schema_definition: MetricSchemaDefinition | null;
   aggregation_rules: MetricAggregationRules | null;
-  status: "active" | "paused";
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;

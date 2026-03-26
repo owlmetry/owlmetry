@@ -181,7 +181,7 @@ describe("Funnel Definitions CRUD", () => {
     expect(res.json().description).toBe("New description");
   });
 
-  it("soft deletes a funnel (user-only)", async () => {
+  it("soft deletes a funnel", async () => {
     await createFunnel({ name: "To Delete", slug: "to-delete", steps: ONBOARDING_STEPS });
 
     const res = await app.inject({
@@ -202,7 +202,7 @@ describe("Funnel Definitions CRUD", () => {
     expect(listRes.json().funnels).toHaveLength(0);
   });
 
-  it("rejects agent key delete with 403", async () => {
+  it("allows agent key to delete funnels", async () => {
     await createFunnel({ name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
 
     const agentKey = await createAgentKey(app, token, teamId, ["funnels:read", "funnels:write"]);
@@ -212,7 +212,25 @@ describe("Funnel Definitions CRUD", () => {
       headers: { authorization: `Bearer ${agentKey}` },
     });
 
-    expect(res.statusCode).toBe(403);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().deleted).toBe(true);
+  });
+
+  it("resurrects a soft-deleted funnel when creating with the same slug", async () => {
+    const createRes = await createFunnel({ name: "Original", slug: "resurrect-test", steps: ONBOARDING_STEPS });
+    const originalId = createRes.json().id;
+
+    await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${projectId}/funnels/resurrect-test`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    // Recreate with same slug — should resurrect with same UUID
+    const recreateRes = await createFunnel({ name: "Resurrected", slug: "resurrect-test", steps: ONBOARDING_STEPS });
+    expect(recreateRes.statusCode).toBe(201);
+    expect(recreateRes.json().id).toBe(originalId);
+    expect(recreateRes.json().name).toBe("Resurrected");
   });
 
   it("returns 404 for non-existent funnel by-id", async () => {
