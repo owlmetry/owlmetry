@@ -337,6 +337,43 @@ describe("Funnel Analytics", () => {
     expect(analytics.steps[2].unique_users).toBe(1); // 1 did complete-profile
   });
 
+  it("open mode backfills earlier steps for users who skipped them", async () => {
+    await createFunnel({ name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
+
+    const now = Date.now();
+    // User A completes all 3 steps
+    await ingest([
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "track:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 40000).toISOString() },
+    ]);
+    // User D only completes step 3 (skips steps 1 and 2)
+    await ingest([
+      { level: "info", message: "track:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-d", timestamp: new Date(now - 30000).toISOString() },
+    ]);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/onboarding/query?mode=open&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { analytics } = res.json();
+    expect(analytics.mode).toBe("open");
+
+    // User D is backfilled into steps 0 and 1
+    expect(analytics.steps[0].unique_users).toBe(2); // A + D (backfilled)
+    expect(analytics.steps[1].unique_users).toBe(2); // A + D (backfilled)
+    expect(analytics.steps[2].unique_users).toBe(2); // A + D (both actually did it)
+
+    // Percentages should be valid (no >100%)
+    expect(analytics.steps[0].percentage).toBe(100);
+    expect(analytics.steps[1].percentage).toBe(100);
+    expect(analytics.steps[2].percentage).toBe(100);
+  });
+
   it("returns zeros for empty funnel", async () => {
     await createFunnel({ name: "Empty", slug: "empty", steps: ONBOARDING_STEPS });
 

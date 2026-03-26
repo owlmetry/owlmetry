@@ -535,18 +535,28 @@ async function computeStepCounts(
   mode: "closed" | "open",
 ): Promise<number[]> {
   if (mode === "open") {
-    // Open: all steps are independent — run in parallel
-    const results = await Promise.all(
+    // Open: each step is independent, but users who completed a later step
+    // are backfilled into all earlier steps (GA4-style). This ensures the
+    // funnel always narrows downward.
+    const stepUserSets = await Promise.all(
       steps.map(async (step) => {
         const stepFilter = buildStepFilterSql(step.event_filter);
         const rows = await fastify.db
-          .select({ count: sql<number>`COUNT(DISTINCT ${funnelEvents.user_id})::int` })
+          .selectDistinct({ user_id: funnelEvents.user_id })
           .from(funnelEvents)
           .where(and(...baseConditions, stepFilter));
-        return rows[0]?.count ?? 0;
+        return new Set(rows.map((r) => r.user_id).filter(Boolean) as string[]);
       }),
     );
-    return results;
+
+    // Backfill: walk from last step backwards, unioning later users into earlier steps
+    for (let i = stepUserSets.length - 2; i >= 0; i--) {
+      for (const uid of stepUserSets[i + 1]) {
+        stepUserSets[i].add(uid);
+      }
+    }
+
+    return stepUserSets.map((s) => s.size);
   }
 
   // Closed: sequential, each step filters to users from previous step

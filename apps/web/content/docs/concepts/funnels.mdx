@@ -70,9 +70,9 @@ Funnel queries support two modes that change how step completion is evaluated:
 
 ### Open Mode (Default)
 
-Each step is evaluated independently. A user counts toward a step if they completed it at any point during the time range, regardless of whether they completed earlier steps.
+Users can enter the funnel at any step. A user who completed step N is automatically counted in all preceding steps (1 through N-1), even if they never triggered those events. This ensures the funnel always narrows downward.
 
-Open mode answers: "How many users performed each action?"
+Open mode answers: "How many users reached at least this step?"
 
 ### Closed Mode
 
