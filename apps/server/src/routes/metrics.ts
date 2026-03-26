@@ -134,7 +134,7 @@ export async function metricsRoutes(app: FastifyInstance) {
 
       // Resurrect soft-deleted metric with same slug (preserves UUID and event history)
       const [existing] = await app.db
-        .select()
+        .select({ id: metricDefinitions.id })
         .from(metricDefinitions)
         .where(
           and(

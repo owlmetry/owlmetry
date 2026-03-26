@@ -148,7 +148,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
 
       // Resurrect soft-deleted funnel with same slug (preserves UUID and event history)
       const [existing] = await app.db
-        .select()
+        .select({ id: funnelDefinitions.id })
         .from(funnelDefinitions)
         .where(
           and(

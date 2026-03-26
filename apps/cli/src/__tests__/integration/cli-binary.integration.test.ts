@@ -196,8 +196,8 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
     });
 
     it("deletes a metric with --project-id", () => {
-      const { status } = cliExpectFail("metrics", "delete", metricSlug, "--project-id", createdProjectId);
-      expect(status).toBe(0);
+      const output = cliRaw("metrics", "delete", metricSlug, "--project-id", createdProjectId);
+      expect(output).toContain("deleted");
     });
   });
 
@@ -240,8 +240,8 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
     });
 
     it("deletes a funnel with --project-id", () => {
-      const { status } = cliExpectFail("funnels", "delete", funnelSlug, "--project-id", createdProjectId);
-      expect(status).toBe(0);
+      const output = cliRaw("funnels", "delete", funnelSlug, "--project-id", createdProjectId);
+      expect(output).toContain("deleted");
     });
   });
 
