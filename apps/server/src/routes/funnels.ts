@@ -348,7 +348,7 @@ export async function funnelsRoutes(app: FastifyInstance) {
         app_version,
         environment,
         experiment,
-        mode = "closed",
+        mode = "open",
         group_by,
         data_mode,
       } = request.query;

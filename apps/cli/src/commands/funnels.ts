@@ -204,7 +204,7 @@ funnelsCommand
   .requiredOption("--project-id <id>", "Project ID")
   .option("--since <date>", "Start time (e.g. 1h, 30m, 7d, or ISO 8601)")
   .option("--until <date>", "End time (e.g. 1h, 30m, 7d, or ISO 8601)")
-  .option("--open", "Make this an open funnel. In an open funnel, users don't have to complete a previous step in order to be included in a subsequent step.")
+  .option("--closed", "Use closed (sequential) mode. Users must complete each step in order.")
   .option("--app-version <version>", "Filter by app version")
   .option("--environment <env>", "Filter by environment (ios, ipados, macos, android, web, backend)")
   .option("--experiment <name:variant>", "Filter by experiment (format: name:variant)")
@@ -218,7 +218,7 @@ funnelsCommand
     projectId: string;
     since?: string;
     until?: string;
-    open?: boolean;
+    closed?: boolean;
     appVersion?: string;
     environment?: string;
     experiment?: string;
@@ -229,7 +229,7 @@ funnelsCommand
     const result = await client.queryFunnel(slug, opts.projectId, {
       since: opts.since,
       until: opts.until,
-      mode: opts.open ? "open" : "closed",
+      mode: opts.closed ? "closed" : "open",
       app_version: opts.appVersion,
       environment: opts.environment,
       experiment: opts.experiment,

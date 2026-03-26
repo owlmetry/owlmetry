@@ -172,7 +172,7 @@ owlmetry funnels view <slug> --project-id <id> --format json
 owlmetry funnels create --project-id <id> --name <name> --slug <slug> --steps-file <path> [--description <desc>] --format json
 owlmetry funnels update <slug> --project-id <id> --steps-file <path> --format json
 owlmetry funnels delete <slug> --project-id <id>
-owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--open] [--group-by <field>] --format json
+owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--closed] [--group-by <field>] --format json
 
 # Events
 owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] --format json
@@ -240,9 +240,9 @@ Funnels measure how users progress through a multi-step flow and where they drop
 
 Step definitions match directly on the step name passed to `track()` in the SDK — no prefix or transformation needed.
 
-Funnels support two analysis modes:
-- **Closed mode** (default): sequential — a user must complete steps in order (step 2 only counts if step 1 was completed first). Use for linear flows like onboarding or checkout.
-- **Open mode** (`--open` on query): independent — each step is evaluated separately. Use when steps can happen in any order.
+Both modes group events by `user_id` — events with no `user_id` are excluded from funnel analytics. Funnels support two analysis modes:
+- **Closed mode** (`--closed` on query): sequential — a user must complete steps in order. The system uses each user's earliest timestamp per step and requires strict chronological ordering (step 2 must occur after step 1). Use for linear flows like onboarding or checkout.
+- **Open mode** (default): independent — each step counts distinct users separately, regardless of other steps.
 
 Maximum 20 steps per funnel.
 
@@ -325,10 +325,10 @@ owlmetry metrics query <slug> --project-id <id> [--since <time>] [--until <time>
 Funnel queries return conversion rates and drop-off between steps. The output shows how many users entered each step and what percentage continued to the next. Use `--group-by` to segment results and compare conversion across environments, app versions, or A/B experiment variants.
 
 ```bash
-owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--open] [--app-version <v>] [--environment <env>] [--experiment <name:variant>] [--group-by environment|app_version|experiment:<name>] [--data-mode <mode>] --format json
+owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--closed] [--app-version <v>] [--environment <env>] [--experiment <name:variant>] [--group-by environment|app_version|experiment:<name>] [--data-mode <mode>] --format json
 ```
 
-`--open` = open funnel mode (steps evaluated independently, not sequentially).
+`--closed` = closed (sequential) funnel mode. Without this flag, open mode is used (steps evaluated independently).
 
 ### Audit Logs
 

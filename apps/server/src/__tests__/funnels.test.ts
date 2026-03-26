@@ -296,7 +296,7 @@ describe("Funnel Analytics", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/v1/projects/${projectId}/funnels/onboarding/query?data_mode=all`,
+      url: `/v1/projects/${projectId}/funnels/onboarding/query?mode=closed&data_mode=all`,
       headers: { authorization: `Bearer ${token}` },
     });
 

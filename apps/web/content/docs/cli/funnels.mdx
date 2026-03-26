@@ -86,7 +86,7 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 | `--project-id <id>` | Yes | Project UUID |
 | `--since <time>` | No | Start time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
 | `--until <time>` | No | End time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
-| `--open` | No | Use open (independent) mode instead of closed (sequential) mode |
+| `--closed` | No | Use closed (sequential) mode instead of the default open (independent) mode |
 | `--app-version <version>` | No | Filter by app version |
 | `--environment <env>` | No | Filter by environment: `ios`, `ipados`, `macos`, `android`, `web`, `backend` |
 | `--experiment <name:variant>` | No | Filter by experiment assignment (format: `name:variant`) |
@@ -95,8 +95,8 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 
 ### Funnel modes
 
-- **Closed** (default) — sequential. Users must complete each step in order. A user who skips step 2 is not counted at step 3.
-- **Open** (`--open`) — independent. Each step is evaluated separately. Users can appear at any step regardless of earlier steps.
+- **Open** (default) — independent. Each step is evaluated separately. Users can appear at any step regardless of earlier steps.
+- **Closed** (`--closed`) — sequential. Users must complete each step in order. A user who skips step 2 is not counted at step 3.
 
 ### Group-by options
 
@@ -109,11 +109,11 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 ### Examples
 
 ```bash
-# Closed funnel for the last 30 days
+# Open funnel (default) for the last 30 days
 owlmetry funnels query onboarding --project-id 550e8400-... --since 2025-01-01
 
-# Open funnel
-owlmetry funnels query onboarding --project-id 550e8400-... --open
+# Closed funnel (sequential)
+owlmetry funnels query onboarding --project-id 550e8400-... --closed
 
 # A/B test comparison
 owlmetry funnels query onboarding --project-id 550e8400-... --group-by experiment:onboarding-variant

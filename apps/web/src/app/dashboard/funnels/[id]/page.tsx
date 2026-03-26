@@ -75,7 +75,7 @@ export default function FunnelDetailPage() {
 
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
   const deferredExperiment = useDeferredValue(filters.get("experiment"));
-  const openMode = filters.get("mode") === "open";
+  const closedMode = filters.get("mode") === "closed";
 
   // Fetch apps for app_id filter
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
@@ -91,7 +91,7 @@ export default function FunnelDetailPage() {
     app_version: deferredAppVersion || undefined,
     environment: filters.get("environment") || undefined,
     experiment: deferredExperiment || undefined,
-    mode: openMode ? "open" : "closed",
+    mode: closedMode ? "closed" : "open",
     group_by: filters.get("group_by") || undefined,
     data_mode: dataMode,
   });
@@ -111,9 +111,9 @@ export default function FunnelDetailPage() {
     if (environmentVal) c.push({ label: "Env", value: environmentVal, onDismiss: () => filters.set("environment", "") });
     if (appVersionVal) c.push({ label: "Version", value: appVersionVal, onDismiss: () => filters.set("app_version", "") });
     if (experimentVal) c.push({ label: "Experiment", value: experimentVal, onDismiss: () => filters.set("experiment", "") });
-    if (!openMode) c.push({ label: "Mode", value: "Closed", onDismiss: () => filters.set("mode", "open") });
+    if (closedMode) c.push({ label: "Mode", value: "Sequential", onDismiss: () => filters.set("mode", "open") });
     return c;
-  }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, openMode, filters]);
+  }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, closedMode, filters]);
 
   return (
     <div className="space-y-6">
@@ -164,24 +164,24 @@ export default function FunnelDetailPage() {
           />
         </div>
 
-        {/* Open funnel toggle */}
+        {/* Sequential mode toggle */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <label className="flex items-center gap-2 h-8 cursor-pointer select-none">
                 <Checkbox
-                  checked={openMode}
+                  checked={closedMode}
                   onCheckedChange={(checked) =>
-                    filters.set("mode", checked === true ? "open" : "closed")
+                    filters.set("mode", checked === true ? "closed" : "open")
                   }
                 />
-                <span className="text-xs font-medium">Open</span>
+                <span className="text-xs font-medium">Sequential</span>
               </label>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p className="max-w-[220px]">
-                Make this an open funnel. In an open funnel, users don&apos;t have to complete a
-                previous step in order to be included in a subsequent step.
+                Require users to complete steps in order. A user only counts at step N if they
+                completed all previous steps first.
               </p>
             </TooltipContent>
           </Tooltip>
