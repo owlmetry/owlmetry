@@ -120,6 +120,11 @@ async function findOrCreateUser(db: Parameters<typeof getUserTeamMemberships>[0]
 }
 
 export async function authRoutes(app: FastifyInstance) {
+  // Prevent browsers/CDNs from caching auth responses
+  app.addHook("onSend", async (_request, reply) => {
+    reply.header("cache-control", "no-store");
+  });
+
   // Send verification code
   app.post<{ Body: SendCodeRequest }>("/send-code", async (request, reply) => {
     const { email } = request.body;
