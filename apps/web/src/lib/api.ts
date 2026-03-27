@@ -27,6 +27,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_URL}${path}`, {
       credentials: "include",
+      cache: "no-store",
       headers,
       ...rest,
     });
