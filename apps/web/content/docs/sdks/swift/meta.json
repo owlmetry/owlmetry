@@ -9,6 +9,7 @@
     "funnels",
     "experiments",
     "screen-tracking",
-    "identity"
+    "identity",
+    "user-properties"
   ]
 }

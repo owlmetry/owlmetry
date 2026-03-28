@@ -174,6 +174,14 @@ owlmetry funnels update <slug> --project-id <id> --steps-file <path> --format js
 owlmetry funnels delete <slug> --project-id <id>
 owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>] [--closed] [--group-by <field>] --format json
 
+# Integrations
+owlmetry integrations providers
+owlmetry integrations list --project-id <id> --format json
+owlmetry integrations add <provider> --project-id <id> --api-key <key> [--webhook-secret <secret>] --format json
+owlmetry integrations update <provider> --project-id <id> [--api-key <key>] [--webhook-secret <secret>] [--enable] [--disable] --format json
+owlmetry integrations remove <provider> --project-id <id>
+owlmetry integrations sync <provider> --project-id <id> [--user <userId>] --format json
+
 # Events
 owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] --format json
 owlmetry events view <id> --format json
@@ -276,6 +284,22 @@ owlmetry funnels update <slug> --project-id <id> --steps-file /tmp/updated-steps
 Inline `--steps '<json>'` also works but is error-prone in shell environments due to JSON quoting. Prefer `--steps-file`.
 
 Steps JSON format: `[{"name":"Step Name","event_filter":{"step_name":"step-name"}}]`
+
+### Integrations
+
+Integrations connect third-party services (e.g., RevenueCat) to sync data into user properties. Configured per-project.
+
+```bash
+owlmetry integrations providers                                              # List supported providers
+owlmetry integrations list --project-id <id> --format json                   # List configured
+owlmetry integrations add revenuecat --project-id <id> --api-key <key> --format json
+owlmetry integrations update revenuecat --project-id <id> --api-key <key> --format json
+owlmetry integrations remove revenuecat --project-id <id>
+owlmetry integrations sync revenuecat --project-id <id>                      # Bulk sync all users
+owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user
+```
+
+After adding RevenueCat, configure the webhook URL in RevenueCat's dashboard: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
 
 ## Querying
 

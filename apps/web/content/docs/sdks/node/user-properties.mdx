@@ -1,0 +1,76 @@
+---
+title: User Properties
+description: Set custom metadata on users from the Node.js SDK.
+---
+
+User properties let you attach custom key-value data to a user. Properties are merged server-side, so existing keys not included in your call are preserved.
+
+## Setting Properties
+
+Use `Owl.setUserProperties()` with a user ID, or call it on a scoped instance:
+
+```typescript
+// With explicit user ID
+Owl.setUserProperties("user_123", { plan: "premium", org: "acme" });
+
+// With scoped instance
+const owl = Owl.withUser("user_123");
+owl.setUserProperties({ plan: "premium", org: "acme" });
+```
+
+The call is fire-and-forget. Properties are sent to the server in the background with automatic retries.
+
+## When to Call
+
+Set properties whenever user-level data changes:
+
+```typescript
+// After a subscription change
+app.post("/webhooks/billing", async (req, res) => {
+    const { userId, plan } = req.body;
+    Owl.setUserProperties(userId, {
+        plan,
+        subscribed_at: new Date().toISOString(),
+    });
+    res.json({ ok: true });
+});
+
+// After profile update
+app.patch("/api/profile", async (req, res) => {
+    const owl = Owl.withUser(req.auth.userId);
+    owl.setUserProperties({
+        company: req.body.company,
+        role: req.body.role,
+    });
+    // ...
+});
+```
+
+## Removing a Property
+
+Set a value to an empty string to delete it:
+
+```typescript
+owl.setUserProperties({ temporary_flag: "" });
+```
+
+## Merge Behavior
+
+Properties are merged server-side. Only the keys you send are updated; other keys are untouched.
+
+```typescript
+// First call
+owl.setUserProperties({ plan: "free", org: "acme" });
+// Server state: { plan: "free", org: "acme" }
+
+// Second call
+owl.setUserProperties({ plan: "premium" });
+// Server state: { plan: "premium", org: "acme" }
+```
+
+## Limits
+
+- Max 50 properties per user
+- Max key length: 50 characters
+- Max value length: 200 characters
+- All values must be strings

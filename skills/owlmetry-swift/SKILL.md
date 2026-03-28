@@ -395,6 +395,23 @@ Owl.clearExperiments()
 - All events automatically include an `experiments` field with current assignments.
 - Query funnel analytics segmented by variant via CLI: `owlmetry funnels query <slug> --project <id> --group-by experiment:checkout-redesign`
 
+## User Properties
+
+Attach custom key-value metadata to the current user. Properties are merged server-side — existing keys not in your call are preserved.
+
+```swift
+Owl.setUserProperties([
+    "plan": "premium",
+    "org": "acme",
+])
+```
+
+Set a value to `""` to delete a key. All values must be strings. Max 50 properties per user, 50-char keys, 200-char values.
+
+Properties follow the current user identity. If the user is anonymous, properties are set on the anonymous user and merged into the real user on `Owl.setUser()`.
+
+Use for user-level data that changes infrequently (subscription status, plan tier, company). For event-specific data, use `customAttributes` on events instead.
+
 ## What the SDK Tracks Automatically
 
 Do not re-implement any of these — they are built into the SDK and emitted without any code:

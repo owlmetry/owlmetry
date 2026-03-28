@@ -244,6 +244,23 @@ Owl.clearExperiments();
 
 All events automatically include an `experiments` field with current assignments.
 
+## User Properties
+
+Attach custom key-value metadata to users. Properties are merged server-side — existing keys not in your call are preserved.
+
+```typescript
+// With explicit user ID
+Owl.setUserProperties('user_123', { plan: 'premium', org: 'acme' });
+
+// With scoped instance
+const owl = Owl.withUser('user_123');
+owl.setUserProperties({ plan: 'premium', org: 'acme' });
+```
+
+Set a value to `""` to delete a key. All values must be strings. Max 50 properties per user, 50-char keys, 200-char values.
+
+Use for user-level data that changes infrequently (subscription status, plan tier, company). For event-specific data, use custom attributes on events instead.
+
 ## Serverless Support
 
 Serverless environments (AWS Lambda, Vercel Functions, Cloud Functions) freeze the runtime after each invocation. Events still in the buffer are lost when the runtime freezes — the flush timer and `beforeExit` handler may never fire.

@@ -46,6 +46,8 @@ And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres
 - **Structured metrics** — define metrics, track operations with `startOperation`/`complete`/`fail`, query aggregations (counts, success rates, duration percentiles, error breakdowns) via API
 - **Funnel analytics** — define conversion funnels and let your agent query drop-off rates programmatically
 - **Lightweight A/B experiments** — SDKs assign random variants on first call, persist assignments locally, and tag all events with the active experiment; no server config needed
+- **User properties** — attach custom key-value metadata to users (subscription status, plan tier, revenue) from SDKs or third-party integrations; visible in the Users list
+- **Third-party integrations** — connect services like RevenueCat to sync subscription data into user properties via webhooks and on-demand API sync; per-project config with provider registry and validation
 - **Audit trail** — automatic logging of who created, updated, or deleted resources; queryable via API, CLI, and dashboard
 - **Dashboard optional** — Next.js web UI for when you want a visual overview. Not required for any workflow
 - **Single Postgres** — no Kafka, no ClickHouse, no Redis. One database. Monthly partitioned events handle the scale

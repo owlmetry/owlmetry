@@ -9,6 +9,7 @@
     "funnels",
     "experiments",
     "serverless",
-    "identity"
+    "identity",
+    "user-properties"
   ]
 }

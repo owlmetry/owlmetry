@@ -1,0 +1,78 @@
+---
+title: Integrations
+description: Manage third-party integrations for your OwlMetry projects via the CLI.
+---
+
+The `owlmetry integrations` command group manages third-party service connections that sync data into OwlMetry [user properties](/docs/concepts/user-properties).
+
+## List Supported Providers
+
+```bash
+owlmetry integrations providers
+```
+
+Shows all supported integration providers with their config fields.
+
+## List Integrations
+
+```bash
+owlmetry integrations list --project-id <id>
+```
+
+Lists all configured integrations for a project, showing provider name, enabled status, and creation date.
+
+## Add an Integration
+
+```bash
+owlmetry integrations add revenuecat \
+    --project-id <id> \
+    --api-key <revenuecat-secret-key> \
+    --webhook-secret <optional-secret>
+```
+
+The `--api-key` is required for RevenueCat (used for sync API calls). The `--webhook-secret` is optional and used to authenticate incoming webhook requests.
+
+## Update Config
+
+```bash
+owlmetry integrations update revenuecat \
+    --project-id <id> \
+    --api-key <new-key>
+```
+
+Updates are merged with the existing config. Only the fields you pass are changed.
+
+Toggle enabled/disabled:
+
+```bash
+owlmetry integrations update revenuecat --project-id <id> --enable
+owlmetry integrations update revenuecat --project-id <id> --disable
+```
+
+## Remove an Integration
+
+```bash
+owlmetry integrations remove revenuecat --project-id <id>
+```
+
+Soft-deletes the integration. Can be re-created later.
+
+## Sync Data
+
+Sync pulls data from the integration provider's API and updates user properties for existing users.
+
+### Sync all users
+
+```bash
+owlmetry integrations sync revenuecat --project-id <id>
+```
+
+Queues a background sync for all non-anonymous users in the project. Rate-limited to ~180 requests/minute to stay within RevenueCat's API limits.
+
+### Sync a single user
+
+```bash
+owlmetry integrations sync revenuecat --project-id <id> --user <userId>
+```
+
+Immediately fetches and updates properties for one user.

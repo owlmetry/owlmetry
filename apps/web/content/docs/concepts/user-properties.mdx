@@ -1,0 +1,78 @@
+---
+title: User Properties
+description: Attach custom key-value metadata to users — subscription status, revenue, plan tier, and more.
+---
+
+User properties are custom key-value pairs stored on each user in OwlMetry. They let you see at a glance who is a paid subscriber, what plan they're on, how much they've spent, or any other user-level attribute you care about.
+
+Properties are stored on the `app_users` table as a JSONB column and displayed in the Users list in the dashboard.
+
+## How It Works
+
+Properties are **merged, not replaced**. When you set `{ plan: "premium" }`, it merges with existing properties. Setting a value to an empty string `""` deletes that key.
+
+```
+Existing:  { plan: "free", org: "acme" }
+Set:       { plan: "premium", role: "admin" }
+Result:    { plan: "premium", org: "acme", role: "admin" }
+```
+
+## Setting Properties
+
+### From the SDK
+
+Both the Swift and Node SDKs provide `setUserProperties()`:
+
+```swift
+// Swift
+Owl.setUserProperties(["plan": "premium", "org": "acme"])
+```
+
+```typescript
+// Node.js
+const owl = Owl.withUser("user_123");
+owl.setUserProperties({ plan: "premium", org: "acme" });
+```
+
+### From Integrations
+
+Third-party integrations like RevenueCat automatically sync subscription data into user properties via webhooks. See [Integrations](/docs/concepts/integrations) for setup.
+
+### Via the API
+
+```
+POST /v1/identity/properties
+Authorization: Bearer owl_client_...
+
+{
+  "user_id": "user_123",
+  "properties": {
+    "plan": "premium",
+    "org": "acme"
+  }
+}
+```
+
+## Limits
+
+| Limit | Value |
+|-------|-------|
+| Max properties per user | 50 |
+| Max key length | 50 characters |
+| Max value length | 200 characters |
+| Value type | Strings only |
+
+## Properties vs Event Attributes
+
+Use **user properties** for data that describes the user and changes infrequently (plan tier, subscription status, company name). Use **event custom attributes** for data specific to a single event (button clicked, page URL, error code).
+
+| | User Properties | Event Attributes |
+|---|---|---|
+| Scope | User-level | Event-level |
+| Persistence | Stored on the user, visible in Users list | Stored on each event |
+| Updates | Merged on each call | Immutable after ingest |
+| Use case | Subscription status, plan tier | Action details, error context |
+
+## Identity Claim Merge
+
+When an anonymous user is claimed via `Owl.setUser()`, properties from the anonymous user are merged into the real user. The real user's values take precedence on key conflicts.

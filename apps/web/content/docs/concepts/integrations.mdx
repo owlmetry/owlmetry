@@ -1,0 +1,92 @@
+---
+title: Integrations
+description: Connect third-party services to sync data into OwlMetry user properties.
+---
+
+Integrations connect external services to OwlMetry. They sync data from services like RevenueCat into [user properties](/docs/concepts/user-properties), giving you a unified view of each user's subscription status, revenue, and entitlements alongside their analytics data.
+
+## How Integrations Work
+
+Each integration is configured per-project and consists of:
+
+1. **Provider** — the third-party service (e.g., `revenuecat`)
+2. **Config** — API credentials and settings specific to that provider
+3. **Webhook** — an endpoint that receives real-time updates from the provider
+4. **Sync** — on-demand API calls to pull data for existing users
+
+When a webhook fires or a sync runs, the integration maps the provider's data to OwlMetry user properties. These properties then appear in the Users list in the dashboard.
+
+## RevenueCat
+
+RevenueCat is the first supported integration. It syncs subscription lifecycle events into user properties.
+
+### Properties Set
+
+| Property | Description | Example |
+|----------|-------------|---------|
+| `rc_subscriber` | Whether the user has an active subscription | `"true"` or `"false"` |
+| `rc_status` | Subscription status | `"active"`, `"cancelled"`, `"expired"`, `"billing_issue"` |
+| `rc_product` | Product identifier | `"premium_monthly"` |
+| `rc_entitlements` | Active entitlement names (comma-separated) | `"pro,premium"` |
+| `rc_last_purchase` | Last purchase amount and currency | `"9.99 USD"` |
+
+### Setup
+
+1. **Add the integration** via dashboard (Project > Integrations > Connect RevenueCat) or CLI:
+   ```bash
+   owlmetry integrations add revenuecat \
+     --project-id <id> \
+     --api-key <revenuecat-secret-key>
+   ```
+
+2. **Configure the webhook** in RevenueCat dashboard:
+   - URL: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`
+   - Optionally set a webhook secret for authentication
+
+3. **Backfill existing users** with the sync command:
+   ```bash
+   owlmetry integrations sync revenuecat --project-id <id>
+   ```
+
+### Data Flow
+
+```
+RevenueCat Purchase/Renewal/Cancellation
+  -> Webhook POST to /v1/webhooks/revenuecat/:projectId
+  -> Maps event to user properties (rc_subscriber, rc_status, etc.)
+  -> Merges into app_users.properties for all apps in the project
+  -> Visible in Users list with Paid/Cancelled badges
+```
+
+### Sync
+
+Webhooks capture future events, but users who subscribed before the integration was set up need a backfill. The sync endpoints call RevenueCat's REST API to fetch subscriber data:
+
+- **Bulk sync** — syncs all non-anonymous users in the project (rate-limited to ~180 req/min)
+- **Single-user sync** — fetches one subscriber's data immediately
+
+## Managing Integrations
+
+### Dashboard
+
+Navigate to any project detail page. The **Integrations** section shows configured integrations with options to update config, toggle enabled/disabled, sync users, or remove.
+
+### CLI
+
+```bash
+owlmetry integrations providers                    # List supported providers
+owlmetry integrations list --project-id <id>       # List configured integrations
+owlmetry integrations add <provider> --project-id <id> --api-key <key>
+owlmetry integrations update <provider> --project-id <id> --api-key <new-key>
+owlmetry integrations remove <provider> --project-id <id>
+owlmetry integrations sync <provider> --project-id <id>
+owlmetry integrations sync <provider> --project-id <id> --user <userId>
+```
+
+### API
+
+All integration endpoints are under `/v1/projects/:projectId/integrations` and require `integrations:read` or `integrations:write` permissions.
+
+## Adding New Providers
+
+The integration framework uses a central provider registry in `packages/shared/src/integrations.ts`. Each provider defines its config fields (required/optional, sensitive/public) and validation rules. Adding a new provider is a matter of adding an entry to the `INTEGRATION_PROVIDERS` array.

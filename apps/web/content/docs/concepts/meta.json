@@ -8,6 +8,8 @@
     "experiments",
     "projects-and-apps",
     "authentication",
-    "data-mode"
+    "data-mode",
+    "user-properties",
+    "integrations"
   ]
 }

@@ -1,0 +1,74 @@
+---
+title: User Properties
+description: Set custom metadata on users from the Swift SDK.
+---
+
+User properties let you attach custom key-value data to the current user. Properties are merged server-side, so existing keys not included in your call are preserved.
+
+## Setting Properties
+
+Call `Owl.setUserProperties()` after the user is identified:
+
+```swift
+Owl.setUserProperties([
+    "plan": "premium",
+    "org": "acme",
+])
+```
+
+The call is fire-and-forget. Properties are sent to the server in the background with automatic retries.
+
+## When to Call
+
+Set properties whenever user-level data changes:
+
+```swift
+// After a successful purchase
+func handlePurchaseComplete(product: Product) {
+    Owl.setUserProperties([
+        "rc_subscriber": "true",
+        "rc_product": product.id,
+    ])
+}
+
+// After profile update
+func handleProfileSaved(user: User) {
+    Owl.setUserProperties([
+        "company": user.company,
+        "role": user.role,
+    ])
+}
+```
+
+## Removing a Property
+
+Set a value to an empty string to delete it:
+
+```swift
+Owl.setUserProperties(["temporary_flag": ""])
+```
+
+## Merge Behavior
+
+Properties are merged server-side. Only the keys you send are updated; other keys are untouched.
+
+```swift
+// First call
+Owl.setUserProperties(["plan": "free", "org": "acme"])
+// Server state: { plan: "free", org: "acme" }
+
+// Second call
+Owl.setUserProperties(["plan": "premium"])
+// Server state: { plan: "premium", org: "acme" }
+```
+
+## With Identity
+
+Properties follow the current user identity. If the user is anonymous, properties are set on the anonymous user. When the user is later identified via `Owl.setUser()`, properties are automatically merged into the real user.
+
+## Limits
+
+- Max 50 properties per user
+- Max key length: 50 characters
+- Max value length: 200 characters
+- All values must be strings
