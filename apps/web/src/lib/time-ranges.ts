@@ -23,7 +23,7 @@ export function sinceFromRange(range: string): string {
 export function formatTimeRangeChip(value: string, since?: string, until?: string): string {
   if (value === "custom") {
     const fmt = (d: string) =>
-      new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
     if (since && until) return `${fmt(since)} – ${fmt(until)}`;
     if (since) return `Since ${fmt(since)}`;
     if (until) return `Until ${fmt(until)}`;

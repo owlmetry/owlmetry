@@ -80,7 +80,7 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
         {events.map((e) => {
           const isTarget = e.id === event.id;
           const ts = new Date(e.timestamp);
-          const time = ts.toLocaleTimeString("en-US", { hour12: false });
+          const time = ts.toLocaleTimeString(undefined, { hour12: false });
           const colors = levelColors[e.level as LogLevel];
 
           return (

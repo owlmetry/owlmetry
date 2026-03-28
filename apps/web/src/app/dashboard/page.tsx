@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const teamCount = teams?.length ?? 0;
   const projectCount = projectsData?.projects?.length ?? 0;
 
-  const today = new Date().toLocaleDateString("en-US", {
+  const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",

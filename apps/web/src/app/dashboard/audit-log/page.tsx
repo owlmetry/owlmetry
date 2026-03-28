@@ -234,7 +234,7 @@ export default function AuditLogPage() {
               <TableBody>
                 {auditLogs.map((log) => {
                   const ts = new Date(log.timestamp);
-                  const time = ts.toLocaleString("en-US", {
+                  const time = ts.toLocaleString(undefined, {
                     month: "short",
                     day: "numeric",
                     hour: "2-digit",

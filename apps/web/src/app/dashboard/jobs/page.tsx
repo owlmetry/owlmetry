@@ -373,7 +373,7 @@ export default function JobsPage() {
                 {jobRuns.map((run) => {
                   const label = getJobLabel(run.job_type);
                   const ts = new Date(run.created_at);
-                  const time = ts.toLocaleString("en-US", {
+                  const time = ts.toLocaleString(undefined, {
                     month: "short",
                     day: "numeric",
                     hour: "2-digit",

@@ -365,7 +365,7 @@ export default function MetricDetailPage() {
               <TableBody>
                 {events.slice(0, 50).map((event, i) => {
                   const ts = new Date(event.timestamp);
-                  const time = ts.toLocaleTimeString("en-US", { hour12: false });
+                  const time = ts.toLocaleTimeString(undefined, { hour12: false });
                   return (
                     <TableRow key={`${event.timestamp}-${i}`}>
                       <TableCell className="font-mono text-xs py-1.5">{time}</TableCell>

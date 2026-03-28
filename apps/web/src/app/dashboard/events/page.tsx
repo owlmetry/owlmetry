@@ -333,7 +333,7 @@ export default function EventsPage() {
               <TableBody>
                 {events.map((event) => {
                   const ts = new Date(event.timestamp);
-                  const time = ts.toLocaleTimeString("en-US", { hour12: false });
+                  const time = ts.toLocaleTimeString(undefined, { hour12: false });
                   const fullDate = ts.toLocaleString();
                   const isSelected = selectedEvent?.id === event.id;
 
