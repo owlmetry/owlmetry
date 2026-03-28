@@ -120,7 +120,7 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
           </SheetTitle>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-6 pb-6">
+        <ScrollArea className="flex-1 min-h-0 px-6 pb-6">
           <div className="space-y-1">
             <DetailRow label="ID" value={event.id} />
             <DetailRow label="App ID" value={event.app_id} onFilter={onFilter && event.app_id ? () => onFilter("app_id", event.app_id) : undefined} />
