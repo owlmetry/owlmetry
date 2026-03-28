@@ -30,13 +30,13 @@ const navItems = [
   { href: "/docs", label: "Docs", icon: BookOpen },
 ];
 
-export function AppSidebar() {
+export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { currentTeam, teams, setCurrentTeam } = useTeam();
   const { dataMode, setDataMode } = useDataMode();
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <>
       <div className="flex h-14 items-center border-b px-4 gap-2.5">
         <OwlLogo className="h-6 w-6" />
         <Link href="/" className="text-lg font-semibold tracking-tight">
@@ -95,6 +95,7 @@ export function AppSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150",
                 active
@@ -108,6 +109,14 @@ export function AppSidebar() {
           );
         })}
       </nav>
+    </>
+  );
+}
+
+export function AppSidebar() {
+  return (
+    <aside className="hidden md:flex w-56 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+      <SidebarContent />
     </aside>
   );
 }

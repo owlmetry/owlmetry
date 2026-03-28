@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { Menu } from "lucide-react";
+import { VisuallyHidden } from "radix-ui";
 import { useUser } from "@/hooks/use-user";
 import { NetworkError } from "@/lib/api";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar, SidebarContent } from "@/components/app-sidebar";
 import { UserMenu } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TeamProvider } from "@/contexts/team-context";
 import { DataModeProvider } from "@/contexts/data-mode-context";
 import { BreadcrumbProvider } from "@/contexts/breadcrumb-context";
@@ -15,7 +18,13 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, isLoading, error, mutate } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
   const isNetworkError = error instanceof NetworkError;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!isLoading && error && !isNetworkError) {
@@ -62,12 +71,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="dark min-h-screen bg-background text-foreground">
           <div className="flex min-h-screen">
             <AppSidebar />
-            <div className="flex flex-1 flex-col">
-              <header className="flex h-14 items-center justify-between border-b px-6">
-                <Breadcrumbs />
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetContent side="left" className="w-56 p-0 bg-sidebar text-sidebar-foreground" showCloseButton={false}>
+                <VisuallyHidden.Root><SheetTitle>Navigation</SheetTitle></VisuallyHidden.Root>
+                <SidebarContent onNavigate={() => setSidebarOpen(false)} />
+              </SheetContent>
+            </Sheet>
+            <div className="flex flex-1 flex-col min-w-0">
+              <header className="flex h-14 items-center justify-between border-b px-4 md:px-6">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(true)}
+                    className="md:hidden flex items-center justify-center h-10 w-10 rounded-md hover:bg-accent"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                  <Breadcrumbs />
+                </div>
                 <UserMenu />
               </header>
-              <main className="flex-1 p-6">{children}</main>
+              <main className="flex-1 p-4 md:p-6">{children}</main>
             </div>
           </div>
         </div>
