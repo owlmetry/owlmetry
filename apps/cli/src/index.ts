@@ -13,6 +13,7 @@ import { auditLogCommand } from "./commands/audit-logs.js";
 import { skillsCommand } from "./commands/skills.js";
 import { whoamiCommand } from "./commands/whoami.js";
 import { switchCommand } from "./commands/switch.js";
+import { integrationsCommand } from "./commands/integrations.js";
 
 declare const __CLI_VERSION__: string;
 
@@ -43,6 +44,7 @@ program.addCommand(auditLogCommand);
 program.addCommand(skillsCommand);
 program.addCommand(whoamiCommand);
 program.addCommand(switchCommand);
+program.addCommand(integrationsCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

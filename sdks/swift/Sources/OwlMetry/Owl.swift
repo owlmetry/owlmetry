@@ -162,6 +162,21 @@ public enum Owl {
         }
     }
 
+    // MARK: - User Properties
+
+    /// Set custom properties on the current user. Properties are merged
+    /// server-side — existing keys not in this call are preserved.
+    /// Pass an empty string value to remove a property.
+    public static func setUserProperties(_ properties: [String: String]) {
+        let (userId, transport) = state.withLock { s -> (String?, EventTransport?) in
+            return (s.defaultUserId, s.transport)
+        }
+        guard let userId, let transport else { return }
+        Task {
+            await transport.setUserProperties(userId: userId, properties: properties)
+        }
+    }
+
     // MARK: - Logging
 
     public static func info(

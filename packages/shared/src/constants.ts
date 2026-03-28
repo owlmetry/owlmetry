@@ -67,4 +67,8 @@ export function formatDuration(ms: number): string {
   return `${hours}h ${remainingMinutes}m`;
 }
 
+export const MAX_USER_PROPERTY_KEY_LENGTH = 50;
+export const MAX_USER_PROPERTY_VALUE_LENGTH = 200;
+export const MAX_USER_PROPERTIES_COUNT = 50;
+
 export const PG_UNIQUE_VIOLATION = "23505";

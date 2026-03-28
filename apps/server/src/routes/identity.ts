@@ -124,6 +124,12 @@ export async function identityRoutes(app: FastifyInstance) {
           if (anonRow && anonRow.first_seen_at < realUserRow.first_seen_at) {
             updates.first_seen_at = anonRow.first_seen_at;
           }
+          // Merge properties: anonymous props as base, real user props win on conflict
+          if (anonRow?.properties) {
+            const anonProps = (anonRow.properties as Record<string, string>) ?? {};
+            const realProps = (realUserRow.properties as Record<string, string>) ?? {};
+            updates.properties = { ...anonProps, ...realProps };
+          }
           await tx
             .update(appUsers)
             .set(updates)

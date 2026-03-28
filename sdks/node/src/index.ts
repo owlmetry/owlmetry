@@ -181,6 +181,15 @@ export class ScopedOwl {
   }
 
   /**
+   * Set custom properties on this user. Properties are merged server-side —
+   * existing keys not in this call are preserved. Pass an empty string value
+   * to remove a property.
+   */
+  setUserProperties(properties: Record<string, string>): void {
+    Owl.setUserProperties(this.userId, properties);
+  }
+
+  /**
    * Start a tracked operation. The `metric` slug should contain only lowercase letters,
    * numbers, and hyphens (e.g. "photo-conversion", "api-request"). Invalid characters
    * are auto-corrected with a warning logged in debug mode.
@@ -266,6 +275,22 @@ export const Owl = {
    */
   track(stepName: string, attributes?: Record<string, string>): void {
     log("info", `${TRACK_MESSAGE_PREFIX}${stepName}`, attributes);
+  },
+
+  /**
+   * Set custom properties on a user. Properties are merged server-side —
+   * existing keys not in this call are preserved. Pass an empty string value
+   * to remove a property.
+   */
+  setUserProperties(userId: string, properties: Record<string, string>): void {
+    try {
+      const ctx = ensureConfigured();
+      ctx.transport.setUserProperties(userId, properties).catch((err) => {
+        if (config?.debug) console.error("OwlMetry: setUserProperties failed", err);
+      });
+    } catch (err) {
+      if (config?.debug) console.error("OwlMetry:", err);
+    }
   },
 
   /**

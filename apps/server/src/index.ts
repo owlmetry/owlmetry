@@ -17,6 +17,9 @@ import { invitationRoutes } from "./routes/invitations.js";
 import { metricsRoutes, metricByIdRoutes } from "./routes/metrics.js";
 import { funnelsRoutes, funnelByIdRoutes } from "./routes/funnels.js";
 import { auditLogsRoutes } from "./routes/audit-logs.js";
+import { userPropertiesRoutes } from "./routes/user-properties.js";
+import { integrationsRoutes } from "./routes/integrations.js";
+import { revenuecatRoutes } from "./routes/revenuecat.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 import { createEmailService } from "./services/email.js";
 
@@ -69,6 +72,9 @@ await app.register(metricByIdRoutes, { prefix: "/v1" });
 await app.register(funnelsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(funnelByIdRoutes, { prefix: "/v1" });
 await app.register(auditLogsRoutes, { prefix: "/v1/teams/:teamId" });
+await app.register(userPropertiesRoutes, { prefix: "/v1" });
+await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
+await app.register(revenuecatRoutes, { prefix: "/v1" });
 
 // Start
 try {

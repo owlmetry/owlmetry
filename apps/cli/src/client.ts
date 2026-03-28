@@ -10,6 +10,9 @@ import type {
   UpdateMetricDefinitionRequest,
   CreateFunnelRequest,
   UpdateFunnelRequest,
+  CreateIntegrationRequest,
+  UpdateIntegrationRequest,
+  IntegrationResponse,
   EventsQueryParams,
   EventsResponse,
   FunnelDefinitionResponse,
@@ -248,6 +251,33 @@ export class OwlMetryClient {
       data_mode: params.data_mode,
     };
     return this.request<FunnelQueryResponse>("GET", `/v1/projects/${projectId}/funnels/${slug}/query`, { params: stringParams });
+  }
+
+  // Integrations
+  async listIntegrations(projectId: string): Promise<IntegrationResponse[]> {
+    const result = await this.request<{ integrations: IntegrationResponse[] }>("GET", `/v1/projects/${projectId}/integrations`);
+    return result.integrations;
+  }
+
+  async createIntegration(projectId: string, body: CreateIntegrationRequest): Promise<IntegrationResponse> {
+    return this.request<IntegrationResponse>("POST", `/v1/projects/${projectId}/integrations`, { body });
+  }
+
+  async updateIntegration(provider: string, projectId: string, body: UpdateIntegrationRequest): Promise<IntegrationResponse> {
+    return this.request<IntegrationResponse>("PATCH", `/v1/projects/${projectId}/integrations/${provider}`, { body });
+  }
+
+  async deleteIntegration(provider: string, projectId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/integrations/${provider}`);
+  }
+
+  // RevenueCat Sync
+  async syncRevenueCat(projectId: string): Promise<{ syncing: boolean; total: number }> {
+    return this.request<{ syncing: boolean; total: number }>("POST", `/v1/projects/${projectId}/integrations/revenuecat/sync`);
+  }
+
+  async syncRevenueCatUser(projectId: string, userId: string): Promise<{ updated: number; properties: Record<string, string> }> {
+    return this.request<{ updated: number; properties: Record<string, string> }>("POST", `/v1/projects/${projectId}/integrations/revenuecat/sync/${encodeURIComponent(userId)}`);
   }
 
   // Audit Logs

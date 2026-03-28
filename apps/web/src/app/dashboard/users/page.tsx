@@ -250,6 +250,7 @@ export default function UsersPage() {
                   <TableHead className="w-[100px]">Type</TableHead>
                   <TableHead className="w-[140px]">App</TableHead>
                   <TableHead className="w-[80px]">Claims</TableHead>
+                  <TableHead className="w-[200px]">Properties</TableHead>
                   <TableHead className="w-[160px]">First Seen</TableHead>
                   <TableHead className="w-[160px]">Last Seen</TableHead>
                 </TableRow>
@@ -277,6 +278,33 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="text-xs py-1.5">
                       {user.claimed_from?.length ?? 0}
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      {user.properties ? (
+                        <div className="flex flex-wrap gap-1">
+                          {user.properties.rc_subscriber === "true" && (
+                            <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>
+                          )}
+                          {user.properties.rc_status === "cancelled" && (
+                            <Badge variant="secondary" className="text-xs">Cancelled</Badge>
+                          )}
+                          {user.properties.rc_revenue && (
+                            <span className="text-xs text-muted-foreground">
+                              ${user.properties.rc_revenue}
+                            </span>
+                          )}
+                          {Object.entries(user.properties)
+                            .filter(([k]) => !k.startsWith("rc_"))
+                            .slice(0, 3)
+                            .map(([k, v]) => (
+                              <Badge key={k} variant="outline" className="text-xs">
+                                {k}: {v}
+                              </Badge>
+                            ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs py-1.5" title={user.first_seen_at}>
                       {new Date(user.first_seen_at).toLocaleString()}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import useSWR from "swr";
-import { Plus, Pencil, Trash2, ScrollText, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, ScrollText, Users, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
 import { api, ApiError } from "@/lib/api";
-import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
+import type { ProjectDetailResponse, AppResponse, IntegrationResponse } from "@owlmetry/shared";
+import { Badge } from "@/components/ui/badge";
 
 const PLATFORM_OPTIONS = [
   { value: "apple", label: "🍎 Apple" },
@@ -264,6 +265,11 @@ export default function ProjectDetailPage() {
           ))}
         </div>
       )}
+
+      <div className="pt-4">
+        <h2 className="text-lg font-medium mb-4">Integrations</h2>
+        <RevenueCatIntegration projectId={id} />
+      </div>
     </div>
   );
 }
@@ -368,6 +374,203 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
             Events
           </Link>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevenueCatIntegration({ projectId }: { projectId: string }) {
+  const { data, mutate } = useSWR<{ integrations: IntegrationResponse[] }>(
+    `/v1/projects/${projectId}/integrations`
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const integration = data?.integrations?.find((i) => i.provider === "revenuecat");
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      const config: Record<string, string> = {};
+      if (apiKey) config.api_key = apiKey;
+      if (webhookSecret) config.webhook_secret = webhookSecret;
+
+      if (integration) {
+        await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { config });
+      } else {
+        await api.post(`/v1/projects/${projectId}/integrations`, { provider: "revenuecat", config });
+      }
+      setDialogOpen(false);
+      setApiKey("");
+      setWebhookSecret("");
+      mutate();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggle() {
+    if (!integration) return;
+    try {
+      await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { enabled: !integration.enabled });
+      mutate();
+    } catch {
+      // silent
+    }
+  }
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      await api.post(`/v1/projects/${projectId}/integrations/revenuecat/sync`, {});
+    } catch {
+      // silent
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleRemove() {
+    if (!confirm("Remove RevenueCat integration?")) return;
+    try {
+      await api.delete(`/v1/projects/${projectId}/integrations/revenuecat`);
+      mutate();
+    } catch {
+      // silent
+    }
+  }
+
+  const webhookUrl = typeof window !== "undefined"
+    ? `${window.location.origin.replace("localhost:3000", "localhost:4000")}/v1/webhooks/revenuecat/${projectId}`
+    : `https://api.owlmetry.com/v1/webhooks/revenuecat/${projectId}`;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">RevenueCat</CardTitle>
+          <div className="flex items-center gap-2">
+            {integration && (
+              <>
+                <Badge variant={integration.enabled ? "default" : "secondary"} className="text-xs">
+                  {integration.enabled ? "Active" : "Disabled"}
+                </Badge>
+                <Button variant="ghost" size="sm" onClick={handleToggle}>
+                  {integration.enabled ? "Disable" : "Enable"}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {integration ? (
+          <>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">API Key</span>
+                <span className="font-mono text-xs">{integration.config.api_key ?? "Not set"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Webhook Secret</span>
+                <span className="font-mono text-xs">{integration.config.webhook_secret ?? "Not set"}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Webhook URL (paste into RevenueCat dashboard)</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-muted px-2 py-1.5 text-xs rounded break-all">{webhookUrl}</code>
+                <CopyButton text={webhookUrl} />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                    Update Config
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update RevenueCat</DialogTitle>
+                    <DialogDescription>Update your RevenueCat API credentials.</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSave} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="rc-api-key">API Key (Secret)</Label>
+                      <Input id="rc-api-key" type="password" placeholder="sk_..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rc-webhook-secret">Webhook Secret</Label>
+                      <Input id="rc-webhook-secret" type="password" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} />
+                    </div>
+                    {error && <p className="text-sm text-destructive">{error}</p>}
+                    <DialogFooter>
+                      <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || !integration.enabled}>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Syncing..." : "Sync All Users"}
+              </Button>
+
+              <Button variant="ghost" size="sm" onClick={handleRemove}>
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground mb-3">
+              Connect RevenueCat to see subscription status and revenue on your users.
+            </p>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Connect RevenueCat
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Connect RevenueCat</DialogTitle>
+                  <DialogDescription>
+                    Enter your RevenueCat API credentials. You can find these in your RevenueCat dashboard under Project Settings &gt; API Keys.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSave} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="rc-api-key-new">API Key (Secret)</Label>
+                    <Input id="rc-api-key-new" type="password" placeholder="sk_..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rc-webhook-secret-new">Webhook Secret</Label>
+                    <Input id="rc-webhook-secret-new" type="password" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">Optional. Used to authenticate webhook requests from RevenueCat.</p>
+                  </div>
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                  <DialogFooter>
+                    <Button type="submit" disabled={saving}>{saving ? "Connecting..." : "Connect"}</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

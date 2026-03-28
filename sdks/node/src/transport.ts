@@ -67,6 +67,51 @@ export class Transport {
     }
   }
 
+  async setUserProperties(userId: string, properties: Record<string, string>): Promise<void> {
+    const body = JSON.stringify({ user_id: userId, properties });
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`${this.config.endpoint}/v1/identity/properties`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${this.config.apiKey}`,
+          },
+          body,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+
+        if (res.ok) return;
+
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          if (this.config.debug) {
+            const text = await res.text().catch(() => "");
+            console.error(`OwlMetry: setUserProperties failed with ${res.status}: ${text}`);
+          }
+          return;
+        }
+
+        if (attempt < MAX_RETRIES) {
+          const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
+          await new Promise((r) => setTimeout(r, backoff));
+        }
+      } catch (err) {
+        if (this.config.debug) {
+          console.error("OwlMetry: network error during setUserProperties", err);
+        }
+        if (attempt < MAX_RETRIES) {
+          const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
+          await new Promise((r) => setTimeout(r, backoff));
+        }
+      }
+    }
+
+    if (this.config.debug) {
+      console.error(`OwlMetry: setUserProperties failed after ${MAX_RETRIES + 1} attempts`);
+    }
+  }
+
   private async sendBatch(events: LogEvent[]): Promise<void> {
     try {
       const body: IngestRequest = { events };

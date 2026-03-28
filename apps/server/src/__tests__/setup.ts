@@ -22,6 +22,9 @@ import { invitationRoutes } from "../routes/invitations.js";
 import { metricsRoutes, metricByIdRoutes } from "../routes/metrics.js";
 import { funnelsRoutes, funnelByIdRoutes } from "../routes/funnels.js";
 import { auditLogsRoutes } from "../routes/audit-logs.js";
+import { userPropertiesRoutes } from "../routes/user-properties.js";
+import { integrationsRoutes } from "../routes/integrations.js";
+import { revenuecatRoutes } from "../routes/revenuecat.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
 
@@ -318,6 +321,9 @@ export async function buildApp() {
   await app.register(funnelsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(funnelByIdRoutes, { prefix: "/v1" });
   await app.register(auditLogsRoutes, { prefix: "/v1/teams/:teamId" });
+  await app.register(userPropertiesRoutes, { prefix: "/v1" });
+  await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(revenuecatRoutes, { prefix: "/v1" });
 
   await app.ready();
   return app;
@@ -325,6 +331,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM project_integrations`.catch(() => {});
   await client`DELETE FROM audit_logs`;
   await client`DELETE FROM app_users`;
   await client.unsafe(`DELETE FROM funnel_events`);
@@ -375,7 +382,7 @@ export async function seedTestData() {
     RETURNING id
   `;
 
-  // Client key (events:write, scoped to app)
+  // Client key (events:write + users:write, scoped to app)
   await client`
     INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
@@ -386,7 +393,7 @@ export async function seedTestData() {
       ${team.id},
       'Test Client Key',
       ${user.id},
-      ${JSON.stringify(["events:write"])}::jsonb
+      ${JSON.stringify(["events:write", "users:write"])}::jsonb
     )
   `;
 

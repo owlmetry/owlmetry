@@ -44,6 +44,7 @@ export function serializeAuditLog(a: {
 export function serializeAppUser(u: {
   id: string; app_id: string; user_id: string;
   is_anonymous: boolean; claimed_from: string[] | null;
+  properties: Record<string, string> | null;
   first_seen_at: Date; last_seen_at: Date;
 }) {
   return {
@@ -52,6 +53,7 @@ export function serializeAppUser(u: {
     user_id: u.user_id,
     is_anonymous: u.is_anonymous,
     claimed_from: u.claimed_from,
+    properties: u.properties,
     first_seen_at: u.first_seen_at.toISOString(),
     last_seen_at: u.last_seen_at.toISOString(),
   };

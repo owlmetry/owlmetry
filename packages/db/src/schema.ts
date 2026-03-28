@@ -236,6 +236,7 @@ export const appUsers = pgTable(
     user_id: varchar("user_id", { length: 255 }).notNull(),
     is_anonymous: boolean("is_anonymous").notNull(),
     claimed_from: jsonb("claimed_from").$type<string[]>(),
+    properties: jsonb("properties").$type<Record<string, string>>(),
     first_seen_at: timestamp("first_seen_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -428,5 +429,31 @@ export const funnelEvents = pgTable(
     index("funnel_events_app_user_timestamp_idx").on(table.app_id, table.user_id, table.timestamp),
     index("funnel_events_app_step_user_timestamp_idx").on(table.app_id, table.step_name, table.user_id, table.timestamp),
     index("funnel_events_app_client_event_id_idx").on(table.app_id, table.client_event_id),
+  ]
+);
+
+// Project Integrations — per-project third-party service configs (e.g. RevenueCat)
+export const projectIntegrations = pgTable(
+  "project_integrations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 50 }).notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("project_integrations_project_provider_idx").on(table.project_id, table.provider),
+    index("project_integrations_project_id_idx").on(table.project_id),
   ]
 );

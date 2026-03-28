@@ -315,6 +315,7 @@ export interface AppUserResponse {
   user_id: string;
   is_anonymous: boolean;
   claimed_from: string[] | null;
+  properties: Record<string, string> | null;
   first_seen_at: string;
   last_seen_at: string;
 }
@@ -338,6 +339,38 @@ export interface TeamAppUsersQueryParams extends AppUsersQueryParams {
   app_id?: string;
   since?: string;
   until?: string;
+}
+
+// User Properties
+export interface SetUserPropertiesRequest {
+  user_id: string;
+  properties: Record<string, string>;
+}
+
+export interface SetUserPropertiesResponse {
+  updated: true;
+  properties: Record<string, string>;
+}
+
+// Project Integrations
+export interface IntegrationResponse {
+  id: string;
+  project_id: string;
+  provider: string;
+  config: Record<string, string>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateIntegrationRequest {
+  provider: string;
+  config: Record<string, unknown>;
+}
+
+export interface UpdateIntegrationRequest {
+  config?: Record<string, unknown>;
+  enabled?: boolean;
 }
 
 // Metrics

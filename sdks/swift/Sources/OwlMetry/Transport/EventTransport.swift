@@ -5,6 +5,7 @@ actor EventTransport {
     private var buffer: [LogEvent] = []
     private let ingestURL: URL
     private let claimURL: URL
+    private let propertiesURL: URL
     private let apiKey: String
     private let bundleId: String
     private let session: URLSession
@@ -34,6 +35,7 @@ actor EventTransport {
     ) {
         self.ingestURL = endpoint.appendingPathComponent("v1/ingest")
         self.claimURL = endpoint.appendingPathComponent("v1/identity/claim")
+        self.propertiesURL = endpoint.appendingPathComponent("v1/identity/properties")
         self.apiKey = apiKey
         self.bundleId = bundleId
         self.compressionEnabled = compressionEnabled
@@ -146,6 +148,27 @@ actor EventTransport {
             Self.logger.info("Identity claimed: \(anonymousId) → \(userId)")
         } else {
             Self.logger.error("Identity claim failed after \(self.maxRetries) attempts")
+        }
+    }
+
+    func setUserProperties(userId: String, properties: [String: String]) async {
+        let body: [String: Any] = [
+            "user_id": userId,
+            "properties": properties,
+        ]
+
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
+            Self.logger.error("Failed to encode properties request")
+            return
+        }
+
+        let request = makeRequest(url: propertiesURL, body: httpBody)
+        let result = await performWithRetry(request, label: "Properties")
+
+        if result {
+            Self.logger.info("User properties set for \(userId)")
+        } else {
+            Self.logger.error("User properties update failed for \(userId)")
         }
     }
 
