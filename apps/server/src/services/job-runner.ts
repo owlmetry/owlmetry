@@ -89,9 +89,11 @@ export class JobRunner {
     for (const sched of this.pendingSchedules) {
       await this.boss.createQueue(sched.jobType);
       await this.boss.work(sched.jobType, async () => {
-        if (!sched.enabled()) return;
-        const handler = this.handlers.get(sched.jobType);
-        if (!handler) return;
+        if (!sched.enabled()) {
+          this.log.info(`Skipping scheduled ${sched.jobType} (disabled)`);
+          return;
+        }
+        this.log.info(`Running scheduled ${sched.jobType}`);
         await this.trigger(sched.jobType, {
           triggeredBy: "schedule",
           params: sched.params(),
@@ -101,7 +103,10 @@ export class JobRunner {
       });
 
       await this.boss.schedule(sched.jobType, sched.cron, {}, { tz: "UTC" });
+      this.log.info(`Scheduled ${sched.jobType} with cron: ${sched.cron}`);
     }
+
+    this.log.info("pg-boss started, all schedules registered");
   }
 
   async trigger(

@@ -44,21 +44,23 @@ const jobRunner = new JobRunner({
 
 registerAllJobs(jobRunner);
 
+const isDev = process.env.NODE_ENV !== "production";
+
 jobRunner.schedule({
   jobType: "partition_creation",
-  cron: "0 4 * * *",
+  cron: isDev ? "*/5 * * * *" : "0 4 * * *",
   enabled: () => true,
   params: () => ({}),
 });
 jobRunner.schedule({
   jobType: "db_pruning",
-  cron: "0 * * * *",
+  cron: isDev ? "* * * * *" : "0 * * * *",
   enabled: () => config.maxDatabaseSizeGb > 0,
   params: () => ({ max_size_bytes: config.maxDatabaseSizeGb * 1024 * 1024 * 1024 }),
 });
 jobRunner.schedule({
   jobType: "soft_delete_cleanup",
-  cron: "0 3 * * *",
+  cron: isDev ? "*/5 * * * *" : "0 3 * * *",
   enabled: () => true,
   params: () => ({}),
 });
