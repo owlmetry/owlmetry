@@ -1,14 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { appUsers } from "@owlmetry/db";
 import {
   MAX_USER_PROPERTY_KEY_LENGTH,
   MAX_USER_PROPERTY_VALUE_LENGTH,
   MAX_USER_PROPERTIES_COUNT,
-  ANONYMOUS_ID_PREFIX,
 } from "@owlmetry/shared";
 import type { SetUserPropertiesRequest, SetUserPropertiesResponse } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
+import { mergeUserProperties } from "../utils/user-properties.js";
 
 export async function userPropertiesRoutes(app: FastifyInstance) {
   app.post<{ Body: SetUserPropertiesRequest }>(
@@ -26,8 +26,9 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "properties must be an object" });
       }
 
-      // Validate keys and values
-      const cleaned: Record<string, string> = {};
+      // Validate keys and values, separate sets from deletes
+      const toSet: Record<string, string> = {};
+      const toDelete: string[] = [];
       for (const [key, value] of Object.entries(properties)) {
         if (typeof key !== "string" || key.length === 0) {
           return reply.code(400).send({ error: "Property keys must be non-empty strings" });
@@ -41,9 +42,10 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
         if (value.length > MAX_USER_PROPERTY_VALUE_LENGTH) {
           return reply.code(400).send({ error: `Property value for "${key}" exceeds max length of ${MAX_USER_PROPERTY_VALUE_LENGTH}` });
         }
-        // Empty string = delete key (handled after merge)
-        if (value !== "") {
-          cleaned[key] = value;
+        if (value === "") {
+          toDelete.push(key);
+        } else {
+          toSet[key] = value;
         }
       }
 
@@ -52,49 +54,42 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Client key must be scoped to an app" });
       }
 
-      // Fetch existing user to merge properties
-      const [existing] = await app.db
-        .select()
+      // Upsert properties (single DB round-trip, race-condition safe)
+      if (Object.keys(toSet).length > 0) {
+        await mergeUserProperties(app.db, app_id, user_id, toSet);
+      }
+
+      // Handle key deletions — requires reading current state
+      if (toDelete.length > 0) {
+        const [row] = await app.db
+          .select({ id: appUsers.id, properties: appUsers.properties })
+          .from(appUsers)
+          .where(and(eq(appUsers.app_id, app_id), eq(appUsers.user_id, user_id)))
+          .limit(1);
+
+        if (row?.properties) {
+          const current = row.properties as Record<string, string>;
+          for (const key of toDelete) delete current[key];
+          await app.db
+            .update(appUsers)
+            .set({ properties: current })
+            .where(eq(appUsers.id, row.id));
+        }
+      }
+
+      // Read final state for response + count validation
+      const [final] = await app.db
+        .select({ properties: appUsers.properties })
         .from(appUsers)
         .where(and(eq(appUsers.app_id, app_id), eq(appUsers.user_id, user_id)))
         .limit(1);
 
-      // Build merged properties
-      const existingProps: Record<string, string> = (existing?.properties as Record<string, string>) ?? {};
-      const merged = { ...existingProps, ...cleaned };
-
-      // Remove keys explicitly deleted (value was empty string in request)
-      for (const [key, value] of Object.entries(properties)) {
-        if (value === "") {
-          delete merged[key];
-        }
-      }
+      const merged = (final?.properties as Record<string, string>) ?? {};
 
       if (Object.keys(merged).length > MAX_USER_PROPERTIES_COUNT) {
         return reply.code(400).send({
           error: `Total properties count exceeds max of ${MAX_USER_PROPERTIES_COUNT}`,
         });
-      }
-
-      if (existing) {
-        await app.db
-          .update(appUsers)
-          .set({ properties: merged })
-          .where(eq(appUsers.id, existing.id));
-      } else {
-        // Upsert: create user row if it doesn't exist yet
-        await app.db
-          .insert(appUsers)
-          .values({
-            app_id,
-            user_id,
-            is_anonymous: user_id.startsWith(ANONYMOUS_ID_PREFIX),
-            properties: merged,
-          })
-          .onConflictDoUpdate({
-            target: [appUsers.app_id, appUsers.user_id],
-            set: { properties: sql`COALESCE(app_users.properties, '{}'::jsonb) || ${JSON.stringify(merged)}::jsonb` },
-          });
       }
 
       return {

@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, API_URL } from "@/lib/api";
 import type { ProjectDetailResponse, AppResponse, IntegrationResponse } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
 
@@ -419,20 +419,22 @@ function RevenueCatIntegration({ projectId }: { projectId: string }) {
 
   async function handleToggle() {
     if (!integration) return;
+    setError("");
     try {
       await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { enabled: !integration.enabled });
       mutate();
-    } catch {
-      // silent
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to toggle");
     }
   }
 
   async function handleSync() {
     setSyncing(true);
+    setError("");
     try {
       await api.post(`/v1/projects/${projectId}/integrations/revenuecat/sync`, {});
-    } catch {
-      // silent
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to sync");
     } finally {
       setSyncing(false);
     }
@@ -440,17 +442,16 @@ function RevenueCatIntegration({ projectId }: { projectId: string }) {
 
   async function handleRemove() {
     if (!confirm("Remove RevenueCat integration?")) return;
+    setError("");
     try {
       await api.delete(`/v1/projects/${projectId}/integrations/revenuecat`);
       mutate();
-    } catch {
-      // silent
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to remove");
     }
   }
 
-  const webhookUrl = typeof window !== "undefined"
-    ? `${window.location.origin.replace("localhost:3000", "localhost:4000")}/v1/webhooks/revenuecat/${projectId}`
-    : `https://api.owlmetry.com/v1/webhooks/revenuecat/${projectId}`;
+  const webhookUrl = `${API_URL}/v1/webhooks/revenuecat/${projectId}`;
 
   return (
     <Card>

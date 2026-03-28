@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { projectIntegrations, apps, appUsers } from "@owlmetry/db";
+import type { Db } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
-import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
+import { mergeUserProperties } from "../utils/user-properties.js";
 
 interface RevenueCatConfig {
   api_key: string;
@@ -32,7 +33,7 @@ interface RevenueCatWebhookEvent {
   expiration_reason?: string | null;
   new_product_id?: string | null;
   currency?: string | null;
-  price?: number | null; // USD equivalent
+  price?: number | null;
   price_in_purchased_currency?: number | null;
   country_code?: string;
   subscriber_attributes: Record<string, { value: string; updated_at_ms: number }>;
@@ -79,6 +80,32 @@ interface RevenueCatSubscriberResponse {
       unsubscribe_detected_at: string | null;
     }>;
   };
+}
+
+// --- Helpers ---
+
+async function findActiveRevenueCatIntegration(db: Db, projectId: string) {
+  const [integration] = await db
+    .select()
+    .from(projectIntegrations)
+    .where(
+      and(
+        eq(projectIntegrations.project_id, projectId),
+        eq(projectIntegrations.provider, "revenuecat"),
+        isNull(projectIntegrations.deleted_at),
+        eq(projectIntegrations.enabled, true),
+      )
+    )
+    .limit(1);
+  return integration ?? null;
+}
+
+async function getProjectAppIds(db: Db, projectId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: apps.id })
+    .from(apps)
+    .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
+  return rows.map((a) => a.id);
 }
 
 function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<string, string> {
@@ -144,37 +171,6 @@ function mapSubscriberToProperties(subscriber: RevenueCatSubscriberResponse["sub
   return props;
 }
 
-async function mergeUserProperties(
-  db: any,
-  appId: string,
-  userId: string,
-  newProps: Record<string, string>,
-): Promise<void> {
-  const [existing] = await db
-    .select()
-    .from(appUsers)
-    .where(and(eq(appUsers.app_id, appId), eq(appUsers.user_id, userId)))
-    .limit(1);
-
-  const merged = { ...((existing?.properties as Record<string, string>) ?? {}), ...newProps };
-
-  if (existing) {
-    await db
-      .update(appUsers)
-      .set({ properties: merged })
-      .where(eq(appUsers.id, existing.id));
-  } else {
-    await db
-      .insert(appUsers)
-      .values({
-        app_id: appId,
-        user_id: userId,
-        is_anonymous: userId.startsWith(ANONYMOUS_ID_PREFIX),
-        properties: merged,
-      });
-  }
-}
-
 async function fetchRevenueCatSubscriber(
   apiKey: string,
   userId: string,
@@ -194,7 +190,23 @@ async function fetchRevenueCatSubscriber(
   }
 }
 
-/** Webhook + sync routes for RevenueCat integration. */
+/** Apply properties to a user across all apps in a project. */
+async function applyPropsToProjectUser(
+  db: Db,
+  appIds: string[],
+  userId: string,
+  props: Record<string, string>,
+): Promise<number> {
+  let updated = 0;
+  await Promise.all(appIds.map(async (appId) => {
+    await mergeUserProperties(db, appId, userId, props);
+    updated++;
+  }));
+  return updated;
+}
+
+// --- Routes ---
+
 export async function revenuecatRoutes(app: FastifyInstance) {
   // Webhook receiver — no standard auth, uses webhook_secret from integration config
   app.post<{ Params: { projectId: string }; Body: RevenueCatWebhookPayload }>(
@@ -202,20 +214,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { projectId } = request.params;
 
-      // Look up the integration config
-      const [integration] = await app.db
-        .select()
-        .from(projectIntegrations)
-        .where(
-          and(
-            eq(projectIntegrations.project_id, projectId),
-            eq(projectIntegrations.provider, "revenuecat"),
-            isNull(projectIntegrations.deleted_at),
-            eq(projectIntegrations.enabled, true),
-          )
-        )
-        .limit(1);
-
+      const integration = await findActiveRevenueCatIntegration(app.db, projectId);
       if (!integration) {
         return reply.code(404).send({ error: "RevenueCat integration not found or disabled" });
       }
@@ -246,19 +245,8 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         return { received: true };
       }
 
-      // Update user properties across all apps in the project
-      const appIds = (await app.db
-        .select({ id: apps.id })
-        .from(apps)
-        .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)))
-      ).map((a) => a.id);
-
-      // Update user properties across matching apps
-      for (const appId of appIds) {
-        await mergeUserProperties(app.db, appId, userId, props).catch((err) => {
-          request.log.warn({ err, appId, userId }, "Failed to update user properties from webhook");
-        });
-      }
+      const appIds = await getProjectAppIds(app.db, projectId);
+      await applyPropsToProjectUser(app.db, appIds, userId, props);
 
       return { received: true };
     }
@@ -276,32 +264,13 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const [integration] = await app.db
-        .select()
-        .from(projectIntegrations)
-        .where(
-          and(
-            eq(projectIntegrations.project_id, projectId),
-            eq(projectIntegrations.provider, "revenuecat"),
-            isNull(projectIntegrations.deleted_at),
-            eq(projectIntegrations.enabled, true),
-          )
-        )
-        .limit(1);
-
+      const integration = await findActiveRevenueCatIntegration(app.db, projectId);
       if (!integration) {
         return reply.code(404).send({ error: "RevenueCat integration not found or disabled" });
       }
 
       const rcConfig = integration.config as unknown as RevenueCatConfig;
-
-      // Get all app IDs for this project
-      const projectApps = await app.db
-        .select({ id: apps.id })
-        .from(apps)
-        .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
-
-      const appIds = projectApps.map((a) => a.id);
+      const appIds = await getProjectAppIds(app.db, projectId);
 
       if (appIds.length === 0) {
         return reply.code(400).send({ error: "No apps in this project" });
@@ -322,7 +291,6 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         return { synced: 0, total: 0 };
       }
 
-      // Run sync in background — return immediately
       const totalUsers = users.length;
 
       // Fire-and-forget background sync
@@ -334,16 +302,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
             if (subscriberData) {
               const props = mapSubscriberToProperties(subscriberData.subscriber);
               if (Object.keys(props).length > 0) {
-                const existing = await app.db
-                  .select()
-                  .from(appUsers)
-                  .where(eq(appUsers.id, user.id))
-                  .limit(1);
-                const merged = { ...((existing[0]?.properties as Record<string, string>) ?? {}), ...props };
-                await app.db
-                  .update(appUsers)
-                  .set({ properties: merged })
-                  .where(eq(appUsers.id, user.id));
+                await mergeUserProperties(app.db, user.app_id, user.user_id, props);
                 synced++;
               }
             }
@@ -374,19 +333,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const [integration] = await app.db
-        .select()
-        .from(projectIntegrations)
-        .where(
-          and(
-            eq(projectIntegrations.project_id, projectId),
-            eq(projectIntegrations.provider, "revenuecat"),
-            isNull(projectIntegrations.deleted_at),
-            eq(projectIntegrations.enabled, true),
-          )
-        )
-        .limit(1);
-
+      const integration = await findActiveRevenueCatIntegration(app.db, projectId);
       if (!integration) {
         return reply.code(404).send({ error: "RevenueCat integration not found or disabled" });
       }
@@ -399,31 +346,8 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       }
 
       const props = mapSubscriberToProperties(subscriberData.subscriber);
-
-      // Get all app IDs for this project
-      const appIds = (await app.db
-        .select({ id: apps.id })
-        .from(apps)
-        .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)))
-      ).map((a) => a.id);
-
-      let updated = 0;
-      for (const appId of appIds) {
-        const [user] = await app.db
-          .select()
-          .from(appUsers)
-          .where(and(eq(appUsers.app_id, appId), eq(appUsers.user_id, userId)))
-          .limit(1);
-
-        if (user) {
-          const merged = { ...((user.properties as Record<string, string>) ?? {}), ...props };
-          await app.db
-            .update(appUsers)
-            .set({ properties: merged })
-            .where(eq(appUsers.id, user.id));
-          updated++;
-        }
-      }
+      const appIds = await getProjectAppIds(app.db, projectId);
+      const updated = await applyPropsToProjectUser(app.db, appIds, userId, props);
 
       return { updated, properties: props };
     }

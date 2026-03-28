@@ -288,9 +288,9 @@ export default function UsersPage() {
                           {user.properties.rc_status === "cancelled" && (
                             <Badge variant="secondary" className="text-xs">Cancelled</Badge>
                           )}
-                          {user.properties.rc_revenue && (
+                          {user.properties.rc_last_purchase && (
                             <span className="text-xs text-muted-foreground">
-                              ${user.properties.rc_revenue}
+                              {user.properties.rc_last_purchase}
                             </span>
                           )}
                           {Object.entries(user.properties)
