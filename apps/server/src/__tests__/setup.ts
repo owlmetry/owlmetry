@@ -25,8 +25,11 @@ import { auditLogsRoutes } from "../routes/audit-logs.js";
 import { userPropertiesRoutes } from "../routes/user-properties.js";
 import { integrationsRoutes } from "../routes/integrations.js";
 import { revenuecatRoutes } from "../routes/revenuecat.js";
+import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
+import { JobRunner } from "../services/job-runner.js";
+import type { JobHandler } from "../services/job-runner.js";
 
 export const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
 
@@ -53,6 +56,8 @@ export class TestEmailService implements EmailService {
   lastEmail: string = "";
   lastInvitationEmail: string = "";
   lastInvitationParams: { team_name: string; invited_by_name: string; role: string; accept_url: string } | null = null;
+  lastJobAlertEmail: string = "";
+  lastJobAlertParams: { job_type: string; status: string; duration: string; error?: string } | null = null;
 
   async sendVerificationCode(email: string, code: string): Promise<void> {
     this.lastCode = code;
@@ -62,6 +67,11 @@ export class TestEmailService implements EmailService {
   async sendTeamInvitation(email: string, params: { team_name: string; invited_by_name: string; role: string; accept_url: string }): Promise<void> {
     this.lastInvitationEmail = email;
     this.lastInvitationParams = params;
+  }
+
+  async sendJobAlert(email: string, params: { job_type: string; status: string; duration: string; error?: string }): Promise<void> {
+    this.lastJobAlertEmail = email;
+    this.lastJobAlertParams = params;
   }
 }
 
@@ -295,12 +305,34 @@ export async function setupTestDb() {
 
 export const testEmailService = new TestEmailService();
 
+/** A fast test handler that completes immediately. */
+export const testJobHandler: JobHandler = async (ctx, params) => {
+  const delay = (params.delay_ms as number) ?? 0;
+  if (delay > 0) {
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  if (params.should_fail) {
+    throw new Error("Test job failed");
+  }
+  return { test: true };
+};
+
 export async function buildApp() {
   const app = Fastify({ logger: false });
   const db = createDatabaseConnection(TEST_DB_URL);
 
+  const jobRunner = new JobRunner({
+    db,
+    databaseUrl: TEST_DB_URL,
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+    emailService: testEmailService as EmailService,
+  });
+  jobRunner.register("revenuecat_sync", testJobHandler);
+  jobRunner.register("test_job", testJobHandler);
+
   app.decorate("db", db);
   app.decorate("emailService", testEmailService as EmailService);
+  app.decorate("jobRunner", jobRunner);
   await app.register(decompressPlugin);
   await app.register(cookie);
   await app.register(cors, { origin: true, credentials: true });
@@ -324,6 +356,8 @@ export async function buildApp() {
   await app.register(userPropertiesRoutes, { prefix: "/v1" });
   await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(revenuecatRoutes, { prefix: "/v1" });
+  await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
+  await app.register(jobsByIdRoutes, { prefix: "/v1" });
 
   await app.ready();
   return app;
@@ -331,6 +365,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM job_runs`.catch(() => {});
   await client`DELETE FROM project_integrations`.catch(() => {});
   await client`DELETE FROM audit_logs`;
   await client`DELETE FROM app_users`;

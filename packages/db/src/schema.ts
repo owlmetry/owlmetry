@@ -25,6 +25,7 @@ export const logLevelEnum = pgEnum("log_level", [
 ]);
 
 export const metricPhaseEnum = pgEnum("metric_phase", ["start", "complete", "fail", "cancel", "record"]);
+export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "completed", "failed", "cancelled"]);
 
 // Users
 export const users = pgTable("users", {
@@ -455,5 +456,38 @@ export const projectIntegrations = pgTable(
   (table) => [
     uniqueIndex("project_integrations_project_provider_idx").on(table.project_id, table.provider),
     index("project_integrations_project_id_idx").on(table.project_id),
+  ]
+);
+
+// Background job runs
+export const jobRuns = pgTable(
+  "job_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    job_type: varchar("job_type", { length: 100 }).notNull(),
+    status: jobStatusEnum("status").notNull().default("pending"),
+    team_id: uuid("team_id").references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    triggered_by: varchar("triggered_by", { length: 100 }).notNull(),
+    params: jsonb("params").$type<Record<string, unknown>>(),
+    progress: jsonb("progress").$type<{
+      processed: number;
+      total: number;
+      message?: string;
+    }>(),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    error: text("error"),
+    notify: boolean("notify").notNull().default(false),
+    started_at: timestamp("started_at", { withTimezone: true }),
+    completed_at: timestamp("completed_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("job_runs_job_type_created_at_idx").on(table.job_type, table.created_at),
+    index("job_runs_status_idx").on(table.status),
+    index("job_runs_team_id_created_at_idx").on(table.team_id, table.created_at),
+    index("job_runs_project_id_idx").on(table.project_id),
   ]
 );

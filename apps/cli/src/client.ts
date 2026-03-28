@@ -18,6 +18,11 @@ import type {
   FunnelDefinitionResponse,
   FunnelQueryParams,
   FunnelQueryResponse,
+  JobRunResponse,
+  JobRunsQueryParams,
+  JobRunsResponse,
+  TriggerJobRequest,
+  TriggerJobResponse,
   MetricDefinitionResponse,
   MetricQueryParams,
   MetricQueryResponse,
@@ -278,6 +283,32 @@ export class OwlMetryClient {
 
   async syncRevenueCatUser(projectId: string, userId: string): Promise<{ updated: number; properties: Record<string, string> }> {
     return this.request<{ updated: number; properties: Record<string, string> }>("POST", `/v1/projects/${projectId}/integrations/revenuecat/sync/${encodeURIComponent(userId)}`);
+  }
+
+  // Jobs
+  async listJobRuns(teamId: string, params: Partial<JobRunsQueryParams> = {}): Promise<JobRunsResponse> {
+    const stringParams: Record<string, string | undefined> = {
+      job_type: params.job_type,
+      status: params.status,
+      project_id: params.project_id,
+      since: params.since,
+      until: params.until,
+      cursor: params.cursor,
+      limit: params.limit,
+    };
+    return this.request<JobRunsResponse>("GET", `/v1/teams/${teamId}/jobs`, { params: stringParams });
+  }
+
+  async getJobRun(runId: string): Promise<{ job_run: JobRunResponse }> {
+    return this.request<{ job_run: JobRunResponse }>("GET", `/v1/jobs/${runId}`);
+  }
+
+  async triggerJob(teamId: string, body: TriggerJobRequest): Promise<TriggerJobResponse> {
+    return this.request<TriggerJobResponse>("POST", `/v1/teams/${teamId}/jobs/trigger`, { body });
+  }
+
+  async cancelJob(runId: string): Promise<{ cancelled: boolean }> {
+    return this.request<{ cancelled: boolean }>("POST", `/v1/jobs/${runId}/cancel`);
   }
 
   // Audit Logs

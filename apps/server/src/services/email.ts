@@ -8,9 +8,18 @@ export interface TeamInvitationEmailParams {
   accept_url: string;
 }
 
+export interface JobAlertEmailParams {
+  job_type: string;
+  status: string;
+  duration: string;
+  error?: string;
+  result?: Record<string, unknown>;
+}
+
 export interface EmailService {
   sendVerificationCode(email: string, code: string): Promise<void>;
   sendTeamInvitation(email: string, params: TeamInvitationEmailParams): Promise<void>;
+  sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void>;
 }
 
 /** Escape user-controlled strings before interpolation into HTML emails. */
@@ -52,6 +61,15 @@ export class ConsoleEmailService implements EmailService {
     } catch {
       // Non-critical
     }
+  }
+
+  async sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void> {
+    const emoji = params.status === "completed" ? "✅" : params.status === "failed" ? "❌" : "🚫";
+    console.log(`\n========================================`);
+    console.log(`  ${emoji} Job ${params.status}: ${params.job_type}`);
+    console.log(`  To: ${email} | Duration: ${params.duration}`);
+    if (params.error) console.log(`  Error: ${params.error}`);
+    console.log(`========================================\n`);
   }
 }
 
@@ -103,6 +121,41 @@ export class ResendEmailService implements EmailService {
           `<p><a href="${escapeHtml(params.accept_url)}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>`,
           `<p style="color:#888;font-size:13px;">This invitation expires in 7 days.</p>`,
         ].join(""),
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Resend API error (${res.status}): ${body}`);
+    }
+  }
+
+  async sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void> {
+    const emoji = params.status === "completed" ? "✅" : params.status === "failed" ? "❌" : "🚫";
+    const subject = `[OwlMetry] ${emoji} Job ${params.status}: ${escapeHtml(params.job_type)}`;
+    const lines = [
+      `<p><strong>Job:</strong> ${escapeHtml(params.job_type)}</p>`,
+      `<p><strong>Status:</strong> ${escapeHtml(params.status)}</p>`,
+      `<p><strong>Duration:</strong> ${escapeHtml(params.duration)}</p>`,
+    ];
+    if (params.error) {
+      lines.push(`<p><strong>Error:</strong> ${escapeHtml(params.error)}</p>`);
+    }
+    if (params.result) {
+      lines.push(`<p><strong>Result:</strong></p><pre>${escapeHtml(JSON.stringify(params.result, null, 2))}</pre>`);
+    }
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: this.from,
+        to: email,
+        subject,
+        html: lines.join(""),
       }),
     });
 

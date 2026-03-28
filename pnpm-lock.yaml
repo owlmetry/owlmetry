@@ -65,6 +65,9 @@ importers:
       '@owlmetry/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      croner:
+        specifier: ^10.0.1
+        version: 10.0.1
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -2339,6 +2342,10 @@ packages:
   cookie@1.1.1:
     resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
     engines: {node: '>=18'}
+
+  croner@10.0.1:
+    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+    engines: {node: '>=18.0'}
 
   cssesc@3.0.0:
     resolution: {integrity: sha512-/Tb/JcjK111nNScGob5MNtsntNM1aCNUDipB/TkwZFhyDrrE47SOx/18wF2bbjgc3ZzCSKW1T5nt5EbFoAz/Vg==}
@@ -5493,6 +5500,8 @@ snapshots:
   consola@3.4.2: {}
 
   cookie@1.1.1: {}
+
+  croner@10.0.1: {}
 
   cssesc@3.0.0: {}
 

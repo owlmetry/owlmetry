@@ -2,8 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import jwt from "@fastify/jwt";
-import postgres from "postgres";
-import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions, dropOldestEventPartitions, cleanupSoftDeletedResources } from "@owlmetry/db";
+import { createDatabaseConnection } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
@@ -20,29 +19,54 @@ import { auditLogsRoutes } from "./routes/audit-logs.js";
 import { userPropertiesRoutes } from "./routes/user-properties.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { revenuecatRoutes } from "./routes/revenuecat.js";
+import { jobsRoutes, jobsByIdRoutes } from "./routes/jobs.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 import { createEmailService } from "./services/email.js";
+import { JobRunner } from "./services/job-runner.js";
+import { registerAllJobs } from "./jobs/index.js";
 
 const app = Fastify({ logger: true });
 
 // Database
 const db = createDatabaseConnection(config.databaseUrl);
 
-// Ensure event partitions exist (current month + next 2)
-try {
-  const partitionClient = postgres(config.databaseUrl, { max: 1 });
-  await ensurePartitions(partitionClient, 3);
-  await ensureMetricEventPartitions(partitionClient, 3);
-  await ensureFunnelEventPartitions(partitionClient, 3);
-  await partitionClient.end();
-} catch (err) {
-  app.log.warn("Failed to ensure partitions on startup — partitions may need manual creation");
-  app.log.warn(err);
-}
+// Services
+const emailService = createEmailService(config.resendApiKey, config.emailFrom);
+
+// Job Runner
+const jobRunner = new JobRunner({
+  db,
+  databaseUrl: config.databaseUrl,
+  log: app.log,
+  emailService,
+  systemJobsAlertEmail: config.systemJobsAlertEmail,
+});
+
+registerAllJobs(jobRunner);
+
+jobRunner.schedule({
+  jobType: "partition_creation",
+  cron: "0 4 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
+  jobType: "db_pruning",
+  cron: "0 * * * *",
+  enabled: () => config.maxDatabaseSizeGb > 0,
+  params: () => ({ max_size_bytes: config.maxDatabaseSizeGb * 1024 * 1024 * 1024 }),
+});
+jobRunner.schedule({
+  jobType: "soft_delete_cleanup",
+  cron: "0 3 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
 
 // Decorators
 app.decorate("db", db);
-app.decorate("emailService", createEmailService(config.resendApiKey, config.emailFrom));
+app.decorate("emailService", emailService);
+app.decorate("jobRunner", jobRunner);
 
 // Plugins
 await app.register(decompressPlugin);
@@ -75,6 +99,8 @@ await app.register(auditLogsRoutes, { prefix: "/v1/teams/:teamId" });
 await app.register(userPropertiesRoutes, { prefix: "/v1" });
 await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(revenuecatRoutes, { prefix: "/v1" });
+await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
+await app.register(jobsByIdRoutes, { prefix: "/v1" });
 
 // Start
 try {
@@ -91,58 +117,10 @@ try {
   process.exit(1);
 }
 
-// Database size pruning (runs after server is listening)
-let pruningInterval: ReturnType<typeof setInterval> | undefined;
-
-if (config.maxDatabaseSizeGb > 0) {
-  const maxSizeBytes = config.maxDatabaseSizeGb * 1024 * 1024 * 1024;
-
-  const runPruning = async () => {
-    const client = postgres(config.databaseUrl, { max: 1 });
-    try {
-      const result = await dropOldestEventPartitions(client, maxSizeBytes);
-      if (result.droppedPartitions.length > 0 || result.deletedRows > 0) {
-        app.log.info(
-          `Database pruning: dropped partitions [${result.droppedPartitions.join(", ")}], ` +
-            `deleted ${result.deletedRows} rows. ` +
-            `Current size: ${(result.currentSizeBytes / 1024 / 1024 / 1024).toFixed(2)} GB`
-        );
-      }
-    } catch (err) {
-      app.log.error("Database size pruning failed:");
-      app.log.error(err);
-    } finally {
-      await client.end();
-    }
-  };
-
-  runPruning();
-  pruningInterval = setInterval(runPruning, 3_600_000);
-}
-
-// Soft-delete cleanup (runs daily, hard-deletes resources soft-deleted > 7 days ago)
-let cleanupInterval: ReturnType<typeof setInterval> | undefined;
-
-const runCleanup = async () => {
-  const client = postgres(config.databaseUrl, { max: 1 });
-  try {
-    const result = await cleanupSoftDeletedResources(client);
-    const total = Object.values(result).reduce((a, b) => a + b, 0);
-    if (total > 0) {
-      app.log.info(
-        `Soft-delete cleanup: ${JSON.stringify(result)}`
-      );
-    }
-  } catch (err) {
-    app.log.error("Soft-delete cleanup failed:");
-    app.log.error(err);
-  } finally {
-    await client.end();
-  }
-};
-
-runCleanup();
-cleanupInterval = setInterval(runCleanup, 86_400_000); // 24 hours
+// Start scheduled jobs after server is listening
+jobRunner.startSchedules().catch((err) => {
+  app.log.error(err, "Failed to start job schedules");
+});
 
 // Graceful shutdown
 let shuttingDown = false;
@@ -154,8 +132,7 @@ const shutdown = async (signal: string) => {
   const forceTimer = setTimeout(() => process.exit(0), 3000);
   forceTimer.unref();
 
-  if (pruningInterval) clearInterval(pruningInterval);
-  if (cleanupInterval) clearInterval(cleanupInterval);
+  await jobRunner.shutdown(2500);
   try {
     await app.close();
   } catch {

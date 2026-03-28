@@ -59,6 +59,31 @@ export function serializeAppUser(u: {
   };
 }
 
+export function serializeJobRun(r: {
+  id: string; job_type: string; status: string;
+  team_id: string | null; project_id: string | null;
+  triggered_by: string; params: unknown; progress: unknown;
+  result: unknown; error: string | null; notify: boolean;
+  started_at: Date | null; completed_at: Date | null; created_at: Date;
+}) {
+  return {
+    id: r.id,
+    job_type: r.job_type,
+    status: r.status,
+    team_id: r.team_id,
+    project_id: r.project_id,
+    triggered_by: r.triggered_by,
+    params: r.params,
+    progress: r.progress,
+    result: r.result,
+    error: r.error,
+    notify: r.notify,
+    started_at: r.started_at?.toISOString() ?? null,
+    completed_at: r.completed_at?.toISOString() ?? null,
+    created_at: r.created_at.toISOString(),
+  };
+}
+
 export function serializeApp(a: {
   id: string; team_id: string; project_id: string;
   name: string; platform: string; bundle_id: string | null;

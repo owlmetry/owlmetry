@@ -169,6 +169,13 @@
       "when": 1774701378466,
       "tag": "0023_lovely_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1774715603321,
+      "tag": "0024_bumpy_ezekiel",
+      "breakpoints": true
     }
   ]
 }

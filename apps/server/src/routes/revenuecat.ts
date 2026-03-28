@@ -293,31 +293,19 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       const totalUsers = users.length;
 
-      // Fire-and-forget background sync
-      (async () => {
-        let synced = 0;
-        for (const user of users) {
-          try {
-            const subscriberData = await fetchRevenueCatSubscriber(rcConfig.api_key, user.user_id);
-            if (subscriberData) {
-              const props = mapSubscriberToProperties(subscriberData.subscriber);
-              if (Object.keys(props).length > 0) {
-                await mergeUserProperties(app.db, user.app_id, user.user_id, props);
-                synced++;
-              }
-            }
-            // Rate limit: ~3 requests per second (180/min)
-            await new Promise((r) => setTimeout(r, 350));
-          } catch (err) {
-            app.log.warn({ err, userId: user.user_id }, "RC sync failed for user");
-          }
-        }
-        app.log.info(`RevenueCat sync complete: ${synced}/${totalUsers} users updated`);
-      })().catch((err) => {
-        app.log.error({ err }, "RevenueCat bulk sync failed");
+      const triggeredBy =
+        request.auth.type === "user"
+          ? `manual:user:${request.auth.user_id}`
+          : `manual:api_key:${request.auth.key_id}`;
+
+      const run = await app.jobRunner.trigger("revenuecat_sync", {
+        triggeredBy,
+        teamId: project.team_id,
+        projectId,
+        params: { project_id: projectId, integration_id: integration.id },
       });
 
-      return { syncing: true, total: totalUsers };
+      return { syncing: true, total: totalUsers, job_run_id: run.id };
     }
   );
 
