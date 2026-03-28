@@ -394,4 +394,5 @@ After setup, the SDK skill will prompt the user to choose which instrumentation 
 
 For metrics and funnels, the CLI defines **what** to track (server-side definitions), and the SDK implements **where** to track it (code instrumentation). The definition must exist before the SDK emits events for that slug.
 
-6. **Query data** (CLI): Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior
+6. **Connect integrations** (CLI, optional): `owlmetry integrations add revenuecat --project-id <id> --api-key <key>` — then configure the webhook URL in RevenueCat's dashboard and run `owlmetry integrations sync revenuecat --project-id <id>` to backfill existing users
+7. **Query data** (CLI): Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior

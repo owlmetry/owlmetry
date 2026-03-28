@@ -87,6 +87,26 @@ owlmetry integrations sync <provider> --project-id <id> --user <userId>
 
 All integration endpoints are under `/v1/projects/:projectId/integrations` and require `integrations:read` or `integrations:write` permissions.
 
+## Setup Prompt
+
+Copy-paste this prompt to have your coding agent set up the RevenueCat integration end-to-end:
+
+```
+Set up RevenueCat integration for my OwlMetry project.
+
+1. Use the OwlMetry CLI to add the RevenueCat integration to my project with my
+   RC secret API key. Use `/owlmetry-cli` for CLI syntax.
+2. Show me the webhook URL I need to paste into RevenueCat's dashboard
+   (Settings → Webhooks → New Webhook).
+3. After I confirm the webhook is configured, run a bulk sync to backfill
+   existing subscribers.
+4. Use `/owlmetry-swift` or `/owlmetry-node` to add Owl.setUserProperties()
+   calls after in-app purchase events so the dashboard updates immediately
+   (without waiting for the webhook).
+```
+
+This prompt guides the agent through all four steps: CLI integration setup, webhook configuration, backfill sync, and client-side property updates for instant feedback.
+
 ## Adding New Providers
 
 The integration framework uses a central provider registry in `packages/shared/src/integrations.ts`. Each provider defines its config fields (required/optional, sensitive/public) and validation rules. Adding a new provider is a matter of adding an entry to the `INTEGRATION_PROVIDERS` array.

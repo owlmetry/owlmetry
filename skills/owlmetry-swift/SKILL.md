@@ -412,6 +412,19 @@ Properties follow the current user identity. If the user is anonymous, propertie
 
 Use for user-level data that changes infrequently (subscription status, plan tier, company). For event-specific data, use `customAttributes` on events instead.
 
+**RevenueCat integration prompt** — copy-paste to set up subscription tracking:
+
+```
+Connect RevenueCat to my OwlMetry project so I can see paid vs free users:
+
+1. Use `/owlmetry-cli` to add the RevenueCat integration with my RC secret API key.
+2. Show me the webhook URL to paste into RevenueCat's webhook settings.
+3. After I confirm the webhook is live, run a bulk sync to backfill existing subscribers.
+4. Add Owl.setUserProperties() calls in my RevenueCat Purchases delegate or
+   StoreKit transaction handler so the dashboard updates immediately when a user
+   subscribes, without waiting for RevenueCat's webhook.
+```
+
 ## What the SDK Tracks Automatically
 
 Do not re-implement any of these — they are built into the SDK and emitted without any code:

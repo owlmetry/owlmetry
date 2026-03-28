@@ -261,6 +261,19 @@ Set a value to `""` to delete a key. All values must be strings. Max 50 properti
 
 Use for user-level data that changes infrequently (subscription status, plan tier, company). For event-specific data, use custom attributes on events instead.
 
+**RevenueCat integration prompt** — copy-paste to set up subscription tracking:
+
+```
+Connect RevenueCat to my OwlMetry project so I can see paid vs free users:
+
+1. Use `/owlmetry-cli` to add the RevenueCat integration with my RC secret API key.
+2. Show me the webhook URL to paste into RevenueCat's webhook settings.
+3. After I confirm the webhook is live, run a bulk sync to backfill existing subscribers.
+4. Add Owl.setUserProperties() calls in my Node.js webhook handler or purchase
+   callback so the dashboard updates immediately when a user subscribes, without
+   waiting for RevenueCat's webhook.
+```
+
 ## Serverless Support
 
 Serverless environments (AWS Lambda, Vercel Functions, Cloud Functions) freeze the runtime after each invocation. Events still in the buffer are lost when the runtime freezes — the flush timer and `beforeExit` handler may never fire.
