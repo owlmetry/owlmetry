@@ -83,9 +83,11 @@ export class JobRunner {
     await this.recoverStaleRuns();
 
     this.boss = new PgBoss({ connectionString: this.databaseUrl, schema: "pgboss" });
+    this.boss.on("error", (err) => this.log.error(err, "pg-boss error"));
     await this.boss.start();
 
     for (const sched of this.pendingSchedules) {
+      await this.boss.createQueue(sched.jobType);
       await this.boss.work(sched.jobType, async () => {
         if (!sched.enabled()) return;
         const handler = this.handlers.get(sched.jobType);
