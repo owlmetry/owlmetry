@@ -1,0 +1,79 @@
+---
+title: Background Jobs
+description: Asynchronous background work with progress tracking, scheduling, and email notifications.
+---
+
+Background jobs are asynchronous tasks that run on the server without blocking API responses. They are used for long-running operations like syncing data from third-party services, database maintenance, and scheduled cleanup.
+
+## Job Types
+
+Each job has a **type** that determines what it does and a **scope** that controls who can trigger it.
+
+| Job Type | Label | Scope | Default Schedule | Description |
+|----------|-------|-------|-----------------|-------------|
+| `revenuecat_sync` | RevenueCat Sync | Project | Manual | Syncs subscriber data from RevenueCat for all users in a project |
+| `db_pruning` | Database Pruning | System | Hourly | Drops oldest event partitions when database exceeds size limit |
+| `soft_delete_cleanup` | Soft-Delete Cleanup | System | Daily 3am UTC | Hard-deletes resources soft-deleted more than 7 days ago |
+| `partition_creation` | Partition Creation | System | Daily 4am UTC | Creates monthly partitions for event tables |
+
+**Project-scoped jobs** are triggered by team admins via the dashboard, CLI, or API. They operate on a specific project and are visible to all team members with `jobs:read` permission.
+
+**System jobs** run on a cron schedule and handle infrastructure maintenance. They are not visible through the API or dashboard — the server owner monitors them via local CLI commands and email alerts.
+
+## Job Lifecycle
+
+Every job run goes through a lifecycle tracked in the `job_runs` table:
+
+```
+pending → running → completed
+                  → failed
+                  → cancelled
+```
+
+- **Pending**: Job created, waiting to start execution.
+- **Running**: Handler is actively executing. Progress updates may be written.
+- **Completed**: Handler returned successfully.
+- **Failed**: Handler threw an error. The error message is stored on the run.
+- **Cancelled**: Cooperative cancellation — the handler checked `isCancelled()` and returned early.
+
+## Progress Tracking
+
+Jobs can report progress during execution as a structured object:
+
+```json
+{
+  "processed": 45,
+  "total": 200,
+  "message": "Synced 38 users, 7 skipped"
+}
+```
+
+Progress is visible in real-time in the dashboard (via polling) and in the CLI with the `--wait` flag.
+
+## Scheduling
+
+System jobs use [cron expressions](https://crontab.guru/) for scheduling. The server checks every 60 seconds which scheduled jobs are due. If a job is still running when its next scheduled time arrives, that run is skipped.
+
+## Overlap Prevention
+
+Only one instance of each job type (per project for project-scoped jobs) can be running or pending at a time. Attempting to trigger a duplicate returns HTTP 409 with the existing run's ID.
+
+## Email Notifications
+
+Two notification channels:
+
+1. **System alerts**: Set `SYSTEM_JOBS_ALERT_EMAIL` in the server environment to receive an email on every system job completion or failure.
+2. **Per-trigger alerts**: Pass `notify: true` when triggering a job (or check "Notify me when done" in the dashboard). The server resolves your email from your auth context and sends an alert when the job finishes.
+
+## Stale Run Recovery
+
+If the server restarts while a job is running, any `pending` or `running` rows are automatically marked as `failed` with the message "Server restarted during execution" on the next startup.
+
+## Permissions
+
+| Permission | Description |
+|-----------|-------------|
+| `jobs:read` | View job runs for the team |
+| `jobs:write` | Trigger and cancel jobs |
+
+Both permissions are included in the default agent key permissions. Users need `admin` role minimum to access jobs.

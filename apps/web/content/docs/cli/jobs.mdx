@@ -1,0 +1,86 @@
+---
+title: Jobs
+description: View and manage background jobs from the OwlMetry CLI.
+---
+
+The `owlmetry jobs` command group lets you view, trigger, and cancel [background jobs](/docs/concepts/background-jobs).
+
+## List Job Runs
+
+```bash
+owlmetry jobs list --team-id <id> --format json
+```
+
+Lists job runs for your team, ordered by creation time (newest first).
+
+### Filters
+
+| Flag | Description |
+|------|-------------|
+| `--type <type>` | Filter by job type (e.g., `revenuecat_sync`) |
+| `--status <status>` | Filter by status: `pending`, `running`, `completed`, `failed`, `cancelled` |
+| `--project-id <id>` | Filter to a specific project |
+| `--since <time>` | Start time (e.g., `1h`, `7d`, or ISO 8601) |
+| `--until <time>` | End time |
+| `--limit <n>` | Max entries to return |
+| `--cursor <cursor>` | Pagination cursor from previous response |
+
+## View Job Details
+
+```bash
+owlmetry jobs view <runId> --format json
+```
+
+Shows full details of a job run including status, duration, progress, parameters, result, and error (if failed).
+
+## Trigger a Job
+
+```bash
+owlmetry jobs trigger <jobType> --team-id <id> --project-id <id> --format json
+```
+
+Triggers a project-scoped job. The `--project-id` is required for project-scoped jobs like `revenuecat_sync`.
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--project-id <id>` | Project ID (required for project-scoped jobs) |
+| `--param key=value` | Job parameter (repeatable) |
+| `--notify` | Get email notification on completion or failure |
+| `--wait` | Wait for the job to finish, showing a live progress bar |
+
+### Wait for completion
+
+The `--wait` flag polls the job every 2 seconds and shows a live progress bar:
+
+```bash
+owlmetry jobs trigger revenuecat_sync \
+    --team-id <id> \
+    --project-id <id> \
+    --wait
+```
+
+```
+Waiting for job to complete...
+  [████████████░░░░░░░░] 120/200 Synced 98 users, 22 skipped
+```
+
+### Email notification
+
+The `--notify` flag sends an email to your authenticated email address when the job finishes:
+
+```bash
+owlmetry jobs trigger revenuecat_sync \
+    --team-id <id> \
+    --project-id <id> \
+    --notify
+```
+
+## Cancel a Job
+
+```bash
+owlmetry jobs cancel <runId>
+```
+
+Cancels a running job. The job handler checks for cancellation cooperatively and returns early. Only works on jobs with status `running`.

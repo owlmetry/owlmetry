@@ -54,7 +54,8 @@ And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres
 - **Auth model** — `owl_client_` keys for SDKs, `owl_agent_` keys for agents/CLI, JWT for the optional dashboard. Role-based access: **owner** > **admin** > **member**
 - **Team invitations** — token-based email invitations with 7-day expiry; public accept page handles auth redirects automatically
 - **Team management** — create teams, invite members by email, change roles, remove members
-- **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); drops oldest partitions first
+- **Background jobs** — generic job system with cron scheduling, progress tracking, cooperative cancellation, and email alerts. Manages data syncs, database maintenance, and scheduled cleanup with full visibility via dashboard, CLI, and API
+- **Database auto-pruning** — optional size limit (`MAX_DATABASE_SIZE_GB`); runs as a scheduled background job, drops oldest partitions first
 
 ## Architecture
 

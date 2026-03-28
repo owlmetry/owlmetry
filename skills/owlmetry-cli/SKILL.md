@@ -192,6 +192,12 @@ owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--limit <n>] 
 
 # Audit Logs
 owlmetry audit-log list --team-id <id> [--resource-type <type>] [--actor-id <id>] [--action <action>] [--since <time>] --format json
+
+# Jobs
+owlmetry jobs list --team-id <id> [--type <type>] [--status <status>] [--project-id <id>] [--since <time>] --format json
+owlmetry jobs view <runId> --format json
+owlmetry jobs trigger <jobType> --team-id <id> --project-id <id> [--param key=value]... [--notify] [--wait] --format json
+owlmetry jobs cancel <runId>
 ```
 
 ## Resource Management
@@ -295,11 +301,28 @@ owlmetry integrations list --project-id <id> --format json                   # L
 owlmetry integrations add revenuecat --project-id <id> --api-key <key> --format json
 owlmetry integrations update revenuecat --project-id <id> --api-key <key> --format json
 owlmetry integrations remove revenuecat --project-id <id>
-owlmetry integrations sync revenuecat --project-id <id>                      # Bulk sync all users
-owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user
+owlmetry integrations sync revenuecat --project-id <id>                      # Bulk sync (queues background job)
+owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user (synchronous)
 ```
 
 After adding RevenueCat, configure the webhook URL in RevenueCat's dashboard: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
+
+Bulk sync creates a tracked background job. The response includes a `job_run_id` you can monitor:
+
+```bash
+# Trigger sync and get the job run ID
+owlmetry integrations sync revenuecat --project-id <id> --format json
+# → { "syncing": true, "total": 200, "job_run_id": "uuid" }
+
+# Monitor progress
+owlmetry jobs view <job_run_id> --format json
+```
+
+Or use `owlmetry jobs trigger` directly for more control (e.g., `--wait` for blocking, `--notify` for email alerts):
+
+```bash
+owlmetry jobs trigger revenuecat_sync --team-id <id> --project-id <id> --wait
+```
 
 ## Querying
 
@@ -361,6 +384,42 @@ Audit logs record who performed what action on which resource — creating an ap
 ```bash
 owlmetry audit-log list --team-id <id> [--resource-type <type>] [--resource-id <id>] [--actor-id <id>] [--action create|update|delete] [--since <time>] [--until <time>] [--limit <n>] --format json
 ```
+
+## Background Jobs
+
+Background jobs are asynchronous server-side tasks with progress tracking and email notifications. Use them for long-running operations like syncing data from third-party services.
+
+### List Runs
+
+```bash
+owlmetry jobs list --team-id <id> [--type <type>] [--status pending|running|completed|failed|cancelled] [--project-id <id>] [--since <time>] [--until <time>] [--limit <n>] --format json
+```
+
+### View Details
+
+```bash
+owlmetry jobs view <runId> --format json
+```
+
+### Trigger a Job
+
+```bash
+owlmetry jobs trigger revenuecat_sync --team-id <id> --project-id <id> --format json
+```
+
+Add `--wait` to poll until complete with a live progress bar. Add `--notify` to receive an email when the job finishes. Add `--param key=value` (repeatable) for job-specific parameters.
+
+### Cancel
+
+```bash
+owlmetry jobs cancel <runId>
+```
+
+Only works on `running` jobs. Cancellation is cooperative — the handler checks and returns early.
+
+### Duplicate Prevention
+
+Only one instance of each job type (per project) can be running or pending at a time. Attempting to trigger a duplicate returns HTTP 409.
 
 ## Key Notes
 

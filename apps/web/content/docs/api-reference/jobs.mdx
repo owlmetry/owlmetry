@@ -1,0 +1,143 @@
+---
+title: Jobs
+description: Background job management API — list, trigger, view, and cancel job runs.
+---
+
+Manage [background jobs](/docs/concepts/background-jobs) — asynchronous work like data syncs that run server-side with progress tracking.
+
+## GET /v1/teams/:teamId/jobs
+
+List job runs for a team with optional filters. Results are ordered by creation time descending (newest first). Only returns team-scoped jobs (system jobs are not included).
+
+**Auth required:** Yes (`jobs:read` permission or JWT with admin role)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `job_type` | string | Filter by job type (e.g., `revenuecat_sync`). |
+| `status` | string | Filter by status: `pending`, `running`, `completed`, `failed`, `cancelled`. |
+| `project_id` | string | Filter to jobs for a specific project. |
+| `since` | string | Start time. Relative (`1h`, `30m`, `7d`) or ISO 8601. |
+| `until` | string | End time. Relative or ISO 8601. |
+| `cursor` | string | Cursor from previous response for pagination. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+```json
+{
+  "job_runs": [
+    {
+      "id": "uuid",
+      "job_type": "revenuecat_sync",
+      "status": "completed",
+      "team_id": "uuid",
+      "project_id": "uuid",
+      "triggered_by": "manual:user:uuid",
+      "params": { "project_id": "uuid", "integration_id": "uuid" },
+      "progress": { "processed": 200, "total": 200, "message": "Synced 180 users, 20 skipped" },
+      "result": { "synced": 180, "total": 200, "skipped": 20 },
+      "error": null,
+      "notify": false,
+      "started_at": "2024-01-15T10:30:01.000Z",
+      "completed_at": "2024-01-15T10:31:12.000Z",
+      "created_at": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "cursor": "2024-01-15T10:30:00.000Z|uuid",
+  "has_more": false
+}
+```
+
+## POST /v1/teams/:teamId/jobs/trigger
+
+Trigger a background job. Only project-scoped job types can be triggered via the API (system jobs run on their cron schedule).
+
+**Auth required:** Yes (`jobs:write` permission or JWT with admin role)
+
+### Request body
+
+```json
+{
+  "job_type": "revenuecat_sync",
+  "project_id": "uuid",
+  "params": {},
+  "notify": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `job_type` | string | Yes | Job type to trigger. Must be a project-scoped type. |
+| `project_id` | string | Conditional | Required for project-scoped jobs. Must belong to the team. |
+| `params` | object | No | Job-specific parameters passed to the handler. |
+| `notify` | boolean | No | Send email notification on completion/failure (default `false`). |
+
+### Response (201 Created)
+
+```json
+{
+  "job_run": {
+    "id": "uuid",
+    "job_type": "revenuecat_sync",
+    "status": "pending",
+    ...
+  }
+}
+```
+
+### Errors
+
+- **400** — Invalid `job_type`, missing `project_id`, or system job type.
+- **409** — A job of this type is already running or pending for the same project. Returns `existing_run_id`.
+
+## GET /v1/jobs/:runId
+
+Get full details of a single job run.
+
+**Auth required:** Yes (`jobs:read` permission or JWT)
+
+### Response
+
+```json
+{
+  "job_run": {
+    "id": "uuid",
+    "job_type": "revenuecat_sync",
+    "status": "running",
+    "team_id": "uuid",
+    "project_id": "uuid",
+    "triggered_by": "manual:user:uuid",
+    "params": {},
+    "progress": { "processed": 45, "total": 200, "message": "Synced 38 users, 7 skipped" },
+    "result": null,
+    "error": null,
+    "notify": true,
+    "started_at": "2024-01-15T10:30:01.000Z",
+    "completed_at": null,
+    "created_at": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+Poll this endpoint to track progress of a running job.
+
+## POST /v1/jobs/:runId/cancel
+
+Cancel a running job. Uses cooperative cancellation — the handler checks a cancellation flag and returns early.
+
+**Auth required:** Yes (`jobs:write` permission or JWT)
+
+### Response
+
+```json
+{
+  "cancelled": true
+}
+```
+
+### Errors
+
+- **400** — Job is not in `running` status.
+- **404** — Job run not found or not accessible.
