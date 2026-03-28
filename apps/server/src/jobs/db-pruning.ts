@@ -23,6 +23,7 @@ export const dbPruningHandler: JobHandler = async (ctx, params) => {
       dropped_partitions: result.droppedPartitions,
       deleted_rows: result.deletedRows,
       current_size_gb: Number((result.currentSizeBytes / 1024 / 1024 / 1024).toFixed(2)),
+      _silent: result.droppedPartitions.length === 0 && result.deletedRows === 0,
     };
   } finally {
     await client.end();

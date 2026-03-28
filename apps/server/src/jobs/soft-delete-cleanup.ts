@@ -11,7 +11,7 @@ export const softDeleteCleanupHandler: JobHandler = async (ctx) => {
       ctx.log.info(`Soft-delete cleanup: ${JSON.stringify(result)}`);
     }
 
-    return result as unknown as Record<string, unknown>;
+    return { ...result, _silent: total === 0 } as unknown as Record<string, unknown>;
   } finally {
     await client.end();
   }

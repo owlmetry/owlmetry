@@ -12,7 +12,7 @@ export const partitionCreationHandler: JobHandler = async (ctx) => {
     await ensureMetricEventPartitions(client, 3);
     await ensureFunnelEventPartitions(client, 3);
 
-    return { events: true, metric_events: true, funnel_events: true };
+    return { events: true, metric_events: true, funnel_events: true, _silent: true };
   } finally {
     await client.end();
   }

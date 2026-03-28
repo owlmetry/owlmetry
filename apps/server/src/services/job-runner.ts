@@ -183,14 +183,16 @@ export class JobRunner {
         .set({ status: finalStatus, result, completed_at: new Date() })
         .where(eq(jobRuns.id, run.id));
 
-      this.sendCompletionEmail({
-        jobType: run.job_type,
-        status: finalStatus,
-        startedAt,
-        notify: run.notify,
-        triggeredBy: run.triggered_by,
-        result,
-      }).catch(() => {});
+      if (finalStatus !== "completed" || !result._silent) {
+        this.sendCompletionEmail({
+          jobType: run.job_type,
+          status: finalStatus,
+          startedAt,
+          notify: run.notify,
+          triggeredBy: run.triggered_by,
+          result,
+        }).catch(() => {});
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.db
