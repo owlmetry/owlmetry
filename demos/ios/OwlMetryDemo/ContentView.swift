@@ -18,6 +18,7 @@ struct ContentView: View {
                 metricsSection
                 funnelDemoSection
                 identitySection
+                userPropertiesSection
                 backendDemoSection
                 logOutputSection
             }
@@ -167,6 +168,37 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - User Properties
+
+    private var userPropertiesSection: some View {
+        Section("User Properties") {
+            TextField("Key", text: $customKey)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            TextField("Value", text: $customValue)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            Button("Set Property") {
+                guard !customKey.isEmpty else { return }
+                Owl.setUserProperties([customKey: customValue])
+                appendLog("[PROPS] \(customKey) = \(customValue.isEmpty ? "(deleted)" : customValue)")
+                customKey = ""
+                customValue = ""
+            }
+            .disabled(customKey.isEmpty)
+
+            Button("Set Demo Properties") {
+                Owl.setUserProperties([
+                    "plan": "premium",
+                    "rc_subscriber": "true",
+                    "rc_product": "monthly_pro",
+                ])
+                appendLog("[PROPS] plan=premium, rc_subscriber=true, rc_product=monthly_pro")
+            }
+            .tint(.purple)
+        }
+    }
+
     // MARK: - Backend Demo
 
     private var backendDemoSection: some View {
@@ -274,7 +306,12 @@ struct ContentView: View {
         Owl.track("complete-profile")
         appendLog("[TRACK] complete-profile")
 
-        // 7. iOS error event for investigation
+        // 7. User properties
+        Owl.setUserProperties(["plan": "premium", "rc_subscriber": "true"])
+        appendLog("[PROPS] plan=premium, rc_subscriber=true")
+        try? await Task.sleep(for: .milliseconds(500))
+
+        // 8. iOS error event for investigation
         Owl.error("Simulated client crash", screenName: "ContentView")
         appendLog("[ERROR] Simulated client crash")
 

@@ -64,6 +64,26 @@ const handleCheckout = Owl.wrapHandler(async (req, res) => {
   json(res, 500, { error: "Payment provider unreachable" });
 });
 
+const handleProfile = Owl.wrapHandler(async (req, res) => {
+  const body = await parseBody(req);
+  const { userId, plan, company } = body;
+
+  if (!userId) {
+    json(res, 400, { error: "userId is required" });
+    return;
+  }
+
+  const owl = Owl.withUser(userId);
+  const properties = {};
+  if (plan) properties.plan = plan;
+  if (company) properties.company = company;
+
+  owl.setUserProperties(properties);
+  owl.info("Profile updated", { plan, company });
+
+  json(res, 200, { updated: true, properties });
+});
+
 const server = createServer(async (req, res) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -89,6 +109,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/profile" && req.method === "POST") {
+    await handleProfile(req, res);
+    return;
+  }
+
   json(res, 404, { error: "Not found" });
 });
 
@@ -98,6 +123,7 @@ server.listen(PORT, () => {
   console.log("  GET  /health");
   console.log("  POST /api/greet     { name, userId? }");
   console.log("  POST /api/checkout  { item, userId? }");
+  console.log("  POST /api/profile   { userId, plan?, company? }");
 });
 
 process.on("SIGINT", async () => {

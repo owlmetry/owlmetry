@@ -752,7 +752,79 @@ final class SDKIntegrationTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(networkEvents.count, 1, "URLRequest overload should also be tracked")
     }
 
+    // MARK: - User Properties Tests
+
+    func testSetUserProperties() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        // Set a known user so we can query properties
+        Owl.setUser("props-test-user")
+
+        // Emit an event to ensure the user exists in app_users
+        Owl.info("properties test event", screenName: "props-test")
+        await Owl.shutdown()
+
+        // Set properties
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+        Owl.setUser("props-test-user")
+        Owl.setUserProperties(["plan": "premium", "org": "acme"])
+
+        // Wait for the fire-and-forget request to complete
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        await Owl.shutdown()
+
+        // Query the user's properties via the app-users endpoint
+        let users = try await queryAppUsers()
+        let user = users.first { ($0["user_id"] as? String) == "props-test-user" }
+        XCTAssertNotNil(user, "Expected to find user 'props-test-user'")
+
+        let properties = user?["properties"] as? [String: String]
+        XCTAssertEqual(properties?["plan"], "premium")
+        XCTAssertEqual(properties?["org"], "acme")
+    }
+
+    func testSetUserPropertiesMerge() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+        Owl.setUser("merge-test-user")
+        Owl.info("merge test", screenName: "merge-test")
+        await Owl.shutdown()
+
+        // Set initial properties
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+        Owl.setUser("merge-test-user")
+        Owl.setUserProperties(["plan": "free", "org": "acme"])
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        // Update one property, add another — org should be preserved
+        Owl.setUserProperties(["plan": "premium", "role": "admin"])
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        await Owl.shutdown()
+
+        let users = try await queryAppUsers()
+        let user = users.first { ($0["user_id"] as? String) == "merge-test-user" }
+        let properties = user?["properties"] as? [String: String]
+        XCTAssertEqual(properties?["plan"], "premium", "plan should be updated")
+        XCTAssertEqual(properties?["org"], "acme", "org should be preserved")
+        XCTAssertEqual(properties?["role"], "admin", "role should be added")
+    }
+
     // MARK: - Helpers
+
+    private func queryAppUsers() async throws -> [[String: Any]] {
+        let url = URL(string: "\(Self.testEndpoint)/v1/app-users?data_mode=all")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(Self.testAgentKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            XCTFail("App users query failed with status \(status)")
+            return []
+        }
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return json?["users"] as? [[String: Any]] ?? []
+    }
 
     private func waitForServer(timeout: TimeInterval) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)

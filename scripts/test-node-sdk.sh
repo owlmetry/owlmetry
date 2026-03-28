@@ -48,12 +48,13 @@ BEGIN
   RETURNING id INTO v_app_id;
 
   INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, created_by)
-  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write"]'::jsonb, '$OWNER_ID');
+  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write","users:write"]'::jsonb, '$OWNER_ID');
 END \$\$;
 SQL
     echo "Server app seeded"
 else
-    echo "Server app already exists"
+    echo "Server app already exists, updating permissions..."
+    psql -tA "$TEST_DB_NAME" -c "UPDATE api_keys SET permissions = '[\"events:write\",\"users:write\"]'::jsonb WHERE key_prefix = '$SERVER_KEY_PREFIX'"
 fi
 
 echo "=== Starting test server on port $TEST_PORT ==="

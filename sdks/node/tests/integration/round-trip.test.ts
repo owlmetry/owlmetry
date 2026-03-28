@@ -64,6 +64,60 @@ describe("Node SDK integration", () => {
     assert.equal(found.level, "error");
   });
 
+  it("sets user properties and verifies them via API", async () => {
+    const userId = `props-test-${Date.now()}`;
+
+    // Send an event to ensure the user exists
+    const owl = Owl.withUser(userId);
+    owl.info("properties test");
+    await Owl.flush();
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Set properties
+    owl.setUserProperties({ plan: "premium", org: "acme" });
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Query app-users to verify properties
+    const res = await fetch(`${ENDPOINT}/v1/app-users?search=${userId}&data_mode=all`, {
+      headers: { Authorization: `Bearer ${AGENT_KEY}` },
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json() as { users: Array<{ user_id: string; properties: Record<string, string> | null }> };
+    const user = body.users.find((u) => u.user_id === userId);
+    assert.ok(user, `Expected to find user "${userId}"`);
+    assert.equal(user.properties?.plan, "premium");
+    assert.equal(user.properties?.org, "acme");
+  });
+
+  it("merges user properties without overwriting", async () => {
+    const userId = `merge-test-${Date.now()}`;
+
+    const owl = Owl.withUser(userId);
+    owl.info("merge test");
+    await Owl.flush();
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Set initial properties
+    owl.setUserProperties({ plan: "free", org: "acme" });
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Update one, add another
+    owl.setUserProperties({ plan: "premium", role: "admin" });
+    await new Promise((r) => setTimeout(r, 1000));
+
+    const res = await fetch(`${ENDPOINT}/v1/app-users?search=${userId}&data_mode=all`, {
+      headers: { Authorization: `Bearer ${AGENT_KEY}` },
+    });
+
+    const body = await res.json() as { users: Array<{ user_id: string; properties: Record<string, string> | null }> };
+    const user = body.users.find((u) => u.user_id === userId);
+    assert.ok(user, `Expected to find user "${userId}"`);
+    assert.equal(user.properties?.plan, "premium", "plan should be updated");
+    assert.equal(user.properties?.org, "acme", "org should be preserved");
+    assert.equal(user.properties?.role, "admin", "role should be added");
+  });
+
   it("deduplicates events by client_event_id", async () => {
     const uniqueMsg = `dedup-test-${Date.now()}`;
 
