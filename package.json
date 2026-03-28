@@ -25,7 +25,10 @@
     "onlyBuiltDependencies": [
       "bcrypt",
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "drizzle-orm": "0.39.3"
+    }
   },
   "engines": {
     "node": ">=20"

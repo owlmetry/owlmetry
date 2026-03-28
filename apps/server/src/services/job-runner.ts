@@ -1,4 +1,4 @@
-import { Cron } from "croner";
+import { PgBoss } from "pg-boss";
 import { eq, or } from "drizzle-orm";
 import postgres from "postgres";
 import { jobRuns, users, apiKeys } from "@owlmetry/db";
@@ -25,11 +25,9 @@ export type JobHandler = (
   params: Record<string, unknown>,
 ) => Promise<Record<string, unknown>>;
 
-interface ScheduledJob {
+interface ScheduleConfig {
   jobType: JobType;
   cron: string;
-  cronInstance: Cron;
-  lastTriggeredAt: Date;
   enabled: () => boolean;
   params: () => Record<string, unknown>;
 }
@@ -51,9 +49,9 @@ export interface JobRunnerOptions {
 
 export class JobRunner {
   private handlers = new Map<string, JobHandler>();
-  private schedules: ScheduledJob[] = [];
-  private tickInterval: ReturnType<typeof setInterval> | undefined;
+  private pendingSchedules: ScheduleConfig[] = [];
   private running = new Map<string, RunningJob>();
+  private boss: PgBoss | null = null;
   private db: Db;
   private databaseUrl: string;
   private log: JobContext["log"];
@@ -78,54 +76,30 @@ export class JobRunner {
     enabled: () => boolean;
     params: () => Record<string, unknown>;
   }): void {
-    this.schedules.push({
-      jobType: config.jobType,
-      cron: config.cron,
-      cronInstance: new Cron(config.cron, { timezone: "UTC" }),
-      lastTriggeredAt: new Date(),
-      enabled: config.enabled,
-      params: config.params,
-    });
+    this.pendingSchedules.push(config);
   }
 
   async startSchedules(): Promise<void> {
     await this.recoverStaleRuns();
 
-    // Only run startup jobs that are actually due according to their cron schedule
-    this.tick();
+    this.boss = new PgBoss({ connectionString: this.databaseUrl, schema: "pgboss" });
+    await this.boss.start();
 
-    // Start the tick loop (every 60 seconds)
-    this.tickInterval = setInterval(() => this.tick(), 60_000);
-  }
+    for (const sched of this.pendingSchedules) {
+      await this.boss.work(sched.jobType, async () => {
+        if (!sched.enabled()) return;
+        const handler = this.handlers.get(sched.jobType);
+        if (!handler) return;
+        await this.trigger(sched.jobType, {
+          triggeredBy: "schedule",
+          params: sched.params(),
+        }).catch((err) =>
+          this.log.error(err, `Scheduled ${sched.jobType} failed`),
+        );
+      });
 
-  private tick(): void {
-    const now = new Date();
-    for (const sched of this.schedules) {
-      if (!sched.enabled()) continue;
-
-      const nextRun = sched.cronInstance.nextRun(sched.lastTriggeredAt);
-      if (nextRun && nextRun <= now) {
-        this.triggerScheduled(sched, now);
-      }
+      await this.boss.schedule(sched.jobType, sched.cron, {}, { tz: "UTC" });
     }
-  }
-
-  private triggerScheduled(sched: ScheduledJob, now: Date): void {
-    const alreadyRunning = [...this.running.values()].some(
-      (r) => r.jobType === sched.jobType,
-    );
-    if (alreadyRunning) {
-      this.log.info(`Skipping scheduled ${sched.jobType} — already running`);
-      return;
-    }
-
-    sched.lastTriggeredAt = now;
-    this.trigger(sched.jobType, {
-      triggeredBy: "schedule",
-      params: sched.params(),
-    }).catch((err) =>
-      this.log.error(err, `Scheduled ${sched.jobType} failed`),
-    );
   }
 
   async trigger(
@@ -237,29 +211,13 @@ export class JobRunner {
     return true;
   }
 
-  getRunning(): Array<{ runId: string; jobType: string }> {
-    return [...this.running.values()].map((r) => ({
-      runId: r.runId,
-      jobType: r.jobType,
-    }));
-  }
-
-  getSchedules(): Array<{ jobType: string; cron: string; nextRun: Date | null }> {
-    return this.schedules.map((s) => ({
-      jobType: s.jobType,
-      cron: s.cron,
-      nextRun: s.cronInstance.nextRun() ?? null,
-    }));
-  }
-
   async shutdown(timeoutMs = 2500): Promise<void> {
-    if (this.tickInterval) {
-      clearInterval(this.tickInterval);
-      this.tickInterval = undefined;
-    }
-
     for (const job of this.running.values()) {
       job.cancelRequested = true;
+    }
+
+    if (this.boss) {
+      await this.boss.stop({ graceful: true, timeout: timeoutMs });
     }
 
     const promises = [...this.running.values()].map((r) => r.promise);

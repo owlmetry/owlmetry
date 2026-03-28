@@ -52,7 +52,7 @@ Progress is visible in real-time in the dashboard (via polling) and in the CLI w
 
 ## Scheduling
 
-System jobs use [cron expressions](https://crontab.guru/) for scheduling. The server checks every 60 seconds which scheduled jobs are due. If a job is still running when its next scheduled time arrives, that run is skipped.
+System jobs use [cron expressions](https://crontab.guru/) for scheduling, powered by [pg-boss](https://github.com/timgit/pg-boss) — a Postgres-native job queue. Scheduled jobs are delivered automatically when their cron fires. If a job is still running when its next scheduled time arrives, that run is skipped.
 
 ## Overlap Prevention
 
