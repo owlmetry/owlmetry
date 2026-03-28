@@ -1,20 +1,20 @@
 "use client";
 
 import { useState, useMemo } from "react";
-// Import types only — runtime values from @owlmetry/shared would pull in node:crypto
-// via the barrel export, which Next.js webpack can't bundle.
-import type { JobRunResponse, JobRunsQueryParams, TriggerJobRequest } from "@owlmetry/shared";
+// Deep imports bypass the barrel export which pulls in node:crypto
+import type { JobRunResponse, JobRunsQueryParams, TriggerJobRequest, JobType } from "@owlmetry/shared";
+import { JOB_TYPE_META } from "@owlmetry/shared/jobs";
+import { formatDuration as formatMs } from "@owlmetry/shared/constants";
 
 type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
-type JobType = string;
 
-// Inline the project-scoped job type metadata to avoid importing the barrel
-const JOB_TYPE_META: Record<string, { label: string; scope: "system" | "project" }> = {
-  db_pruning: { label: "Database Pruning", scope: "system" },
-  soft_delete_cleanup: { label: "Soft-Delete Cleanup", scope: "system" },
-  partition_creation: { label: "Partition Creation", scope: "system" },
-  revenuecat_sync: { label: "RevenueCat Sync", scope: "project" },
-};
+function getJobLabel(jobType: string): string {
+  return JOB_TYPE_META[jobType as JobType]?.label ?? jobType;
+}
+
+function getJobScope(jobType: string): string | undefined {
+  return JOB_TYPE_META[jobType as JobType]?.scope;
+}
 import { useJobRuns } from "@/hooks/use-jobs";
 import { useTeam } from "@/contexts/team-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
@@ -81,10 +81,7 @@ function formatDuration(startedAt: string | null, completedAt: string | null): s
   if (!startedAt) return "—";
   const start = new Date(startedAt).getTime();
   const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const ms = end - start;
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+  return formatMs(end - start);
 }
 
 function formatTriggeredBy(triggeredBy: string): string {
@@ -147,10 +144,9 @@ export default function JobsPage() {
       });
     }
     if (jobType) {
-      const meta = JOB_TYPE_META[jobType as JobType];
       c.push({
         label: "Type",
-        value: meta?.label ?? jobType,
+        value: getJobLabel(jobType),
         onDismiss: () => filters.set("job_type", ""),
       });
     }
@@ -234,7 +230,7 @@ export default function JobsPage() {
                   </Select>
                 </div>
 
-                {triggerType && JOB_TYPE_META[triggerType as JobType]?.scope === "project" && (
+                {triggerType && getJobScope(triggerType) === "project" && (
                   <div className="space-y-2">
                     <Label>Project ID</Label>
                     <Input
@@ -375,8 +371,7 @@ export default function JobsPage() {
               </TableHeader>
               <TableBody>
                 {jobRuns.map((run) => {
-                  const meta = JOB_TYPE_META[run.job_type as JobType];
-                  const label = meta?.label ?? run.job_type;
+                  const label = getJobLabel(run.job_type);
                   const ts = new Date(run.created_at);
                   const time = ts.toLocaleString("en-US", {
                     month: "short",
@@ -443,7 +438,7 @@ export default function JobsPage() {
             <div className="mt-4 space-y-4 text-sm">
               <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-3">
                 <span className="text-muted-foreground">Type</span>
-                <span>{JOB_TYPE_META[selectedRun.job_type as JobType]?.label ?? selectedRun.job_type}</span>
+                <span>{getJobLabel(selectedRun.job_type)}</span>
 
                 <span className="text-muted-foreground">Status</span>
                 <span>{statusBadge(selectedRun.status)}</span>

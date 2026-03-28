@@ -1,7 +1,7 @@
 import { Command, Option } from "commander";
 import chalk from "chalk";
 import type { JobRunResponse } from "@owlmetry/shared";
-import { JOB_TYPES, JOB_TYPE_META } from "@owlmetry/shared";
+import { JOB_TYPES, JOB_TYPE_META, formatDuration as formatMs } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
@@ -22,10 +22,7 @@ function formatDuration(startedAt: string | null, completedAt: string | null): s
   if (!startedAt) return chalk.dim("—");
   const start = new Date(startedAt).getTime();
   const end = completedAt ? new Date(completedAt).getTime() : Date.now();
-  const ms = end - start;
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+  return formatMs(end - start);
 }
 
 function formatJobRunsTable(runs: JobRunResponse[]): string {

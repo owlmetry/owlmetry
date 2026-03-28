@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, desc, lt, or, isNull, isNotNull } from "drizzle-orm";
+import { and, eq, gte, lte, desc, lt, or } from "drizzle-orm";
 import { jobRuns } from "@owlmetry/db";
 import { JOB_TYPES, JOB_TYPE_META, parseTimeParam } from "@owlmetry/shared";
 import type { JobRunsQueryParams, JobType } from "@owlmetry/shared";
-import { requirePermission, assertTeamRole, hasTeamAccess, getAuthTeamIds } from "../middleware/auth.js";
+import { requirePermission, assertTeamRole, hasTeamAccess } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { serializeJobRun } from "../utils/serialize.js";
@@ -115,6 +115,7 @@ export async function jobsRoutes(app: FastifyInstance) {
       // Check for duplicate running/pending job
       const duplicateConditions = [
         eq(jobRuns.job_type, job_type),
+        eq(jobRuns.team_id, teamId),
         or(eq(jobRuns.status, "pending"), eq(jobRuns.status, "running"))!,
       ];
       if (project_id) {
@@ -122,7 +123,7 @@ export async function jobsRoutes(app: FastifyInstance) {
       }
 
       const [existing] = await app.db
-        .select()
+        .select({ id: jobRuns.id, status: jobRuns.status })
         .from(jobRuns)
         .where(and(...duplicateConditions))
         .limit(1);
@@ -130,7 +131,7 @@ export async function jobsRoutes(app: FastifyInstance) {
       if (existing) {
         return reply.code(409).send({
           error: "A job of this type is already running or pending",
-          existing_run: serializeJobRun(existing),
+          existing_run_id: existing.id,
         });
       }
 
@@ -147,13 +148,6 @@ export async function jobsRoutes(app: FastifyInstance) {
         notify: notify ?? false,
       });
 
-      // Fetch the full row for the response
-      const [created] = await app.db
-        .select()
-        .from(jobRuns)
-        .where(eq(jobRuns.id, run.id))
-        .limit(1);
-
       logAuditEvent(app.db, auth, {
         team_id: teamId,
         action: "create",
@@ -162,7 +156,7 @@ export async function jobsRoutes(app: FastifyInstance) {
         metadata: { job_type, project_id },
       });
 
-      return reply.code(201).send({ job_run: serializeJobRun(created) });
+      return reply.code(201).send({ job_run: serializeJobRun(run) });
     },
   );
 }

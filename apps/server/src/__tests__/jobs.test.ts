@@ -205,7 +205,7 @@ describe("Job Routes", () => {
         },
       });
       expect(second.statusCode).toBe(409);
-      expect(second.json().error).toContain("already running");
+      expect(second.json().error).toContain("already running or pending");
     });
 
     it("supports notify flag", async () => {

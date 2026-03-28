@@ -15,8 +15,10 @@ export function useJobRuns(teamId: string | undefined, filters: Partial<JobRunsQ
   const qs = buildQueryString(filters);
   const key = teamId ? `/v1/teams/${teamId}/jobs${qs ? `?${qs}` : ""}` : null;
 
+  const [hasActiveJobs, setHasActiveJobs] = useState(false);
+
   const { data, isLoading, mutate } = useSWR<JobRunsResponse>(key, {
-    refreshInterval: 5_000,
+    refreshInterval: hasActiveJobs ? 5_000 : 30_000,
   });
 
   const prevKeyRef = useRef(key);
@@ -33,6 +35,7 @@ export function useJobRuns(teamId: string | undefined, filters: Partial<JobRunsQ
     if (data) {
       setCursor(data.cursor);
       setHasMore(data.has_more);
+      setHasActiveJobs(data.job_runs.some((r) => r.status === "pending" || r.status === "running"));
     }
   }, [data]);
 

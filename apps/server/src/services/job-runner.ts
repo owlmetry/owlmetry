@@ -1,10 +1,10 @@
 import { Cron } from "croner";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import postgres from "postgres";
-import { jobRuns } from "@owlmetry/db";
+import { jobRuns, users, apiKeys } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import type { JobType, JobProgress } from "@owlmetry/shared";
-import { JOB_TYPE_META } from "@owlmetry/shared";
+import { JOB_TYPE_META, formatDuration } from "@owlmetry/shared";
 import type { EmailService } from "./email.js";
 
 export interface JobContext {
@@ -89,24 +89,10 @@ export class JobRunner {
   }
 
   async startSchedules(): Promise<void> {
-    // Recover stale runs from previous server instance
     await this.recoverStaleRuns();
 
-    // Run any due jobs immediately on startup
-    for (const sched of this.schedules) {
-      if (!sched.enabled()) continue;
-      const alreadyRunning = [...this.running.values()].some(
-        (r) => r.jobType === sched.jobType,
-      );
-      if (!alreadyRunning) {
-        this.trigger(sched.jobType, {
-          triggeredBy: "schedule",
-          params: sched.params(),
-        }).catch((err) =>
-          this.log.error(err, `Startup run of ${sched.jobType} failed`),
-        );
-      }
-    }
+    // Only run startup jobs that are actually due according to their cron schedule
+    this.tick();
 
     // Start the tick loop (every 60 seconds)
     this.tickInterval = setInterval(() => this.tick(), 60_000);
@@ -119,23 +105,27 @@ export class JobRunner {
 
       const nextRun = sched.cronInstance.nextRun(sched.lastTriggeredAt);
       if (nextRun && nextRun <= now) {
-        const alreadyRunning = [...this.running.values()].some(
-          (r) => r.jobType === sched.jobType,
-        );
-        if (alreadyRunning) {
-          this.log.info(`Skipping scheduled ${sched.jobType} — already running`);
-          continue;
-        }
-
-        sched.lastTriggeredAt = now;
-        this.trigger(sched.jobType, {
-          triggeredBy: "schedule",
-          params: sched.params(),
-        }).catch((err) =>
-          this.log.error(err, `Scheduled ${sched.jobType} failed`),
-        );
+        this.triggerScheduled(sched, now);
       }
     }
+  }
+
+  private triggerScheduled(sched: ScheduledJob, now: Date): void {
+    const alreadyRunning = [...this.running.values()].some(
+      (r) => r.jobType === sched.jobType,
+    );
+    if (alreadyRunning) {
+      this.log.info(`Skipping scheduled ${sched.jobType} — already running`);
+      return;
+    }
+
+    sched.lastTriggeredAt = now;
+    this.trigger(sched.jobType, {
+      triggeredBy: "schedule",
+      params: sched.params(),
+    }).catch((err) =>
+      this.log.error(err, `Scheduled ${sched.jobType} failed`),
+    );
   }
 
   async trigger(
@@ -147,7 +137,7 @@ export class JobRunner {
       params?: Record<string, unknown>;
       notify?: boolean;
     },
-  ): Promise<{ id: string; job_type: string; status: string }> {
+  ): Promise<typeof jobRuns.$inferSelect> {
     const handler = this.handlers.get(jobType);
     if (!handler) throw new Error(`No handler registered for job type: ${jobType}`);
 
@@ -171,15 +161,14 @@ export class JobRunner {
       promise: Promise.resolve(),
     };
 
-    runningJob.promise = this.executeJob(run.id, jobType, handler, opts.params ?? {}, runningJob);
+    runningJob.promise = this.executeJob(run, handler, opts.params ?? {}, runningJob);
     this.running.set(run.id, runningJob);
 
-    return { id: run.id, job_type: jobType, status: "pending" };
+    return run;
   }
 
   private async executeJob(
-    runId: string,
-    jobType: string,
+    run: typeof jobRuns.$inferSelect,
     handler: JobHandler,
     params: Record<string, unknown>,
     runningJob: RunningJob,
@@ -187,15 +176,15 @@ export class JobRunner {
     await this.db
       .update(jobRuns)
       .set({ status: "running", started_at: new Date() })
-      .where(eq(jobRuns.id, runId));
+      .where(eq(jobRuns.id, run.id));
 
     const ctx: JobContext = {
-      runId,
+      runId: run.id,
       updateProgress: async (progress) => {
         await this.db
           .update(jobRuns)
           .set({ progress })
-          .where(eq(jobRuns.id, runId));
+          .where(eq(jobRuns.id, run.id));
       },
       isCancelled: () => runningJob.cancelRequested,
       log: this.log,
@@ -211,19 +200,33 @@ export class JobRunner {
       await this.db
         .update(jobRuns)
         .set({ status: finalStatus, result, completed_at: new Date() })
-        .where(eq(jobRuns.id, runId));
+        .where(eq(jobRuns.id, run.id));
 
-      this.sendCompletionEmail(runId, jobType, finalStatus, startedAt, result, null).catch(() => {});
+      this.sendCompletionEmail({
+        jobType: run.job_type,
+        status: finalStatus,
+        startedAt,
+        notify: run.notify,
+        triggeredBy: run.triggered_by,
+        result,
+      }).catch(() => {});
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       await this.db
         .update(jobRuns)
         .set({ status: "failed", error: errorMessage, completed_at: new Date() })
-        .where(eq(jobRuns.id, runId));
+        .where(eq(jobRuns.id, run.id));
 
-      this.sendCompletionEmail(runId, jobType, "failed", startedAt, null, errorMessage).catch(() => {});
+      this.sendCompletionEmail({
+        jobType: run.job_type,
+        status: "failed",
+        startedAt,
+        notify: run.notify,
+        triggeredBy: run.triggered_by,
+        error: errorMessage,
+      }).catch(() => {});
     } finally {
-      this.running.delete(runId);
+      this.running.delete(run.id);
     }
   }
 
@@ -277,7 +280,7 @@ export class JobRunner {
           error: "Server restarted during execution",
           completed_at: new Date(),
         })
-        .where(eq(jobRuns.status, "running"))
+        .where(or(eq(jobRuns.status, "running"), eq(jobRuns.status, "pending")))
         .returning({ id: jobRuns.id });
 
       if (stale.length > 0) {
@@ -288,46 +291,29 @@ export class JobRunner {
     }
   }
 
-  private async sendCompletionEmail(
-    runId: string,
-    jobType: string,
-    status: string,
-    startedAt: number,
-    result: Record<string, unknown> | null,
-    error: string | null,
-  ): Promise<void> {
+  private async sendCompletionEmail(opts: {
+    jobType: string;
+    status: string;
+    startedAt: number;
+    notify: boolean;
+    triggeredBy: string;
+    result?: Record<string, unknown>;
+    error?: string;
+  }): Promise<void> {
     if (!this.emailService) return;
 
-    const meta = JOB_TYPE_META[jobType as JobType];
-    const label = meta?.label ?? jobType;
-    const durationMs = Date.now() - startedAt;
-    const durationStr = durationMs < 1000
-      ? `${durationMs}ms`
-      : `${(durationMs / 1000).toFixed(1)}s`;
-
-    // Check if this is a system job — always email SYSTEM_JOBS_ALERT_EMAIL
+    const meta = JOB_TYPE_META[opts.jobType as JobType];
+    const label = meta?.label ?? opts.jobType;
     const isSystemJob = meta?.scope === "system";
-
-    // Resolve per-trigger notify email
-    const [run] = await this.db
-      .select({
-        notify: jobRuns.notify,
-        triggered_by: jobRuns.triggered_by,
-      })
-      .from(jobRuns)
-      .where(eq(jobRuns.id, runId))
-      .limit(1);
 
     const recipients: string[] = [];
 
-    // System jobs always alert the system email
     if (isSystemJob && this.systemJobsAlertEmail) {
       recipients.push(this.systemJobsAlertEmail);
     }
 
-    // Per-trigger notify: resolve email from triggered_by
-    if (run?.notify) {
-      const email = await this.resolveTriggeredByEmail(run.triggered_by);
+    if (opts.notify) {
+      const email = await this.resolveTriggeredByEmail(opts.triggeredBy);
       if (email && !recipients.includes(email)) {
         recipients.push(email);
       }
@@ -337,10 +323,10 @@ export class JobRunner {
 
     const alertParams = {
       job_type: label,
-      status,
-      duration: durationStr,
-      error: error ?? undefined,
-      result: result ?? undefined,
+      status: opts.status,
+      duration: formatDuration(Date.now() - opts.startedAt),
+      error: opts.error,
+      result: opts.result,
     };
 
     for (const to of recipients) {
@@ -349,7 +335,6 @@ export class JobRunner {
   }
 
   private async resolveTriggeredByEmail(triggeredBy: string): Promise<string | null> {
-    // Format: "manual:user:<userId>" or "manual:api_key:<keyId>"
     const parts = triggeredBy.split(":");
     if (parts[0] !== "manual" || parts.length < 3) return null;
 
@@ -358,7 +343,6 @@ export class JobRunner {
 
     try {
       if (actorType === "user") {
-        const { users } = await import("@owlmetry/db");
         const [user] = await this.db
           .select({ email: users.email })
           .from(users)
@@ -368,7 +352,6 @@ export class JobRunner {
       }
 
       if (actorType === "api_key") {
-        const { apiKeys, users } = await import("@owlmetry/db");
         const [key] = await this.db
           .select({ created_by: apiKeys.created_by })
           .from(apiKeys)
