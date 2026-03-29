@@ -421,6 +421,45 @@ Only works on `running` jobs. Cancellation is cooperative — the handler checks
 
 Only one instance of each job type (per project) can be running or pending at a time. Attempting to trigger a duplicate returns HTTP 409.
 
+## MCP Endpoint (Alternative to CLI)
+
+Instead of installing the CLI, AI agents can connect directly to the OwlMetry server via MCP (Model Context Protocol). This exposes the same management and query capabilities as the CLI without requiring installation or updates — the tools are always in sync with the deployed server.
+
+### Setup
+
+Add this to your MCP client configuration (Claude Desktop, Cursor, VS Code, etc.):
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+For self-hosted instances, replace `api.owlmetry.com` with your server's domain. The endpoint is at `/mcp` on the same Fastify server.
+
+### Available Tools (37)
+
+| Domain | Tools |
+|--------|-------|
+| Auth | `whoami` |
+| Projects | `list-projects`, `get-project`, `create-project`, `update-project` |
+| Apps | `list-apps`, `get-app`, `create-app`, `update-app`, `list-app-users` |
+| Events | `query-events`, `get-event`, `investigate-event` |
+| Metrics | `list-metrics`, `get-metric`, `create-metric`, `update-metric`, `delete-metric`, `query-metric`, `list-metric-events` |
+| Funnels | `list-funnels`, `get-funnel`, `create-funnel`, `update-funnel`, `delete-funnel`, `query-funnel` |
+| Integrations | `list-providers`, `list-integrations`, `add-integration`, `update-integration`, `remove-integration`, `sync-integration` |
+| Jobs | `list-jobs`, `get-job`, `trigger-job`, `cancel-job` |
+| Audit Logs | `list-audit-logs` |
+
+The server also exposes an `owlmetry://guide` resource with the operational guide (concepts, hierarchy, workflows).
+
 ## Key Notes
 
 - Always use `--format json` when parsing output programmatically.

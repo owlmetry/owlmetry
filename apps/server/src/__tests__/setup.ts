@@ -26,6 +26,7 @@ import { userPropertiesRoutes } from "../routes/user-properties.js";
 import { integrationsRoutes } from "../routes/integrations.js";
 import { revenuecatRoutes } from "../routes/revenuecat.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
+import { mcpRoute } from "../mcp/index.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
 import { JobRunner } from "../services/job-runner.js";
@@ -358,6 +359,7 @@ export async function buildApp() {
   await app.register(revenuecatRoutes, { prefix: "/v1" });
   await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
   await app.register(jobsByIdRoutes, { prefix: "/v1" });
+  await app.register(mcpRoute);
 
   await app.ready();
   return app;
