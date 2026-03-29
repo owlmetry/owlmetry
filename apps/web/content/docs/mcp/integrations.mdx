@@ -1,0 +1,80 @@
+---
+title: Integrations
+description: Manage third-party service integrations via MCP tools.
+---
+
+Integrations connect third-party services (e.g., RevenueCat) to sync data into user properties. Configured per-[project](/docs/mcp/projects). See [Integrations concepts](/docs/concepts/integrations) for details.
+
+## list-providers
+
+List supported integration providers and their configuration fields.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+## list-integrations
+
+List configured integrations for a project.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+Returns integrations with their config (sensitive fields are redacted).
+
+## add-integration
+
+Add an integration to a project. Config fields depend on the provider — use `list-providers` to see required fields. Requires `integrations:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `provider` | string | Yes | Provider name (e.g., `revenuecat`) |
+| `config` | object | Yes | Provider-specific configuration |
+
+RevenueCat example:
+
+```json
+{
+  "project_id": "550e8400-...",
+  "provider": "revenuecat",
+  "config": {
+    "api_key": "rc_api_...",
+    "webhook_secret": "whsec_..."
+  }
+}
+```
+
+After adding RevenueCat, configure the webhook URL in RevenueCat's dashboard: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`.
+
+## update-integration
+
+Update an integration's config or enabled state. Requires `integrations:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `provider` | string | Yes | Provider name |
+| `config` | object | No | Updated config fields |
+| `enabled` | boolean | No | Enable or disable the integration |
+
+## remove-integration
+
+Remove an integration from a project. Requires `integrations:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `provider` | string | Yes | Provider name to remove |
+
+## sync-integration
+
+Trigger a data sync for an integration. Currently only supports RevenueCat.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `user_id` | string | No | Sync a single user (synchronous). Omit for bulk sync (background job). |
+
+Bulk sync (no `user_id`) queues a background job — use [get-job](/docs/mcp/jobs) to monitor progress. Single-user sync is synchronous and returns immediately.

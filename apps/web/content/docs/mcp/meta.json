@@ -1,0 +1,16 @@
+{
+  "title": "MCP",
+  "icon": "Plug",
+  "pages": [
+    "index",
+    "setup",
+    "projects",
+    "apps",
+    "events",
+    "metrics",
+    "funnels",
+    "integrations",
+    "jobs",
+    "audit-logs"
+  ]
+}

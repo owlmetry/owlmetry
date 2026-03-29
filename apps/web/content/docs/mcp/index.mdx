@@ -1,0 +1,44 @@
+---
+title: MCP
+description: Connect AI agents directly to OwlMetry via the Model Context Protocol — no CLI installation needed.
+---
+
+The OwlMetry MCP endpoint lets AI agents connect directly to your OwlMetry server over HTTP. Instead of installing the CLI and keeping it up to date, agents configure a URL once and always get the latest tools — every deploy is instantly live.
+
+The endpoint exposes 37 tools covering the same capabilities as the [CLI](/docs/cli): managing projects, apps, metrics, and funnels; querying events and analytics; running integrations and background jobs; and viewing audit logs.
+
+## How it works
+
+The MCP endpoint lives at `/mcp` on your OwlMetry API server. It uses the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) in stateless JSON mode — each request is independent, no session management needed.
+
+Agents authenticate with an `owl_agent_*` API key passed as a Bearer token. The endpoint forwards each tool call to the corresponding REST route internally, so all existing permission checks and validation apply.
+
+## Available tools
+
+| Domain | Tools | Count |
+|--------|-------|-------|
+| Auth | `whoami` | 1 |
+| Projects | `list-projects`, `get-project`, `create-project`, `update-project` | 4 |
+| Apps | `list-apps`, `get-app`, `create-app`, `update-app`, `list-app-users` | 5 |
+| Events | `query-events`, `get-event`, `investigate-event` | 3 |
+| Metrics | `list-metrics`, `get-metric`, `create-metric`, `update-metric`, `delete-metric`, `query-metric`, `list-metric-events` | 7 |
+| Funnels | `list-funnels`, `get-funnel`, `create-funnel`, `update-funnel`, `delete-funnel`, `query-funnel` | 6 |
+| Integrations | `list-providers`, `list-integrations`, `add-integration`, `update-integration`, `remove-integration`, `sync-integration` | 6 |
+| Jobs | `list-jobs`, `get-job`, `trigger-job`, `cancel-job` | 4 |
+| Audit Logs | `list-audit-logs` | 1 |
+
+## Agent guide resource
+
+The server also exposes an `owlmetry://guide` MCP resource containing a comprehensive operational guide — concepts, resource hierarchy, workflows, and conventions. MCP clients can read this resource on connection to understand how to use the tools effectively.
+
+## MCP vs CLI
+
+Both interfaces offer the same capabilities. Choose based on your setup:
+
+| | MCP | CLI |
+|---|---|---|
+| **Setup** | One-time URL + key in client config | `npm install -g @owlmetry/cli` + login flow |
+| **Updates** | Automatic — always matches the server | Manual `npm update` |
+| **Auth** | Static Bearer token in headers | Login flow with email verification |
+| **Best for** | AI coding agents (Claude Code, Cursor, etc.) | Humans, scripts, CI/CD |
+| **Requires** | MCP-compatible client | Node.js 20+ |

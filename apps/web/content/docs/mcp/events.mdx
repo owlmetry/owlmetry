@@ -1,0 +1,62 @@
+---
+title: Events
+description: Query, retrieve, and investigate analytics events via MCP tools.
+---
+
+Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.track()`, etc. Use these tools to search events, inspect individual records, and investigate context around notable events.
+
+## query-events
+
+Query analytics events with flexible filters. Defaults to the last 24 hours.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | No | Filter by project |
+| `app_id` | UUID | No | Filter by app (takes precedence over `project_id`) |
+| `level` | string | No | `info`, `debug`, `warn`, or `error` |
+| `user_id` | string | No | Filter by user ID |
+| `session_id` | UUID | No | Filter by session ID |
+| `environment` | string | No | `ios`, `ipados`, `macos`, `android`, `web`, or `backend` |
+| `screen_name` | string | No | Filter by screen name |
+| `since` | string | No | Start time — relative (`1h`, `7d`) or ISO 8601 |
+| `until` | string | No | End time — relative or ISO 8601 |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `limit` | number | No | Max results (default 50, max 1000) |
+| `data_mode` | string | No | `production` (default), `development`, or `all` |
+
+Returns `{ events: [...], cursor, has_more }`. Pass `cursor` to the next call for pagination.
+
+### Time formats
+
+**Relative** — a number followed by a unit suffix:
+
+| Suffix | Unit |
+|--------|------|
+| `s` | Seconds |
+| `m` | Minutes |
+| `h` | Hours |
+| `d` | Days |
+| `w` | Weeks |
+
+**Absolute** — ISO 8601 timestamps: `2025-01-15T10:00:00Z`
+
+## get-event
+
+Get a single event by ID with full details including custom attributes, device info, and experiment assignments.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `event_id` | UUID | Yes | The event ID |
+
+## investigate-event
+
+Retrieve a specific event and its surrounding context events from the same app and user within a time window. Use this to understand what happened before and after a notable event — like a flight recorder.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `event_id` | UUID | Yes | The target event ID |
+| `window_minutes` | number | No | Time window in minutes around the event (default: 5) |
+
+Returns `{ target, context, total_context }` where `target` is the specified event and `context` is the list of surrounding events from the same app and user.
+
+This is particularly useful for investigating errors — find the error event, then investigate to see what the user did in the minutes leading up to it.

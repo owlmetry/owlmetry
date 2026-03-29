@@ -1,0 +1,24 @@
+---
+title: Audit Logs
+description: Query the audit trail via MCP tools — who did what and when.
+---
+
+Audit logs record who performed what action on which resource — creating an app, revoking an API key, changing a team member's role, etc. Requires `audit_logs:read` permission.
+
+## list-audit-logs
+
+List audit log entries for a team. Supports filtering by resource type, actor, action, and date range.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | Yes | The team ID |
+| `resource_type` | string | No | Filter by resource type: `app`, `project`, `api_key`, `team`, `team_member`, `invitation`, `metric_definition`, `funnel_definition`, `user`, `integration`, `job_run` |
+| `resource_id` | UUID | No | Filter by resource ID |
+| `actor_id` | UUID | No | Filter by actor ID |
+| `action` | string | No | `create`, `update`, or `delete` |
+| `since` | string | No | Start time |
+| `until` | string | No | End time |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50) |
+
+Returns `{ audit_logs: [...], cursor, has_more }`. Each entry includes `actor_type` (`user`, `api_key`, or `system`), `action`, `resource_type`, `resource_id`, `metadata`, and `created_at`.

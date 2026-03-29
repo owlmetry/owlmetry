@@ -1,0 +1,51 @@
+---
+title: Jobs
+description: List, trigger, and manage background jobs via MCP tools.
+---
+
+Background jobs are asynchronous server-side tasks with progress tracking. Used for long-running operations like bulk data syncs. Only one instance of each job type (per project) can run at a time. See [Background Jobs concepts](/docs/concepts/background-jobs) for details.
+
+## list-jobs
+
+List background job runs for a team. Supports filtering by type, status, project, and date range.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | Yes | The team ID |
+| `job_type` | string | No | Filter by job type (e.g., `revenuecat_sync`) |
+| `status` | string | No | `pending`, `running`, `success`, or `failed` |
+| `project_id` | UUID | No | Filter by project |
+| `since` | string | No | Start time |
+| `until` | string | No | End time |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50) |
+
+## get-job
+
+Get details of a specific job run, including progress percentage and result.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `run_id` | UUID | Yes | The job run ID |
+
+## trigger-job
+
+Trigger a background job. Requires `jobs:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | Yes | The team ID |
+| `job_type` | string | Yes | Job type (e.g., `revenuecat_sync`) |
+| `project_id` | UUID | Conditional | Required for project-scoped jobs |
+| `params` | object | No | Job-specific parameters |
+| `notify` | boolean | No | Send email notification on completion |
+
+Attempting to trigger a duplicate (same type + project already running/pending) returns an error.
+
+## cancel-job
+
+Cancel a running job. Only works on jobs with `running` status. Cancellation is cooperative — the job handler checks for cancellation and returns early.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `run_id` | UUID | Yes | The job run ID to cancel |

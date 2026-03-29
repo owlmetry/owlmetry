@@ -1,0 +1,112 @@
+---
+title: Metrics
+description: Create, query, and manage metric definitions and aggregations via MCP tools.
+---
+
+Metrics track measurable operations in your app. Definitions are scoped to [projects](/docs/mcp/projects). SDKs emit metric events using lifecycle operations (`start` / `complete` / `fail` / `cancel`) or single-shot measurements (`record`). See [Metrics concepts](/docs/concepts/metrics) for details.
+
+## list-metrics
+
+List all metric definitions for a project.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+## get-metric
+
+Get a metric definition by slug.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Metric slug |
+
+## create-metric
+
+Create a metric definition. The definition must exist before SDKs emit events for this slug. Requires `metrics:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `name` | string | Yes | Human-readable metric name |
+| `slug` | string | Yes | Metric slug (lowercase letters, numbers, hyphens only) |
+| `description` | string | No | Metric description |
+| `documentation` | string | No | Extended documentation |
+| `schema_definition` | object | No | Schema for metric attributes |
+| `aggregation_rules` | object | No | Aggregation rules |
+
+Slugs must match the pattern `[a-z0-9-]+`.
+
+## update-metric
+
+Update a metric definition. Requires `metrics:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Metric slug |
+| `name` | string | No | New metric name |
+| `description` | string | No | New description |
+| `documentation` | string | No | New documentation |
+| `schema_definition` | object | No | New schema definition |
+| `aggregation_rules` | object | No | New aggregation rules |
+
+## delete-metric
+
+Soft-delete a metric definition. Existing metric events are not removed. Requires `metrics:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Metric slug to delete |
+
+## query-metric
+
+Query aggregated metric statistics: event counts by phase, success rate, duration percentiles (avg, p50, p95, p99), error breakdown, and optional grouping.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Metric slug |
+| `since` | string | No | Start time (default: 24h) |
+| `until` | string | No | End time |
+| `app_id` | UUID | No | Filter by app |
+| `app_version` | string | No | Filter by app version |
+| `device_model` | string | No | Filter by device model |
+| `os_version` | string | No | Filter by OS version |
+| `user_id` | string | No | Filter by user |
+| `environment` | string | No | Filter by environment |
+| `group_by` | string | No | Group results (see below) |
+| `data_mode` | string | No | `production` (default), `development`, or `all` |
+
+### Group-by options
+
+| Value | Description |
+|-------|-------------|
+| `app_id` | Group by app |
+| `app_version` | Group by app version |
+| `device_model` | Group by device model |
+| `os_version` | Group by OS version |
+| `environment` | Group by environment |
+| `time:hour` | Group by hour |
+| `time:day` | Group by day |
+| `time:week` | Group by week |
+
+## list-metric-events
+
+List raw metric events for a specific metric slug. Useful for debugging individual operations — see each start, complete, fail, cancel, or record event individually.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Metric slug |
+| `phase` | string | No | Filter by phase: `start`, `complete`, `fail`, `cancel`, `record` |
+| `tracking_id` | UUID | No | Filter by tracking ID (correlates phases of one operation) |
+| `user_id` | string | No | Filter by user |
+| `environment` | string | No | Filter by environment |
+| `since` | string | No | Start time (default: 24h) |
+| `until` | string | No | End time |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50, max 1000) |
+| `data_mode` | string | No | `production`, `development`, or `all` |

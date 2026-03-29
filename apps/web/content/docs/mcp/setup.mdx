@@ -1,0 +1,107 @@
+---
+title: Setup
+description: Configure your MCP client to connect to OwlMetry — Claude Code, Cursor, VS Code, and Claude Desktop.
+---
+
+The MCP endpoint requires an agent API key (`owl_agent_*`). Create one from the [dashboard](/docs/cli/authentication) or CLI, then configure your MCP client.
+
+## Endpoint URL
+
+| Environment | URL |
+|-------------|-----|
+| Hosted (owlmetry.com) | `https://api.owlmetry.com/mcp` |
+| Self-hosted | `https://your-server.com/mcp` |
+| Local development | `http://localhost:4000/mcp` |
+
+## Claude Code
+
+```bash
+claude mcp add --transport http owlmetry https://api.owlmetry.com/mcp \
+  --header "Authorization: Bearer owl_agent_YOUR_KEY_HERE"
+```
+
+Add `--scope user` to make it available across all projects, or `--scope project` to share it via `.mcp.json` in a repo.
+
+Verify the connection:
+
+```
+/mcp
+```
+
+## Cursor
+
+Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global settings):
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "type": "http",
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+## VS Code (GitHub Copilot)
+
+Add to `.vscode/mcp.json` in your project:
+
+```json
+{
+  "servers": {
+    "owlmetry": {
+      "type": "http",
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+## Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "type": "http",
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+## Authentication
+
+The MCP endpoint only accepts agent API keys (`owl_agent_*`). Client keys (`owl_client_*`) and JWT tokens are rejected with 401.
+
+Permissions are enforced per-tool — if your agent key doesn't have `projects:write`, the `create-project` tool will return an error. See [Authentication](/docs/concepts/authentication) for details on API key permissions.
+
+## Verifying the connection
+
+After setup, ask the agent to call the `whoami` tool. It should return your key type, team, and permissions:
+
+```json
+{
+  "type": "api_key",
+  "key_type": "agent",
+  "team": { "id": "...", "name": "My Team", "slug": "my-team" },
+  "permissions": ["events:read", "projects:read", "apps:read", "..."]
+}
+```
+
+If you see an authentication error, check that:
+1. The key starts with `owl_agent_` (not `owl_client_`)
+2. The key hasn't expired
+3. The URL points to the correct server

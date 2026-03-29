@@ -1,0 +1,53 @@
+---
+title: Projects
+description: Create, list, and manage projects via MCP tools.
+---
+
+Projects group related apps under one product. [Metrics](/docs/mcp/metrics) and [funnels](/docs/mcp/funnels) are defined at the project level so they span all apps in the project.
+
+## list-projects
+
+List all projects accessible to this agent.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | No | Filter by team ID |
+
+Returns `{ projects: [...] }` with each project's `id`, `name`, `slug`, `team_id`, and timestamps.
+
+## get-project
+
+Get a project by ID, including its list of apps.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+Returns the project object with a nested `apps` array.
+
+## create-project
+
+Create a new project. Requires `projects:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | Yes | The team to create the project in |
+| `name` | string | Yes | Project name |
+| `slug` | string | Yes | URL-friendly slug (lowercase, hyphens) |
+
+```json
+{
+  "team_id": "550e8400-...",
+  "name": "My App",
+  "slug": "my-app"
+}
+```
+
+## update-project
+
+Update a project's name. Requires `projects:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `name` | string | Yes | New project name |

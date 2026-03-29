@@ -1,0 +1,108 @@
+---
+title: Funnels
+description: Create, query, and manage funnel definitions and analytics via MCP tools.
+---
+
+Funnels track user progression through a sequence of steps, like onboarding or checkout. Definitions are scoped to [projects](/docs/mcp/projects). Each step has a name and an event filter that matches on `step_name` and/or `screen_name`. See [Funnels concepts](/docs/concepts/funnels) for details.
+
+## list-funnels
+
+List all funnel definitions for a project.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+## get-funnel
+
+Get a funnel definition by slug, including its steps.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Funnel slug |
+
+## create-funnel
+
+Create a funnel definition with ordered steps. Max 20 steps. Requires `funnels:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `name` | string | Yes | Funnel name |
+| `slug` | string | Yes | Funnel slug (lowercase, numbers, hyphens only) |
+| `description` | string | No | Funnel description |
+| `steps` | array | Yes | Ordered list of funnel steps |
+
+Each step in the `steps` array:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Step display name |
+| `event_filter.step_name` | string | Match events with this step_name (what devs pass to `track()`) |
+| `event_filter.screen_name` | string | Match events on this screen |
+
+```json
+{
+  "project_id": "550e8400-...",
+  "name": "Onboarding",
+  "slug": "onboarding",
+  "steps": [
+    { "name": "Sign Up", "event_filter": { "step_name": "sign-up" } },
+    { "name": "Profile Setup", "event_filter": { "step_name": "profile-setup" } },
+    { "name": "First Action", "event_filter": { "step_name": "first-action" } }
+  ]
+}
+```
+
+## update-funnel
+
+Update a funnel definition. Requires `funnels:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Funnel slug |
+| `name` | string | No | New funnel name |
+| `description` | string | No | New description |
+| `steps` | array | No | New step list (replaces all existing steps) |
+
+## delete-funnel
+
+Soft-delete a funnel definition. Existing funnel events are not removed. Requires `funnels:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Funnel slug to delete |
+
+## query-funnel
+
+Query funnel analytics: step-by-step conversion rates, drop-off percentages, and unique users. Supports open and closed modes and grouping.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `slug` | string | Yes | Funnel slug |
+| `since` | string | No | Start time (default: 30 days) |
+| `until` | string | No | End time |
+| `app_id` | UUID | No | Filter by app |
+| `app_version` | string | No | Filter by app version |
+| `environment` | string | No | Filter by environment |
+| `experiment` | string | No | Filter by experiment (format: `name:variant`) |
+| `mode` | string | No | `open` (default) or `closed` |
+| `group_by` | string | No | Segment results (see below) |
+| `data_mode` | string | No | `production` (default), `development`, or `all` |
+
+### Funnel modes
+
+- **Open** (default) — each step is evaluated independently. Users can appear at any step regardless of earlier steps.
+- **Closed** — sequential. Users must complete each step in order with strict timestamp ordering. Events with no `user_id` are excluded.
+
+### Group-by options
+
+| Value | Description |
+|-------|-------------|
+| `environment` | Segment by environment |
+| `app_version` | Segment by app version |
+| `experiment:<name>` | Segment by experiment variant assignment |

@@ -1,0 +1,75 @@
+---
+title: Apps
+description: Create, list, and manage apps and their users via MCP tools.
+---
+
+Apps represent deployable artifacts within a [project](/docs/mcp/projects). Each app has a platform and, for non-backend platforms, a `bundle_id`. Creating an app auto-generates a `client_key` for SDK use.
+
+## list-apps
+
+List all apps accessible to this agent.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | No | Filter by team ID |
+
+Returns `{ apps: [...] }` with each app's `id`, `name`, `platform`, `bundle_id`, `client_key`, `project_id`, and timestamps.
+
+## get-app
+
+Get an app by ID, including its `client_key` for SDK configuration.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `app_id` | UUID | Yes | The app ID |
+
+## create-app
+
+Create a new app under a project. Returns a `client_key` for SDK use. Requires `apps:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | App name |
+| `platform` | string | Yes | `apple`, `android`, `web`, or `backend` |
+| `project_id` | UUID | Yes | Parent project ID |
+| `bundle_id` | string | Conditional | Required for non-backend platforms. Immutable after creation. |
+
+```json
+{
+  "name": "iOS App",
+  "platform": "apple",
+  "project_id": "550e8400-...",
+  "bundle_id": "com.example.myapp"
+}
+```
+
+Backend apps omit `bundle_id`:
+
+```json
+{
+  "name": "API Server",
+  "platform": "backend",
+  "project_id": "550e8400-..."
+}
+```
+
+## update-app
+
+Update an app's name. Requires `apps:write` permission.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `app_id` | UUID | Yes | The app ID |
+| `name` | string | Yes | New app name |
+
+## list-app-users
+
+List users for a specific app. Supports search, filtering, and pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `app_id` | UUID | Yes | The app ID |
+| `search` | string | No | Search by user ID |
+| `is_anonymous` | string | No | `"true"` or `"false"` to filter by anonymous status |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50, max 1000) |
