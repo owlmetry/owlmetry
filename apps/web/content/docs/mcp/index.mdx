@@ -31,14 +31,3 @@ Agents authenticate with an `owl_agent_*` API key passed as a Bearer token. The 
 
 The server also exposes an `owlmetry://guide` MCP resource containing a comprehensive operational guide — concepts, resource hierarchy, workflows, and conventions. MCP clients can read this resource on connection to understand how to use the tools effectively.
 
-## MCP vs CLI
-
-Both interfaces offer the same capabilities. Choose based on your setup:
-
-| | MCP | CLI |
-|---|---|---|
-| **Setup** | One-time URL + key in client config | `npm install -g @owlmetry/cli` + login flow |
-| **Updates** | Automatic — always matches the server | Manual `npm update` |
-| **Auth** | Static Bearer token in headers | Login flow with email verification |
-| **Best for** | AI coding agents (Claude Code, Cursor, etc.) | Humans, scripts, CI/CD |
-| **Requires** | MCP-compatible client | Node.js 20+ |
