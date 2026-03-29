@@ -1,9 +1,15 @@
 ---
 title: MCP
-description: Connect AI agents directly to OwlMetry via the Model Context Protocol — no CLI installation needed.
+description: Connect AI agents directly to OwlMetry via the Model Context Protocol — the recommended path for coding agents. No CLI installation needed.
 ---
 
 The OwlMetry MCP endpoint lets AI agents connect directly to your OwlMetry server over HTTP. Instead of installing the CLI and keeping it up to date, agents configure a URL once and always get the latest tools — every deploy is instantly live.
+
+<Callout>
+**Recommended for AI agents.** If your coding agent supports MCP (Claude Code, Cursor, VS Code Copilot, Windsurf, Zed, JetBrains, Cline, Roo Code), use the MCP endpoint instead of the CLI. No installation, no updates, 37 tools available instantly.
+</Callout>
+
+Ready to connect? Jump to [Setup](/docs/mcp/setup) for editor-specific configuration.
 
 The endpoint exposes 37 tools covering the same capabilities as the [CLI](/docs/cli): managing projects, apps, metrics, and funnels; querying events and analytics; running integrations and background jobs; and viewing audit logs.
 
@@ -12,6 +18,8 @@ The endpoint exposes 37 tools covering the same capabilities as the [CLI](/docs/
 The MCP endpoint lives at `/mcp` on your OwlMetry API server. It uses the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) in stateless JSON mode — each request is independent, no session management needed.
 
 Agents authenticate with an `owl_agent_*` API key passed as a Bearer token. The endpoint forwards each tool call to the corresponding REST route internally, so all existing permission checks and validation apply.
+
+Unlike the CLI (which requires `npm install`, periodic updates, and an interactive login flow), the MCP endpoint needs only a URL and an API key pasted into your editor's config file once.
 
 ## Available tools
 
@@ -30,4 +38,3 @@ Agents authenticate with an `owl_agent_*` API key passed as a Bearer token. The 
 ## Agent guide resource
 
 The server also exposes an `owlmetry://guide` MCP resource containing a comprehensive operational guide — concepts, resource hierarchy, workflows, and conventions. MCP clients can read this resource on connection to understand how to use the tools effectively.
-

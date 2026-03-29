@@ -105,23 +105,9 @@ The SDK automatically emits a `sdk:session_started` event on configuration, so y
 
 Use the filters at the top of the Events page to narrow by app, log level, time range, and more. Click any event to see its full details including device info, session ID, and custom attributes.
 
-## Using the CLI
-
-For agent-driven workflows, install the CLI and authenticate with an agent API key:
-
-```bash
-npm install -g @owlmetry/cli
-
-# Set up with your endpoint and agent key
-owlmetry setup --endpoint https://api.owlmetry.com --api-key owl_agent_your_key_here
-```
-
-You can create agent keys from the **API Keys** page in the dashboard. Agent keys have read access to events, metrics, funnels, and other resources.
-
-See the [CLI documentation](/docs/cli) for the full command reference.
-
 ## Next Steps
 
+- [MCP](/docs/mcp/setup) -- Connect your coding agent via the Model Context Protocol
 - [Events](/docs/concepts/events) -- Learn about log levels, sessions, and event structure
 - [Projects and Apps](/docs/concepts/projects-and-apps) -- Understand how projects organize apps across platforms
 - [Authentication](/docs/concepts/authentication) -- Learn about key types, permissions, and team roles

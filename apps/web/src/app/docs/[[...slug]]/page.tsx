@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import defaultMdxComponents from "fumadocs-ui/mdx";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 const BASE = "https://owlmetry.com";
 
@@ -75,13 +76,13 @@ export default async function Page(props: {
         <DocsTitle>{page.data.title}</DocsTitle>
         <DocsDescription>{page.data.description}</DocsDescription>
         <DocsBody>
-          <MDX components={{ ...defaultMdxComponents }} />
+          <MDX components={{ ...defaultMdxComponents, Tab, Tabs }} />
           <div className="not-prose mt-12 rounded-lg border border-fd-border bg-fd-card p-6 text-center">
             <p className="text-sm font-medium text-fd-foreground">
               Ready to get started?
             </p>
             <p className="mt-1 text-sm text-fd-muted-foreground">
-              Install the CLI and let your agent handle the rest.
+              Connect your agent via MCP or CLI and start tracking.
             </p>
             <div className="mt-4 flex items-center justify-center gap-3">
               <Link

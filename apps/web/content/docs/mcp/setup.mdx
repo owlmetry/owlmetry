@@ -1,9 +1,21 @@
 ---
 title: Setup
-description: Configure your MCP client to connect to OwlMetry — Claude Code, Cursor, VS Code, and Claude Desktop.
+description: Configure your MCP client to connect to OwlMetry — Claude Code, Cursor, VS Code, Claude Desktop, Windsurf, Zed, JetBrains, Cline, and Roo Code.
 ---
 
-The MCP endpoint requires an agent API key (`owl_agent_*`). Create one from the [dashboard](/docs/cli/authentication) or CLI, then configure your MCP client.
+## Prerequisites
+
+You need an **agent API key** (`owl_agent_*`) to connect. Create one from your dashboard:
+
+1. Open the **API Keys** page in the dashboard
+2. Click **New Key**
+3. Select **🕶️ Agent** as the key type
+4. Give it a name (e.g., "Cursor MCP" or "Claude Code")
+5. Click **Create** — copy the key immediately, it is only shown once
+
+<Callout>
+Agent keys get all permissions by default and are scoped to your team. You can customize permissions at creation time. See [Authentication](/docs/concepts/authentication) for details on key types and permissions.
+</Callout>
 
 ## Endpoint URL
 
@@ -13,7 +25,11 @@ The MCP endpoint requires an agent API key (`owl_agent_*`). Create one from the 
 | Self-hosted | `https://your-server.com/mcp` |
 | Local development | `http://localhost:4000/mcp` |
 
-## Claude Code
+## Editor Setup
+
+<Tabs items={["Claude Code", "Cursor", "VS Code", "Claude Desktop", "Windsurf", "Zed", "JetBrains", "Cline", "Roo Code"]}>
+
+<Tab value="Claude Code">
 
 ```bash
 claude mcp add --transport http owlmetry https://api.owlmetry.com/mcp \
@@ -28,9 +44,11 @@ Verify the connection:
 /mcp
 ```
 
-## Cursor
+</Tab>
 
-Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global settings):
+<Tab value="Cursor">
+
+Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):
 
 ```json
 {
@@ -46,7 +64,9 @@ Add to your Cursor MCP settings (`.cursor/mcp.json` in your project or global se
 }
 ```
 
-## VS Code (GitHub Copilot)
+</Tab>
+
+<Tab value="VS Code">
 
 Add to `.vscode/mcp.json` in your project:
 
@@ -54,7 +74,7 @@ Add to `.vscode/mcp.json` in your project:
 {
   "servers": {
     "owlmetry": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "https://api.owlmetry.com/mcp",
       "headers": {
         "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
@@ -64,9 +84,16 @@ Add to `.vscode/mcp.json` in your project:
 }
 ```
 
-## Claude Desktop
+You can also add servers via the Command Palette: **MCP: Add Server**.
 
-Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+</Tab>
+
+<Tab value="Claude Desktop">
+
+Add to your Claude Desktop config:
+
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -81,6 +108,138 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   }
 }
 ```
+
+</Tab>
+
+<Tab value="Windsurf">
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "type": "http",
+      "serverUrl": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+<Callout>
+Windsurf uses `serverUrl` instead of `url` — this is different from other editors.
+</Callout>
+
+You can also access this file via Windsurf settings: **Cascade** > **MCP Servers** > **View raw config**.
+
+</Tab>
+
+<Tab value="Zed">
+
+Add to your Zed settings file (`~/.config/zed/settings.json`):
+
+```json
+{
+  "context_servers": {
+    "owlmetry": {
+      "settings": {
+        "url": "https://api.owlmetry.com/mcp",
+        "headers": {
+          "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+        }
+      }
+    }
+  }
+}
+```
+
+<Callout>
+Zed uses `context_servers` as the root key instead of `mcpServers`, and nests config under `settings`.
+</Callout>
+
+</Tab>
+
+<Tab value="JetBrains">
+
+In any JetBrains IDE (IntelliJ, WebStorm, PyCharm, etc.):
+
+1. Open **Settings** > **Tools** > **AI Assistant** > **Model Context Protocol (MCP)**
+2. Click **+** to add a new server
+3. Enter the configuration:
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "type": "sse",
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+<Callout>
+JetBrains currently uses SSE transport. Streamable HTTP support may vary by IDE version — check the [JetBrains MCP docs](https://www.jetbrains.com/help/ai-assistant/mcp.html) for the latest.
+</Callout>
+
+</Tab>
+
+<Tab value="Cline">
+
+Open the Cline sidebar in VS Code, click the **MCP Servers** icon, then **Edit MCP Settings**:
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "type": "http",
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+</Tab>
+
+<Tab value="Roo Code">
+
+Add to `.roo/mcp.json` in your project root (or edit global settings via the Roo Code server icon):
+
+```json
+{
+  "mcpServers": {
+    "owlmetry": {
+      "type": "streamable-http",
+      "url": "https://api.owlmetry.com/mcp",
+      "headers": {
+        "Authorization": "Bearer owl_agent_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+</Tab>
+
+</Tabs>
+
+## Other MCP Clients
+
+Any MCP-compatible client can connect to OwlMetry. The endpoint uses:
+
+- **Transport:** Streamable HTTP (POST only)
+- **URL:** `https://api.owlmetry.com/mcp`
+- **Auth:** `Authorization: Bearer owl_agent_YOUR_KEY_HERE` header
+- **Mode:** Stateless JSON — each request is independent, no session initialization needed
 
 ## Authentication
 

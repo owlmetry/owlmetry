@@ -3,11 +3,32 @@ title: Getting Started
 description: Get up and running with OwlMetry in minutes. Your coding agent handles the setup.
 ---
 
-OwlMetry is designed to be set up by your coding agent. Install the CLI, give your agent a prompt, and it handles authentication, project creation, and SDK integration.
+OwlMetry is designed to be set up by your coding agent. There are two ways to connect your agent:
+
+- **[MCP](/docs/mcp/setup)** (recommended) — Configure a URL once in your editor. No installation, automatic updates, 37 tools available instantly.
+- **[CLI](/docs/cli/installation)** — Install the `@owlmetry/cli` npm package. Best for CI/CD, scripts, and human terminal use.
+
+Both paths give your agent the same capabilities. Choose MCP if your editor supports it (Claude Code, Cursor, VS Code, Windsurf, Zed, JetBrains, Cline, Roo Code); choose the CLI for automation pipelines or if you prefer terminal workflows.
 
 You can also [set everything up manually](#manual-setup) if you prefer.
 
-## Install the CLI
+## Connect via MCP
+
+If your coding agent supports MCP, this is the fastest path. You need two things: an agent API key and your editor's MCP config.
+
+1. **Create an agent key** — In the dashboard, go to **API Keys** > **New Key** > select **🕶️ Agent** > name it > **Create** > copy the key
+2. **Add the MCP config** — Follow the instructions for your editor in the [MCP setup guide](/docs/mcp/setup)
+3. **Verify** — Ask your agent to call the `whoami` tool
+
+That's it. Your agent now has access to all OwlMetry operations — creating projects, defining metrics, querying events, and building funnels.
+
+<Callout>
+**Self-hosting?** Use your own server URL (e.g., `https://your-server.example.com/mcp`) instead of `api.owlmetry.com`. See [Self-hosted setup](/docs/getting-started/self-hosting).
+</Callout>
+
+## Connect via CLI
+
+If your editor doesn't support MCP, or if you need OwlMetry in CI/CD pipelines and shell scripts, install the CLI:
 
 ```bash
 npm install -g @owlmetry/cli
@@ -15,7 +36,7 @@ npm install -g @owlmetry/cli
 
 Requires Node.js 20+. The CLI ships with built-in skill files that teach your agent the full command reference and SDK integration patterns.
 
-## Tell Your Agent to Set Up OwlMetry
+### Tell Your Agent to Set Up OwlMetry
 
 Give your coding agent a prompt like this:
 
@@ -36,10 +57,6 @@ Load `/owlmetry-cli` before running any `owlmetry` CLI commands or doing analyti
 ```
 
 This ensures every future session knows OwlMetry is integrated and loads the right skill files automatically — including the full API reference, funnel design rules, and lifecycle metric patterns.
-
-<Callout>
-**Self-hosting?** Add `--endpoint https://your-server.example.com` to point the CLI at your own instance. See [Self-hosted setup](/docs/getting-started/self-hosting).
-</Callout>
 
 ## Choose Your Deployment
 
@@ -211,6 +228,7 @@ For the full Node.js SDK reference -- serverless support, metrics, funnels, iden
 
 Once events are flowing, explore these areas:
 
+- [MCP](/docs/mcp) -- Connect agents via the Model Context Protocol
 - [Events](/docs/concepts/events) -- Understand log levels, sessions, and timestamps
 - [Metrics](/docs/concepts/metrics) -- Track operation durations and success rates
 - [Funnels](/docs/concepts/funnels) -- Measure conversion across multi-step flows
