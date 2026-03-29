@@ -3,13 +3,15 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { callApi, buildQuery } from "../helpers.js";
 
+const JOB_STATUSES = ["pending", "running", "completed", "failed", "cancelled"] as const;
+
 export function registerJobsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-jobs", {
     description: "List background job runs for a team. Supports filtering by type, status, project, and date range.",
     inputSchema: {
       team_id: z.string().uuid().describe("The team ID"),
       job_type: z.string().optional().describe("Filter by job type (e.g., revenuecat_sync)"),
-      status: z.enum(["pending", "running", "success", "failed"]).optional().describe("Filter by status"),
+      status: z.enum(JOB_STATUSES).optional().describe("Filter by status"),
       project_id: z.string().uuid().optional().describe("Filter by project"),
       since: z.string().optional().describe("Start time"),
       until: z.string().optional().describe("End time"),

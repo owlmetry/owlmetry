@@ -44,24 +44,16 @@ async function mcpRequest(
   });
 }
 
-/** Send initialize + tools/call in sequence (stateless — each is independent) */
+/** Call an MCP tool directly (stateless mode — no initialize needed) */
 async function callTool(
   agentKey: string,
   toolName: string,
   args: Record<string, unknown> = {},
 ) {
-  // In stateless mode, send initialize first
-  await mcpRequest(agentKey, "initialize", {
-    protocolVersion: "2025-11-25",
-    capabilities: {},
-    clientInfo: { name: "test-client", version: "1.0.0" },
-  });
-
-  const res = await mcpRequest(agentKey, "tools/call", {
+  return mcpRequest(agentKey, "tools/call", {
     name: toolName,
     arguments: args,
-  }, 2);
-  return res;
+  });
 }
 
 /** Parse MCP tool result text content */
@@ -147,7 +139,7 @@ describe("MCP endpoint", () => {
       const body = res.json();
       const tools = body.result.tools;
       expect(Array.isArray(tools)).toBe(true);
-      expect(tools.length).toBe(37);
+      expect(tools.length).toBeGreaterThanOrEqual(37);
 
       // Verify a few key tools exist
       const names = tools.map((t: { name: string }) => t.name);

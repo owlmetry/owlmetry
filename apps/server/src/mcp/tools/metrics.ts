@@ -1,7 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { ENVIRONMENTS } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
+
+const DATA_MODES = ["production", "development", "all"] as const;
+const METRIC_PHASES = ["start", "complete", "fail", "cancel", "record"] as const;
 
 export function registerMetricsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-metrics", {
@@ -91,9 +95,9 @@ export function registerMetricsTools(server: McpServer, app: FastifyInstance, ag
       device_model: z.string().optional().describe("Filter by device model"),
       os_version: z.string().optional().describe("Filter by OS version"),
       user_id: z.string().optional().describe("Filter by user"),
-      environment: z.string().optional().describe("Filter by environment"),
+      environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
       group_by: z.string().optional().describe("Group by: time:hour, time:day, time:week, app_id, app_version, device_model, os_version, environment"),
-      data_mode: z.enum(["production", "development", "all"]).optional().describe("Data mode (default: production)"),
+      data_mode: z.enum(DATA_MODES).optional().describe("Data mode (default: production)"),
     },
   }, async ({ project_id, slug, ...params }) => {
     return callApi(app, agentKey, {
@@ -108,15 +112,15 @@ export function registerMetricsTools(server: McpServer, app: FastifyInstance, ag
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       slug: z.string().describe("Metric slug"),
-      phase: z.enum(["start", "complete", "fail", "cancel", "record"]).optional().describe("Filter by phase"),
+      phase: z.enum(METRIC_PHASES).optional().describe("Filter by phase"),
       tracking_id: z.string().uuid().optional().describe("Filter by tracking ID"),
       user_id: z.string().optional().describe("Filter by user"),
-      environment: z.string().optional().describe("Filter by environment"),
+      environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
       since: z.string().optional().describe("Start time (default: 24h)"),
       until: z.string().optional().describe("End time"),
       cursor: z.string().optional().describe("Pagination cursor"),
       limit: z.number().optional().describe("Max results (default 50, max 1000)"),
-      data_mode: z.enum(["production", "development", "all"]).optional().describe("Data mode"),
+      data_mode: z.enum(DATA_MODES).optional().describe("Data mode"),
     },
   }, async ({ project_id, slug, ...params }) => {
     return callApi(app, agentKey, {

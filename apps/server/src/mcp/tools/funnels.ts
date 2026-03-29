@@ -1,7 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { ENVIRONMENTS } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
+
+const DATA_MODES = ["production", "development", "all"] as const;
 
 export function registerFunnelsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-funnels", {
@@ -96,11 +99,11 @@ export function registerFunnelsTools(server: McpServer, app: FastifyInstance, ag
       until: z.string().optional().describe("End time"),
       app_id: z.string().uuid().optional().describe("Filter by app"),
       app_version: z.string().optional().describe("Filter by app version"),
-      environment: z.string().optional().describe("Filter by environment"),
+      environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
       experiment: z.string().optional().describe("Filter by experiment (format: name:variant)"),
       mode: z.enum(["open", "closed"]).optional().describe("Funnel mode (default: open)"),
       group_by: z.string().optional().describe("Group by: environment, app_version, or experiment:<name>"),
-      data_mode: z.enum(["production", "development", "all"]).optional().describe("Data mode"),
+      data_mode: z.enum(DATA_MODES).optional().describe("Data mode"),
     },
   }, async ({ project_id, slug, ...params }) => {
     return callApi(app, agentKey, {

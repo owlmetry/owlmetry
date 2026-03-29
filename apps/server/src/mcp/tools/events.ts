@@ -1,7 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { callApi, buildQuery } from "../helpers.js";
+import { LOG_LEVELS, ENVIRONMENTS } from "@owlmetry/shared";
+import { callApi, callApiRaw, buildQuery } from "../helpers.js";
+
+const DATA_MODES = ["production", "development", "all"] as const;
 
 export function registerEventsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("query-events", {
@@ -10,16 +13,16 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
     inputSchema: {
       project_id: z.string().uuid().optional().describe("Filter by project"),
       app_id: z.string().uuid().optional().describe("Filter by app (takes precedence over project_id)"),
-      level: z.enum(["info", "debug", "warn", "error"]).optional().describe("Filter by log level"),
+      level: z.enum(LOG_LEVELS).optional().describe("Filter by log level"),
       user_id: z.string().optional().describe("Filter by user ID"),
       session_id: z.string().uuid().optional().describe("Filter by session ID"),
-      environment: z.string().optional().describe("Filter by environment (ios, ipados, macos, android, web, backend)"),
+      environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
       screen_name: z.string().optional().describe("Filter by screen name"),
       since: z.string().optional().describe("Start time (relative like '1h', '7d' or ISO 8601)"),
       until: z.string().optional().describe("End time (relative or ISO 8601)"),
       cursor: z.string().optional().describe("Pagination cursor from previous response"),
       limit: z.number().optional().describe("Max results (default 50, max 1000)"),
-      data_mode: z.enum(["production", "development", "all"]).optional().describe("Filter by data mode (default: production)"),
+      data_mode: z.enum(DATA_MODES).optional().describe("Filter by data mode (default: production)"),
     },
   }, async (params) => {
     return callApi(app, agentKey, {
@@ -43,44 +46,39 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
     inputSchema: {
       event_id: z.string().uuid().describe("The target event ID"),
       window_minutes: z.number().optional().default(5).describe("Time window in minutes around the event (default: 5)"),
+      data_mode: z.enum(DATA_MODES).optional().describe("Data mode (default: production). Set to match the target event's mode."),
     },
-  }, async ({ event_id, window_minutes }) => {
-    // Step 1: Get the target event
-    const targetResult = await callApi(app, agentKey, {
+  }, async ({ event_id, window_minutes, data_mode }) => {
+    const targetRes = await callApiRaw(app, agentKey, {
       method: "GET",
       url: `/v1/events/${event_id}`,
     });
+    if (targetRes.error) return targetRes.error;
 
-    if (targetResult.isError) return targetResult;
-
-    const target = JSON.parse(targetResult.content[0].text);
-    const timestamp = new Date(target.timestamp);
+    const target = targetRes.body;
+    const timestamp = new Date(target.timestamp as string);
     const windowMs = (window_minutes ?? 5) * 60 * 1000;
     const since = new Date(timestamp.getTime() - windowMs).toISOString();
     const until = new Date(timestamp.getTime() + windowMs).toISOString();
 
-    // Step 2: Query surrounding events
-    const query = buildQuery({
-      app_id: target.app_id,
-      ...(target.user_id ? { user_id: target.user_id } : {}),
-      since,
-      until,
-      limit: 200,
-    });
-
-    const contextResult = await callApi(app, agentKey, {
+    const contextRes = await callApiRaw(app, agentKey, {
       method: "GET",
-      url: `/v1/events${query}`,
+      url: `/v1/events${buildQuery({
+        app_id: target.app_id as string,
+        ...(target.user_id ? { user_id: target.user_id as string } : {}),
+        since,
+        until,
+        limit: 200,
+        data_mode,
+      })}`,
     });
+    if (contextRes.error) return contextRes.error;
 
-    if (contextResult.isError) return contextResult;
-
-    const context = JSON.parse(contextResult.content[0].text);
-
+    const events = contextRes.body.events as unknown[];
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({ target, context: context.events, total_context: context.events?.length ?? 0 }, null, 2),
+        text: JSON.stringify({ target, context: events, total_context: events?.length ?? 0 }, null, 2),
       }],
     };
   });

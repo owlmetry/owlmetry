@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { APP_PLATFORMS } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
 export function registerAppsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
@@ -30,7 +31,7 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
       "Create a new app under a project. Returns a client_key for SDK use. Platforms: apple, android, web, backend. bundle_id is required for non-backend platforms and is immutable after creation. Requires apps:write permission.",
     inputSchema: {
       name: z.string().describe("App name"),
-      platform: z.enum(["apple", "android", "web", "backend"]).describe("Target platform"),
+      platform: z.enum(APP_PLATFORMS).describe("Target platform"),
       project_id: z.string().uuid().describe("Parent project ID"),
       bundle_id: z.string().optional().describe("Bundle identifier (required for non-backend platforms, immutable)"),
     },
