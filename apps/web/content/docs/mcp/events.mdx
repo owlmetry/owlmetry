@@ -56,6 +56,7 @@ Retrieve a specific event and its surrounding context events from the same app a
 |-----------|------|----------|-------------|
 | `event_id` | UUID | Yes | The target event ID |
 | `window_minutes` | number | No | Time window in minutes around the event (default: 5) |
+| `data_mode` | string | No | `production` (default), `development`, or `all` — set to match the target event's mode |
 
 Returns `{ target, context, total_context }` where `target` is the specified event and `context` is the list of surrounding events from the same app and user.
 

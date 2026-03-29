@@ -13,7 +13,7 @@ List background job runs for a team. Supports filtering by type, status, project
 |-----------|------|----------|-------------|
 | `team_id` | UUID | Yes | The team ID |
 | `job_type` | string | No | Filter by job type (e.g., `revenuecat_sync`) |
-| `status` | string | No | `pending`, `running`, `success`, or `failed` |
+| `status` | string | No | `pending`, `running`, `completed`, `failed`, or `cancelled` |
 | `project_id` | UUID | No | Filter by project |
 | `since` | string | No | Start time |
 | `until` | string | No | End time |
