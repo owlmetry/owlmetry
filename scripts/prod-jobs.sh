@@ -3,7 +3,16 @@
 # Designed to run directly on the production VPS.
 set -euo pipefail
 
-DB_URL="${DATABASE_URL:?DATABASE_URL must be set}"
+# Source .env if DATABASE_URL isn't already set
+if [ -z "${DATABASE_URL:-}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  ENV_FILE="$SCRIPT_DIR/../.env"
+  if [ -f "$ENV_FILE" ]; then
+    export $(grep -E '^DATABASE_URL=' "$ENV_FILE" | xargs)
+  fi
+fi
+
+DB_URL="${DATABASE_URL:?DATABASE_URL must be set (provide it or add to .env)}"
 
 psql "$DB_URL" -c "
 SELECT
