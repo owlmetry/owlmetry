@@ -70,11 +70,23 @@ export async function projectsRoutes(app: FastifyInstance) {
         .from(apps)
         .where(and(eq(apps.project_id, id), isNull(apps.deleted_at)));
 
+      const projectAppIds = projectApps.map(a => a.id);
+      const projectClientSecrets = projectAppIds.length > 0
+        ? await app.db
+            .select({ app_id: apiKeys.app_id, secret: apiKeys.secret })
+            .from(apiKeys)
+            .where(and(inArray(apiKeys.app_id, projectAppIds), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)))
+        : [];
+      const clientSecretMap = new Map<string, string>();
+      for (const k of projectClientSecrets) {
+        if (k.app_id && !clientSecretMap.has(k.app_id)) clientSecretMap.set(k.app_id, k.secret);
+      }
+
       return {
         ...project,
         created_at: project.created_at.toISOString(),
         deleted_at: undefined,
-        apps: projectApps.map(serializeApp),
+        apps: projectApps.map(a => serializeApp({ ...a, client_secret: clientSecretMap.get(a.id) ?? null })),
       };
     }
   );

@@ -125,7 +125,7 @@ export interface TeamMember {
 
 export interface ApiKey {
   id: string;
-  key_prefix: string;
+  secret: string;
   key_type: ApiKeyType;
   app_id: string | null;
   team_id: string;
@@ -155,7 +155,6 @@ export interface App {
   name: string;
   platform: AppPlatform;
   bundle_id: string | null;
-  client_key: string | null;
   created_at: Date;
   deleted_at: Date | null;
 }

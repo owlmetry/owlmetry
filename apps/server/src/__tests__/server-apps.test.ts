@@ -43,7 +43,7 @@ describe("server platform apps", () => {
     expect(body.name).toBe("API Server");
     expect(body.platform).toBe("backend");
     expect(body.bundle_id).toBeNull();
-    expect(body.client_key).toMatch(/^owl_client_/);
+    expect(body.client_secret).toMatch(/^owl_client_/);
   });
 
   it("auto-created key for server app has client type with events:write", async () => {
@@ -71,7 +71,7 @@ describe("server platform apps", () => {
     const autoKey = keys.find((k: { app_id: string }) => k.app_id === appId);
     expect(autoKey).toBeDefined();
     expect(autoKey.key_type).toBe("client");
-    expect(autoKey.key_prefix).toMatch(/^owl_client_/);
+    expect(autoKey.secret).toMatch(/^owl_client_/);
   });
 
   it("ingests events with server app key (no bundle_id)", async () => {
@@ -87,7 +87,7 @@ describe("server platform apps", () => {
       },
     });
 
-    const clientKey = createRes.json().client_key;
+    const clientKey = createRes.json().client_secret;
 
     const ingestRes = await app.inject({
       method: "POST",
@@ -152,7 +152,7 @@ describe("server platform apps", () => {
       },
     });
 
-    const clientKey = createRes.json().client_key;
+    const clientKey = createRes.json().client_secret;
     const serverAppId = createRes.json().id;
 
     await app.inject({

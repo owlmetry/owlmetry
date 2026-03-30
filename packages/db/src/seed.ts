@@ -1,6 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
 import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, metricDefinitions, funnelDefinitions } from "./schema.js";
-import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import "dotenv/config";
@@ -23,15 +22,13 @@ async function findOrCreate<T>(db: Db, table: any, values: Record<string, unknow
   return existing as T;
 }
 
-/** Insert an API key if one with the same key_hash doesn't already exist. */
-async function ensureApiKey(db: Db, rawKey: string, values: Omit<typeof apiKeys.$inferInsert, "key_hash" | "key_prefix">) {
-  const keyHash = hashApiKey(rawKey);
-  const [existing] = await db.select().from(apiKeys).where(eq(apiKeys.key_hash, keyHash));
+/** Insert an API key if one with the same secret doesn't already exist. */
+async function ensureApiKey(db: Db, rawKey: string, values: Omit<typeof apiKeys.$inferInsert, "secret">) {
+  const [existing] = await db.select().from(apiKeys).where(eq(apiKeys.secret, rawKey));
   if (!existing) {
     await db.insert(apiKeys).values({
       ...values,
-      key_hash: keyHash,
-      key_prefix: rawKey.slice(0, KEY_PREFIX_LENGTH),
+      secret: rawKey,
     });
   }
 }
@@ -75,7 +72,7 @@ async function main() {
   // --- Demo app (apple) ---
   const clientKey = "owl_client_demo_000000000000000000000000000000000000000000";
 
-  let [app] = await db.select().from(apps).where(eq(apps.client_key, clientKey));
+  let [app] = await db.select().from(apps).where(and(eq(apps.project_id, project.id), eq(apps.name, "Demo App")));
   if (!app) {
     [app] = await db.insert(apps).values({
       team_id: team.id,
@@ -83,7 +80,6 @@ async function main() {
       name: "Demo App",
       platform: "apple",
       bundle_id: "com.owlmetry.demo",
-      client_key: clientKey,
     }).returning();
   }
   console.log(`  App:     ${app.name} (${app.id})`);
@@ -104,7 +100,7 @@ async function main() {
   // --- Demo server app (backend) ---
   const serverAppKey = "owl_client_svr_0000000000000000000000000000000000000000";
 
-  let [serverApp] = await db.select().from(apps).where(eq(apps.client_key, serverAppKey));
+  let [serverApp] = await db.select().from(apps).where(and(eq(apps.project_id, project.id), eq(apps.name, "Demo API Server")));
   if (!serverApp) {
     [serverApp] = await db.insert(apps).values({
       team_id: team.id,
@@ -112,7 +108,6 @@ async function main() {
       name: "Demo API Server",
       platform: "backend",
       bundle_id: null,
-      client_key: serverAppKey,
     }).returning();
   }
   console.log(`  Server:  ${serverApp.name} (${serverApp.id})`);

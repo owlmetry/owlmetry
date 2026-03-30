@@ -176,6 +176,20 @@
       "when": 1774715603321,
       "tag": "0024_bumpy_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1774851880893,
+      "tag": "0025_solid_lifeguard",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1774855022087,
+      "tag": "0026_bizarre_impossible_man",
+      "breakpoints": true
     }
   ]
 }

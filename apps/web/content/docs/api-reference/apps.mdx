@@ -28,7 +28,7 @@ List all apps the caller has access to.
       "name": "iOS App",
       "platform": "apple",
       "bundle_id": "com.example.myapp",
-      "client_key": "owl_client_abc123...",
+      "client_secret": "owl_client_abc123...",
       "created_at": "2024-01-01T00:00:00.000Z"
     }
   ]
@@ -50,14 +50,14 @@ Get a single app by ID.
   "name": "iOS App",
   "platform": "apple",
   "bundle_id": "com.example.myapp",
-  "client_key": "owl_client_abc123...",
+  "client_secret": "owl_client_abc123...",
   "created_at": "2024-01-01T00:00:00.000Z"
 }
 ```
 
 ## POST /v1/apps
 
-Create a new app within a project. A client API key is automatically generated and stored on the `client_key` field.
+Create a new app within a project. A client API key is automatically generated and returned in the `client_secret` field.
 
 **Auth required:** Yes (`apps:write` permission or JWT, admin role required)
 
@@ -78,7 +78,7 @@ Create a new app within a project. A client API key is automatically generated a
   "name": "iOS App",
   "platform": "apple",
   "bundle_id": "com.example.myapp",
-  "client_key": "owl_client_full_key...",
+  "client_secret": "owl_client_full_key...",
   "created_at": "2024-01-01T00:00:00.000Z"
 }
 ```
@@ -117,7 +117,7 @@ Update an app. Only the `name` field can be changed.
   "name": "Renamed App",
   "platform": "apple",
   "bundle_id": "com.example.myapp",
-  "client_key": "owl_client_abc123...",
+  "client_secret": "owl_client_abc123...",
   "created_at": "2024-01-01T00:00:00.000Z"
 }
 ```

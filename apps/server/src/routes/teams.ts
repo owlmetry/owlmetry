@@ -333,7 +333,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         .select({
           id: apiKeys.id,
           name: apiKeys.name,
-          key_prefix: apiKeys.key_prefix,
+          secret: apiKeys.secret,
           permissions: apiKeys.permissions,
           created_at: apiKeys.created_at,
         })
@@ -351,7 +351,7 @@ export async function teamsRoutes(app: FastifyInstance) {
         keys: keys.map((k) => ({
           id: k.id,
           name: k.name,
-          key_prefix: k.key_prefix,
+          secret: k.secret,
           permissions: k.permissions,
           created_at: k.created_at.toISOString(),
         })),

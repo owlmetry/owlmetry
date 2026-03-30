@@ -25,7 +25,7 @@ export const APP: AppResponse = {
   name: "My iOS App",
   platform: "apple",
   bundle_id: "com.owlmetry.test",
-  client_key: "owl_client_xxxx",
+  client_secret: "owl_client_xxxx",
   created_at: "2025-01-15T10:00:00.000Z",
 };
 

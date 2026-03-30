@@ -59,7 +59,7 @@ export default function ProjectDetailPage() {
   const [appBundleId, setAppBundleId] = useState("");
   const [appError, setAppError] = useState("");
   const [appLoading, setAppLoading] = useState(false);
-  const [newClientKey, setNewClientKey] = useState<string | null>(null);
+  const [newClientSecret, setNewClientSecret] = useState<string | null>(null);
 
   // Delete
   const [deleting, setDeleting] = useState(false);
@@ -100,13 +100,13 @@ export default function ProjectDetailPage() {
     setAppLoading(true);
 
     try {
-      const res = await api.post<{ app: AppResponse & { client_key: string } }>("/v1/apps", {
+      const res = await api.post<{ app: AppResponse }>("/v1/apps", {
         name: appName,
         platform: appPlatform,
         ...(appPlatform !== "backend" ? { bundle_id: appBundleId } : {}),
         project_id: id,
       });
-      setNewClientKey(res.app.client_key);
+      setNewClientSecret(res.app.client_secret);
       setAppName("");
       setAppBundleId("");
       setAppPlatform("apple");
@@ -177,15 +177,15 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
-      {newClientKey && (
+      {newClientSecret && (
         <Card className="border-primary">
           <CardContent className="flex items-center gap-3 pt-6">
             <p className="text-sm">
-              <span className="font-medium">New app client key:</span>{" "}
-              <code className="bg-muted px-1.5 py-0.5 text-xs">{newClientKey}</code>
+              <span className="font-medium">New app client secret:</span>{" "}
+              <code className="bg-muted px-1.5 py-0.5 text-xs">{newClientSecret}</code>
             </p>
-            <CopyButton text={newClientKey} />
-            <Button variant="ghost" size="sm" onClick={() => setNewClientKey(null)}>
+            <CopyButton text={newClientSecret} />
+            <Button variant="ghost" size="sm" onClick={() => setNewClientSecret(null)}>
               Dismiss
             </Button>
           </CardContent>
@@ -347,14 +347,14 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
             <span className="font-mono text-xs">{app.bundle_id}</span>
           </div>
         )}
-        {app.client_key && (
+        {app.client_secret && (
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Client Key</span>
+            <span className="text-muted-foreground">Client Secret</span>
             <div className="flex items-center gap-1">
               <code className="bg-muted px-1.5 py-0.5 text-xs">
-                {app.client_key.slice(0, 20)}...
+                {app.client_secret.slice(0, 20)}...
               </code>
-              <CopyButton text={app.client_key} />
+              <CopyButton text={app.client_secret} />
             </div>
           </div>
         )}

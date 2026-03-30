@@ -29,12 +29,10 @@ cd "$ROOT_DIR/apps/server"
 ./node_modules/.bin/tsx "$ROOT_DIR/scripts/seed-test-db.mts"
 
 # Seed server app via psql (avoids module resolution issues)
-SERVER_KEY_HASH=$(node -e "const{createHash}=require('crypto');console.log(createHash('sha256').update('$TEST_SERVER_KEY').digest('hex'))")
-SERVER_KEY_PREFIX=$(echo "$TEST_SERVER_KEY" | cut -c1-16)
 TEAM_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM teams LIMIT 1")
 PROJECT_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM projects LIMIT 1")
 OWNER_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT user_id FROM team_members WHERE team_id = '$TEAM_ID' AND role = 'owner' LIMIT 1")
-EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM api_keys WHERE key_hash = '$SERVER_KEY_HASH' LIMIT 1")
+EXISTING=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM api_keys WHERE secret = '$TEST_SERVER_KEY' LIMIT 1")
 
 if [ -z "$EXISTING" ]; then
     echo "Creating test server app..."
@@ -43,18 +41,18 @@ DO \$\$
 DECLARE
   v_app_id uuid;
 BEGIN
-  INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-  VALUES ('$TEAM_ID', '$PROJECT_ID', 'Test Server App', 'backend', NULL, '$TEST_SERVER_KEY')
+  INSERT INTO apps (team_id, project_id, name, platform, bundle_id)
+  VALUES ('$TEAM_ID', '$PROJECT_ID', 'Test Server App', 'backend', NULL)
   RETURNING id INTO v_app_id;
 
-  INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, permissions, created_by)
-  VALUES ('$SERVER_KEY_HASH', '$SERVER_KEY_PREFIX', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write","users:write"]'::jsonb, '$OWNER_ID');
+  INSERT INTO api_keys (secret, key_type, app_id, team_id, name, permissions, created_by)
+  VALUES ('$TEST_SERVER_KEY', 'client', v_app_id, '$TEAM_ID', 'Test Server Key', '["events:write","users:write"]'::jsonb, '$OWNER_ID');
 END \$\$;
 SQL
     echo "Server app seeded"
 else
     echo "Server app already exists, updating permissions..."
-    psql -tA "$TEST_DB_NAME" -c "UPDATE api_keys SET permissions = '[\"events:write\",\"users:write\"]'::jsonb WHERE key_prefix = '$SERVER_KEY_PREFIX'"
+    psql -tA "$TEST_DB_NAME" -c "UPDATE api_keys SET permissions = '[\"events:write\",\"users:write\"]'::jsonb WHERE secret = '$TEST_SERVER_KEY'"
 fi
 
 echo "=== Starting test server on port $TEST_PORT ==="

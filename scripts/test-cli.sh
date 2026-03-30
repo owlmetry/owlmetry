@@ -29,17 +29,15 @@ cd "$ROOT_DIR/apps/server"
 ./node_modules/.bin/tsx "$ROOT_DIR/scripts/seed-test-db.mts"
 
 # Create a full-permission agent key for CLI integration tests
-CLI_KEY_HASH=$(node -e "const{createHash}=require('crypto');console.log(createHash('sha256').update('$TEST_CLI_AGENT_KEY').digest('hex'))")
-CLI_KEY_PREFIX=$(echo "$TEST_CLI_AGENT_KEY" | cut -c1-16)
 TEAM_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM teams LIMIT 1")
 OWNER_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT user_id FROM team_members WHERE team_id = '$TEAM_ID' AND role = 'owner' LIMIT 1")
 
-EXISTING_CLI_KEY=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM api_keys WHERE key_prefix = '$CLI_KEY_PREFIX' LIMIT 1")
+EXISTING_CLI_KEY=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM api_keys WHERE secret = '$TEST_CLI_AGENT_KEY' LIMIT 1")
 if [ -z "$EXISTING_CLI_KEY" ]; then
     echo "Creating full-permission CLI agent key..."
     psql -tA "$TEST_DB_NAME" <<SQL
-INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
-VALUES ('$CLI_KEY_HASH', '$CLI_KEY_PREFIX', 'agent', NULL, '$TEAM_ID', 'CLI Test Agent Key', '$OWNER_ID',
+INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
+VALUES ('$TEST_CLI_AGENT_KEY', 'agent', NULL, '$TEAM_ID', 'CLI Test Agent Key', '$OWNER_ID',
   '["events:read","apps:read","apps:write","projects:read","projects:write","metrics:read","metrics:write","funnels:read","funnels:write","audit_logs:read"]'::jsonb);
 SQL
     echo "CLI agent key seeded"

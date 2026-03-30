@@ -3,7 +3,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { apiKeys, teams, teamMembers } from "@owlmetry/db";
 
 import type { Db } from "@owlmetry/db";
-import { API_KEY_PREFIX, hashApiKey, meetsMinimumRole } from "@owlmetry/shared";
+import { API_KEY_PREFIX, meetsMinimumRole } from "@owlmetry/shared";
 import type { AuthTeamMembership, TeamRole, Permission, ApiKeyType } from "@owlmetry/shared";
 import type { AuthContext, UserJwtPayload, ApiKeyContext, UserContext } from "../types.js";
 
@@ -70,12 +70,11 @@ export async function requireAuth(
     token.startsWith(API_KEY_PREFIX.client) ||
     token.startsWith(API_KEY_PREFIX.agent)
   ) {
-    const hash = hashApiKey(token);
     const db = request.server.db;
     const [key] = await db
       .select()
       .from(apiKeys)
-      .where(and(eq(apiKeys.key_hash, hash), isNull(apiKeys.deleted_at)))
+      .where(and(eq(apiKeys.secret, token), isNull(apiKeys.deleted_at)))
       .limit(1);
 
     if (!key) {

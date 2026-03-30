@@ -1,12 +1,12 @@
 export function serializeApiKey(k: {
-  id: string; key_prefix: string; key_type: string; app_id: string | null;
+  id: string; secret: string; key_type: string; app_id: string | null;
   team_id: string; name: string; created_by: string | null; permissions: unknown;
   created_at: Date; updated_at: Date; last_used_at: Date | null; expires_at: Date | null;
   app_name?: string | null; created_by_email?: string | null;
 }) {
   return {
     id: k.id,
-    key_prefix: k.key_prefix,
+    secret: k.secret,
     key_type: k.key_type,
     app_id: k.app_id,
     team_id: k.team_id,
@@ -87,7 +87,7 @@ export function serializeJobRun(r: {
 export function serializeApp(a: {
   id: string; team_id: string; project_id: string;
   name: string; platform: string; bundle_id: string | null;
-  client_key: string | null;
+  client_secret?: string | null;
   created_at: Date; deleted_at: Date | null;
 }) {
   return {
@@ -97,7 +97,7 @@ export function serializeApp(a: {
     name: a.name,
     platform: a.platform,
     bundle_id: a.bundle_id,
-    client_key: a.client_key,
+    client_secret: a.client_secret ?? null,
     created_at: a.created_at.toISOString(),
   };
 }

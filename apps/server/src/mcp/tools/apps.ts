@@ -18,7 +18,7 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
   });
 
   server.registerTool("get-app", {
-    description: "Get an app by ID, including its client_key for SDK configuration.",
+    description: "Get an app by ID, including its client_secret for SDK configuration.",
     inputSchema: {
       app_id: z.string().uuid().describe("The app ID"),
     },
@@ -28,7 +28,7 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
 
   server.registerTool("create-app", {
     description:
-      "Create a new app under a project. Returns a client_key for SDK use. Platforms: apple, android, web, backend. bundle_id is required for non-backend platforms and is immutable after creation. Requires apps:write permission.",
+      "Create a new app under a project. Returns a client_secret for SDK use. Platforms: apple, android, web, backend. bundle_id is required for non-backend platforms and is immutable after creation. Requires apps:write permission.",
     inputSchema: {
       name: z.string().describe("App name"),
       platform: z.enum(APP_PLATFORMS).describe("Target platform"),

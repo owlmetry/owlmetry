@@ -319,8 +319,8 @@ describe("MCP endpoint", () => {
       );
       expect(created.name).toBe("MCP iOS App");
       expect(created.platform).toBe("apple");
-      expect(created.client_key).toBeTruthy();
-      expect(created.client_key).toMatch(/^owl_client_/);
+      expect(created.client_secret).toBeTruthy();
+      expect(created.client_secret).toMatch(/^owl_client_/);
 
       // Get
       const { parsed: fetched } = parseToolResult(

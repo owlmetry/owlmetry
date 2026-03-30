@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, gte, lt, sql } from "drizzle-orm";
 import { users, teams, teamMembers, apiKeys, apps, emailVerificationCodes } from "@owlmetry/db";
-import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKey, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
+import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKeySecret, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
 import type {
   SendCodeRequest,
   VerifyCodeRequest,
@@ -354,7 +354,7 @@ export async function authRoutes(app: FastifyInstance) {
       const rows = await app.db
         .select({
           id: apiKeys.id,
-          key_prefix: apiKeys.key_prefix,
+          secret: apiKeys.secret,
           key_type: apiKeys.key_type,
           app_id: apiKeys.app_id,
           team_id: apiKeys.team_id,
@@ -586,7 +586,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: permissionError });
       }
 
-      const { fullKey, keyHash, keyPrefix } = generateApiKey(key_type);
+      const secret = generateApiKeySecret(key_type);
 
       const expires_at = expires_in_days
         ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000)
@@ -595,8 +595,7 @@ export async function authRoutes(app: FastifyInstance) {
       const [apiKey] = await app.db
         .insert(apiKeys)
         .values({
-          key_hash: keyHash,
-          key_prefix: keyPrefix,
+          secret,
           key_type,
           app_id: app_id || null,
           team_id: resolvedTeamId,
@@ -616,7 +615,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
 
       return reply.code(201).send({
-        key: fullKey,
+        key: secret,
         api_key: serializeApiKey(apiKey),
       });
     }
@@ -668,10 +667,9 @@ export async function authRoutes(app: FastifyInstance) {
     };
 
     // Create agent API key
-    const agentKeyData = generateApiKey("agent");
+    const agentSecret = generateApiKeySecret("agent");
     const [agentApiKey] = await app.db.insert(apiKeys).values({
-      key_hash: agentKeyData.keyHash,
-      key_prefix: agentKeyData.keyPrefix,
+      secret: agentSecret,
       key_type: "agent",
       app_id: null,
       team_id: targetTeam.id,
@@ -689,7 +687,7 @@ export async function authRoutes(app: FastifyInstance) {
     });
 
     return reply.code(201).send({
-      api_key: agentKeyData.fullKey,
+      api_key: agentSecret,
       team: { id: targetTeam.id, name: targetTeam.name, slug: targetTeam.slug },
     });
   });

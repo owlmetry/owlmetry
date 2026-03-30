@@ -3,7 +3,7 @@ title: Apps
 description: Create, list, and manage apps and their users via MCP tools.
 ---
 
-Apps represent deployable artifacts within a [project](/docs/mcp/projects). Each app has a platform and, for non-backend platforms, a `bundle_id`. Creating an app auto-generates a `client_key` for SDK use.
+Apps represent deployable artifacts within a [project](/docs/mcp/projects). Each app has a platform and, for non-backend platforms, a `bundle_id`. Creating an app auto-generates a `client_secret` for SDK use.
 
 ## list-apps
 
@@ -13,11 +13,11 @@ List all apps accessible to this agent.
 |-----------|------|----------|-------------|
 | `team_id` | UUID | No | Filter by team ID |
 
-Returns `{ apps: [...] }` with each app's `id`, `name`, `platform`, `bundle_id`, `client_key`, `project_id`, and timestamps.
+Returns `{ apps: [...] }` with each app's `id`, `name`, `platform`, `bundle_id`, `client_secret`, `project_id`, and timestamps.
 
 ## get-app
 
-Get an app by ID, including its `client_key` for SDK configuration.
+Get an app by ID, including its `client_secret` for SDK configuration.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -25,7 +25,7 @@ Get an app by ID, including its `client_key` for SDK configuration.
 
 ## create-app
 
-Create a new app under a project. Returns a `client_key` for SDK use. Requires `apps:write` permission.
+Create a new app under a project. Returns a `client_secret` for SDK use. Requires `apps:write` permission.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

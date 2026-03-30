@@ -47,13 +47,13 @@ export default function AppDetailPage() {
 
       {/* App info */}
       <div className="flex flex-wrap items-center gap-4 text-sm">
-        {app.client_key && (
+        {app.client_secret && (
           <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">Client Key:</span>
+            <span className="text-muted-foreground">Client Secret:</span>
             <code className="bg-muted px-1.5 py-0.5 text-xs">
-              {app.client_key.slice(0, 20)}...
+              {app.client_secret.slice(0, 20)}...
             </code>
-            <CopyButton text={app.client_key} />
+            <CopyButton text={app.client_secret} />
           </div>
         )}
         <Link href={`/dashboard/events?app_id=${id}`}>

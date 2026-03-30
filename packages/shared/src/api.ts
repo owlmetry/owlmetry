@@ -108,7 +108,7 @@ export interface AuditLogsResponse {
 }
 
 export interface CreateApiKeyResponse {
-  key: string; // full key, shown only once
+  key: string;
   api_key: ApiKeyResponse;
 }
 
@@ -167,6 +167,7 @@ export interface UpdateAppRequest {
 
 export type AppResponse = Omit<App, "created_at" | "deleted_at"> & {
   created_at: string;
+  client_secret: string | null;
 };
 
 // Projects (serialized)

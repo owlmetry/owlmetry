@@ -8,7 +8,6 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import * as schema from "@owlmetry/db";
 import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions } from "@owlmetry/db";
-import { hashApiKey, KEY_PREFIX_LENGTH } from "@owlmetry/shared";
 import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
@@ -414,17 +413,16 @@ export async function seedTestData() {
   `;
 
   const [app] = await client`
-    INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-    VALUES (${team.id}, ${project.id}, 'Test App', 'apple', ${TEST_BUNDLE_ID}, ${TEST_CLIENT_KEY})
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id)
+    VALUES (${team.id}, ${project.id}, 'Test App', 'apple', ${TEST_BUNDLE_ID})
     RETURNING id
   `;
 
   // Client key (events:write + users:write, scoped to app)
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
+    INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
-      ${hashApiKey(TEST_CLIENT_KEY)},
-      ${TEST_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      ${TEST_CLIENT_KEY},
       'client',
       ${app.id},
       ${team.id},
@@ -436,10 +434,9 @@ export async function seedTestData() {
 
   // Agent key (events:read, funnels:read, team-wide)
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
+    INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
-      ${hashApiKey(TEST_AGENT_KEY)},
-      ${TEST_AGENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      ${TEST_AGENT_KEY},
       'agent',
       ${null},
       ${team.id},
@@ -458,17 +455,16 @@ export async function seedTestData() {
 
   // Backend app (no bundle_id, in its own project)
   const [backendApp] = await client`
-    INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-    VALUES (${team.id}, ${backendProject.id}, 'Test Backend App', 'backend', ${null}, ${TEST_BACKEND_CLIENT_KEY})
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id)
+    VALUES (${team.id}, ${backendProject.id}, 'Test Backend App', 'backend', ${null})
     RETURNING id
   `;
 
   // Backend client key (events:write, scoped to backend app)
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
+    INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
-      ${hashApiKey(TEST_BACKEND_CLIENT_KEY)},
-      ${TEST_BACKEND_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      ${TEST_BACKEND_CLIENT_KEY},
       'client',
       ${backendApp.id},
       ${team.id},
@@ -487,17 +483,16 @@ export async function seedTestData() {
 
   // Android app
   const [androidApp] = await client`
-    INSERT INTO apps (team_id, project_id, name, platform, bundle_id, client_key)
-    VALUES (${team.id}, ${androidProject.id}, 'Test Android App', 'android', ${TEST_ANDROID_BUNDLE_ID}, ${TEST_ANDROID_CLIENT_KEY})
+    INSERT INTO apps (team_id, project_id, name, platform, bundle_id)
+    VALUES (${team.id}, ${androidProject.id}, 'Test Android App', 'android', ${TEST_ANDROID_BUNDLE_ID})
     RETURNING id
   `;
 
   // Android client key (events:write, scoped to android app)
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions)
+    INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
-      ${hashApiKey(TEST_ANDROID_CLIENT_KEY)},
-      ${TEST_ANDROID_CLIENT_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      ${TEST_ANDROID_CLIENT_KEY},
       'client',
       ${androidApp.id},
       ${team.id},
@@ -509,10 +504,9 @@ export async function seedTestData() {
 
   // Expired client key
   await client`
-    INSERT INTO api_keys (key_hash, key_prefix, key_type, app_id, team_id, name, created_by, permissions, expires_at)
+    INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions, expires_at)
     VALUES (
-      ${hashApiKey(TEST_EXPIRED_KEY)},
-      ${TEST_EXPIRED_KEY.slice(0, KEY_PREFIX_LENGTH)},
+      ${TEST_EXPIRED_KEY},
       'client',
       ${app.id},
       ${team.id},

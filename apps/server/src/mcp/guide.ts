@@ -10,7 +10,7 @@ OwlMetry organises resources in a **Team → Project → Apps** hierarchy:
 
 - **Team** — the top-level account. All resources (projects, apps, keys) are team-scoped. Use \`whoami\` to see your team and permissions.
 - **Project** — groups related apps under one product (e.g., "MyApp" project). Metrics and funnels are defined at the project level so they span all apps in the project.
-- **App** — represents a single deployable artifact. Each app has a \`platform\` (\`apple\`, \`android\`, \`web\`, \`backend\`) and, for non-backend platforms, a \`bundle_id\`. Creating an app auto-generates a \`client_key\` for SDK use.
+- **App** — represents a single deployable artifact. Each app has a \`platform\` (\`apple\`, \`android\`, \`web\`, \`backend\`) and, for non-backend platforms, a \`bundle_id\`. Creating an app auto-generates a \`client_secret\` for SDK use.
 
 Projects group apps cross-platform: an iOS app and its backend API can share the same project, enabling unified funnel and metric analysis across both.
 
@@ -20,7 +20,7 @@ Start with \`whoami\` to see your team, then drill down:
 
 - **Team ID**: \`whoami\` → \`teams[].id\`
 - **Project ID**: \`list-projects\` → \`projects[].id\`
-- **App ID**: \`list-apps\` → \`apps[].id\` (also returns \`client_key\`)
+- **App ID**: \`list-apps\` → \`apps[].id\` (also returns \`client_secret\`)
 - **Metric/Funnel slug**: \`list-metrics\` / \`list-funnels\` → \`[].slug\`
 
 All list tools support an optional \`team_id\` parameter to scope results.
@@ -114,11 +114,11 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 
 ### Apps
 - \`list-apps\` — List all apps (optional \`team_id\` filter)
-- \`get-app\` — Get app by ID (includes \`client_key\`)
+- \`get-app\` — Get app by ID (includes \`client_secret\`)
 - \`create-app\` — Create app (needs \`apps:write\`): \`name\`, \`platform\`, \`project_id\`, optional \`bundle_id\`
   - Platforms: \`apple\`, \`android\`, \`web\`, \`backend\`
   - \`bundle_id\` required for non-backend, immutable after creation
-  - Returns \`client_key\` for SDK configuration
+  - Returns \`client_secret\` for SDK configuration
 - \`update-app\` — Update app name (needs \`apps:write\`)
 - \`list-app-users\` — List users for an app (search, anonymous filter, pagination)
 
@@ -190,8 +190,8 @@ If a tool returns a permissions error, the agent key is missing the required per
 ### Setting up a new project
 1. \`whoami\` → get team ID and verify permissions
 2. \`create-project\` → create project with name and slug
-3. \`create-app\` → create app(s) for each platform, note the \`client_key\`
-4. Configure the SDK with the \`client_key\` and ingest endpoint
+3. \`create-app\` → create app(s) for each platform, note the \`client_secret\`
+4. Configure the SDK with the \`client_secret\` and ingest endpoint
 
 ### Defining what to track
 1. \`create-metric\` → for each measurable operation (API calls, load times, etc.)

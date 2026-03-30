@@ -387,7 +387,7 @@ function InviteMemberDialog({
 interface AgentKeyInfo {
   id: string;
   name: string;
-  key_prefix: string;
+  secret: string;
   permissions: string[];
   created_at: string;
 }
@@ -403,7 +403,7 @@ function AgentKeyList({ keys }: { keys: AgentKeyInfo[] }) {
         <div key={key.id} className="px-3 py-2 space-y-1">
           <p className="text-sm font-medium truncate">{key.name}</p>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="font-mono">{key.key_prefix}...</span>
+            <span className="font-mono">{key.secret.slice(0, 20)}...</span>
             <span className="text-muted-foreground/40">&middot;</span>
             <Tooltip>
               <TooltipTrigger asChild>

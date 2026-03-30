@@ -128,7 +128,6 @@ export const apps = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     platform: appPlatformEnum("platform").notNull(),
     bundle_id: varchar("bundle_id", { length: 255 }),
-    client_key: text("client_key"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -145,8 +144,7 @@ export const apiKeys = pgTable(
   "api_keys",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    key_hash: text("key_hash").notNull(),
-    key_prefix: varchar("key_prefix", { length: 20 }).notNull(),
+    secret: text("secret").notNull(),
     key_type: apiKeyTypeEnum("key_type").notNull(),
     app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
     team_id: uuid("team_id")
@@ -167,7 +165,7 @@ export const apiKeys = pgTable(
     deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    index("api_keys_key_prefix_idx").on(table.key_prefix),
+    index("api_keys_secret_idx").on(table.secret),
     index("api_keys_team_id_idx").on(table.team_id),
   ]
 );

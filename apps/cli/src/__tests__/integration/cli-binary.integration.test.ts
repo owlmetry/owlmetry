@@ -140,7 +140,7 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
       const result = cli("apps", "create", "--project-id", createdProjectId, "--name", "CLI Binary App", "--platform", "backend");
       expect(result.name).toBe("CLI Binary App");
       expect(result.platform).toBe("backend");
-      expect(result.client_key).toBeDefined();
+      expect(result.client_secret).toBeDefined();
       createdAppId = result.id;
     });
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
-import { APP_PLATFORMS, DEFAULT_API_KEY_PERMISSIONS, generateApiKey } from "@owlmetry/shared";
+import { APP_PLATFORMS, DEFAULT_API_KEY_PERMISSIONS, generateApiKeySecret } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { serializeApp } from "../utils/serialize.js";
 import { logAuditEvent } from "../utils/audit.js";
@@ -31,8 +31,21 @@ export async function appsRoutes(app: FastifyInstance) {
         .from(apps)
         .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
 
+      // Fetch client secrets for all apps in one query
+      const appIds = rows.map(r => r.id);
+      const clientSecrets = appIds.length > 0
+        ? await app.db
+            .select({ app_id: apiKeys.app_id, secret: apiKeys.secret })
+            .from(apiKeys)
+            .where(and(inArray(apiKeys.app_id, appIds), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)))
+        : [];
+      const clientSecretMap = new Map<string, string>();
+      for (const k of clientSecrets) {
+        if (k.app_id && !clientSecretMap.has(k.app_id)) clientSecretMap.set(k.app_id, k.secret);
+      }
+
       return {
-        apps: rows.map(serializeApp),
+        apps: rows.map(r => serializeApp({ ...r, client_secret: clientSecretMap.get(r.id) ?? null })),
       };
     }
   );
@@ -61,7 +74,13 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "App not found" });
       }
 
-      return serializeApp(existing);
+      const [clientSecret] = await app.db
+        .select({ secret: apiKeys.secret })
+        .from(apiKeys)
+        .where(and(eq(apiKeys.app_id, id), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)))
+        .limit(1);
+
+      return serializeApp({ ...existing, client_secret: clientSecret?.secret ?? null });
     }
   );
 
@@ -110,7 +129,7 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: createRoleError });
       }
 
-      const { fullKey, keyHash, keyPrefix } = generateApiKey("client");
+      const clientSecret = generateApiKeySecret("client");
 
       const created = await app.db.transaction(async (tx) => {
         const [created] = await tx
@@ -121,15 +140,13 @@ export async function appsRoutes(app: FastifyInstance) {
             name,
             platform,
             bundle_id: bundle_id || null,
-            client_key: fullKey,
           })
           .returning();
 
         await tx
           .insert(apiKeys)
           .values({
-            key_hash: keyHash,
-            key_prefix: keyPrefix,
+            secret: clientSecret,
             key_type: "client",
             app_id: created.id,
             team_id: project.team_id,
@@ -138,7 +155,7 @@ export async function appsRoutes(app: FastifyInstance) {
             permissions: DEFAULT_API_KEY_PERMISSIONS.client,
           });
 
-        return created;
+        return { ...created, client_secret: clientSecret };
       });
 
       logAuditEvent(app.db, auth, {
@@ -187,11 +204,23 @@ export async function appsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: updateRoleError });
       }
 
-      const [updated] = await app.db
+      await app.db
         .update(apps)
         .set({ name })
+        .where(eq(apps.id, id));
+
+      // Re-fetch with client secret
+      const [updated] = await app.db
+        .select()
+        .from(apps)
         .where(eq(apps.id, id))
-        .returning();
+        .limit(1);
+
+      const [clientSecret] = await app.db
+        .select({ secret: apiKeys.secret })
+        .from(apiKeys)
+        .where(and(eq(apiKeys.app_id, id), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)))
+        .limit(1);
 
       logAuditEvent(app.db, auth, {
         team_id: existing.team_id,
@@ -201,7 +230,7 @@ export async function appsRoutes(app: FastifyInstance) {
         changes: { name: { before: existing.name, after: name } },
       });
 
-      return serializeApp(updated);
+      return serializeApp({ ...updated, client_secret: clientSecret?.secret ?? null });
     }
   );
 

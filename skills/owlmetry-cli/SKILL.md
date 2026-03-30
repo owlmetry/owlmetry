@@ -96,11 +96,11 @@ Save the returned `id` — you need it for the next command.
 owlmetry apps create --project-id <project-id> --name "<AppName>" --platform <platform> [--bundle-id <bundle-id>] --format json
 ```
 - `--bundle-id` is required for apple/android/web (e.g., `com.example.myapp`), omitted for backend.
-- The response includes a `client_key` (`owl_client_...`) — this is the SDK API key for event ingestion. Save it.
+- The response includes a `client_secret` (`owl_client_...`) — this is the SDK API key for event ingestion. Save it.
 
 ### Step 4 — Integrate the SDK
 
-Use the `client_key` from Step 3 to configure the appropriate SDK:
+Use the `client_secret` from Step 3 to configure the appropriate SDK:
 - **Node.js projects** → follow the `owlmetry-node` skill file
 - **Swift/iOS projects** → follow the `owlmetry-swift` skill file
 
@@ -121,7 +121,7 @@ OwlMetry organises resources in a `Team → Project → Apps` hierarchy:
 
 - **Team** — the top-level account. Users belong to one or more teams. All resources (projects, apps, keys) are team-scoped.
 - **Project** — groups related apps under one product (e.g., "MyApp" project). Metrics and funnels are defined at the project level so they span all apps in the project.
-- **App** — represents a single deployable artifact. Each app has a `platform` (`apple`, `android`, `web`, `backend`) and, for non-backend platforms, a `bundle_id`. Creating an app auto-generates a `client_key` for SDK use.
+- **App** — represents a single deployable artifact. Each app has a `platform` (`apple`, `android`, `web`, `backend`) and, for non-backend platforms, a `bundle_id`. Creating an app auto-generates a `client_secret` for SDK use.
 
 Projects group apps cross-platform: an iOS app and its backend API can share the same project, enabling unified funnel and metric analysis across both.
 
@@ -131,7 +131,7 @@ Always use CLI commands to get IDs — never read `~/.owlmetry/config.json` dire
 
 - **Team ID**: `owlmetry whoami --format json` → `.teams[].id`
 - **Project ID**: `owlmetry projects --format json` → `[].id`
-- **App ID**: `owlmetry apps list --format json` → `[].id` (also returns `client_key`)
+- **App ID**: `owlmetry apps list --format json` → `[].id` (also returns `client_secret`)
 
 ## Command Quick Reference
 
@@ -215,7 +215,7 @@ owlmetry projects update <id> --name <new-name> --format json
 
 ### Apps
 
-An app represents a single deployable target. The `client_key` returned on creation is what SDKs use for event ingestion. The `bundle_id` is **immutable after creation** — to change it, delete and recreate the app. Backend apps have no bundle_id.
+An app represents a single deployable target. The `client_secret` returned on creation is what SDKs use for event ingestion. The `bundle_id` is **immutable after creation** — to change it, delete and recreate the app. Backend apps have no bundle_id.
 
 ```bash
 owlmetry apps list --format json                                       # List all
@@ -227,7 +227,7 @@ owlmetry apps update <id> --name <new-name> --format json
 
 - **Platforms:** `apple`, `android`, `web`, `backend`
 - `--bundle-id` is required for apple/android/web, omitted for backend
-- The create response includes `client_key` — this is the SDK API key
+- The create response includes `client_secret` — this is the SDK API key
 
 ### Metric Definitions
 

@@ -268,22 +268,8 @@ describe("GET /v1/auth/keys", () => {
     const body = res.json();
     // seed creates 5 keys: client, agent, backend client, android client, expired
     expect(body.api_keys).toHaveLength(5);
-    expect(body.api_keys[0].key_prefix).toBeDefined();
+    expect(body.api_keys[0].secret).toBeDefined();
     expect(body.api_keys[0].created_at).toBeDefined();
-  });
-
-  it("does not expose key_hash", async () => {
-    const token = await getToken(app);
-    const res = await app.inject({
-      method: "GET",
-      url: "/v1/auth/keys",
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    const body = res.json();
-    for (const key of body.api_keys) {
-      expect(key.key_hash).toBeUndefined();
-    }
   });
 
   it("returns 401 without auth", async () => {
@@ -470,9 +456,8 @@ describe("GET /v1/auth/keys/:id", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.api_key.id).toBe(keyId);
-    expect(body.api_key.key_prefix).toBeDefined();
+    expect(body.api_key.secret).toBeDefined();
     expect(body.api_key.created_at).toBeDefined();
-    expect(body.api_key.key_hash).toBeUndefined();
   });
 
   it("returns 404 for non-existent key", async () => {

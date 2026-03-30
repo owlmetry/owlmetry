@@ -44,7 +44,7 @@ describe("GET /v1/apps", () => {
     expect(body.apps).toHaveLength(3);
     const appleApp = body.apps.find((a: any) => a.platform === "apple");
     expect(appleApp.name).toBe("Test App");
-    expect(appleApp.client_key).toBe(TEST_CLIENT_KEY);
+    expect(appleApp.client_secret).toBe(TEST_CLIENT_KEY);
   });
 
   it("returns 401 without auth", async () => {
@@ -70,7 +70,7 @@ describe("GET /v1/apps/:id", () => {
     expect(body.id).toBe(testData.appId);
     expect(body.name).toBe("Test App");
     expect(body.platform).toBe("apple");
-    expect(body.client_key).toBe(TEST_CLIENT_KEY);
+    expect(body.client_secret).toBe(TEST_CLIENT_KEY);
     expect(body.created_at).toBeDefined();
   });
 
@@ -155,7 +155,7 @@ describe("POST /v1/apps", () => {
     expect(body.platform).toBe("android");
     expect(body.bundle_id).toBe("com.owlmetry.android");
     expect(body.team_id).toBe(testData.teamId);
-    expect(body.client_key).toMatch(/^owl_client_/);
+    expect(body.client_secret).toMatch(/^owl_client_/);
   });
 
   it("auto-created client key appears in keys list", async () => {
@@ -201,7 +201,7 @@ describe("POST /v1/apps", () => {
     });
 
     const body = createRes.json();
-    const clientKey = body.client_key;
+    const clientKey = body.client_secret;
 
     const ingestRes = await app.inject({
       method: "POST",
@@ -232,7 +232,7 @@ describe("POST /v1/apps", () => {
       },
     });
 
-    const createdKey = createRes.json().client_key;
+    const createdKey = createRes.json().client_secret;
 
     const listRes = await app.inject({
       method: "GET",
@@ -243,7 +243,7 @@ describe("POST /v1/apps", () => {
     const listedApp = listRes.json().apps.find(
       (a: { bundle_id: string }) => a.bundle_id === "com.owlmetry.consistent"
     );
-    expect(listedApp.client_key).toBe(createdKey);
+    expect(listedApp.client_secret).toBe(createdKey);
   });
 
   it("rejects missing required fields", async () => {
@@ -345,7 +345,7 @@ describe("PATCH /v1/apps/:id", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.name).toBe("Renamed App");
-    expect(body.client_key).toBe(TEST_CLIENT_KEY);
+    expect(body.client_secret).toBe(TEST_CLIENT_KEY);
   });
 
   it("ignores bundle_id in update payload", async () => {

@@ -527,7 +527,7 @@ export default function ApiKeysPage() {
                   </TableCell>
                   <TableCell className="py-1.5">
                     <code className="text-xs text-muted-foreground">
-                      {key.key_prefix}...
+                      {key.secret.slice(0, 20)}...
                     </code>
                   </TableCell>
                   <TableCell className="py-1.5">
