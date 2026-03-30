@@ -39,19 +39,23 @@ export default function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Integrations</h1>
-        <Select value={selectedProjectId} onValueChange={setProjectId}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Select project" />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Project</label>
+            <Select value={selectedProjectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[220px] h-8 text-xs">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {selectedProjectId ? (
