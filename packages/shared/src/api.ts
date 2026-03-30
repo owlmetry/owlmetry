@@ -108,7 +108,6 @@ export interface AuditLogsResponse {
 }
 
 export interface CreateApiKeyResponse {
-  key: string;
   api_key: ApiKeyResponse;
 }
 

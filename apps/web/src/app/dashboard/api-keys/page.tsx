@@ -141,7 +141,7 @@ function CreateKeyDialog({
         "/v1/auth/keys",
         body
       );
-      setCreatedKey(result.key);
+      setCreatedKey(result.api_key.secret);
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to create key");

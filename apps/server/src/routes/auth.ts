@@ -615,7 +615,6 @@ export async function authRoutes(app: FastifyInstance) {
       });
 
       return reply.code(201).send({
-        key: secret,
         api_key: serializeApiKey(apiKey),
       });
     }

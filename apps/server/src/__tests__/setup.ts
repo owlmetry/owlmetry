@@ -622,7 +622,7 @@ export async function createAgentKey(
     headers: { authorization: `Bearer ${token}` },
     payload: { name: "Custom Agent Key", key_type: "agent", team_id: teamId, permissions },
   });
-  return res.json().key;
+  return res.json().api_key.secret;
 }
 
 /**

@@ -746,8 +746,9 @@ describe("Soft-deleted key rejection", () => {
         permissions: ["events:read"],
       },
     });
-    const fullKey = createRes.json().key;
-    const keyId = createRes.json().api_key.id;
+    const createdApiKey = createRes.json().api_key;
+    const fullKey = createdApiKey.secret;
+    const keyId = createdApiKey.id;
 
     // Verify it works before deletion
     const beforeRes = await app.inject({
@@ -892,7 +893,8 @@ describe("PATCH /v1/auth/keys/:id", () => {
         ...(permissions ? { permissions } : {}),
       },
     });
-    return { keyId: res.json().api_key.id, fullKey: res.json().key };
+    const apiKey = res.json().api_key;
+    return { keyId: apiKey.id, fullKey: apiKey.secret };
   }
 
   it("updates permissions on an agent key", async () => {

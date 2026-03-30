@@ -515,7 +515,7 @@ describe("POST /v1/auth/keys", () => {
 
     expect(res.statusCode).toBe(201);
     const body = res.json();
-    expect(body.key).toMatch(/^owl_client_/);
+    expect(body.api_key.secret).toMatch(/^owl_client_/);
     expect(body.api_key.key_type).toBe("client");
     expect(body.api_key.permissions).toContain("events:write");
   });
@@ -535,7 +535,7 @@ describe("POST /v1/auth/keys", () => {
 
     expect(res.statusCode).toBe(201);
     const body = res.json();
-    expect(body.key).toMatch(/^owl_agent_/);
+    expect(body.api_key.secret).toMatch(/^owl_agent_/);
     expect(body.api_key.permissions).toContain("events:read");
   });
 
