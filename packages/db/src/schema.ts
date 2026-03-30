@@ -167,6 +167,7 @@ export const apiKeys = pgTable(
   (table) => [
     index("api_keys_secret_idx").on(table.secret),
     index("api_keys_team_id_idx").on(table.team_id),
+    index("api_keys_app_id_idx").on(table.app_id),
   ]
 );
 
