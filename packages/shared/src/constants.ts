@@ -72,3 +72,10 @@ export const MAX_USER_PROPERTY_VALUE_LENGTH = 200;
 export const MAX_USER_PROPERTIES_COUNT = 50;
 
 export const PG_UNIQUE_VIOLATION = "23505";
+
+// Data retention defaults (in days)
+export const DEFAULT_RETENTION_DAYS_EVENTS = 120;
+export const DEFAULT_RETENTION_DAYS_METRICS = 365;
+export const DEFAULT_RETENTION_DAYS_FUNNELS = 365;
+export const MIN_RETENTION_DAYS = 1;
+export const MAX_RETENTION_DAYS = 3650;

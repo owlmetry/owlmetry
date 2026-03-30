@@ -23,6 +23,11 @@ import { CopyButton } from "@/components/copy-button";
 import { api, ApiError } from "@/lib/api";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
 
+// Inline to avoid pulling node:crypto via the @owlmetry/shared barrel
+const DEFAULT_RETENTION_DAYS_EVENTS = 120;
+const DEFAULT_RETENTION_DAYS_METRICS = 365;
+const DEFAULT_RETENTION_DAYS_FUNNELS = 365;
+
 const PLATFORM_OPTIONS = [
   { value: "apple", label: "🍎 Apple" },
   { value: "android", label: "🤖 Android" },
@@ -182,6 +187,8 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
+      <RetentionSettings project={project} onSaved={mutate} />
+
       {newClientSecret && (
         <Card className="border-primary">
           <CardContent className="flex items-center gap-3 pt-6">
@@ -272,6 +279,103 @@ export default function ProjectDetailPage() {
       )}
 
     </div>
+  );
+}
+
+function RetentionSettings({ project, onSaved }: { project: ProjectDetailResponse; onSaved: () => void }) {
+  const [retentionEvents, setRetentionEvents] = useState(project.retention_days_events?.toString() ?? "");
+  const [retentionMetrics, setRetentionMetrics] = useState(project.retention_days_metrics?.toString() ?? "");
+  const [retentionFunnels, setRetentionFunnels] = useState(project.retention_days_funnels?.toString() ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  // Re-sync state when the project data reloads after save
+  useEffect(() => {
+    setRetentionEvents(project.retention_days_events?.toString() ?? "");
+    setRetentionMetrics(project.retention_days_metrics?.toString() ?? "");
+    setRetentionFunnels(project.retention_days_funnels?.toString() ?? "");
+  }, [project.retention_days_events, project.retention_days_metrics, project.retention_days_funnels]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    setSuccess(false);
+    try {
+      await api.patch(`/v1/projects/${project.id}`, {
+        retention_days_events: retentionEvents ? parseInt(retentionEvents, 10) : null,
+        retention_days_metrics: retentionMetrics ? parseInt(retentionMetrics, 10) : null,
+        retention_days_funnels: retentionFunnels ? parseInt(retentionFunnels, 10) : null,
+      });
+      setSuccess(true);
+      onSaved();
+      setTimeout(() => setSuccess(false), 2000);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Data Retention</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="retention-events">Events (days)</Label>
+              <Input
+                id="retention-events"
+                type="number"
+                min={1}
+                max={3650}
+                placeholder={`${DEFAULT_RETENTION_DAYS_EVENTS} (default)`}
+                value={retentionEvents}
+                onChange={(e) => setRetentionEvents(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="retention-metrics">Metrics (days)</Label>
+              <Input
+                id="retention-metrics"
+                type="number"
+                min={1}
+                max={3650}
+                placeholder={`${DEFAULT_RETENTION_DAYS_METRICS} (default)`}
+                value={retentionMetrics}
+                onChange={(e) => setRetentionMetrics(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="retention-funnels">Funnels (days)</Label>
+              <Input
+                id="retention-funnels"
+                type="number"
+                min={1}
+                max={3650}
+                placeholder={`${DEFAULT_RETENTION_DAYS_FUNNELS} (default)`}
+                value={retentionFunnels}
+                onChange={(e) => setRetentionFunnels(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Clear a field to reset to the default. Data older than the retention period is permanently deleted daily.
+          </p>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex items-center gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? "Saving..." : "Save Retention"}
+            </Button>
+            {success && <span className="text-sm text-green-600">Saved</span>}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -17,6 +17,20 @@ Projects are team-scoped and identified by a unique slug. They provide a shared 
 
 Projects are managed through the [dashboard](/docs/concepts/authentication), the [CLI](/docs/cli/projects), or the [API](/docs/api-reference/projects).
 
+### Data Retention
+
+Each project has configurable data retention policies that control how long event data is kept:
+
+| Data type | Default retention | Description |
+|-----------|-------------------|-------------|
+| Events | 120 days | Raw log events from SDKs |
+| Metrics | 365 days | Structured metric events |
+| Funnels | 365 days | Funnel conversion events |
+
+A daily background job deletes events older than the retention period. Set retention per-project via the dashboard, CLI (`--retention-events`, `--retention-metrics`, `--retention-funnels`), or API. Set a value to `null` to use the system default.
+
+Retention values must be between 1 and 3,650 days (approximately 10 years). Metric and funnel *definitions* are not affected by retention -- only the underlying event data is deleted.
+
 ## Apps
 
 An app represents a single platform-specific build within a project. Each app has a platform, an optional bundle ID, and its own client API key for event ingestion.

@@ -152,10 +152,16 @@ export interface CreateProjectRequest {
   team_id: string;
   name: string;
   slug: string;
+  retention_days_events?: number;
+  retention_days_metrics?: number;
+  retention_days_funnels?: number;
 }
 
 export interface UpdateProjectRequest {
   name?: string;
+  retention_days_events?: number | null;
+  retention_days_metrics?: number | null;
+  retention_days_funnels?: number | null;
 }
 
 // Apps
@@ -176,7 +182,12 @@ export type AppResponse = Omit<App, "created_at" | "deleted_at"> & {
 };
 
 // Projects (serialized)
-export type ProjectResponse = Omit<Project, "created_at" | "deleted_at"> & { created_at: string };
+export type ProjectResponse = Omit<Project, "created_at" | "deleted_at"> & {
+  created_at: string;
+  effective_retention_days_events: number;
+  effective_retention_days_metrics: number;
+  effective_retention_days_funnels: number;
+};
 export type ProjectDetailResponse = ProjectResponse & { apps: AppResponse[] };
 
 // Events (serialized — API returns ISO strings, not Date objects)

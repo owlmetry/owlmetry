@@ -24,6 +24,12 @@ List all projects the caller has access to.
       "team_id": "uuid",
       "name": "My App",
       "slug": "my-app",
+      "retention_days_events": null,
+      "retention_days_metrics": null,
+      "retention_days_funnels": null,
+      "effective_retention_days_events": 120,
+      "effective_retention_days_metrics": 365,
+      "effective_retention_days_funnels": 365,
       "created_at": "2024-01-01T00:00:00.000Z"
     }
   ]
@@ -43,6 +49,12 @@ Get a single project with its apps.
   "team_id": "uuid",
   "name": "My App",
   "slug": "my-app",
+  "retention_days_events": null,
+  "retention_days_metrics": null,
+  "retention_days_funnels": null,
+  "effective_retention_days_events": 120,
+  "effective_retention_days_metrics": 365,
+  "effective_retention_days_funnels": 365,
   "created_at": "2024-01-01T00:00:00.000Z",
   "apps": [
     {
@@ -70,7 +82,8 @@ Create a new project within a team.
 {
   "team_id": "uuid",
   "name": "My App",
-  "slug": "my-app"
+  "slug": "my-app",
+  "retention_days_events": 90
 }
 
 // Response (201)
@@ -79,6 +92,12 @@ Create a new project within a team.
   "team_id": "uuid",
   "name": "My App",
   "slug": "my-app",
+  "retention_days_events": 90,
+  "retention_days_metrics": null,
+  "retention_days_funnels": null,
+  "effective_retention_days_events": 90,
+  "effective_retention_days_metrics": 365,
+  "effective_retention_days_funnels": 365,
   "created_at": "2024-01-01T00:00:00.000Z"
 }
 ```
@@ -90,6 +109,9 @@ Create a new project within a team.
 | `team_id` | string | Yes | The team this project belongs to. |
 | `name` | string | Yes | Display name. |
 | `slug` | string | Yes | URL-friendly identifier. Must match `^[a-z0-9-]+$`. Unique within a team. |
+| `retention_days_events` | integer | No | Days to retain events. Default: 120. |
+| `retention_days_metrics` | integer | No | Days to retain metric events. Default: 365. |
+| `retention_days_funnels` | integer | No | Days to retain funnel events. Default: 365. |
 
 Slug reuse: if a soft-deleted project exists with the same slug in the same team, it is hard-deleted to free the slug.
 
@@ -97,14 +119,24 @@ Returns `409` if an active project with the same slug already exists.
 
 ## PATCH /v1/projects/:id
 
-Update a project. Only the `name` field can be changed.
+Update a project's name or data retention policies.
 
 **Auth required:** Yes (`projects:write` permission or JWT, admin role required)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | No | New display name. |
+| `retention_days_events` | integer or null | No | Days to retain events. `null` resets to default (120). |
+| `retention_days_metrics` | integer or null | No | Days to retain metric events. `null` resets to default (365). |
+| `retention_days_funnels` | integer or null | No | Days to retain funnel events. `null` resets to default (365). |
+
+At least one field must be provided.
 
 ```json
 // Request
 {
-  "name": "Renamed Project"
+  "name": "Renamed Project",
+  "retention_days_events": 60
 }
 
 // Response (200)
@@ -113,6 +145,12 @@ Update a project. Only the `name` field can be changed.
   "team_id": "uuid",
   "name": "Renamed Project",
   "slug": "my-app",
+  "retention_days_events": 60,
+  "retention_days_metrics": null,
+  "retention_days_funnels": null,
+  "effective_retention_days_events": 60,
+  "effective_retention_days_metrics": 365,
+  "effective_retention_days_funnels": 365,
   "created_at": "2024-01-01T00:00:00.000Z"
 }
 ```

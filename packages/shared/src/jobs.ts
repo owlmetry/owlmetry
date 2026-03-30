@@ -3,6 +3,7 @@ export const JOB_TYPES = [
   "soft_delete_cleanup",
   "partition_creation",
   "revenuecat_sync",
+  "retention_cleanup",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -60,6 +61,14 @@ export const JOB_TYPE_META: Record<
     description: "Syncs subscriber data from RevenueCat for all users in a project",
     scope: "project",
     default_schedule: null,
+    params: [],
+  },
+  retention_cleanup: {
+    label: "Data Retention Cleanup",
+    description:
+      "Deletes events, metric events, and funnel events older than each project's retention policy",
+    scope: "system",
+    default_schedule: "0 2 * * *",
     params: [],
   },
 };

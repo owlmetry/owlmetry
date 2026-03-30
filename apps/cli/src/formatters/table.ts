@@ -19,6 +19,7 @@ export function formatProjectDetail(project: ProjectDetailResponse): string {
     `${chalk.bold("Name:")}       ${project.name}`,
     `${chalk.bold("Slug:")}       ${project.slug}`,
     `${chalk.bold("Team ID:")}    ${project.team_id}`,
+    `${chalk.bold("Retention:")}  Events: ${project.effective_retention_days_events}d, Metrics: ${project.effective_retention_days_metrics}d, Funnels: ${project.effective_retention_days_funnels}d`,
     `${chalk.bold("Created:")}    ${project.created_at}`,
   ];
 

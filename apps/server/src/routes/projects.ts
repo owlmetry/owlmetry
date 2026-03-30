@@ -2,10 +2,45 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, isNotNull } from "drizzle-orm";
 import { projects, apps, apiKeys, metricDefinitions, funnelDefinitions } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
-import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
+import {
+  SLUG_REGEX,
+  PG_UNIQUE_VIOLATION,
+  DEFAULT_RETENTION_DAYS_EVENTS,
+  DEFAULT_RETENTION_DAYS_METRICS,
+  DEFAULT_RETENTION_DAYS_FUNNELS,
+  MIN_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
+} from "@owlmetry/shared";
 import { serializeApp, getClientSecretMap } from "../utils/serialize.js";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
+
+function serializeProject(p: typeof projects.$inferSelect) {
+  return {
+    id: p.id,
+    team_id: p.team_id,
+    name: p.name,
+    slug: p.slug,
+    retention_days_events: p.retention_days_events,
+    retention_days_metrics: p.retention_days_metrics,
+    retention_days_funnels: p.retention_days_funnels,
+    effective_retention_days_events: p.retention_days_events ?? DEFAULT_RETENTION_DAYS_EVENTS,
+    effective_retention_days_metrics: p.retention_days_metrics ?? DEFAULT_RETENTION_DAYS_METRICS,
+    effective_retention_days_funnels: p.retention_days_funnels ?? DEFAULT_RETENTION_DAYS_FUNNELS,
+    created_at: p.created_at.toISOString(),
+  };
+}
+
+function validateRetentionDays(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return `${field} must be an integer or null`;
+  }
+  if (value < MIN_RETENTION_DAYS || value > MAX_RETENTION_DAYS) {
+    return `${field} must be between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS}`;
+  }
+  return null;
+}
 
 export async function projectsRoutes(app: FastifyInstance) {
   // List projects for the authenticated user's teams
@@ -32,11 +67,7 @@ export async function projectsRoutes(app: FastifyInstance) {
         .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
 
       return {
-        projects: rows.map((p) => ({
-          ...p,
-          created_at: p.created_at.toISOString(),
-          deleted_at: undefined,
-        })),
+        projects: rows.map(serializeProject),
       };
     }
   );
@@ -73,9 +104,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       const secretMap = await getClientSecretMap(app.db, projectApps.map(a => a.id));
 
       return {
-        ...project,
-        created_at: project.created_at.toISOString(),
-        deleted_at: undefined,
+        ...serializeProject(project),
         apps: projectApps.map(a => serializeApp({ ...a, client_secret: secretMap.get(a.id) ?? null })),
       };
     }
@@ -87,7 +116,7 @@ export async function projectsRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("projects:write") },
     async (request, reply) => {
       const auth = request.auth;
-      const { team_id, name, slug } = request.body;
+      const { team_id, name, slug, retention_days_events, retention_days_metrics, retention_days_funnels } = request.body;
 
       if (!team_id || !name || !slug) {
         return reply
@@ -99,6 +128,11 @@ export async function projectsRoutes(app: FastifyInstance) {
         return reply
           .code(400)
           .send({ error: "slug must contain only lowercase letters, numbers, and hyphens" });
+      }
+
+      for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
+        const err = validateRetentionDays(value, field);
+        if (err) return reply.code(400).send({ error: err });
       }
 
       if (!hasTeamAccess(auth, team_id)) {
@@ -128,6 +162,9 @@ export async function projectsRoutes(app: FastifyInstance) {
             team_id,
             name,
             slug,
+            retention_days_events: retention_days_events ?? null,
+            retention_days_metrics: retention_days_metrics ?? null,
+            retention_days_funnels: retention_days_funnels ?? null,
           })
           .returning();
 
@@ -139,11 +176,7 @@ export async function projectsRoutes(app: FastifyInstance) {
           metadata: { name, slug },
         });
 
-        return reply.code(201).send({
-          ...created,
-          created_at: created.created_at.toISOString(),
-          deleted_at: undefined,
-        });
+        return reply.code(201).send(serializeProject(created));
       } catch (err: any) {
         if (err.code === PG_UNIQUE_VIOLATION) {
           return reply
@@ -162,14 +195,27 @@ export async function projectsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { name } = request.body;
+      const { name, retention_days_events, retention_days_metrics, retention_days_funnels } = request.body;
 
-      if (!name) {
+      const hasRetention = retention_days_events !== undefined || retention_days_metrics !== undefined || retention_days_funnels !== undefined;
+      if (!name && !hasRetention) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
+      for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
+        const err = validateRetentionDays(value, field);
+        if (err) return reply.code(400).send({ error: err });
+      }
+
       const [project] = await app.db
-        .select({ id: projects.id, team_id: projects.team_id, name: projects.name })
+        .select({
+          id: projects.id,
+          team_id: projects.team_id,
+          name: projects.name,
+          retention_days_events: projects.retention_days_events,
+          retention_days_metrics: projects.retention_days_metrics,
+          retention_days_funnels: projects.retention_days_funnels,
+        })
         .from(projects)
         .where(
           and(
@@ -189,9 +235,29 @@ export async function projectsRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: updateRoleError });
       }
 
+      const setFields: Record<string, unknown> = {};
+      const changes: Record<string, { before: unknown; after: unknown }> = {};
+
+      if (name !== undefined) {
+        setFields.name = name;
+        changes.name = { before: project.name, after: name };
+      }
+      if (retention_days_events !== undefined) {
+        setFields.retention_days_events = retention_days_events;
+        changes.retention_days_events = { before: project.retention_days_events, after: retention_days_events };
+      }
+      if (retention_days_metrics !== undefined) {
+        setFields.retention_days_metrics = retention_days_metrics;
+        changes.retention_days_metrics = { before: project.retention_days_metrics, after: retention_days_metrics };
+      }
+      if (retention_days_funnels !== undefined) {
+        setFields.retention_days_funnels = retention_days_funnels;
+        changes.retention_days_funnels = { before: project.retention_days_funnels, after: retention_days_funnels };
+      }
+
       const [updated] = await app.db
         .update(projects)
-        .set({ name })
+        .set(setFields)
         .where(eq(projects.id, id))
         .returning();
 
@@ -200,14 +266,10 @@ export async function projectsRoutes(app: FastifyInstance) {
         action: "update",
         resource_type: "project",
         resource_id: id,
-        changes: { name: { before: project.name, after: name } },
+        changes,
       });
 
-      return {
-        ...updated,
-        created_at: updated.created_at.toISOString(),
-        deleted_at: undefined,
-      };
+      return serializeProject(updated);
     }
   );
 

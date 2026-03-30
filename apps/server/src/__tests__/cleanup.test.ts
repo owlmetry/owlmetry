@@ -78,6 +78,36 @@ describe("cleanupSoftDeletedResources", () => {
     await client.end();
   });
 
+  it("logs event deletions to the event_deletions audit table", async () => {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+
+    // Insert an event for the test app
+    await client.unsafe(
+      `INSERT INTO events (app_id, level, message, session_id, environment, timestamp, received_at)
+       VALUES ($1, 'info', 'will be cleaned up', $2, 'ios', NOW(), NOW())`,
+      [testData.appId, crypto.randomUUID()]
+    );
+
+    // Backdate soft-delete to 8 days ago
+    const eightDaysAgo = new Date();
+    eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
+    await client`UPDATE projects SET deleted_at = ${eightDaysAgo} WHERE id = ${testData.projectId}`;
+    await client`UPDATE apps SET deleted_at = ${eightDaysAgo} WHERE project_id = ${testData.projectId}`;
+    await client`UPDATE api_keys SET deleted_at = ${eightDaysAgo} WHERE app_id = ${testData.appId}`;
+
+    const result = await cleanupSoftDeletedResources(client);
+    expect(result.events).toBeGreaterThanOrEqual(1);
+
+    // Verify audit rows were created
+    const auditRows = await client`SELECT * FROM event_deletions WHERE reason = 'soft_delete_cleanup'`;
+    expect(auditRows.length).toBeGreaterThanOrEqual(1);
+    const eventsAudit = auditRows.find((r) => r.table_name === "events");
+    expect(eventsAudit).toBeDefined();
+    expect(eventsAudit!.deleted_count).toBeGreaterThanOrEqual(1);
+
+    await client.end();
+  });
+
   it("hard-deletes soft-deleted team and all its children after cutoff", async () => {
     const { token, teamId } = await getTokenAndTeamId(app);
 

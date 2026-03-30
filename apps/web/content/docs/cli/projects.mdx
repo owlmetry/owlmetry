@@ -28,7 +28,7 @@ Shows project details including its apps.
 ## Create a project
 
 ```bash
-owlmetry projects create --name <name> --slug <slug> [--team-id <id>]
+owlmetry projects create --name <name> --slug <slug> [--team-id <id>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>]
 ```
 
 | Flag | Required | Description |
@@ -36,26 +36,36 @@ owlmetry projects create --name <name> --slug <slug> [--team-id <id>]
 | `--name <name>` | Yes | Display name for the project |
 | `--slug <slug>` | Yes | URL-friendly identifier (must be unique within the team) |
 | `--team-id <id>` | No | Team UUID. Defaults to the active team from config. |
+| `--retention-events <days>` | No | Days to retain events (default: 120) |
+| `--retention-metrics <days>` | No | Days to retain metric events (default: 365) |
+| `--retention-funnels <days>` | No | Days to retain funnel events (default: 365) |
 
 Slugs must be lowercase alphanumeric with hyphens (e.g., `my-app`).
 
 ```bash
-owlmetry projects create --name "My App" --slug my-app
+owlmetry projects create --name "My App" --slug my-app --retention-events 90
 ```
 
 ## Update a project
 
 ```bash
-owlmetry projects update <id> --name <name>
+owlmetry projects update <id> [--name <name>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>]
 ```
 
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<id>` | Yes | Project UUID |
-| `--name <name>` | Yes | New project name |
+| `--name <name>` | No | New project name |
+| `--retention-events <days>` | No | Days to retain events. Pass `null` to reset to default. |
+| `--retention-metrics <days>` | No | Days to retain metric events. Pass `null` to reset to default. |
+| `--retention-funnels <days>` | No | Days to retain funnel events. Pass `null` to reset to default. |
+
+At least one flag must be provided.
 
 ```bash
 owlmetry projects update 550e8400-... --name "My Renamed App"
+owlmetry projects update 550e8400-... --retention-events 60 --retention-metrics 180
+owlmetry projects update 550e8400-... --retention-events null  # Reset to default
 ```
 
 ## JSON output

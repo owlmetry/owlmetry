@@ -9,7 +9,7 @@ You are connected via MCP using an **agent key** (\`owl_agent_...\`). Agent keys
 OwlMetry organises resources in a **Team → Project → Apps** hierarchy:
 
 - **Team** — the top-level account. All resources (projects, apps, keys) are team-scoped. Use \`whoami\` to see your team and permissions.
-- **Project** — groups related apps under one product (e.g., "MyApp" project). Metrics and funnels are defined at the project level so they span all apps in the project.
+- **Project** — groups related apps under one product (e.g., "MyApp" project). Metrics and funnels are defined at the project level so they span all apps in the project. Each project has configurable data retention policies for events (default: 120 days), metrics (default: 365 days), and funnels (default: 365 days).
 - **App** — represents a single deployable artifact. Each app has a \`platform\` (\`apple\`, \`android\`, \`web\`, \`backend\`) and, for non-backend platforms, a \`bundle_id\`. Creating an app auto-generates a \`client_secret\` for SDK use.
 
 Projects group apps cross-platform: an iOS app and its backend API can share the same project, enabling unified funnel and metric analysis across both.
@@ -108,9 +108,9 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 
 ### Projects
 - \`list-projects\` — List all projects (optional \`team_id\` filter)
-- \`get-project\` — Get project by ID with nested apps
-- \`create-project\` — Create project (needs \`projects:write\`): \`team_id\`, \`name\`, \`slug\`
-- \`update-project\` — Update project name (needs \`projects:write\`)
+- \`get-project\` — Get project by ID with nested apps and retention policies
+- \`create-project\` — Create project (needs \`projects:write\`): \`team_id\`, \`name\`, \`slug\`, optional \`retention_days_events\`, \`retention_days_metrics\`, \`retention_days_funnels\`
+- \`update-project\` — Update project name or retention policies (needs \`projects:write\`). Set retention to \`null\` to reset to defaults.
 
 ### Apps
 - \`list-apps\` — List all apps (optional \`team_id\` filter)
@@ -189,7 +189,7 @@ If a tool returns a permissions error, the agent key is missing the required per
 
 ### Setting up a new project
 1. \`whoami\` → get team ID and verify permissions
-2. \`create-project\` → create project with name and slug
+2. \`create-project\` → create project with name and slug (optionally set retention policies)
 3. \`create-app\` → create app(s) for each platform, note the \`client_secret\`
 4. Read the SDK integration guide for the platform — see **SDK Integration Guides** below
 5. Configure the SDK with the \`client_secret\` and ingest endpoint

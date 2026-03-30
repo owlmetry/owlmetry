@@ -251,6 +251,127 @@ describe("PATCH /v1/projects/:id", () => {
   });
 });
 
+describe("data retention fields", () => {
+  it("creates a project with retention fields", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/projects",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        team_id: teamId,
+        name: "Retention Test",
+        slug: "retention-test",
+        retention_days_events: 90,
+        retention_days_metrics: 180,
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.retention_days_events).toBe(90);
+    expect(body.retention_days_metrics).toBe(180);
+    expect(body.retention_days_funnels).toBeNull();
+    expect(body.effective_retention_days_events).toBe(90);
+    expect(body.effective_retention_days_metrics).toBe(180);
+    expect(body.effective_retention_days_funnels).toBe(365);
+  });
+
+  it("returns effective defaults when retention is null", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.retention_days_events).toBeNull();
+    expect(body.effective_retention_days_events).toBe(120);
+    expect(body.effective_retention_days_metrics).toBe(365);
+    expect(body.effective_retention_days_funnels).toBe(365);
+  });
+
+  it("updates retention fields", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { retention_days_events: 60 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.retention_days_events).toBe(60);
+    expect(body.effective_retention_days_events).toBe(60);
+  });
+
+  it("resets retention to default with null", async () => {
+    const token = await getToken(app);
+
+    // First set a custom value
+    await app.inject({
+      method: "PATCH",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { retention_days_events: 60 },
+    });
+
+    // Then reset to default
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { retention_days_events: null },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.retention_days_events).toBeNull();
+    expect(body.effective_retention_days_events).toBe(120);
+  });
+
+  it("rejects retention below minimum", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { retention_days_events: 0 },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects retention above maximum", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { retention_days_events: 9999 },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("allows update with only retention fields (no name)", async () => {
+    const token = await getToken(app);
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/v1/projects/${testData.projectId}`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { retention_days_metrics: 730 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().retention_days_metrics).toBe(730);
+    expect(res.json().name).toBe("Test Project"); // name unchanged
+  });
+});
+
 describe("DELETE /v1/projects/:id", () => {
   it("soft-deletes a project", async () => {
     const token = await getToken(app);

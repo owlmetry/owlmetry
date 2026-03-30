@@ -103,6 +103,9 @@ export const projects = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     slug: varchar("slug", { length: 255 }).notNull(),
+    retention_days_events: integer("retention_days_events"),
+    retention_days_metrics: integer("retention_days_metrics"),
+    retention_days_funnels: integer("retention_days_funnels"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -488,5 +491,24 @@ export const jobRuns = pgTable(
     index("job_runs_status_idx").on(table.status),
     index("job_runs_team_id_created_at_idx").on(table.team_id, table.created_at),
     index("job_runs_project_id_idx").on(table.project_id),
+  ]
+);
+
+// Audit trail for event data deletions (retention cleanup + soft-delete cleanup)
+export const eventDeletions = pgTable(
+  "event_deletions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    project_id: uuid("project_id").references(() => projects.id, { onDelete: "set null" }),
+    table_name: varchar("table_name", { length: 50 }).notNull(),
+    reason: varchar("reason", { length: 50 }).notNull(),
+    cutoff_date: timestamp("cutoff_date", { withTimezone: true }).notNull(),
+    deleted_count: integer("deleted_count").notNull(),
+    executed_at: timestamp("executed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("event_deletions_project_executed_at_idx").on(table.project_id, table.executed_at),
   ]
 );

@@ -366,6 +366,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM event_deletions`.catch(() => {});
   await client`DELETE FROM job_runs`.catch(() => {});
   await client`DELETE FROM project_integrations`.catch(() => {});
   await client`DELETE FROM audit_logs`;

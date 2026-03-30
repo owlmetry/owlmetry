@@ -34,20 +34,29 @@ Create a new project. Requires `projects:write` permission.
 | `team_id` | UUID | Yes | The team to create the project in |
 | `name` | string | Yes | Project name |
 | `slug` | string | Yes | URL-friendly slug (lowercase, hyphens) |
+| `retention_days_events` | integer | No | Days to retain events (default: 120) |
+| `retention_days_metrics` | integer | No | Days to retain metric events (default: 365) |
+| `retention_days_funnels` | integer | No | Days to retain funnel events (default: 365) |
 
 ```json
 {
   "team_id": "550e8400-...",
   "name": "My App",
-  "slug": "my-app"
+  "slug": "my-app",
+  "retention_days_events": 90
 }
 ```
 
 ## update-project
 
-Update a project's name. Requires `projects:write` permission.
+Update a project's name or data retention policies. Requires `projects:write` permission.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
-| `name` | string | Yes | New project name |
+| `name` | string | No | New project name |
+| `retention_days_events` | integer or null | No | Days to retain events (`null` = reset to default 120) |
+| `retention_days_metrics` | integer or null | No | Days to retain metric events (`null` = reset to default 365) |
+| `retention_days_funnels` | integer or null | No | Days to retain funnel events (`null` = reset to default 365) |
+
+At least one parameter (besides `project_id`) must be provided.

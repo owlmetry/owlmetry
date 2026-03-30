@@ -60,6 +60,12 @@ jobRunner.schedule({
   params: () => ({ max_size_bytes: config.maxDatabaseSizeGb * 1024 * 1024 * 1024 }),
 });
 jobRunner.schedule({
+  jobType: "retention_cleanup",
+  cron: isDev ? "*/5 * * * *" : "0 2 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
   jobType: "soft_delete_cleanup",
   cron: isDev ? "*/5 * * * *" : "0 3 * * *",
   enabled: () => true,

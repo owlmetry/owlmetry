@@ -94,6 +94,12 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
 
   // Step 3: Delete event data for expired apps
   if (expiredAppIds.length > 0) {
+    // Resolve project_ids from expired apps before deletion (for audit logging)
+    const appProjects = await client`
+      SELECT DISTINCT project_id FROM apps WHERE id = ANY(${expiredAppIds}) AND project_id IS NOT NULL
+    `;
+    const affectedProjectIds = appProjects.map((r) => r.project_id as string);
+
     const eventsDeleted = await client.unsafe(
       `DELETE FROM events WHERE app_id = ANY($1)`,
       [expiredAppIds]
@@ -111,6 +117,20 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
       [expiredAppIds]
     );
     result.funnelEvents = Number(funnelEventsDeleted.count ?? 0);
+
+    // Log event deletions to audit table
+    const auditRows: { project_id: string | null; table_name: string; deleted_count: number }[] = [];
+    if (result.events > 0) auditRows.push({ project_id: affectedProjectIds[0] ?? null, table_name: "events", deleted_count: result.events });
+    if (result.metricEvents > 0) auditRows.push({ project_id: affectedProjectIds[0] ?? null, table_name: "metric_events", deleted_count: result.metricEvents });
+    if (result.funnelEvents > 0) auditRows.push({ project_id: affectedProjectIds[0] ?? null, table_name: "funnel_events", deleted_count: result.funnelEvents });
+    if (auditRows.length > 0) {
+      for (const row of auditRows) {
+        await client`
+          INSERT INTO event_deletions (project_id, table_name, reason, cutoff_date, deleted_count)
+          VALUES (${row.project_id}, ${row.table_name}, 'soft_delete_cleanup', ${cutoff}, ${row.deleted_count})
+        `;
+      }
+    }
 
     const appUsersDeleted = await client`
       DELETE FROM app_users WHERE app_id = ANY(${expiredAppIds})
