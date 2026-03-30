@@ -69,6 +69,22 @@ const EDITORS: EditorConfig[] = [
     ],
   },
   {
+    name: "OpenCode",
+    language: "json",
+    scopes: [
+      {
+        label: "Default",
+        note: "Add to `opencode.json` (or `opencode.jsonc`) in your project root:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { $schema: "https://opencode.ai/config.json", mcp: { [name]: { type: "remote", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
+  },
+  {
     name: "Cursor",
     language: "json",
     scopes: [
