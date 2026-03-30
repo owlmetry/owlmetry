@@ -360,7 +360,7 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
         )}
         <div className="flex gap-3 pt-1">
           <Link
-            href={`/dashboard/apps/${app.id}`}
+            href={`/dashboard/users?app_id=${app.id}`}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <Users className="h-3 w-3" />
