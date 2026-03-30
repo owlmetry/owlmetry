@@ -18,6 +18,18 @@ export const retentionCleanupHandler: JobHandler = async (ctx) => {
     .from(projects)
     .where(isNull(projects.deleted_at));
 
+  // Fetch all active apps in one query to avoid N+1
+  const allApps = await ctx.db
+    .select({ id: apps.id, project_id: apps.project_id })
+    .from(apps)
+    .where(isNull(apps.deleted_at));
+  const appsByProject = new Map<string, typeof allApps>();
+  for (const app of allApps) {
+    const list = appsByProject.get(app.project_id) ?? [];
+    list.push(app);
+    appsByProject.set(app.project_id, list);
+  }
+
   let totalEvents = 0;
   let totalMetricEvents = 0;
   let totalFunnelEvents = 0;
@@ -28,57 +40,56 @@ export const retentionCleanupHandler: JobHandler = async (ctx) => {
     for (const project of allProjects) {
       if (ctx.isCancelled()) break;
 
-      const projectApps = await ctx.db
-        .select({ id: apps.id })
-        .from(apps)
-        .where(and(eq(apps.project_id, project.id), isNull(apps.deleted_at)));
-      const appIds = projectApps.map((a) => a.id);
-
+      const appIds = (appsByProject.get(project.id) ?? []).map((a: { id: string }) => a.id);
       if (appIds.length === 0) {
         projectsProcessed++;
         continue;
       }
 
+      const retentionEvents = project.retention_days_events ?? DEFAULT_RETENTION_DAYS_EVENTS;
+      const retentionMetrics = project.retention_days_metrics ?? DEFAULT_RETENTION_DAYS_METRICS;
+      const retentionFunnels = project.retention_days_funnels ?? DEFAULT_RETENTION_DAYS_FUNNELS;
+
       const result = await enforceRetentionForProject(client, {
         projectId: project.id,
         appIds,
-        retentionDaysEvents: project.retention_days_events ?? DEFAULT_RETENTION_DAYS_EVENTS,
-        retentionDaysMetrics: project.retention_days_metrics ?? DEFAULT_RETENTION_DAYS_METRICS,
-        retentionDaysFunnels: project.retention_days_funnels ?? DEFAULT_RETENTION_DAYS_FUNNELS,
+        retentionDaysEvents: retentionEvents,
+        retentionDaysMetrics: retentionMetrics,
+        retentionDaysFunnels: retentionFunnels,
       });
 
       // Log audit records for each table that had deletions
-      const auditEntries: { table_name: string; deleted_count: number; cutoff_days: number }[] = [];
+      const now = new Date();
+      const auditEntries: { table_name: string; deleted_count: number; cutoff_date: Date }[] = [];
       if (result.eventsDeleted > 0) {
         auditEntries.push({
           table_name: "events",
           deleted_count: result.eventsDeleted,
-          cutoff_days: project.retention_days_events ?? DEFAULT_RETENTION_DAYS_EVENTS,
+          cutoff_date: new Date(now.getTime() - retentionEvents * 24 * 60 * 60 * 1000),
         });
       }
       if (result.metricEventsDeleted > 0) {
         auditEntries.push({
           table_name: "metric_events",
           deleted_count: result.metricEventsDeleted,
-          cutoff_days: project.retention_days_metrics ?? DEFAULT_RETENTION_DAYS_METRICS,
+          cutoff_date: new Date(now.getTime() - retentionMetrics * 24 * 60 * 60 * 1000),
         });
       }
       if (result.funnelEventsDeleted > 0) {
         auditEntries.push({
           table_name: "funnel_events",
           deleted_count: result.funnelEventsDeleted,
-          cutoff_days: project.retention_days_funnels ?? DEFAULT_RETENTION_DAYS_FUNNELS,
+          cutoff_date: new Date(now.getTime() - retentionFunnels * 24 * 60 * 60 * 1000),
         });
       }
 
       if (auditEntries.length > 0) {
-        const now = new Date();
         await ctx.db.insert(eventDeletions).values(
           auditEntries.map((e) => ({
             project_id: project.id,
             table_name: e.table_name,
             reason: "retention",
-            cutoff_date: new Date(now.getTime() - e.cutoff_days * 24 * 60 * 60 * 1000),
+            cutoff_date: e.cutoff_date,
             deleted_count: e.deleted_count,
           }))
         );

@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { MIN_RETENTION_DAYS, MAX_RETENTION_DAYS } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
 export function registerProjectsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
@@ -32,11 +33,11 @@ export function registerProjectsTools(server: McpServer, app: FastifyInstance, a
       team_id: z.string().uuid().describe("The team to create the project in"),
       name: z.string().describe("Project name"),
       slug: z.string().describe("URL-friendly slug (lowercase, hyphens)"),
-      retention_days_events: z.number().int().min(1).max(3650).optional()
+      retention_days_events: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).optional()
         .describe("Days to retain events (default: 120)"),
-      retention_days_metrics: z.number().int().min(1).max(3650).optional()
+      retention_days_metrics: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).optional()
         .describe("Days to retain metric events (default: 365)"),
-      retention_days_funnels: z.number().int().min(1).max(3650).optional()
+      retention_days_funnels: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).optional()
         .describe("Days to retain funnel events (default: 365)"),
     },
   }, async ({ team_id, name, slug, retention_days_events, retention_days_metrics, retention_days_funnels }) => {
@@ -52,11 +53,11 @@ export function registerProjectsTools(server: McpServer, app: FastifyInstance, a
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       name: z.string().optional().describe("New project name"),
-      retention_days_events: z.number().int().min(1).max(3650).nullable().optional()
+      retention_days_events: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
         .describe("Days to retain events (null = use default 120)"),
-      retention_days_metrics: z.number().int().min(1).max(3650).nullable().optional()
+      retention_days_metrics: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
         .describe("Days to retain metric events (null = use default 365)"),
-      retention_days_funnels: z.number().int().min(1).max(3650).nullable().optional()
+      retention_days_funnels: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
         .describe("Days to retain funnel events (null = use default 365)"),
     },
   }, async ({ project_id, name, retention_days_events, retention_days_metrics, retention_days_funnels }) => {

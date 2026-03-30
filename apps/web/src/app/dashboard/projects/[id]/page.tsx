@@ -290,7 +290,6 @@ function RetentionSettings({ project, onSaved }: { project: ProjectDetailRespons
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Re-sync state when the project data reloads after save
   useEffect(() => {
     setRetentionEvents(project.retention_days_events?.toString() ?? "");
     setRetentionMetrics(project.retention_days_metrics?.toString() ?? "");
@@ -303,11 +302,15 @@ function RetentionSettings({ project, onSaved }: { project: ProjectDetailRespons
     setError("");
     setSuccess(false);
     try {
-      await api.patch(`/v1/projects/${project.id}`, {
-        retention_days_events: retentionEvents ? parseInt(retentionEvents, 10) : null,
-        retention_days_metrics: retentionMetrics ? parseInt(retentionMetrics, 10) : null,
-        retention_days_funnels: retentionFunnels ? parseInt(retentionFunnels, 10) : null,
-      });
+      const body: Record<string, number | null> = {};
+      const newEvents = retentionEvents ? parseInt(retentionEvents, 10) : null;
+      const newMetrics = retentionMetrics ? parseInt(retentionMetrics, 10) : null;
+      const newFunnels = retentionFunnels ? parseInt(retentionFunnels, 10) : null;
+      if (newEvents !== project.retention_days_events) body.retention_days_events = newEvents;
+      if (newMetrics !== project.retention_days_metrics) body.retention_days_metrics = newMetrics;
+      if (newFunnels !== project.retention_days_funnels) body.retention_days_funnels = newFunnels;
+      if (Object.keys(body).length === 0) { setSaving(false); setSuccess(true); setTimeout(() => setSuccess(false), 2000); return; }
+      await api.patch(`/v1/projects/${project.id}`, body);
       setSuccess(true);
       onSaved();
       setTimeout(() => setSuccess(false), 2000);

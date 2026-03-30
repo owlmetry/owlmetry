@@ -23,11 +23,15 @@ projectsCommand
     output(globals.format, project, () => formatProjectDetail(project));
   });
 
-function parseRetentionDays(value: string): number | null {
-  if (value === "null" || value === "default") return null;
+function parseRetentionDaysRequired(value: string): number {
   const n = parseInt(value, 10);
   if (isNaN(n)) throw new Error(`Invalid retention value: ${value}`);
   return n;
+}
+
+function parseRetentionDays(value: string): number | null {
+  if (value === "null" || value === "default") return null;
+  return parseRetentionDaysRequired(value);
 }
 
 projectsCommand
@@ -36,9 +40,9 @@ projectsCommand
   .option("--team-id <id>", "Team ID (defaults to active team)")
   .requiredOption("--name <name>", "Project name")
   .requiredOption("--slug <slug>", "Project slug")
-  .option("--retention-events <days>", "Days to retain events (default: 120)", parseInt)
-  .option("--retention-metrics <days>", "Days to retain metric events (default: 365)", parseInt)
-  .option("--retention-funnels <days>", "Days to retain funnel events (default: 365)", parseInt)
+  .option("--retention-events <days>", "Days to retain events (default: 120)", parseRetentionDaysRequired)
+  .option("--retention-metrics <days>", "Days to retain metric events (default: 365)", parseRetentionDaysRequired)
+  .option("--retention-funnels <days>", "Days to retain funnel events (default: 365)", parseRetentionDaysRequired)
   .action(async (opts: { teamId?: string; name: string; slug: string; retentionEvents?: number; retentionMetrics?: number; retentionFunnels?: number }, cmd) => {
     const { client, globals } = createClient(cmd);
     let teamId = opts.teamId;
