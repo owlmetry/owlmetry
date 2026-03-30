@@ -26,13 +26,12 @@ Lists all configured integrations for a project, showing provider name, enabled 
 ```bash
 owlmetry integrations add revenuecat \
     --project-id <id> \
-    --api-key <revenuecat-secret-key> \
-    --webhook-secret <optional-secret>
+    --api-key <revenuecat-secret-key>
 ```
 
 The `--api-key` is a RevenueCat **V2 Secret API key** (generated in RevenueCat → Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**; all other sections → No access.
 
-A webhook secret is auto-generated if `--webhook-secret` is not provided. After creation, the output includes a **Webhook Setup** section with the exact values to paste into RevenueCat's webhook settings (URL, authorization header, environment, events filter). The authorization header contains the un-redacted secret and is only shown once.
+A webhook secret is auto-generated. After creation, the output includes a **Webhook Setup** section with the exact values to paste into RevenueCat's webhook settings (URL, authorization header, environment, events filter). The authorization header contains the un-redacted secret and is only shown once.
 
 ## Update Config
 

@@ -91,11 +91,12 @@ Custom key-value properties stored on app users. Set via SDK (\`setUserPropertie
 ### Integrations
 Third-party service connections (e.g., RevenueCat) that sync data into user properties. Configured per-project.
 
-Setting up RevenueCat:
-1. Generate a **V2 Secret API key** in RevenueCat (Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**. All other sections → No access.
-2. Call \`add-integration\` with the API key. A webhook secret is auto-generated if you don't provide one. The response includes a \`webhook_setup\` section with the exact values to paste into RevenueCat's webhook settings (URL, authorization header, environment, events filter).
-3. Configure the webhook in RevenueCat (Settings → Webhooks → + New Webhook) using the values from \`webhook_setup\`.
-4. Run \`sync-integration\` to backfill existing subscriber data.
+**Setting up RevenueCat — the only thing you need from the user is their RevenueCat V2 Secret API key.** Everything else is automatic.
+
+1. Ask the user for their **RevenueCat V2 Secret API key**. They generate it in RevenueCat dashboard → Project Settings → API Keys → + New secret API key. Required permissions: **Customer information → Customers Configuration → Read only**. All other sections → No access.
+2. Call \`add-integration\` with just \`api_key\`. Do NOT ask the user for a webhook secret — one is auto-generated.
+3. The response includes a \`webhook_setup\` section with every value the user needs to paste into RevenueCat's webhook form (Settings → Webhooks → + New Webhook): webhook URL, authorization header (contains the auto-generated secret), environment, and events filter. Present these to the user.
+4. After the user confirms the webhook is saved, run \`sync-integration\` to backfill existing subscriber data.
 
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.
@@ -208,11 +209,12 @@ If a tool returns a permissions error, the agent key is missing the required per
 4. \`list-metric-events\` → drill into individual metric events
 5. \`query-funnel\` → conversion rates and drop-off analysis
 
-### Connecting integrations
-1. \`list-providers\` → see available providers and config fields
-2. \`add-integration\` → configure the integration
-3. \`sync-integration\` → backfill existing data (triggers background job)
-4. \`get-job\` → monitor sync progress
+### Connecting integrations (RevenueCat)
+1. Ask the user for their RevenueCat V2 Secret API key (the only input needed)
+2. \`add-integration\` with \`api_key\` only → returns \`webhook_setup\` with all webhook form values
+3. Present the webhook setup to the user to paste into RevenueCat
+4. \`sync-integration\` → backfill existing data (triggers background job)
+5. \`get-job\` → monitor sync progress
 
 ## SDK Integration Guides
 

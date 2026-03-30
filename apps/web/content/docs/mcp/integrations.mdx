@@ -40,15 +40,14 @@ RevenueCat example:
   "project_id": "550e8400-...",
   "provider": "revenuecat",
   "config": {
-    "api_key": "rc_api_...",
-    "webhook_secret": "whsec_..."
+    "api_key": "rc_api_..."
   }
 }
 ```
 
 The `api_key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**; all other sections → No access.
 
-A `webhook_secret` is auto-generated if not provided. The creation response includes a `webhook_setup` object with the exact values to paste into RevenueCat's webhook settings (Settings → Webhooks → + New Webhook):
+A webhook secret is auto-generated. The creation response includes a `webhook_setup` object with the exact values to paste into RevenueCat's webhook settings (Settings → Webhooks → + New Webhook):
 
 - `webhook_url` — the full webhook endpoint URL
 - `authorization_header` — the `Bearer` token (contains the un-redacted webhook secret; shown only once)

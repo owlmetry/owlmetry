@@ -78,12 +78,10 @@ integrationsCommand
   .description("Add an integration (e.g. revenuecat)")
   .requiredOption("--project-id <id>", "Project ID")
   .option("--api-key <key>", "Provider API key")
-  .option("--webhook-secret <secret>", "Webhook secret")
-  .action(async (provider: string, opts: { projectId: string; apiKey?: string; webhookSecret?: string }, cmd) => {
+  .action(async (provider: string, opts: { projectId: string; apiKey?: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     const config: Record<string, unknown> = {};
     if (opts.apiKey) config.api_key = opts.apiKey;
-    if (opts.webhookSecret) config.webhook_secret = opts.webhookSecret;
 
     const result = await client.createIntegration(opts.projectId, { provider, config });
     output(globals.format, result, () => {
@@ -108,16 +106,14 @@ integrationsCommand
   .description("Update an integration's config")
   .requiredOption("--project-id <id>", "Project ID")
   .option("--api-key <key>", "Provider API key")
-  .option("--webhook-secret <secret>", "Webhook secret")
   .option("--enable", "Enable the integration")
   .option("--disable", "Disable the integration")
-  .action(async (provider: string, opts: { projectId: string; apiKey?: string; webhookSecret?: string; enable?: boolean; disable?: boolean }, cmd) => {
+  .action(async (provider: string, opts: { projectId: string; apiKey?: string; enable?: boolean; disable?: boolean }, cmd) => {
     const { client, globals } = createClient(cmd);
 
     const body: { config?: Record<string, unknown>; enabled?: boolean } = {};
     const config: Record<string, unknown> = {};
     if (opts.apiKey) config.api_key = opts.apiKey;
-    if (opts.webhookSecret) config.webhook_secret = opts.webhookSecret;
     if (Object.keys(config).length > 0) body.config = config;
     if (opts.enable) body.enabled = true;
     if (opts.disable) body.enabled = false;

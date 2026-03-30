@@ -80,15 +80,15 @@ export async function integrationsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "config is required" });
       }
 
-      // Auto-generate webhook secret for RevenueCat if not provided
-      if (provider === "revenuecat" && !integrationConfig.webhook_secret) {
-        integrationConfig.webhook_secret = generateWebhookSecret();
-      }
-
       // Validate provider and config against the registry
       const configError = validateIntegrationConfig(provider, integrationConfig);
       if (configError) {
         return reply.code(400).send({ error: configError });
+      }
+
+      // Auto-generate webhook secret for RevenueCat (always)
+      if (provider === "revenuecat") {
+        integrationConfig.webhook_secret = generateWebhookSecret();
       }
 
       // Check if integration already exists (including soft-deleted)
@@ -184,10 +184,11 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       if (request.body.config !== undefined) {
         // On update, merge new config with existing config so partial updates work
-        // Then validate the merged result
+        // Then validate the merged result (excluding internal fields like webhook_secret)
         const existingConfig = (existing.config as Record<string, unknown>) ?? {};
         const mergedConfig = { ...existingConfig, ...request.body.config };
-        const configError = validateIntegrationConfig(provider, mergedConfig);
+        const { webhook_secret, ...configToValidate } = mergedConfig;
+        const configError = validateIntegrationConfig(provider, configToValidate as Record<string, unknown>);
         if (configError) {
           return reply.code(400).send({ error: configError });
         }

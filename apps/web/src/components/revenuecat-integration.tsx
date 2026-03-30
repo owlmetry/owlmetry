@@ -27,7 +27,6 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [webhookSecret, setWebhookSecret] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -41,7 +40,6 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     try {
       const config: Record<string, string> = {};
       if (apiKey) config.api_key = apiKey;
-      if (webhookSecret) config.webhook_secret = webhookSecret;
 
       if (integration) {
         await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { config });
@@ -50,7 +48,6 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
       }
       setDialogOpen(false);
       setApiKey("");
-      setWebhookSecret("");
       mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save");
@@ -122,10 +119,6 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                 <span className="text-muted-foreground">API Key</span>
                 <span className="font-mono text-xs">{integration.config.api_key ?? "Not set"}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Webhook Secret</span>
-                <span className="font-mono text-xs">{integration.config.webhook_secret ?? "Not set"}</span>
-              </div>
             </div>
 
             <div className="space-y-2">
@@ -153,10 +146,6 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                     <div className="space-y-2">
                       <Label htmlFor="rc-api-key">API Key (Secret)</Label>
                       <Input id="rc-api-key" type="password" placeholder="sk_..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rc-webhook-secret">Webhook Secret</Label>
-                      <Input id="rc-webhook-secret" type="password" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} />
                     </div>
                     {error && <p className="text-sm text-destructive">{error}</p>}
                     <DialogFooter>
@@ -199,11 +188,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                   <div className="space-y-2">
                     <Label htmlFor="rc-api-key-new">API Key (Secret)</Label>
                     <Input id="rc-api-key-new" type="password" placeholder="sk_..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="rc-webhook-secret-new">Webhook Secret</Label>
-                    <Input id="rc-webhook-secret-new" type="password" value={webhookSecret} onChange={(e) => setWebhookSecret(e.target.value)} />
-                    <p className="text-xs text-muted-foreground">Optional. Used to authenticate webhook requests from RevenueCat.</p>
+                    <p className="text-xs text-muted-foreground">V2 Secret API key from RevenueCat → Project Settings → API Keys.</p>
                   </div>
                   {error && <p className="text-sm text-destructive">{error}</p>}
                   <DialogFooter>
