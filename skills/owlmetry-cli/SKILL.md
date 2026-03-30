@@ -307,6 +307,8 @@ owlmetry integrations sync revenuecat --project-id <id>                      # B
 owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user (synchronous)
 ```
 
+The `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**; all other sections → No access.
+
 After adding RevenueCat, configure the webhook URL in RevenueCat's dashboard: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
 
 Bulk sync creates a tracked background job. The response includes a `job_run_id` you can monitor:

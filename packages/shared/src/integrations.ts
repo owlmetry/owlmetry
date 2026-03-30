@@ -28,7 +28,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
         required: true,
         sensitive: true,
         placeholder: "sk_...",
-        description: "Found in RevenueCat dashboard → Project Settings → API Keys → Secret key (v2).",
+        description: "RevenueCat V2 Secret API key. Generate in RevenueCat dashboard → Project Settings → API Keys → + New secret API key. Required permissions: Customer information → Customers Configuration → Read only. All other sections → No access.",
       },
       {
         key: "webhook_secret",

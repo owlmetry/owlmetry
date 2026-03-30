@@ -266,7 +266,8 @@ Use for user-level data that changes infrequently (subscription status, plan tie
 ```
 Connect RevenueCat to my OwlMetry project so I can see paid vs free users:
 
-1. Use `/owlmetry-cli` to add the RevenueCat integration with my RC secret API key.
+1. Use `/owlmetry-cli` to add the RevenueCat integration with my RC V2 secret API key
+   (needs Customer information → Customers Configuration → Read only, everything else No access).
 2. Show me the webhook URL to paste into RevenueCat's webhook settings.
 3. After I confirm the webhook is live, run a bulk sync to backfill existing subscribers.
 4. Add Owl.setUserProperties() calls in my Node.js webhook handler or purchase

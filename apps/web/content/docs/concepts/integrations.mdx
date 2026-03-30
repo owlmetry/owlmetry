@@ -32,18 +32,22 @@ RevenueCat is the first supported integration. It syncs subscription lifecycle e
 
 ### Setup
 
-1. **Add the integration** via dashboard (Project > Integrations > Connect RevenueCat) or CLI:
+1. **Generate a RevenueCat V2 Secret API key** in the RevenueCat dashboard (Project Settings → API Keys → + New secret API key). Set these permissions:
+   - **Customer information → Customers Configuration** → **Read only**
+   - All other sections → **No access**
+
+2. **Add the integration** via dashboard (Project > Integrations > Connect RevenueCat) or CLI:
    ```bash
    owlmetry integrations add revenuecat \
      --project-id <id> \
      --api-key <revenuecat-secret-key>
    ```
 
-2. **Configure the webhook** in RevenueCat dashboard:
+3. **Configure the webhook** in RevenueCat dashboard:
    - URL: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`
    - Optionally set a webhook secret for authentication
 
-3. **Backfill existing users** with the sync command:
+4. **Backfill existing users** with the sync command:
    ```bash
    owlmetry integrations sync revenuecat --project-id <id>
    ```
@@ -95,7 +99,8 @@ Copy-paste this prompt to have your coding agent set up the RevenueCat integrati
 Set up RevenueCat integration for my OwlMetry project.
 
 1. Use the OwlMetry CLI to add the RevenueCat integration to my project with my
-   RC secret API key. Use `/owlmetry-cli` for CLI syntax.
+   RC V2 secret API key (needs Customer information → Customers Configuration →
+   Read only, everything else No access). Use `/owlmetry-cli` for CLI syntax.
 2. Show me the webhook URL I need to paste into RevenueCat's dashboard
    (Settings → Webhooks → New Webhook).
 3. After I confirm the webhook is configured, run a bulk sync to backfill

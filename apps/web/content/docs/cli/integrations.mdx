@@ -30,7 +30,7 @@ owlmetry integrations add revenuecat \
     --webhook-secret <optional-secret>
 ```
 
-The `--api-key` is required for RevenueCat (used for sync API calls). The `--webhook-secret` is optional and used to authenticate incoming webhook requests.
+The `--api-key` is a RevenueCat **V2 Secret API key** (generated in RevenueCat → Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**; all other sections → No access. The `--webhook-secret` is optional and used to authenticate incoming webhook requests.
 
 ## Update Config
 
