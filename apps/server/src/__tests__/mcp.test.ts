@@ -173,13 +173,15 @@ describe("MCP endpoint", () => {
   });
 
   describe("resource listing", () => {
-    it("exposes the guide resource with markdown content", async () => {
+    it("exposes guide and SDK skill resources", async () => {
       const listRes = await mcpRequest(TEST_AGENT_KEY, "resources/list");
       const resources = listRes.json().result.resources;
-      expect(resources.length).toBe(1);
-      expect(resources[0].uri).toBe("owlmetry://guide");
+      const uris = resources.map((r: { uri: string }) => r.uri).sort();
+      expect(uris).toContain("owlmetry://guide");
+      expect(uris).toContain("owlmetry://skills/swift");
+      expect(uris).toContain("owlmetry://skills/node");
 
-      // Read the resource
+      // Read the guide resource
       const readRes = await mcpRequest(TEST_AGENT_KEY, "resources/read", {
         uri: "owlmetry://guide",
       });
@@ -187,6 +189,31 @@ describe("MCP endpoint", () => {
       expect(contents[0].mimeType).toBe("text/markdown");
       expect(contents[0].text).toContain("OwlMetry");
       expect(contents[0].text).toContain("Resource Hierarchy");
+      expect(contents[0].text).toContain("SDK Integration Guides");
+    });
+
+    it("serves Swift SDK skill content", async () => {
+      const res = await mcpRequest(TEST_AGENT_KEY, "resources/read", {
+        uri: "owlmetry://skills/swift",
+      });
+      const contents = res.json().result.contents;
+      expect(contents[0].mimeType).toBe("text/markdown");
+      expect(contents[0].text).toContain("Swift SDK");
+      expect(contents[0].text).toContain("Owl.configure");
+      // Frontmatter should be stripped
+      expect(contents[0].text).not.toMatch(/^---/);
+    });
+
+    it("serves Node.js SDK skill content", async () => {
+      const res = await mcpRequest(TEST_AGENT_KEY, "resources/read", {
+        uri: "owlmetry://skills/node",
+      });
+      const contents = res.json().result.contents;
+      expect(contents[0].mimeType).toBe("text/markdown");
+      expect(contents[0].text).toContain("Node.js SDK");
+      expect(contents[0].text).toContain("Owl.configure");
+      // Frontmatter should be stripped
+      expect(contents[0].text).not.toMatch(/^---/);
     });
   });
 
