@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { apiKeys, teams, teamMembers } from "@owlmetry/db";
 
 import type { Db } from "@owlmetry/db";
@@ -25,7 +25,7 @@ export function hasTeamAccess(auth: AuthContext, teamId: string): boolean {
   return getAuthTeamIds(auth).includes(teamId);
 }
 
-/** Fetches team memberships with full team details for a user. */
+/** Fetches team memberships with full team details for a user. Includes default agent key per team. */
 export async function getUserTeamMemberships(db: Db, userId: string): Promise<AuthTeamMembership[]> {
   const rows = await db
     .select({
@@ -38,11 +38,31 @@ export async function getUserTeamMemberships(db: Db, userId: string): Promise<Au
     .innerJoin(teams, eq(teams.id, teamMembers.team_id))
     .where(and(eq(teamMembers.user_id, userId), isNull(teams.deleted_at)));
 
+  if (rows.length === 0) return [];
+
+  // Look up the first (oldest) agent key per team for MCP setup docs
+  const teamIds = rows.map((r) => r.team_id);
+  const agentKeys = await db
+    .select({ team_id: apiKeys.team_id, secret: apiKeys.secret })
+    .from(apiKeys)
+    .where(and(
+      inArray(apiKeys.team_id, teamIds),
+      eq(apiKeys.key_type, "agent"),
+      isNull(apiKeys.deleted_at),
+    ))
+    .orderBy(apiKeys.created_at);
+
+  const keyMap = new Map<string, string>();
+  for (const k of agentKeys) {
+    if (!keyMap.has(k.team_id)) keyMap.set(k.team_id, k.secret);
+  }
+
   return rows.map((m) => ({
     id: m.team_id,
     name: m.team_name,
     slug: m.team_slug,
     role: m.role,
+    default_agent_key: keyMap.get(m.team_id),
   }));
 }
 

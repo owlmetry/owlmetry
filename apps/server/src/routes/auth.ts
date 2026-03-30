@@ -112,10 +112,21 @@ async function findOrCreateUser(db: Parameters<typeof getUserTeamMemberships>[0]
     role: "owner",
   });
 
+  // Auto-create a default agent key so MCP setup docs can pre-fill it
+  const defaultKeySecret = generateApiKeySecret("agent");
+  await db.insert(apiKeys).values({
+    secret: defaultKeySecret,
+    key_type: "agent",
+    team_id: team.id,
+    name: "Default Agent Key",
+    created_by: newUser.id,
+    permissions: DEFAULT_API_KEY_PERMISSIONS.agent,
+  });
+
   return {
     user: newUser,
     isNewUser: true,
-    membershipTeams: [{ id: team.id, name: team.name, slug: team.slug, role: "owner" as const }],
+    membershipTeams: [{ id: team.id, name: team.name, slug: team.slug, role: "owner" as const, default_agent_key: defaultKeySecret }],
   };
 }
 
@@ -326,6 +337,54 @@ export async function authRoutes(app: FastifyInstance) {
       return {
         user: serializeUser(updated),
       };
+    }
+  );
+
+  // Lazy-create default agent key (for MCP setup docs)
+  app.post<{ Body: { team_id: string } }>(
+    "/default-agent-key",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const auth = request.auth;
+      if (auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can create default agent keys" });
+      }
+
+      const { team_id } = request.body;
+      if (!team_id) {
+        return reply.code(400).send({ error: "team_id is required" });
+      }
+      if (!hasTeamAccess(auth, team_id)) {
+        return reply.code(403).send({ error: "No access to this team" });
+      }
+
+      // Check for existing agent key
+      const [existing] = await app.db
+        .select({ secret: apiKeys.secret })
+        .from(apiKeys)
+        .where(and(
+          eq(apiKeys.team_id, team_id),
+          eq(apiKeys.key_type, "agent"),
+          isNull(apiKeys.deleted_at),
+        ))
+        .orderBy(apiKeys.created_at)
+        .limit(1);
+
+      if (existing) {
+        return { secret: existing.secret, created: false };
+      }
+
+      const secret = generateApiKeySecret("agent");
+      await app.db.insert(apiKeys).values({
+        secret,
+        key_type: "agent",
+        team_id,
+        name: "Default Agent Key",
+        created_by: auth.user_id,
+        permissions: DEFAULT_API_KEY_PERMISSIONS.agent,
+      });
+
+      return reply.code(201).send({ secret, created: true });
     }
   );
 

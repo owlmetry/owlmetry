@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { useUser } from "@/hooks/use-user";
 import { useTeam } from "@/contexts/team-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FolderOpen, Plus, ArrowRight, Activity } from "lucide-react";
+import { Users, FolderOpen, Plus, ArrowRight, Activity, Plug } from "lucide-react";
 import type { ProjectResponse } from "@owlmetry/shared";
 
 export default function DashboardPage() {
@@ -78,7 +78,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-medium mb-3">Quick Actions</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/dashboard/projects">
             <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
               <CardContent className="flex items-center gap-3 pt-6">
@@ -105,6 +105,22 @@ export default function DashboardPage() {
                   <p className="font-medium text-sm">New Project</p>
                   <p className="text-xs text-muted-foreground">
                     Create a new project to get started
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1" />
+              </CardContent>
+            </Card>
+          </Link>
+          <Link href="/docs/mcp/setup">
+            <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
+              <CardContent className="flex items-center gap-3 pt-6">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Plug className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Setup MCP</p>
+                  <p className="text-xs text-muted-foreground">
+                    Connect your AI coding agent
                   </p>
                 </div>
                 <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1" />

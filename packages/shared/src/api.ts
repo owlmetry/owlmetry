@@ -33,6 +33,7 @@ export interface AuthTeamMembership {
   name: string;
   slug: string;
   role: "owner" | "admin" | "member";
+  default_agent_key?: string;
 }
 
 export interface AuthResponse {
@@ -109,6 +110,11 @@ export interface AuditLogsResponse {
 
 export interface CreateApiKeyResponse {
   api_key: ApiKeyResponse;
+}
+
+export interface DefaultAgentKeyResponse {
+  secret: string;
+  created: boolean;
 }
 
 // User profile
