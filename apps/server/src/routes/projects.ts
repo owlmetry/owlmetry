@@ -3,7 +3,7 @@ import { eq, and, inArray, isNull, isNotNull } from "drizzle-orm";
 import { projects, apps, apiKeys, metricDefinitions, funnelDefinitions } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
 import { SLUG_REGEX, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
-import { serializeApp } from "../utils/serialize.js";
+import { serializeApp, getClientSecretMap } from "../utils/serialize.js";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 
@@ -70,23 +70,13 @@ export async function projectsRoutes(app: FastifyInstance) {
         .from(apps)
         .where(and(eq(apps.project_id, id), isNull(apps.deleted_at)));
 
-      const projectAppIds = projectApps.map(a => a.id);
-      const projectClientSecrets = projectAppIds.length > 0
-        ? await app.db
-            .select({ app_id: apiKeys.app_id, secret: apiKeys.secret })
-            .from(apiKeys)
-            .where(and(inArray(apiKeys.app_id, projectAppIds), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)))
-        : [];
-      const clientSecretMap = new Map<string, string>();
-      for (const k of projectClientSecrets) {
-        if (k.app_id && !clientSecretMap.has(k.app_id)) clientSecretMap.set(k.app_id, k.secret);
-      }
+      const secretMap = await getClientSecretMap(app.db, projectApps.map(a => a.id));
 
       return {
         ...project,
         created_at: project.created_at.toISOString(),
         deleted_at: undefined,
-        apps: projectApps.map(a => serializeApp({ ...a, client_secret: clientSecretMap.get(a.id) ?? null })),
+        apps: projectApps.map(a => serializeApp({ ...a, client_secret: secretMap.get(a.id) ?? null })),
       };
     }
   );

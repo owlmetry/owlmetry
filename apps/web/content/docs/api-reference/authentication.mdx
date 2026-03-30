@@ -218,7 +218,7 @@ List all API keys for teams the user belongs to.
   "api_keys": [
     {
       "id": "uuid",
-      "key_prefix": "owl_client_abc1",
+      "secret": "owl_client_abc1",
       "key_type": "client",
       "app_id": "uuid",
       "team_id": "uuid",
@@ -247,7 +247,7 @@ Get a single API key by ID.
 {
   "api_key": {
     "id": "uuid",
-    "key_prefix": "owl_agent_xyz9",
+    "secret": "owl_agent_xyz9",
     "key_type": "agent",
     "app_id": null,
     "team_id": "uuid",
@@ -284,7 +284,7 @@ Create a new API key. The full key is returned once and cannot be retrieved agai
   "key": "owl_agent_full_key_shown_only_once...",
   "api_key": {
     "id": "uuid",
-    "key_prefix": "owl_agent_full",
+    "secret": "owl_agent_full",
     "key_type": "agent",
     "app_id": null,
     "team_id": "uuid",

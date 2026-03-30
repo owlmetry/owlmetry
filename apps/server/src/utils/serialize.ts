@@ -84,6 +84,35 @@ export function serializeJobRun(r: {
   };
 }
 
+// --- Client secret lookup helpers ---
+// These avoid duplicating the api_keys query across app/project routes.
+
+import { eq, and, inArray, isNull } from "drizzle-orm";
+import { apiKeys } from "@owlmetry/db";
+import type { Db } from "@owlmetry/db";
+
+export async function getClientSecret(db: Db, appId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ secret: apiKeys.secret })
+    .from(apiKeys)
+    .where(and(eq(apiKeys.app_id, appId), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)))
+    .limit(1);
+  return row?.secret ?? null;
+}
+
+export async function getClientSecretMap(db: Db, appIds: string[]): Promise<Map<string, string>> {
+  if (appIds.length === 0) return new Map();
+  const rows = await db
+    .select({ app_id: apiKeys.app_id, secret: apiKeys.secret })
+    .from(apiKeys)
+    .where(and(inArray(apiKeys.app_id, appIds), eq(apiKeys.key_type, "client"), isNull(apiKeys.deleted_at)));
+  const map = new Map<string, string>();
+  for (const k of rows) {
+    if (k.app_id && !map.has(k.app_id)) map.set(k.app_id, k.secret);
+  }
+  return map;
+}
+
 export function serializeApp(a: {
   id: string; team_id: string; project_id: string;
   name: string; platform: string; bundle_id: string | null;
