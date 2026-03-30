@@ -762,15 +762,22 @@ describe("MCP endpoint", () => {
       const { key } = await createFullAgentKey();
 
       // Add
-      const { parsed: added, isError: addErr } = parseToolResult(
-        await callTool(key, "add-integration", {
-          project_id: testData.projectId,
-          provider: "revenuecat",
-          config: { api_key: "rc_test_key_123" },
-        }),
-      );
+      const addRes = await callTool(key, "add-integration", {
+        project_id: testData.projectId,
+        provider: "revenuecat",
+        config: { api_key: "rc_test_key_123" },
+      });
+      const { parsed: added, isError: addErr } = parseToolResult(addRes);
       expect(addErr).toBe(false);
       expect(added.provider).toBe("revenuecat");
+      expect(added.webhook_setup).toBeDefined();
+      expect(added.webhook_setup.webhook_url).toContain("/v1/webhooks/revenuecat/");
+      expect(added.webhook_setup.authorization_header).toMatch(/^Bearer whsec_/);
+
+      // Verify second content block has formatted webhook setup text
+      const addBody = addRes.json();
+      expect(addBody.result.content).toHaveLength(2);
+      expect(addBody.result.content[1].text).toContain("RevenueCat Webhook Setup");
 
       // List
       const { parsed: listed } = parseToolResult(

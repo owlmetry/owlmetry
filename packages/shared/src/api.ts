@@ -380,6 +380,17 @@ export interface IntegrationResponse {
   updated_at: string;
 }
 
+export interface WebhookSetup {
+  webhook_url: string;
+  authorization_header: string;
+  environment: string;
+  events_filter: string;
+}
+
+export interface CreateIntegrationResponse extends IntegrationResponse {
+  webhook_setup?: WebhookSetup;
+}
+
 export interface CreateIntegrationRequest {
   provider: string;
   config: Record<string, unknown>;

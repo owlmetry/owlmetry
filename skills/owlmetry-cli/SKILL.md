@@ -309,7 +309,7 @@ owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # S
 
 The `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**; all other sections → No access.
 
-After adding RevenueCat, configure the webhook URL in RevenueCat's dashboard: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
+A webhook secret is auto-generated. The output includes a **Webhook Setup** section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook): webhook URL, authorization header, environment, and events filter. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
 
 Bulk sync creates a tracked background job. The response includes a `job_run_id` you can monitor:
 
@@ -496,5 +496,5 @@ After setup, the SDK skill will prompt the user to choose which instrumentation 
 
 For metrics and funnels, the CLI defines **what** to track (server-side definitions), and the SDK implements **where** to track it (code instrumentation). The definition must exist before the SDK emits events for that slug.
 
-6. **Connect integrations** (CLI, optional): `owlmetry integrations add revenuecat --project-id <id> --api-key <key>` — then configure the webhook URL in RevenueCat's dashboard and run `owlmetry integrations sync revenuecat --project-id <id>` to backfill existing users
+6. **Connect integrations** (CLI, optional): `owlmetry integrations add revenuecat --project-id <id> --api-key <key>` — the output includes a Webhook Setup section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook). Run `owlmetry integrations sync revenuecat --project-id <id>` to backfill existing users
 7. **Query data** (CLI): Use `owlmetry events`, `owlmetry metrics query`, and `owlmetry funnels query` to analyze behavior

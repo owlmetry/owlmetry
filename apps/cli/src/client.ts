@@ -11,6 +11,7 @@ import type {
   CreateFunnelRequest,
   UpdateFunnelRequest,
   CreateIntegrationRequest,
+  CreateIntegrationResponse,
   UpdateIntegrationRequest,
   IntegrationResponse,
   EventsQueryParams,
@@ -264,7 +265,7 @@ export class OwlMetryClient {
     return result.integrations;
   }
 
-  async createIntegration(projectId: string, body: CreateIntegrationRequest): Promise<IntegrationResponse> {
+  async createIntegration(projectId: string, body: CreateIntegrationRequest): Promise<CreateIntegrationResponse> {
     return this.request<IntegrationResponse>("POST", `/v1/projects/${projectId}/integrations`, { body });
   }
 

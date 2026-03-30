@@ -18,4 +18,5 @@ export const config = {
   emailFrom: process.env.EMAIL_FROM || "noreply@owlmetry.com",
   webAppUrl: process.env.WEB_APP_URL || "http://localhost:3000",
   systemJobsAlertEmail: process.env.SYSTEM_JOBS_ALERT_EMAIL || "",
+  publicUrl: process.env.API_PUBLIC_URL || "https://api.owlmetry.com",
 };

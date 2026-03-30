@@ -814,6 +814,8 @@ describe("Integrations CRUD", () => {
     expect(body.enabled).toBe(true);
     expect(body.config.api_key).toBe("sk_t****"); // redacted
     expect(body.config.webhook_secret).toBe("whse****"); // redacted
+    expect(body.webhook_setup).toBeDefined();
+    expect(body.webhook_setup.webhook_url).toContain(`/v1/webhooks/revenuecat/${projectId}`);
   });
 
   it("rejects unsupported provider", async () => {
@@ -976,5 +978,59 @@ describe("Integrations CRUD", () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.json().enabled).toBe(true);
+  });
+
+  it("returns webhook_setup with provided webhook_secret on creation", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "revenuecat", config: { api_key: "sk_test_key", webhook_secret: "my_custom_secret" } },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.webhook_setup).toBeDefined();
+    expect(body.webhook_setup.webhook_url).toContain(`/v1/webhooks/revenuecat/${projectId}`);
+    expect(body.webhook_setup.authorization_header).toBe("Bearer my_custom_secret");
+    expect(body.webhook_setup.environment).toBe("Both Production and Sandbox");
+    expect(body.webhook_setup.events_filter).toBe("All apps, All events");
+    // Config should still be redacted
+    expect(body.config.webhook_secret).toBe("my_c****");
+  });
+
+  it("auto-generates webhook_secret and returns webhook_setup when none provided", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "revenuecat", config: { api_key: "sk_test_key" } },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.webhook_setup).toBeDefined();
+    expect(body.webhook_setup.authorization_header).toMatch(/^Bearer whsec_[a-f0-9]{48}$/);
+    expect(body.webhook_setup.webhook_url).toContain(`/v1/webhooks/revenuecat/${projectId}`);
+    // Config should have redacted auto-generated secret
+    expect(body.config.webhook_secret).toMatch(/^whse/);
+  });
+
+  it("does not include webhook_setup in list response", async () => {
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "revenuecat", config: { api_key: "sk_test_key" } },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().integrations[0].webhook_setup).toBeUndefined();
   });
 });

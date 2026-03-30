@@ -42,10 +42,14 @@ RevenueCat is the first supported integration. It syncs subscription lifecycle e
      --project-id <id> \
      --api-key <revenuecat-secret-key>
    ```
+   A webhook secret is auto-generated. The response (CLI, MCP, and API) includes a `webhook_setup` section with the exact values to paste into RevenueCat.
 
-3. **Configure the webhook** in RevenueCat dashboard:
-   - URL: `https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>`
-   - Optionally set a webhook secret for authentication
+3. **Configure the webhook** in RevenueCat dashboard (Settings → Webhooks → + New Webhook) using the values from `webhook_setup`:
+   - **Webhook name**: `Owlmetry` (or any name)
+   - **Webhook URL**: from `webhook_setup.webhook_url`
+   - **Authorization header value**: from `webhook_setup.authorization_header`
+   - **Environment**: `Both Production and Sandbox`
+   - **Events filter**: App = `All apps`, Event type = `All events`
 
 4. **Backfill existing users** with the sync command:
    ```bash
@@ -101,8 +105,8 @@ Set up RevenueCat integration for my OwlMetry project.
 1. Use the OwlMetry CLI to add the RevenueCat integration to my project with my
    RC V2 secret API key (needs Customer information → Customers Configuration →
    Read only, everything else No access). Use `/owlmetry-cli` for CLI syntax.
-2. Show me the webhook URL I need to paste into RevenueCat's dashboard
-   (Settings → Webhooks → New Webhook).
+2. Show me the webhook setup values from the output so I can paste them into
+   RevenueCat.
 3. After I confirm the webhook is configured, run a bulk sync to backfill
    existing subscribers.
 4. Use `/owlmetry-swift` or `/owlmetry-node` to add Owl.setUserProperties()

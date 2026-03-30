@@ -1,7 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { callApi, buildQuery } from "../helpers.js";
+import { callApi, callApiRaw, buildQuery } from "../helpers.js";
+import type { WebhookSetup } from "@owlmetry/shared";
 
 export function registerIntegrationsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-providers", {
@@ -37,11 +38,37 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
       config: z.record(z.string(), z.unknown()).describe("Provider-specific configuration (e.g., { api_key, webhook_secret })"),
     },
   }, async ({ project_id, provider, config }) => {
-    return callApi(app, agentKey, {
+    const { body, error } = await callApiRaw(app, agentKey, {
       method: "POST",
       url: `/v1/projects/${project_id}/integrations`,
       payload: { provider, config },
     });
+
+    if (error) return error;
+
+    const content: Array<{ type: "text"; text: string }> = [
+      { type: "text", text: JSON.stringify(body, null, 2) },
+    ];
+
+    const webhookSetup = body.webhook_setup as WebhookSetup | undefined;
+    if (webhookSetup) {
+      content.push({
+        type: "text",
+        text: [
+          "── RevenueCat Webhook Setup ──",
+          "Paste these into RevenueCat (Settings → Webhooks → + New Webhook):",
+          "",
+          `Webhook URL:     ${webhookSetup.webhook_url}`,
+          `Authorization:   ${webhookSetup.authorization_header}`,
+          `Environment:     ${webhookSetup.environment}`,
+          `Events filter:   ${webhookSetup.events_filter}`,
+          "",
+          "The authorization header contains the webhook secret. It will not be shown again.",
+        ].join("\n"),
+      });
+    }
+
+    return { content };
   });
 
   server.registerTool("update-integration", {

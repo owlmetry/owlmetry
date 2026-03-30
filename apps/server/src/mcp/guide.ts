@@ -91,10 +91,11 @@ Custom key-value properties stored on app users. Set via SDK (\`setUserPropertie
 ### Integrations
 Third-party service connections (e.g., RevenueCat) that sync data into user properties. Configured per-project.
 
-After adding RevenueCat:
+Setting up RevenueCat:
 1. Generate a **V2 Secret API key** in RevenueCat (Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only**. All other sections → No access.
-2. Configure the webhook URL in RevenueCat's dashboard: \`https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>\`
-3. Run \`sync-integration\` to backfill existing subscriber data
+2. Call \`add-integration\` with the API key. A webhook secret is auto-generated if you don't provide one. The response includes a \`webhook_setup\` section with the exact values to paste into RevenueCat's webhook settings (URL, authorization header, environment, events filter).
+3. Configure the webhook in RevenueCat (Settings → Webhooks → + New Webhook) using the values from \`webhook_setup\`.
+4. Run \`sync-integration\` to backfill existing subscriber data.
 
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.

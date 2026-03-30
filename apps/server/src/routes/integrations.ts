@@ -6,10 +6,12 @@ import {
   redactIntegrationConfig,
   SUPPORTED_PROVIDER_IDS,
   INTEGRATION_PROVIDERS,
+  generateWebhookSecret,
 } from "@owlmetry/shared";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { logAuditEvent } from "../utils/audit.js";
+import { config } from "../config.js";
 
 function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   return {
@@ -78,6 +80,11 @@ export async function integrationsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "config is required" });
       }
 
+      // Auto-generate webhook secret for RevenueCat if not provided
+      if (provider === "revenuecat" && !integrationConfig.webhook_secret) {
+        integrationConfig.webhook_secret = generateWebhookSecret();
+      }
+
       // Validate provider and config against the registry
       const configError = validateIntegrationConfig(provider, integrationConfig);
       if (configError) {
@@ -126,7 +133,18 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       logAuditEvent(app.db, request.auth, { team_id: project.team_id, action: "create", resource_type: "integration", resource_id: created.id, metadata: { provider } });
 
-      return reply.code(201).send(serializeIntegration(created));
+      const response: Record<string, unknown> = serializeIntegration(created);
+
+      if (provider === "revenuecat") {
+        response.webhook_setup = {
+          webhook_url: `${config.publicUrl}/v1/webhooks/revenuecat/${projectId}`,
+          authorization_header: `Bearer ${integrationConfig.webhook_secret as string}`,
+          environment: "Both Production and Sandbox",
+          events_filter: "All apps, All events",
+        };
+      }
+
+      return reply.code(201).send(response);
     }
   );
 

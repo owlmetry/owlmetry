@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import type { IntegrationResponse } from "@owlmetry/shared";
+import type { IntegrationResponse, CreateIntegrationResponse } from "@owlmetry/shared";
 import { SUPPORTED_PROVIDER_IDS, INTEGRATION_PROVIDERS } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
@@ -85,8 +85,22 @@ integrationsCommand
     if (opts.apiKey) config.api_key = opts.apiKey;
     if (opts.webhookSecret) config.webhook_secret = opts.webhookSecret;
 
-    const integration = await client.createIntegration(opts.projectId, { provider, config });
-    output(globals.format, integration, () => formatIntegrationDetail(integration));
+    const result = await client.createIntegration(opts.projectId, { provider, config });
+    output(globals.format, result, () => {
+      const lines = [formatIntegrationDetail(result)];
+      if (result.webhook_setup) {
+        const ws = result.webhook_setup;
+        lines.push("");
+        lines.push(chalk.bold("── Webhook Setup (paste into RevenueCat) ──"));
+        lines.push(`  Webhook URL:     ${ws.webhook_url}`);
+        lines.push(`  Authorization:   ${chalk.yellow(ws.authorization_header)}`);
+        lines.push(`  Environment:     ${ws.environment}`);
+        lines.push(`  Events filter:   ${ws.events_filter}`);
+        lines.push("");
+        lines.push(chalk.dim("The authorization header contains the webhook secret. It will not be shown again."));
+      }
+      return lines.join("\n");
+    });
   });
 
 integrationsCommand

@@ -14,3 +14,7 @@ export function generateVerificationCode(): { code: string; codeHash: string } {
 export function hashVerificationCode(code: string): string {
   return createHash("sha256").update(code).digest("hex");
 }
+
+export function generateWebhookSecret(): string {
+  return `whsec_${randomBytes(24).toString("hex")}`;
+}
