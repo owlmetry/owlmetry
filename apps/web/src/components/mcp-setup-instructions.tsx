@@ -5,9 +5,12 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
 import { CopyButton } from "@/components/copy-button";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 
 const PLACEHOLDER = "YOUR_AGENT_KEY";
+const MCP_URL = `${API_URL}/mcp`;
+const IS_DEV = process.env.NODE_ENV === "development";
+const SERVER_NAME = IS_DEV ? "owlmetry-local-dev" : "owlmetry";
 
 // --- Editor config definitions ---
 
@@ -16,8 +19,8 @@ interface EditorConfig {
   language: string;
   note?: string;
   callout?: string;
-  /** Returns the config string with the key injected */
-  config: (key: string) => string;
+  /** Returns the config string with the key, MCP URL, and server name injected */
+  config: (key: string, url: string, name: string) => string;
 }
 
 const EDITORS: EditorConfig[] = [
@@ -25,24 +28,24 @@ const EDITORS: EditorConfig[] = [
     name: "Claude Code",
     language: "bash",
     note: "Add `--scope user` to make it available across all projects, or `--scope project` to share it via `.mcp.json` in a repo.\n\nVerify the connection:\n\n```\n/mcp\n```",
-    config: (key) =>
-      `claude mcp add --transport http owlmetry https://api.owlmetry.com/mcp \\
+    config: (key, url, name) =>
+      `claude mcp add --transport http ${name} ${url} \\
   --header "Authorization: Bearer ${key}"`,
   },
   {
     name: "Codex",
     language: "toml",
     note: "Add to `~/.codex/config.toml` (or `.codex/config.toml` in a trusted project):",
-    config: (key) =>
-      `[mcp_servers.owlmetry]\nurl = "https://api.owlmetry.com/mcp"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
+    config: (key, url, name) =>
+      `[mcp_servers.${name}]\nurl = "${url}"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
   },
   {
     name: "Cursor",
     language: "json",
     note: "Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -52,9 +55,9 @@ const EDITORS: EditorConfig[] = [
     language: "json",
     note: "Add to `.vscode/mcp.json` in your project:",
     callout: "You can also add servers via the Command Palette: **MCP: Add Server**.",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { servers: { owlmetry: { type: "http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { servers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -63,9 +66,9 @@ const EDITORS: EditorConfig[] = [
     name: "Claude Desktop",
     language: "json",
     note: "Add to your Claude Desktop config:\n\n- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`\n- **Windows:** `%APPDATA%\\Claude\\claude_desktop_config.json`",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -75,9 +78,9 @@ const EDITORS: EditorConfig[] = [
     language: "json",
     note: "Add to `~/.codeium/windsurf/mcp_config.json`:",
     callout: "Windsurf uses `serverUrl` instead of `url` — this is different from other editors.\n\nYou can also access this file via Windsurf settings: **Cascade** > **MCP Servers** > **View raw config**.",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { serverUrl: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { [name]: { serverUrl: url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -87,9 +90,9 @@ const EDITORS: EditorConfig[] = [
     language: "json",
     note: "Add to your Zed settings file (`~/.config/zed/settings.json`):",
     callout: "Zed uses `context_servers` as the root key instead of `mcpServers`.",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { context_servers: { owlmetry: { url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { context_servers: { [name]: { url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -99,9 +102,9 @@ const EDITORS: EditorConfig[] = [
     language: "json",
     note: "In any JetBrains IDE (IntelliJ, WebStorm, PyCharm, etc.):\n\n1. Open **Settings** > **Tools** > **AI Assistant** > **Model Context Protocol (MCP)**\n2. Click **+** to add a new server\n3. Enter the configuration:",
     callout: "Requires IDE version 2025.2 or later for streamable HTTP support. Check the [JetBrains MCP docs](https://www.jetbrains.com/help/ai-assistant/mcp.html) for the latest.",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { [name]: { url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -110,9 +113,9 @@ const EDITORS: EditorConfig[] = [
     name: "Cline",
     language: "json",
     note: "Open the Cline sidebar in VS Code, click the **MCP Servers** icon, then **Edit MCP Settings**:",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "streamableHttp", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { [name]: { type: "streamableHttp", url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -121,9 +124,9 @@ const EDITORS: EditorConfig[] = [
     name: "Roo Code",
     language: "json",
     note: "Add to `.roo/mcp.json` in your project root (or edit global settings via the Roo Code server icon):",
-    config: (key) =>
+    config: (key, url, name) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "streamable-http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { [name]: { type: "streamable-http", url, headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -228,8 +231,8 @@ export function McpSetupInstructions() {
       {/* Editor config tabs */}
       <Tabs items={EDITORS.map((e) => e.name)}>
         {EDITORS.map((editor) => {
-          const configText = editor.config(activeKey);
-          const configDisplay = editor.config(displayKey);
+          const configText = editor.config(activeKey, MCP_URL, SERVER_NAME);
+          const configDisplay = editor.config(displayKey, MCP_URL, SERVER_NAME);
           return (
             <Tab key={editor.name} value={editor.name}>
               {editor.note && (
