@@ -191,12 +191,13 @@ If a tool returns a permissions error, the agent key is missing the required per
 1. \`whoami\` → get team ID and verify permissions
 2. \`create-project\` → create project with name and slug
 3. \`create-app\` → create app(s) for each platform, note the \`client_secret\`
-4. Configure the SDK with the \`client_secret\` and ingest endpoint
+4. Read the SDK integration guide for the platform — see **SDK Integration Guides** below
+5. Configure the SDK with the \`client_secret\` and ingest endpoint
 
 ### Defining what to track
 1. \`create-metric\` → for each measurable operation (API calls, load times, etc.)
 2. \`create-funnel\` → for each user flow (onboarding, checkout, etc.)
-3. Instrument the SDK code with the corresponding metric slugs and step names
+3. Instrument the SDK code with the corresponding metric slugs and step names — see the SDK guides for API details
 
 ### Querying and analysis
 1. \`query-events\` → search for specific events, errors, or user activity
@@ -210,6 +211,19 @@ If a tool returns a permissions error, the agent key is missing the required per
 2. \`add-integration\` → configure the integration
 3. \`sync-integration\` → backfill existing data (triggers background job)
 4. \`get-job\` → monitor sync progress
+
+## SDK Integration Guides
+
+This MCP server provides SDK integration guides as resources. Read the relevant guide when you need to install, configure, or instrument an SDK in the user's codebase.
+
+| Resource | SDK | Use when |
+|---|---|---|
+| \`owlmetry://skills/swift\` | Swift SDK | Instrumenting iOS, iPadOS, or macOS apps (SwiftUI or UIKit) |
+| \`owlmetry://skills/node\` | Node.js SDK | Instrumenting backend services (Express, Fastify, serverless, etc.) |
+
+Each guide covers: package installation, \`configure()\` setup, event logging, screen tracking (Swift), structured metrics, funnel tracking, A/B experiments, user identity, and user properties.
+
+**Note:** The guides reference CLI commands for creating metrics and funnels. You can use the equivalent MCP tools instead (\`create-metric\`, \`create-funnel\`).
 
 ## Key Notes
 
