@@ -14,122 +14,212 @@ const SERVER_NAME = IS_DEV ? "owlmetry-local-dev" : "owlmetry";
 
 // --- Editor config definitions ---
 
+interface EditorScope {
+  label: string;
+  note?: string;
+  /** Returns the config string with the key, MCP URL, and server name injected */
+  config: (key: string, url: string, name: string) => string;
+}
+
 interface EditorConfig {
   name: string;
   language: string;
-  note?: string;
   callout?: string;
-  /** Returns the config string with the key, MCP URL, and server name injected */
-  config: (key: string, url: string, name: string) => string;
+  scopes: EditorScope[];
 }
 
 const EDITORS: EditorConfig[] = [
   {
     name: "Claude Code",
     language: "bash",
-    note: "Add `--scope user` to make it available across all projects, or `--scope project` to share it via `.mcp.json` in a repo.\n\nVerify the connection:\n\n```\n/mcp\n```",
-    config: (key, url, name) =>
-      `claude mcp add --transport http ${name} ${url} \\
+    callout: "Verify the connection by typing `/mcp` in Claude Code.",
+    scopes: [
+      {
+        label: "Add globally",
+        note: "Available across all your projects — stored in your user config.",
+        config: (key, url, name) =>
+          `claude mcp add --transport http --scope user ${name} ${url} \\
   --header "Authorization: Bearer ${key}"`,
+      },
+      {
+        label: "Just current project",
+        note: "Shares the server with your team via `.mcp.json` in the project root.",
+        config: (key, url, name) =>
+          `claude mcp add --transport http ${name} ${url} \\
+  --header "Authorization: Bearer ${key}"`,
+      },
+    ],
   },
   {
     name: "Codex",
     language: "toml",
-    note: "Add to `~/.codex/config.toml` (or `.codex/config.toml` in a trusted project):",
-    config: (key, url, name) =>
-      `[mcp_servers.${name}]\nurl = "${url}"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
+    scopes: [
+      {
+        label: "Add globally",
+        note: "Add to `~/.codex/config.toml`:",
+        config: (key, url, name) =>
+          `[mcp_servers.${name}]\nurl = "${url}"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
+      },
+      {
+        label: "Just current project",
+        note: "Add to `.codex/config.toml` in a trusted project:",
+        config: (key, url, name) =>
+          `[mcp_servers.${name}]\nurl = "${url}"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
+      },
+    ],
   },
   {
     name: "Cursor",
     language: "json",
-    note: "Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    scopes: [
+      {
+        label: "Add globally",
+        note: "Add to `~/.cursor/mcp.json`:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+      {
+        label: "Just current project",
+        note: "Add to `.cursor/mcp.json` in your project:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "VS Code",
     language: "json",
-    note: "Add to `.vscode/mcp.json` in your project:",
     callout: "You can also add servers via the Command Palette: **MCP: Add Server**.",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { servers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    scopes: [
+      {
+        label: "Project",
+        note: "Add to `.vscode/mcp.json` in your project:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { servers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "Claude Desktop",
     language: "json",
-    note: "Add to your Claude Desktop config:\n\n- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`\n- **Windows:** `%APPDATA%\\Claude\\claude_desktop_config.json`",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    scopes: [
+      {
+        label: "Default",
+        note: "Add to your Claude Desktop config:\n\n- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`\n- **Windows:** `%APPDATA%\\Claude\\claude_desktop_config.json`",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { type: "http", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "Windsurf",
     language: "json",
-    note: "Add to `~/.codeium/windsurf/mcp_config.json`:",
-    callout: "Windsurf uses `serverUrl` instead of `url` — this is different from other editors.\n\nYou can also access this file via Windsurf settings: **Cascade** > **MCP Servers** > **View raw config**.",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { mcpServers: { [name]: { serverUrl: url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    callout:
+      "Windsurf uses `serverUrl` instead of `url` — this is different from other editors.\n\nYou can also access this file via Windsurf settings: Cascade > MCP Servers > View raw config.",
+    scopes: [
+      {
+        label: "Default",
+        note: "Add to `~/.codeium/windsurf/mcp_config.json`:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { serverUrl: url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "Zed",
     language: "json",
-    note: "Add to your Zed settings file (`~/.config/zed/settings.json`):",
     callout: "Zed uses `context_servers` as the root key instead of `mcpServers`.",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { context_servers: { [name]: { url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    scopes: [
+      {
+        label: "Default",
+        note: "Add to your Zed settings file (`~/.config/zed/settings.json`):",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { context_servers: { [name]: { url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "JetBrains",
     language: "json",
-    note: "In any JetBrains IDE (IntelliJ, WebStorm, PyCharm, etc.):\n\n1. Open **Settings** > **Tools** > **AI Assistant** > **Model Context Protocol (MCP)**\n2. Click **+** to add a new server\n3. Enter the configuration:",
-    callout: "Requires IDE version 2025.2 or later for streamable HTTP support. Check the [JetBrains MCP docs](https://www.jetbrains.com/help/ai-assistant/mcp.html) for the latest.",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { mcpServers: { [name]: { url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    callout: "Requires IDE version 2025.2 or later for streamable HTTP support.",
+    scopes: [
+      {
+        label: "Default",
+        note: "In any JetBrains IDE (IntelliJ, WebStorm, PyCharm, etc.):\n\n1. Open **Settings** > **Tools** > **AI Assistant** > **Model Context Protocol (MCP)**\n2. Click **+** to add a new server\n3. Enter the configuration:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "Cline",
     language: "json",
-    note: "Open the Cline sidebar in VS Code, click the **MCP Servers** icon, then **Edit MCP Settings**:",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { mcpServers: { [name]: { type: "streamableHttp", url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    scopes: [
+      {
+        label: "Default",
+        note: "Open the Cline sidebar in VS Code, click the **MCP Servers** icon, then **Edit MCP Settings**:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { type: "streamableHttp", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
   {
     name: "Roo Code",
     language: "json",
-    note: "Add to `.roo/mcp.json` in your project root (or edit global settings via the Roo Code server icon):",
-    config: (key, url, name) =>
-      JSON.stringify(
-        { mcpServers: { [name]: { type: "streamable-http", url, headers: { Authorization: `Bearer ${key}` } } } },
-        null,
-        2,
-      ),
+    scopes: [
+      {
+        label: "Add globally",
+        note: "Edit via the Roo Code MCP server icon in the sidebar, then paste:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { type: "streamable-http", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+      {
+        label: "Just current project",
+        note: "Add to `.roo/mcp.json` in your project root:",
+        config: (key, url, name) =>
+          JSON.stringify(
+            { mcpServers: { [name]: { type: "streamable-http", url, headers: { Authorization: `Bearer ${key}` } } } },
+            null,
+            2,
+          ),
+      },
+    ],
   },
 ];
 
@@ -140,10 +230,35 @@ function maskKey(key: string): string {
   return `${visible}${"*".repeat(8)}`;
 }
 
+function renderNote(note: string) {
+  return (
+    <div className="mb-3 text-sm prose-invert [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs">
+      {note.split("\n").map((line, i) => {
+        if (line.startsWith("```")) return null;
+        if (line.startsWith("- **")) {
+          const match = line.match(/- \*\*(.+?)\*\* `(.+?)`/);
+          if (match)
+            return (
+              <p key={i}>
+                <strong>{match[1]}</strong> <code>{match[2]}</code>
+              </p>
+            );
+        }
+        if (line.match(/^\d+\./)) {
+          return <p key={i}>{line}</p>;
+        }
+        if (line.trim() === "") return null;
+        return <p key={i}>{line}</p>;
+      })}
+    </div>
+  );
+}
+
 export function McpSetupInstructions() {
   const { user, teams, isLoading, mutate } = useUser();
   const [keyVisible, setKeyVisible] = useState(false);
   const [lazyCreating, setLazyCreating] = useState(false);
+  const [scopeSelections, setScopeSelections] = useState<Record<string, number>>({});
 
   // Determine auth state
   const isAuthenticated = !!user;
@@ -231,26 +346,38 @@ export function McpSetupInstructions() {
       {/* Editor config tabs */}
       <Tabs items={EDITORS.map((e) => e.name)}>
         {EDITORS.map((editor) => {
-          const configText = editor.config(activeKey, MCP_URL, SERVER_NAME);
-          const configDisplay = editor.config(displayKey, MCP_URL, SERVER_NAME);
+          const scopeIdx = scopeSelections[editor.name] ?? 0;
+          const scope = editor.scopes[scopeIdx];
+          const configText = scope.config(activeKey, MCP_URL, SERVER_NAME);
+          const configDisplay = scope.config(displayKey, MCP_URL, SERVER_NAME);
           return (
             <Tab key={editor.name} value={editor.name}>
-              {editor.note && (
-                <div className="mb-3 text-sm prose-invert [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs">
-                  {editor.note.split("\n").map((line, i) => {
-                    if (line.startsWith("```")) return null;
-                    if (line.startsWith("- **")) {
-                      const match = line.match(/- \*\*(.+?)\*\* `(.+?)`/);
-                      if (match) return <p key={i}><strong>{match[1]}</strong> <code>{match[2]}</code></p>;
-                    }
-                    if (line.match(/^\d+\./)) {
-                      return <p key={i}>{line}</p>;
-                    }
-                    if (line.trim() === "") return null;
-                    return <p key={i}>{line}</p>;
-                  })}
+              {/* Scope toggle — only shown when editor has multiple scopes */}
+              {editor.scopes.length > 1 && (
+                <div className="mb-3 inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
+                  {editor.scopes.map((s, i) => (
+                    <button
+                      key={s.label}
+                      type="button"
+                      onClick={() =>
+                        setScopeSelections((prev) => ({ ...prev, [editor.name]: i }))
+                      }
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        scopeIdx === i
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
                 </div>
               )}
+
+              {/* Note */}
+              {scope.note && renderNote(scope.note)}
+
+              {/* Config code block */}
               <div className="relative">
                 <pre className="overflow-x-auto rounded-lg border border-border bg-fd-code-background p-4 text-sm">
                   <code>{configDisplay}</code>
@@ -259,6 +386,8 @@ export function McpSetupInstructions() {
                   <CopyButton text={configText} />
                 </div>
               </div>
+
+              {/* Callout */}
               {editor.callout && (
                 <div className="mt-3 rounded-lg border border-fd-border bg-fd-card px-4 py-3 text-sm text-fd-muted-foreground">
                   {editor.callout}
