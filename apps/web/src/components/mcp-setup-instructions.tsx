@@ -30,6 +30,13 @@ const EDITORS: EditorConfig[] = [
   --header "Authorization: Bearer ${key}"`,
   },
   {
+    name: "Codex",
+    language: "toml",
+    note: "Add to `~/.codex/config.toml` (or `.codex/config.toml` in a trusted project):",
+    config: (key) =>
+      `[mcp_servers.owlmetry]\nurl = "https://api.owlmetry.com/mcp"\nhttp_headers = { "Authorization" = "Bearer ${key}" }`,
+  },
+  {
     name: "Cursor",
     language: "json",
     note: "Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` for global):",
@@ -47,7 +54,7 @@ const EDITORS: EditorConfig[] = [
     callout: "You can also add servers via the Command Palette: **MCP: Add Server**.",
     config: (key) =>
       JSON.stringify(
-        { servers: { owlmetry: { type: "streamable-http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { servers: { owlmetry: { type: "http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -70,7 +77,7 @@ const EDITORS: EditorConfig[] = [
     callout: "Windsurf uses `serverUrl` instead of `url` — this is different from other editors.\n\nYou can also access this file via Windsurf settings: **Cascade** > **MCP Servers** > **View raw config**.",
     config: (key) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "http", serverUrl: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { owlmetry: { serverUrl: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -79,10 +86,10 @@ const EDITORS: EditorConfig[] = [
     name: "Zed",
     language: "json",
     note: "Add to your Zed settings file (`~/.config/zed/settings.json`):",
-    callout: "Zed uses `context_servers` as the root key instead of `mcpServers`, and nests config under `settings`.",
+    callout: "Zed uses `context_servers` as the root key instead of `mcpServers`.",
     config: (key) =>
       JSON.stringify(
-        { context_servers: { owlmetry: { settings: { url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } } },
+        { context_servers: { owlmetry: { url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -91,10 +98,10 @@ const EDITORS: EditorConfig[] = [
     name: "JetBrains",
     language: "json",
     note: "In any JetBrains IDE (IntelliJ, WebStorm, PyCharm, etc.):\n\n1. Open **Settings** > **Tools** > **AI Assistant** > **Model Context Protocol (MCP)**\n2. Click **+** to add a new server\n3. Enter the configuration:",
-    callout: "JetBrains currently uses SSE transport. Streamable HTTP support may vary by IDE version — check the [JetBrains MCP docs](https://www.jetbrains.com/help/ai-assistant/mcp.html) for the latest.",
+    callout: "Requires IDE version 2025.2 or later for streamable HTTP support. Check the [JetBrains MCP docs](https://www.jetbrains.com/help/ai-assistant/mcp.html) for the latest.",
     config: (key) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "sse", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { owlmetry: { url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
@@ -105,7 +112,7 @@ const EDITORS: EditorConfig[] = [
     note: "Open the Cline sidebar in VS Code, click the **MCP Servers** icon, then **Edit MCP Settings**:",
     config: (key) =>
       JSON.stringify(
-        { mcpServers: { owlmetry: { type: "http", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
+        { mcpServers: { owlmetry: { type: "streamableHttp", url: "https://api.owlmetry.com/mcp", headers: { Authorization: `Bearer ${key}` } } } },
         null,
         2,
       ),
