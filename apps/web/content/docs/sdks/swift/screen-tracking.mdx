@@ -119,7 +119,7 @@ struct CartView: View {
         VStack {
             // ...
             Button("Place Order") {
-                Owl.info("Order placed", screenName: "Cart", customAttributes: ["items": "\(cart.count)"])
+                Owl.info("Order placed", screenName: "Cart", attributes: ["items": "\(cart.count)"])
             }
         }
         .owlScreen("Cart")

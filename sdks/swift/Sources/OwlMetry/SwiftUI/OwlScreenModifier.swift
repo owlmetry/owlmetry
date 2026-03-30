@@ -21,7 +21,7 @@ private struct OwlScreenModifier: ViewModifier {
                     let durationMs = Int(Date().timeIntervalSince(appearedAt) * 1000)
                     attributes = ["_duration_ms": String(durationMs)]
                 }
-                Owl.debug("sdk:screen_disappeared", screenName: screenName, customAttributes: attributes)
+                Owl.debug("sdk:screen_disappeared", screenName: screenName, attributes: attributes)
                 appearedAt = nil
             }
     }

@@ -164,7 +164,7 @@ struct MyApp: App {
 ```swift
 Owl.info("App launched")
 Owl.error("Failed to load profile", screenName: "ProfileView")
-Owl.warn("Slow network response", customAttributes: ["latency_ms": "1200"])
+Owl.warn("Slow network response", attributes: ["latency_ms": "1200"])
 ```
 
 Events are buffered and flushed automatically in batches. They appear in the OwlMetry dashboard within seconds.

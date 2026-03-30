@@ -199,28 +199,28 @@ Events are the core unit of data in OwlMetry. Use the four log levels to capture
 - **`warn`** — something didn't go as expected but the app can continue: failed validation, precondition checks that fail, slow responses, fallback paths taken, deprecated API usage, missing optional data.
 - **`error`** — a caught exception or hard failure inside a `do`/`catch` block: network errors, JSON decode failures, file I/O errors, keychain access failures. Reserve for actual thrown errors, not for anticipated validation outcomes.
 
-Choose **message strings** that are specific and searchable. Prefer `"Failed to load profile image"` over `"error"`. Use `screenName` to tie events to where they happened in the UI. Use `customAttributes` for structured data you'll want to filter or search on later.
+Choose **message strings** that are specific and searchable. Prefer `"Failed to load profile image"` over `"error"`. Use `screenName` to tie events to where they happened in the UI. Use `attributes` for structured data you'll want to filter or search on later.
 
 ```swift
 // In a screen context — pass screenName to tie the event to the screen
 Owl.info("User opened settings", screenName: "SettingsView")
-Owl.debug("Cache hit", screenName: "HomeView", customAttributes: ["key": "user_prefs"])
-Owl.warn("Invalid email format", screenName: "SignUpView", customAttributes: ["input": email])
+Owl.debug("Cache hit", screenName: "HomeView", attributes: ["key": "user_prefs"])
+Owl.warn("Invalid email format", screenName: "SignUpView", attributes: ["input": email])
 
 do {
     let profile = try await api.loadProfile(id: userId)
 } catch {
-    Owl.error("Failed to load profile", screenName: "ProfileView", customAttributes: ["error": "\(error)"])
+    Owl.error("Failed to load profile", screenName: "ProfileView", attributes: ["error": "\(error)"])
 }
 
 // Outside a screen context — omit screenName entirely
-Owl.info("Background sync completed", customAttributes: ["items": "\(count)"])
-Owl.error("Keychain write failed", customAttributes: ["error": "\(error)"])
+Owl.info("Background sync completed", attributes: ["items": "\(count)"])
+Owl.error("Keychain write failed", attributes: ["error": "\(error)"])
 ```
 
 All logging methods share the same signature:
 ```swift
-Owl.info(_ message: String, screenName: String? = nil, customAttributes: [String: String]? = nil)
+Owl.info(_ message: String, screenName: String? = nil, attributes: [String: String]? = nil)
 ```
 
 **`screenName` is optional.** Only pass it when the event originates from a specific screen in the UI (e.g., a button tap handler inside a view). **Do NOT pass `screenName`** when logging from utility functions, services, managers, network layers, background tasks, or anywhere that isn't directly tied to a visible screen. Passing a fabricated or guessed screen name is worse than omitting it — it pollutes screen-level analytics.
@@ -410,7 +410,7 @@ Set a value to `""` to delete a key. All values must be strings. Max 50 properti
 
 Properties follow the current user identity. If the user is anonymous, properties are set on the anonymous user and merged into the real user on `Owl.setUser()`.
 
-Use for user-level data that changes infrequently (subscription status, plan tier, company). For event-specific data, use `customAttributes` on events instead.
+Use for user-level data that changes infrequently (subscription status, plan tier, company). For event-specific data, use `attributes` on events instead.
 
 **RevenueCat integration prompt** — copy-paste to set up subscription tracking:
 

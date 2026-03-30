@@ -20,7 +20,7 @@ Owl.info("User tapped checkout", screenName: "Cart")
 Verbose detail useful only during development: cache hits, state transitions, intermediate values. Debug events are filtered out when viewing production data.
 
 ```swift
-Owl.debug("Cache hit for user preferences", screenName: "Home", customAttributes: ["key": "user_prefs"])
+Owl.debug("Cache hit for user preferences", screenName: "Home", attributes: ["key": "user_prefs"])
 ```
 
 ### Warn
@@ -28,7 +28,7 @@ Owl.debug("Cache hit for user preferences", screenName: "Home", customAttributes
 Something unexpected that the app recovered from: slow responses, fallback paths, retries needed.
 
 ```swift
-Owl.warn("Slow network response", customAttributes: ["latency_ms": "1200", "endpoint": "/api/feed"])
+Owl.warn("Slow network response", attributes: ["latency_ms": "1200", "endpoint": "/api/feed"])
 ```
 
 ### Error
@@ -36,7 +36,7 @@ Owl.warn("Slow network response", customAttributes: ["latency_ms": "1200", "endp
 Something failed: network errors, parse failures, missing data, caught exceptions.
 
 ```swift
-Owl.error("Failed to load profile image", screenName: "Profile", customAttributes: ["error": error.localizedDescription])
+Owl.error("Failed to load profile image", screenName: "Profile", attributes: ["error": error.localizedDescription])
 ```
 
 ## Method Signature
@@ -47,7 +47,7 @@ All four methods share the same signature:
 Owl.info(
     _ message: String,
     screenName: String? = nil,
-    customAttributes: [String: String]? = nil,
+    attributes: [String: String]? = nil,
     file: String = #file,
     function: String = #function,
     line: Int = #line
@@ -58,7 +58,7 @@ Owl.info(
 |-----------|-------------|
 | `message` | A descriptive string for the event. Choose messages that are specific and searchable. |
 | `screenName` | The screen where the event occurred. Ties the event to a location in the UI. |
-| `customAttributes` | Key-value pairs of additional structured data. Values must be strings. |
+| `attributes` | Key-value pairs of additional structured data. Values must be strings. |
 | `file`, `function`, `line` | Automatically captured from the call site. Do not pass these manually. |
 
 ## Auto-Captured Source Info
@@ -109,6 +109,6 @@ try Owl.configure(
 
 - **Be specific with messages.** Prefer `"Failed to load profile image"` over `"error"`. Specific messages are easier to search and filter.
 - **Use `screenName` for UI events.** It ties events to where they happened, making dashboard filtering more useful.
-- **Use `customAttributes` for structured data.** Anything you might want to filter, group, or search on later should be an attribute rather than embedded in the message string.
+- **Use `attributes` for structured data.** Anything you might want to filter, group, or search on later should be an attribute rather than embedded in the message string.
 - **Avoid logging PII.** Do not include emails, phone numbers, passwords, or authentication tokens in events.
 - **Avoid high-frequency events.** Do not log on every frame, scroll position change, or timer tick. Focus on meaningful actions and outcomes.

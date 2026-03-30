@@ -116,7 +116,7 @@ public enum Owl {
         if let launchMs = Self.processLaunchDurationMs() {
             sessionAttributes = ["_launch_ms": String(launchMs)]
         }
-        log("sdk:session_started", level: .info, screenName: nil, customAttributes: sessionAttributes,
+        log("sdk:session_started", level: .info, screenName: nil, attributes: sessionAttributes,
             file: #file, function: #function, line: #line)
     }
 
@@ -182,48 +182,48 @@ public enum Owl {
     public static func info(
         _ message: String,
         screenName: String? = nil,
-        customAttributes: [String: String]? = nil,
+        attributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .info, screenName: screenName, customAttributes: customAttributes,
+        log(message, level: .info, screenName: screenName, attributes: attributes,
             file: file, function: function, line: line)
     }
 
     public static func debug(
         _ message: String,
         screenName: String? = nil,
-        customAttributes: [String: String]? = nil,
+        attributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .debug, screenName: screenName, customAttributes: customAttributes,
+        log(message, level: .debug, screenName: screenName, attributes: attributes,
             file: file, function: function, line: line)
     }
 
     public static func warn(
         _ message: String,
         screenName: String? = nil,
-        customAttributes: [String: String]? = nil,
+        attributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .warn, screenName: screenName, customAttributes: customAttributes,
+        log(message, level: .warn, screenName: screenName, attributes: attributes,
             file: file, function: function, line: line)
     }
 
     public static func error(
         _ message: String,
         screenName: String? = nil,
-        customAttributes: [String: String]? = nil,
+        attributes: [String: String]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .error, screenName: screenName, customAttributes: customAttributes,
+        log(message, level: .error, screenName: screenName, attributes: attributes,
             file: file, function: function, line: line)
     }
 
@@ -237,7 +237,7 @@ public enum Owl {
         function: String = #function,
         line: Int = #line
     ) {
-        info("track:\(stepName)", customAttributes: attributes, file: file, function: function, line: line)
+        info("track:\(stepName)", attributes: attributes, file: file, function: function, line: line)
     }
 
     // MARK: - Experiments
@@ -299,7 +299,7 @@ public enum Owl {
         let op = OwlOperation(metric: slug)
         var attrs = attributes ?? [:]
         attrs["tracking_id"] = op.trackingId
-        info("metric:\(slug):start", customAttributes: attrs, file: file, function: function, line: line)
+        info("metric:\(slug):start", attributes: attrs, file: file, function: function, line: line)
         return op
     }
 
@@ -316,7 +316,7 @@ public enum Owl {
         line: Int = #line
     ) {
         let slug = normalizeSlug(metric)
-        info("metric:\(slug):record", customAttributes: attributes, file: file, function: function, line: line)
+        info("metric:\(slug):record", attributes: attributes, file: file, function: function, line: line)
     }
 
     // MARK: - Lifecycle
@@ -357,7 +357,7 @@ public enum Owl {
         _ message: String,
         level: OwlLogLevel,
         screenName: String?,
-        customAttributes: [String: String]?,
+        attributes: [String: String]?,
         file: String,
         function: String,
         line: Int
@@ -388,7 +388,7 @@ public enum Owl {
             message: message,
             level: level,
             screenName: screenName,
-            customAttributes: customAttributes,
+            customAttributes: attributes,
             userId: defaultUser,
             sessionId: sessionId ?? UUID().uuidString,
             deviceInfo: deviceInfo,

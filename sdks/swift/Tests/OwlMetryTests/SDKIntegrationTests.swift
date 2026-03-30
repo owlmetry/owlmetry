@@ -40,7 +40,7 @@ final class SDKIntegrationTests: XCTestCase {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
         Owl.info("SDK integration test - info", screenName: "roundtrip")
-        Owl.error("SDK integration test - error", screenName: "roundtrip", customAttributes: ["source_module": "xcode"])
+        Owl.error("SDK integration test - error", screenName: "roundtrip", attributes: ["source_module": "xcode"])
         Owl.warn("SDK integration test - warn", screenName: "roundtrip")
 
         await Owl.shutdown()
@@ -90,7 +90,7 @@ final class SDKIntegrationTests: XCTestCase {
     func testMetadataPreserved() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
-        Owl.info("custom attributes test", screenName: "checkout", customAttributes: ["item_count": "3", "currency": "USD"])
+        Owl.info("custom attributes test", screenName: "checkout", attributes: ["item_count": "3", "currency": "USD"])
 
         await Owl.shutdown()
 
@@ -390,7 +390,7 @@ final class SDKIntegrationTests: XCTestCase {
             Owl.info(
                 "gzip_event_\(i)_padding_\(String(repeating: "x", count: 50))",
                 screenName: screenName,
-                customAttributes: [
+                attributes: [
                     "index": "\(i)",
                     "tag": "compression-test",
                     "payload": String(repeating: "y", count: 80),
@@ -606,7 +606,7 @@ final class SDKIntegrationTests: XCTestCase {
         let screenName = "attr_trim_\(UUID().uuidString.prefix(8))"
         let longValue = String(repeating: "x", count: 300)
 
-        Owl.info("attribute trim test", screenName: screenName, customAttributes: ["long_value": longValue])
+        Owl.info("attribute trim test", screenName: screenName, attributes: ["long_value": longValue])
 
         try await Task.sleep(nanoseconds: 500_000_000)
         await Owl.shutdown()
