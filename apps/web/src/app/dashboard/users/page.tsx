@@ -82,12 +82,12 @@ export default function UsersPage() {
 
   const { users, isLoading, isLoadingMore, hasMore, loadMore } = useTeamAppUsers(filterParams);
 
-  // App name lookup
-  const appNameMap = useMemo(() => {
+  // Project name lookup
+  const projectNameMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const a of allApps) map.set(a.id, a.name);
+    for (const p of projects) map.set(p.id, p.name);
     return map;
-  }, [allApps]);
+  }, [projects]);
 
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
@@ -248,7 +248,7 @@ export default function UsersPage() {
                 <TableRow>
                   <TableHead>User ID</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
-                  <TableHead className="w-[140px]">App</TableHead>
+                  <TableHead className="w-[180px]">Apps</TableHead>
                   <TableHead className="w-[80px]">Claims</TableHead>
                   <TableHead className="w-[200px]">Properties</TableHead>
                   <TableHead className="w-[160px]">First Seen</TableHead>
@@ -260,7 +260,7 @@ export default function UsersPage() {
                   <TableRow key={user.id} className="cursor-pointer">
                     <TableCell className="font-mono text-xs py-1.5">
                       <Link
-                        href={`/dashboard/events?app_id=${user.app_id}&user_id=${user.user_id}`}
+                        href={`/dashboard/events?project_id=${user.project_id}&user_id=${user.user_id}`}
                         className="hover:underline"
                       >
                         {user.user_id}
@@ -273,8 +273,18 @@ export default function UsersPage() {
                         <Badge variant="default" className="text-xs">👤 real</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs py-1.5 truncate max-w-[140px]">
-                      {appNameMap.get(user.app_id) ?? user.app_id}
+                    <TableCell className="text-xs py-1.5 max-w-[180px]">
+                      <div className="flex flex-wrap gap-1">
+                        {user.apps && user.apps.length > 0 ? (
+                          user.apps.map((a) => (
+                            <Badge key={a.app_id} variant="outline" className="text-xs">
+                              {a.app_name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-xs py-1.5">
                       {user.claimed_from?.length ?? 0}

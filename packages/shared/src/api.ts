@@ -326,13 +326,21 @@ export interface TeamDetailResponse {
 }
 
 // App Users
+export interface AppUserAppInfo {
+  app_id: string;
+  app_name: string;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
 export interface AppUserResponse {
   id: string;
-  app_id: string;
+  project_id: string;
   user_id: string;
   is_anonymous: boolean;
   claimed_from: string[] | null;
   properties: Record<string, string> | null;
+  apps: AppUserAppInfo[];
   first_seen_at: string;
   last_seen_at: string;
 }

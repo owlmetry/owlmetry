@@ -55,9 +55,9 @@ function queryEvents(params: Record<string, string> = {}) {
   });
 }
 
-async function getAppUsers(appId: string) {
+async function getProjectUsers(projectId: string) {
   const client = postgres(TEST_DB_URL, { max: 1 });
-  const rows = await client`SELECT * FROM app_users WHERE app_id = ${appId}`;
+  const rows = await client`SELECT * FROM app_users WHERE project_id = ${projectId}`;
   await client.end();
   return rows;
 }
@@ -204,16 +204,16 @@ describe("POST /v1/identity/claim", () => {
     // Wait briefly for fire-and-forget upsert
     await new Promise((r) => setTimeout(r, 100));
 
-    // Get app_id from test data
+    // Get project_id from test data
     const seedData = await app.inject({
       method: "GET",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
     });
-    const appId = seedData.json().apps[0].id;
+    const projectId = seedData.json().apps[0].project_id;
 
     // Verify anonymous user was created
-    let users = await getAppUsers(appId);
+    let users = await getProjectUsers(projectId);
     const anonUser = users.find((u: any) => u.user_id === anonId);
     expect(anonUser).toBeDefined();
     expect(anonUser!.is_anonymous).toBe(true);
@@ -223,7 +223,7 @@ describe("POST /v1/identity/claim", () => {
     expect(res.statusCode).toBe(200);
 
     // Verify: anonymous row converted to real user with claimed_from
-    users = await getAppUsers(appId);
+    users = await getProjectUsers(projectId);
     const realUser = users.find((u: any) => u.user_id === "claimed-user");
     expect(realUser).toBeDefined();
     expect(realUser!.is_anonymous).toBe(false);
@@ -255,9 +255,9 @@ describe("POST /v1/identity/claim", () => {
       url: "/v1/apps",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
     });
-    const appId = seedData.json().apps[0].id;
+    const projectId = seedData.json().apps[0].project_id;
 
-    const users = await getAppUsers(appId);
+    const users = await getProjectUsers(projectId);
     const realUser = users.find((u: any) => u.user_id === "existing-real");
     expect(realUser).toBeDefined();
     expect(realUser!.claimed_from).toEqual([anonId]);

@@ -229,13 +229,15 @@ export const events = pgTable(
 );
 
 // App Users — auto-populated on ingest, tracks anonymous vs real users
+// Users are unique per project (not per app). The app_user_apps junction
+// table tracks which apps a user has been seen from.
 export const appUsers = pgTable(
   "app_users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    app_id: uuid("app_id")
+    project_id: uuid("project_id")
       .notNull()
-      .references(() => apps.id, { onDelete: "cascade" }),
+      .references(() => projects.id, { onDelete: "cascade" }),
     user_id: varchar("user_id", { length: 255 }).notNull(),
     is_anonymous: boolean("is_anonymous").notNull(),
     claimed_from: jsonb("claimed_from").$type<string[]>(),
@@ -248,9 +250,33 @@ export const appUsers = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("app_users_app_user_idx").on(table.app_id, table.user_id),
-    index("app_users_app_anonymous_idx").on(table.app_id, table.is_anonymous),
-    index("app_users_app_last_seen_idx").on(table.app_id, table.last_seen_at),
+    uniqueIndex("app_users_project_user_idx").on(table.project_id, table.user_id),
+    index("app_users_project_anonymous_idx").on(table.project_id, table.is_anonymous),
+    index("app_users_project_last_seen_idx").on(table.project_id, table.last_seen_at),
+  ]
+);
+
+// Junction table: tracks which apps a user has been seen from
+export const appUserApps = pgTable(
+  "app_user_apps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    app_user_id: uuid("app_user_id")
+      .notNull()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    first_seen_at: timestamp("first_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    last_seen_at: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("app_user_apps_user_app_idx").on(table.app_user_id, table.app_id),
+    index("app_user_apps_app_id_idx").on(table.app_id),
   ]
 );
 

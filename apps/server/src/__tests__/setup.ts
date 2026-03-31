@@ -370,6 +370,7 @@ export async function truncateAll() {
   await client`DELETE FROM job_runs`.catch(() => {});
   await client`DELETE FROM project_integrations`.catch(() => {});
   await client`DELETE FROM audit_logs`;
+  await client`DELETE FROM app_user_apps`;
   await client`DELETE FROM app_users`;
   await client.unsafe(`DELETE FROM funnel_events`);
   await client`DELETE FROM funnel_definitions`;

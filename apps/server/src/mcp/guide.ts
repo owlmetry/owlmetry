@@ -86,7 +86,7 @@ Funnel queries can:
 - **Segment** by variant: \`group_by: "experiment:onboarding-test"\`
 
 ### User Properties
-Custom key-value properties stored on app users. Set via SDK (\`setUserProperties()\`) or synced from integrations (e.g., RevenueCat). Properties are shallow-merged on update; empty string values delete keys. Limits: 50 keys max, 50-char keys, 200-char values.
+Custom key-value properties stored on project-level users. Users are unique per project, not per app — the same user ID seen from multiple apps (e.g., iOS + backend) is a single user. Each user tracks which apps they've been seen from. Properties are set via SDK (\`setUserProperties()\`) or synced from integrations (e.g., RevenueCat). Properties are shallow-merged on update; empty string values delete keys. Limits: 50 keys max, 50-char keys, 200-char values.
 
 ### Integrations
 Third-party service connections (e.g., RevenueCat) that sync data into user properties. Configured per-project.

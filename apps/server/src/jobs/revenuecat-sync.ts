@@ -1,5 +1,5 @@
-import { eq, and, isNull, inArray } from "drizzle-orm";
-import { projectIntegrations, apps, appUsers } from "@owlmetry/db";
+import { eq, and, isNull } from "drizzle-orm";
+import { projectIntegrations, appUsers } from "@owlmetry/db";
 import type { JobHandler } from "../services/job-runner.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
 import {
@@ -36,24 +36,13 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
 
   const rcConfig = integration.config as unknown as RevenueCatConfig;
 
-  // Get all app IDs in the project
-  const appRows = await ctx.db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
-  const appIds = appRows.map((a) => a.id);
-
-  if (appIds.length === 0) {
-    return { synced: 0, total: 0, skipped: 0 };
-  }
-
-  // Get all non-anonymous users
+  // Get all non-anonymous users in the project
   const users = await ctx.db
-    .select({ id: appUsers.id, app_id: appUsers.app_id, user_id: appUsers.user_id })
+    .select({ id: appUsers.id, user_id: appUsers.user_id })
     .from(appUsers)
     .where(
       and(
-        inArray(appUsers.app_id, appIds),
+        eq(appUsers.project_id, projectId),
         eq(appUsers.is_anonymous, false),
       ),
     );
@@ -80,7 +69,7 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       if (subscriberData) {
         const props = mapSubscriberToProperties(subscriberData.subscriber);
         if (Object.keys(props).length > 0) {
-          await mergeUserProperties(ctx.db, user.app_id, user.user_id, props);
+          await mergeUserProperties(ctx.db, projectId, user.user_id, props);
           synced++;
         } else {
           skipped++;

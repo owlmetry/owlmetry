@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, metricDefinitions, funnelDefinitions } from "./schema.js";
+import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, appUserApps, metricDefinitions, funnelDefinitions } from "./schema.js";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import "dotenv/config";
@@ -186,30 +186,32 @@ async function main() {
     },
   ]).onConflictDoNothing();
 
-  // --- App users ---
-  await db.insert(appUsers).values([
-    {
-      app_id: app.id,
-      user_id: "user-42",
-      is_anonymous: false,
-      first_seen_at: new Date(now - 8 * 60000),
-      last_seen_at: new Date(now - 2 * 60000),
-    },
-    {
-      app_id: app.id,
-      user_id: "user-99",
-      is_anonymous: false,
-      first_seen_at: new Date(now - 90000),
-      last_seen_at: new Date(now - 30000),
-    },
-    {
-      app_id: app.id,
-      user_id: "owl_anon_demo-visitor",
-      is_anonymous: true,
-      first_seen_at: new Date(now - 120000),
-      last_seen_at: new Date(),
-    },
-  ]).onConflictDoNothing();
+  // --- App users (project-scoped) + junction entries ---
+  const seedUserRows = [
+    { user_id: "user-42", is_anonymous: false, first_seen_at: new Date(now - 8 * 60000), last_seen_at: new Date(now - 2 * 60000), appId: app.id },
+    { user_id: "user-99", is_anonymous: false, first_seen_at: new Date(now - 90000), last_seen_at: new Date(now - 30000), appId: app.id },
+    { user_id: "owl_anon_demo-visitor", is_anonymous: true, first_seen_at: new Date(now - 120000), last_seen_at: new Date(), appId: app.id },
+  ];
+  for (const row of seedUserRows) {
+    const [upserted] = await db
+      .insert(appUsers)
+      .values({
+        project_id: project.id,
+        user_id: row.user_id,
+        is_anonymous: row.is_anonymous,
+        first_seen_at: row.first_seen_at,
+        last_seen_at: row.last_seen_at,
+      })
+      .onConflictDoNothing()
+      .returning({ id: appUsers.id });
+
+    if (upserted) {
+      await db
+        .insert(appUserApps)
+        .values({ app_user_id: upserted.id, app_id: row.appId, first_seen_at: row.first_seen_at, last_seen_at: row.last_seen_at })
+        .onConflictDoNothing();
+    }
+  }
 
   console.log("\nSeed complete!");
   console.log(`  Client Key: ${clientKey}`);

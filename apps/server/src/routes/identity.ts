@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   events,
+  apps,
   appUsers,
+  appUserApps,
   funnelEvents,
   metricEvents,
 } from "@owlmetry/db";
@@ -47,6 +49,26 @@ export async function identityRoutes(app: FastifyInstance) {
           .send({ error: "Client key must be scoped to an app" });
       }
 
+      // Resolve project_id from app
+      const [appRow] = await app.db
+        .select({ project_id: apps.project_id })
+        .from(apps)
+        .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
+        .limit(1);
+
+      if (!appRow) {
+        return reply.code(400).send({ error: "App not found" });
+      }
+
+      const project_id = appRow.project_id;
+
+      // Get all app IDs in the project for cross-app event reassignment
+      const projectApps = await app.db
+        .select({ id: apps.id })
+        .from(apps)
+        .where(and(eq(apps.project_id, project_id), isNull(apps.deleted_at)));
+      const projectAppIds = projectApps.map((a) => a.id);
+
       // Execute all checks and updates in a single transaction
       const eventsReassignedCount = await app.db.transaction(async (tx) => {
         // Idempotency: check if the real user already has this anonymous_id in claimed_from
@@ -55,7 +77,7 @@ export async function identityRoutes(app: FastifyInstance) {
           .from(appUsers)
           .where(
             and(
-              eq(appUsers.app_id, app_id),
+              eq(appUsers.project_id, project_id),
               eq(appUsers.user_id, user_id)
             )
           )
@@ -65,13 +87,13 @@ export async function identityRoutes(app: FastifyInstance) {
           return -1; // sentinel: already claimed
         }
 
-        // Update events user_id from anonymous to real
+        // Update events user_id from anonymous to real (across all project apps)
         const updatedEvents = await tx
           .update(events)
           .set({ user_id: user_id })
           .where(
             and(
-              eq(events.app_id, app_id),
+              inArray(events.app_id, projectAppIds),
               eq(events.user_id, anonymous_id)
             )
           )
@@ -87,7 +109,7 @@ export async function identityRoutes(app: FastifyInstance) {
           .set({ user_id: user_id })
           .where(
             and(
-              eq(funnelEvents.app_id, app_id),
+              inArray(funnelEvents.app_id, projectAppIds),
               eq(funnelEvents.user_id, anonymous_id)
             )
           );
@@ -98,18 +120,18 @@ export async function identityRoutes(app: FastifyInstance) {
           .set({ user_id: user_id })
           .where(
             and(
-              eq(metricEvents.app_id, app_id),
+              inArray(metricEvents.app_id, projectAppIds),
               eq(metricEvents.user_id, anonymous_id)
             )
           );
 
-        // Merge app_users: fetch anonymous row
+        // Merge app_users: fetch anonymous row (project-scoped)
         const [anonRow] = await tx
           .select()
           .from(appUsers)
           .where(
             and(
-              eq(appUsers.app_id, app_id),
+              eq(appUsers.project_id, project_id),
               eq(appUsers.user_id, anonymous_id)
             )
           )
@@ -135,8 +157,33 @@ export async function identityRoutes(app: FastifyInstance) {
             .set(updates)
             .where(eq(appUsers.id, realUserRow.id));
 
-          // Delete the anonymous row if it exists
+          // Merge junction entries from anonymous user to real user
           if (anonRow) {
+            // Reassign junction entries
+            const anonJunctions = await tx
+              .select()
+              .from(appUserApps)
+              .where(eq(appUserApps.app_user_id, anonRow.id));
+
+            for (const j of anonJunctions) {
+              await tx
+                .insert(appUserApps)
+                .values({
+                  app_user_id: realUserRow.id,
+                  app_id: j.app_id,
+                  first_seen_at: j.first_seen_at,
+                  last_seen_at: j.last_seen_at,
+                })
+                .onConflictDoUpdate({
+                  target: [appUserApps.app_user_id, appUserApps.app_id],
+                  set: {
+                    first_seen_at: j.first_seen_at < (anonRow.first_seen_at) ? j.first_seen_at : appUserApps.first_seen_at,
+                    last_seen_at: j.last_seen_at > (anonRow.last_seen_at) ? j.last_seen_at : appUserApps.last_seen_at,
+                  },
+                });
+            }
+
+            // Delete the anonymous row (cascades junction entries)
             await tx
               .delete(appUsers)
               .where(eq(appUsers.id, anonRow.id));

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, isNull, inArray } from "drizzle-orm";
-import { projectIntegrations, apps, appUsers } from "@owlmetry/db";
+import { eq, and, isNull } from "drizzle-orm";
+import { projectIntegrations, appUsers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
@@ -61,13 +61,6 @@ async function findActiveRevenueCatIntegration(db: Db, projectId: string) {
   return integration ?? null;
 }
 
-async function getProjectAppIds(db: Db, projectId: string): Promise<string[]> {
-  const rows = await db
-    .select({ id: apps.id })
-    .from(apps)
-    .where(and(eq(apps.project_id, projectId), isNull(apps.deleted_at)));
-  return rows.map((a) => a.id);
-}
 
 function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<string, string> {
   const props: Record<string, string> = {};
@@ -106,20 +99,6 @@ function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<stri
   return props;
 }
 
-/** Apply properties to a user across all apps in a project. */
-async function applyPropsToProjectUser(
-  db: Db,
-  appIds: string[],
-  userId: string,
-  props: Record<string, string>,
-): Promise<number> {
-  let updated = 0;
-  await Promise.all(appIds.map(async (appId) => {
-    await mergeUserProperties(db, appId, userId, props);
-    updated++;
-  }));
-  return updated;
-}
 
 // --- Routes ---
 
@@ -161,8 +140,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         return { received: true };
       }
 
-      const appIds = await getProjectAppIds(app.db, projectId);
-      await applyPropsToProjectUser(app.db, appIds, userId, props);
+      await mergeUserProperties(app.db, projectId, userId, props);
 
       return { received: true };
     }
@@ -186,19 +164,14 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       }
 
       const rcConfig = integration.config as unknown as RevenueCatConfig;
-      const appIds = await getProjectAppIds(app.db, projectId);
 
-      if (appIds.length === 0) {
-        return reply.code(400).send({ error: "No apps in this project" });
-      }
-
-      // Get all non-anonymous users across project apps
+      // Get all non-anonymous users in the project
       const users = await app.db
-        .select({ id: appUsers.id, app_id: appUsers.app_id, user_id: appUsers.user_id })
+        .select({ id: appUsers.id, user_id: appUsers.user_id })
         .from(appUsers)
         .where(
           and(
-            inArray(appUsers.app_id, appIds),
+            eq(appUsers.project_id, projectId),
             eq(appUsers.is_anonymous, false),
           )
         );
@@ -250,10 +223,9 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       }
 
       const props = mapSubscriberToProperties(subscriberData.subscriber);
-      const appIds = await getProjectAppIds(app.db, projectId);
-      const updated = await applyPropsToProjectUser(app.db, appIds, userId, props);
+      await mergeUserProperties(app.db, projectId, userId, props);
 
-      return { updated, properties: props };
+      return { updated: 1, properties: props };
     }
   );
 }

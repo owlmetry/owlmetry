@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
-import { apps, events, appUsers, metricEvents, funnelEvents } from "@owlmetry/db";
+import { apps, events, appUsers, appUserApps, metricEvents, funnelEvents } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseTrackMessage } from "@owlmetry/shared";
 import {
   MAX_BATCH_SIZE,
@@ -87,7 +87,7 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       // Look up the app to validate bundle_id (if applicable)
       const [appRow] = await app.db
-        .select({ bundle_id: apps.bundle_id, platform: apps.platform })
+        .select({ bundle_id: apps.bundle_id, platform: apps.platform, project_id: apps.project_id })
         .from(apps)
         .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
         .limit(1);
@@ -276,11 +276,12 @@ export async function ingestRoutes(app: FastifyInstance) {
             });
         }
 
-        // Fire-and-forget: upsert app_users for each unique user_id in the batch
+        // Fire-and-forget: upsert app_users (project-scoped) + junction entries
         const uniqueUserIds = [...new Set(valid.map((e) => e.user_id).filter((id): id is string => !!id))];
         if (uniqueUserIds.length > 0) {
+          const project_id = appRow.project_id;
           const userRows = uniqueUserIds.map((uid) => ({
-            app_id,
+            project_id,
             user_id: uid,
             is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
           }));
@@ -288,10 +289,25 @@ export async function ingestRoutes(app: FastifyInstance) {
             .insert(appUsers)
             .values(userRows)
             .onConflictDoUpdate({
-              target: [appUsers.app_id, appUsers.user_id],
+              target: [appUsers.project_id, appUsers.user_id],
               set: { last_seen_at: sql`NOW()` },
             })
-            .execute()
+            .returning({ id: appUsers.id, user_id: appUsers.user_id })
+            .then((upserted) => {
+              // Upsert junction entries for the specific app
+              const junctionRows = upserted.map((u) => ({
+                app_user_id: u.id,
+                app_id,
+              }));
+              return app.db
+                .insert(appUserApps)
+                .values(junctionRows)
+                .onConflictDoUpdate({
+                  target: [appUserApps.app_user_id, appUserApps.app_id],
+                  set: { last_seen_at: sql`NOW()` },
+                })
+                .execute();
+            })
             .catch((err) => {
               request.log.warn({ err }, "Failed to upsert app_users");
             });

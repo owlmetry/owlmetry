@@ -81,7 +81,7 @@ async function ingestEvent(userId: string) {
 async function getUserProperties(userId: string): Promise<Record<string, string> | null> {
   const client = postgres(TEST_DB_URL, { max: 1 });
   const [row] = await client`
-    SELECT properties FROM app_users WHERE app_id = ${appId} AND user_id = ${userId}
+    SELECT properties FROM app_users WHERE project_id = ${projectId} AND user_id = ${userId}
   `;
   await client.end();
   return (row?.properties as Record<string, string>) ?? null;

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq } from "drizzle-orm";
-import { appUsers } from "@owlmetry/db";
+import { and, eq, isNull } from "drizzle-orm";
+import { apps, appUsers } from "@owlmetry/db";
 import {
   MAX_USER_PROPERTY_KEY_LENGTH,
   MAX_USER_PROPERTY_VALUE_LENGTH,
@@ -54,9 +54,22 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Client key must be scoped to an app" });
       }
 
+      // Resolve project_id from app
+      const [appRow] = await app.db
+        .select({ project_id: apps.project_id })
+        .from(apps)
+        .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
+        .limit(1);
+
+      if (!appRow) {
+        return reply.code(400).send({ error: "App not found" });
+      }
+
+      const project_id = appRow.project_id;
+
       // Upsert properties (single DB round-trip, race-condition safe)
       if (Object.keys(toSet).length > 0) {
-        await mergeUserProperties(app.db, app_id, user_id, toSet);
+        await mergeUserProperties(app.db, project_id, user_id, toSet);
       }
 
       // Handle key deletions — requires reading current state
@@ -64,7 +77,7 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
         const [row] = await app.db
           .select({ id: appUsers.id, properties: appUsers.properties })
           .from(appUsers)
-          .where(and(eq(appUsers.app_id, app_id), eq(appUsers.user_id, user_id)))
+          .where(and(eq(appUsers.project_id, project_id), eq(appUsers.user_id, user_id)))
           .limit(1);
 
         if (row?.properties) {
@@ -81,7 +94,7 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
       const [final] = await app.db
         .select({ properties: appUsers.properties })
         .from(appUsers)
-        .where(and(eq(appUsers.app_id, app_id), eq(appUsers.user_id, user_id)))
+        .where(and(eq(appUsers.project_id, project_id), eq(appUsers.user_id, user_id)))
         .limit(1);
 
       const merged = (final?.properties as Record<string, string>) ?? {};

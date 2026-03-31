@@ -141,10 +141,8 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
       `;
     }
 
-    const appUsersDeleted = await client`
-      DELETE FROM app_users WHERE app_id = ANY(${expiredAppIds})
-    `;
-    result.appUsers = Number(appUsersDeleted.count ?? 0);
+    // Junction entries (app_user_apps) cascade-deleted when apps are deleted below.
+    // We'll clean up orphaned app_users after app deletion.
 
     // Hard-delete api_keys for these apps
     const appKeysDeleted = await client`
@@ -152,7 +150,7 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
     `;
     result.apiKeys += Number(appKeysDeleted.count ?? 0);
 
-    // Hard-delete the apps
+    // Hard-delete the apps (cascades app_user_apps junction entries)
     const appsDeleted = await client`
       DELETE FROM apps WHERE id = ANY(${expiredAppIds})
     `;

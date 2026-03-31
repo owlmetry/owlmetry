@@ -10,20 +10,20 @@ import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
  */
 export async function mergeUserProperties(
   db: Db,
-  appId: string,
+  projectId: string,
   userId: string,
   newProps: Record<string, string>,
 ): Promise<void> {
   await db
     .insert(appUsers)
     .values({
-      app_id: appId,
+      project_id: projectId,
       user_id: userId,
       is_anonymous: userId.startsWith(ANONYMOUS_ID_PREFIX),
       properties: newProps,
     })
     .onConflictDoUpdate({
-      target: [appUsers.app_id, appUsers.user_id],
+      target: [appUsers.project_id, appUsers.user_id],
       set: {
         properties: sql`COALESCE(app_users.properties, '{}'::jsonb) || ${JSON.stringify(newProps)}::jsonb`,
       },

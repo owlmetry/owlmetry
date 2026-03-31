@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { apps, events, appUsers, metricEvents, funnelEvents } from "./schema.js";
+import { apps, events, appUsers, appUserApps, metricEvents, funnelEvents } from "./schema.js";
 import { eq, isNull, and } from "drizzle-orm";
 import { parseMetricMessage } from "@owlmetry/shared";
 import crypto from "node:crypto";
@@ -223,7 +223,7 @@ async function main() {
 
   // Find all non-deleted apps
   const allApps = await db
-    .select({ id: apps.id, platform: apps.platform, name: apps.name })
+    .select({ id: apps.id, platform: apps.platform, name: apps.name, project_id: apps.project_id })
     .from(apps)
     .where(isNull(apps.deleted_at));
 
@@ -424,38 +424,71 @@ async function main() {
     console.log(`Dual-wrote ${funnelDualRows.length} funnel events\n`);
   }
 
-  // Upsert app_users for any user_ids we generated
-  const userAppPairs = new Map<string, { appId: string; isAnon: boolean; earliest: Date; latest: Date }>();
+  // Upsert app_users (project-scoped) + junction entries
+  const appProjectMap = new Map<string, string>();
+  for (const a of allApps) appProjectMap.set(a.id, a.project_id);
+
+  // Collect per-project user info and per-app user sightings
+  const projectUserPairs = new Map<string, { projectId: string; isAnon: boolean; earliest: Date; latest: Date }>();
+  const appUserSightings = new Map<string, { appId: string; earliest: Date; latest: Date }>();
+
   for (const row of [...rows, ...funnelTrackRows]) {
     if (!row.user_id) continue;
-    const key = `${row.app_id}:${row.user_id}`;
+    const projectId = appProjectMap.get(row.app_id);
+    if (!projectId) continue;
     const ts = row.timestamp as Date;
-    const existing = userAppPairs.get(key);
+
+    // Project-level user
+    const projKey = `${projectId}:${row.user_id}`;
+    const existing = projectUserPairs.get(projKey);
     if (existing) {
       if (ts < existing.earliest) existing.earliest = ts;
       if (ts > existing.latest) existing.latest = ts;
     } else {
-      userAppPairs.set(key, {
-        appId: row.app_id,
+      projectUserPairs.set(projKey, {
+        projectId,
         isAnon: row.user_id.startsWith("owl_anon_"),
         earliest: ts,
         latest: ts,
       });
     }
+
+    // App-level sighting
+    const appKey = `${projectId}:${row.user_id}:${row.app_id}`;
+    const sighting = appUserSightings.get(appKey);
+    if (sighting) {
+      if (ts < sighting.earliest) sighting.earliest = ts;
+      if (ts > sighting.latest) sighting.latest = ts;
+    } else {
+      appUserSightings.set(appKey, { appId: row.app_id, earliest: ts, latest: ts });
+    }
   }
 
-  for (const [key, val] of userAppPairs) {
+  for (const [key, val] of projectUserPairs) {
     const userId = key.split(":").slice(1).join(":");
-    await db
+    const [upserted] = await db
       .insert(appUsers)
       .values({
-        app_id: val.appId,
+        project_id: val.projectId,
         user_id: userId,
         is_anonymous: val.isAnon,
         first_seen_at: val.earliest,
         last_seen_at: val.latest,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: appUsers.id });
+
+    if (upserted) {
+      // Insert junction entries for each app this user was seen from
+      for (const [sKey, sVal] of appUserSightings) {
+        if (sKey.startsWith(key + ":")) {
+          await db
+            .insert(appUserApps)
+            .values({ app_user_id: upserted.id, app_id: sVal.appId, first_seen_at: sVal.earliest, last_seen_at: sVal.latest })
+            .onConflictDoNothing();
+        }
+      }
+    }
   }
 
   // Print summary
