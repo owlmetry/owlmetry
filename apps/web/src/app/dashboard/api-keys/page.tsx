@@ -520,7 +520,7 @@ export default function ApiKeysPage() {
                       variant={key.key_type === "agent" ? "default" : "secondary"}
                       className="text-xs"
                     >
-                      {key.key_type === "client" ? "📱 client" : key.key_type === "agent" ? "🕶️ agent" : "📦 import"}
+                      {{ client: "📱 client", agent: "🕶️ agent", import: "📦 import" }[key.key_type] ?? key.key_type}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm py-1.5 text-muted-foreground">

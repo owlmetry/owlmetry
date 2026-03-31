@@ -50,8 +50,6 @@ function makeEvent(overrides: Record<string, any> = {}) {
   };
 }
 
-// --- Auth & access control ---
-
 describe("auth & access control", () => {
   it("accepts valid import key", async () => {
     const res = await importEvents([makeEvent()]);
@@ -92,8 +90,6 @@ describe("auth & access control", () => {
   });
 });
 
-// --- Request validation ---
-
 describe("request validation", () => {
   it("rejects empty events array", async () => {
     const res = await importEvents([]);
@@ -129,7 +125,6 @@ describe("request validation", () => {
   });
 });
 
-// --- Event field validation ---
 
 describe("event field validation", () => {
   it("rejects missing message", async () => {
@@ -208,7 +203,6 @@ describe("event field validation", () => {
   });
 });
 
-// --- Timestamp handling ---
 
 describe("timestamp handling", () => {
   it("accepts timestamp 60 days ago", async () => {
@@ -265,7 +259,6 @@ describe("timestamp handling", () => {
   });
 });
 
-// --- No bundle_id required ---
 
 describe("no bundle_id required", () => {
   it("succeeds without bundle_id for apple app", async () => {
@@ -287,7 +280,6 @@ describe("no bundle_id required", () => {
   });
 });
 
-// --- Environment validation ---
 
 describe("environment validation", () => {
   it("accepts valid environment for apple app", async () => {
@@ -307,7 +299,6 @@ describe("environment validation", () => {
   });
 });
 
-// --- Dual-write: metric events ---
 
 describe("dual-write: metric events", () => {
   it("writes metric events for metric: messages", async () => {
@@ -337,7 +328,6 @@ describe("dual-write: metric events", () => {
   });
 });
 
-// --- Dual-write: funnel events ---
 
 describe("dual-write: funnel events", () => {
   it("writes funnel events for track: messages", async () => {
@@ -359,7 +349,6 @@ describe("dual-write: funnel events", () => {
   });
 });
 
-// --- User upsert (project-scoped) ---
 
 describe("user upsert", () => {
   it("creates app_users with project_id and is_anonymous=false", async () => {
@@ -425,14 +414,13 @@ describe("user upsert", () => {
   });
 });
 
-// --- Dedup ---
 
 describe("dedup", () => {
   it("deduplicates events with same client_event_id", async () => {
     const clientEventId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-    await importEvents([makeEvent({ client_event_id: clientEventId })]);
-    const res = await importEvents([makeEvent({ client_event_id: clientEventId })]);
-    // Second one is silently deduped (accepted count = 0)
+    const ts = new Date().toISOString();
+    await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts })]);
+    const res = await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts })]);
     expect(res.json().accepted).toBe(0);
   });
 
@@ -446,7 +434,6 @@ describe("dedup", () => {
   });
 });
 
-// --- Large batch ---
 
 describe("large batch", () => {
   it("accepts 500 events", async () => {
@@ -458,7 +445,6 @@ describe("large batch", () => {
   });
 });
 
-// --- No rate limiting ---
 
 describe("no rate limiting", () => {
   it("handles 150 rapid requests without 429", async () => {
@@ -471,7 +457,6 @@ describe("no rate limiting", () => {
   });
 });
 
-// --- Key creation via API ---
 
 describe("key creation", () => {
   it("creates import key with JWT auth", async () => {

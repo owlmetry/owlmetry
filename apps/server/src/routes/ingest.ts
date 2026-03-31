@@ -1,61 +1,19 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
-import { apps, events, appUsers, appUserApps, metricEvents, funnelEvents } from "@owlmetry/db";
-import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseTrackMessage } from "@owlmetry/shared";
+import { and, eq, gte, inArray, isNull } from "drizzle-orm";
+import { apps, events } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
-  MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
-  LOG_LEVELS,
   ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
 } from "@owlmetry/shared";
 import type { IngestRequest, IngestEventPayload } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function validateIngestEventPayload(
-  payload: IngestEventPayload,
-  index: number
-): string | null {
-  if (!payload.message || typeof payload.message !== "string") {
-    return `events[${index}]: message is required and must be a string`;
-  }
-  if (!payload.level || !LOG_LEVELS.includes(payload.level as any)) {
-    return `events[${index}]: level must be one of ${LOG_LEVELS.join(", ")}`;
-  }
-  if (!payload.session_id || typeof payload.session_id !== "string") {
-    return `events[${index}]: session_id is required and must be a string`;
-  }
-  if (payload.timestamp) {
-    const parsed = new Date(payload.timestamp);
-    if (isNaN(parsed.getTime())) {
-      return `events[${index}]: timestamp must be a valid ISO 8601 date`;
-    }
-    const now = Date.now();
-    if (parsed.getTime() > now + 5 * 60_000) {
-      return `events[${index}]: timestamp cannot be more than 5 minutes in the future`;
-    }
-    if (parsed.getTime() < now - 30 * 24 * 60 * 60 * 1000) {
-      return `events[${index}]: timestamp cannot be more than 30 days in the past`;
-    }
-  }
-  return null;
-}
-
-function truncateCustomAttributeValues(
-  customAttributes: Record<string, string> | undefined
-): Record<string, string> | null {
-  if (!customAttributes) return null;
-  const truncated: Record<string, string> = {};
-  for (const [k, v] of Object.entries(customAttributes)) {
-    truncated[k] =
-      typeof v === "string" && v.length > MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH
-        ? v.slice(0, MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH)
-        : String(v);
-  }
-  return truncated;
-}
+import {
+  validateEventPayload,
+  buildEventRow,
+  dualWriteSpecializedEvents,
+  upsertAppUsers,
+} from "../utils/event-processing.js";
 
 export async function ingestRoutes(app: FastifyInstance) {
   app.post<{ Body: IngestRequest }>(
@@ -75,7 +33,6 @@ export async function ingestRoutes(app: FastifyInstance) {
           .send({ error: `Maximum batch size is ${MAX_BATCH_SIZE}` });
       }
 
-      // Determine app_id
       const app_id =
         auth.type === "api_key" ? auth.app_id : null;
 
@@ -85,7 +42,6 @@ export async function ingestRoutes(app: FastifyInstance) {
           .send({ error: "API key must be scoped to an app" });
       }
 
-      // Look up the app to validate bundle_id (if applicable)
       const [appRow] = await app.db
         .select({ bundle_id: apps.bundle_id, platform: apps.platform, project_id: apps.project_id })
         .from(apps)
@@ -98,8 +54,6 @@ export async function ingestRoutes(app: FastifyInstance) {
           .send({ error: "App associated with this API key no longer exists" });
       }
 
-      // Server apps (no bundle_id on the app) skip bundle_id validation;
-      // client apps require a matching bundle_id in the request
       if (appRow.bundle_id) {
         if (!bundle_id || typeof bundle_id !== "string") {
           return reply
@@ -123,7 +77,7 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       for (let i = 0; i < payloads.length; i++) {
         const e = payloads[i];
-        const err = validateIngestEventPayload(e, i);
+        const err = validateEventPayload(e, i, { maxAgeDays: 30 });
         if (err) {
           errors.push({ index: i, message: err });
           continue;
@@ -163,155 +117,19 @@ export async function ingestRoutes(app: FastifyInstance) {
         }
       }
 
+      const api_key_id = auth.type === "api_key" ? auth.key_id : null;
       const valid: Array<typeof events.$inferInsert> = [];
       for (const { event: e } of validated) {
         if (e.client_event_id && existingIds.has(e.client_event_id)) {
-          continue; // silently skip duplicate
+          continue;
         }
-
-        valid.push({
-          app_id,
-          client_event_id: e.client_event_id || null,
-          session_id: e.session_id,
-          user_id: e.user_id || null,
-          api_key_id: auth.type === "api_key" ? auth.key_id : null,
-          level: e.level,
-          source_module: e.source_module || null,
-          message: e.message,
-          screen_name: e.screen_name || null,
-          custom_attributes: truncateCustomAttributeValues(e.custom_attributes),
-          environment: e.environment || null,
-          os_version: e.os_version || null,
-          app_version: e.app_version || null,
-          device_model: e.device_model || null,
-          build_number: e.build_number || null,
-          locale: e.locale || null,
-          is_dev: e.is_dev ?? false,
-          experiments: e.experiments || null,
-          timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
-        });
+        valid.push(buildEventRow(e, app_id, api_key_id));
       }
 
       if (valid.length > 0) {
         await app.db.insert(events).values(valid);
-
-        // Dual-write: detect metric events and insert into metric_events table
-        const metricRows: Array<typeof metricEvents.$inferInsert> = [];
-        for (const ev of valid) {
-          const parsed = parseMetricMessage(ev.message);
-          if (!parsed) continue;
-
-          const attrs = ev.custom_attributes ?? {};
-          const trackingId = attrs.tracking_id && UUID_REGEX.test(attrs.tracking_id)
-            ? attrs.tracking_id
-            : null;
-          metricRows.push({
-            app_id: ev.app_id,
-            session_id: ev.session_id,
-            user_id: ev.user_id ?? null,
-            api_key_id: auth.type === "api_key" ? auth.key_id : null,
-            metric_slug: parsed.slug,
-            phase: parsed.phase,
-            tracking_id: trackingId,
-            duration_ms: attrs.duration_ms ? parseInt(attrs.duration_ms, 10) || null : null,
-            error: attrs.error || null,
-            attributes: attrs,
-            environment: ev.environment ?? null,
-            os_version: ev.os_version ?? null,
-            app_version: ev.app_version ?? null,
-            device_model: ev.device_model ?? null,
-            build_number: ev.build_number ?? null,
-            is_dev: ev.is_dev ?? false,
-            client_event_id: ev.client_event_id || null,
-            timestamp: ev.timestamp as Date,
-          });
-        }
-
-        if (metricRows.length > 0) {
-          // Fire-and-forget: metric_events write failure should not block event ingest
-          app.db
-            .insert(metricEvents)
-            .values(metricRows)
-            .execute()
-            .catch((err) => {
-              request.log.warn({ err }, "Failed to dual-write metric events");
-            });
-        }
-
-        // Dual-write: detect track events and insert into funnel_events table
-        const funnelRows: Array<typeof funnelEvents.$inferInsert> = [];
-        for (const ev of valid) {
-          const stepName = parseTrackMessage(ev.message);
-          if (!stepName) continue;
-
-          funnelRows.push({
-            app_id: ev.app_id,
-            session_id: ev.session_id,
-            user_id: ev.user_id ?? null,
-            api_key_id: auth.type === "api_key" ? auth.key_id : null,
-            step_name: stepName,
-            message: ev.message,
-            screen_name: ev.screen_name ?? null,
-            custom_attributes: ev.custom_attributes ?? null,
-            experiments: ev.experiments ?? null,
-            environment: ev.environment ?? null,
-            os_version: ev.os_version ?? null,
-            app_version: ev.app_version ?? null,
-            device_model: ev.device_model ?? null,
-            build_number: ev.build_number ?? null,
-            is_dev: ev.is_dev ?? false,
-            client_event_id: ev.client_event_id || null,
-            timestamp: ev.timestamp as Date,
-          });
-        }
-
-        if (funnelRows.length > 0) {
-          // Fire-and-forget: funnel_events write failure should not block event ingest
-          app.db
-            .insert(funnelEvents)
-            .values(funnelRows)
-            .execute()
-            .catch((err) => {
-              request.log.warn({ err }, "Failed to dual-write funnel events");
-            });
-        }
-
-        // Fire-and-forget: upsert app_users (project-scoped) + junction entries
-        const uniqueUserIds = [...new Set(valid.map((e) => e.user_id).filter((id): id is string => !!id))];
-        if (uniqueUserIds.length > 0) {
-          const project_id = appRow.project_id;
-          const userRows = uniqueUserIds.map((uid) => ({
-            project_id,
-            user_id: uid,
-            is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
-          }));
-          app.db
-            .insert(appUsers)
-            .values(userRows)
-            .onConflictDoUpdate({
-              target: [appUsers.project_id, appUsers.user_id],
-              set: { last_seen_at: sql`NOW()` },
-            })
-            .returning({ id: appUsers.id, user_id: appUsers.user_id })
-            .then((upserted) => {
-              // Upsert junction entries for the specific app
-              const junctionRows = upserted.map((u) => ({
-                app_user_id: u.id,
-                app_id,
-              }));
-              return app.db
-                .insert(appUserApps)
-                .values(junctionRows)
-                .onConflictDoUpdate({
-                  target: [appUserApps.app_user_id, appUserApps.app_id],
-                  set: { last_seen_at: sql`NOW()` },
-                })
-                .execute();
-            })
-            .catch((err) => {
-              request.log.warn({ err }, "Failed to upsert app_users");
-            });
-        }
+        dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
+        upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
       }
 
       return {

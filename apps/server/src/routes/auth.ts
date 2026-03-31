@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, gte, lt, sql } from "drizzle-orm";
 import { users, teams, teamMembers, apiKeys, apps, emailVerificationCodes } from "@owlmetry/db";
-import { DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKeySecret, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
+import { API_KEY_PREFIX, DEFAULT_API_KEY_PERMISSIONS, validatePermissionsForKeyType, generateApiKeySecret, generateVerificationCode, hashVerificationCode } from "@owlmetry/shared";
+import type { ApiKeyType } from "@owlmetry/shared";
 import type {
   SendCodeRequest,
   VerifyCodeRequest,
@@ -606,8 +607,9 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "name and key_type required" });
       }
 
-      if (!["client", "agent", "import"].includes(key_type)) {
-        return reply.code(400).send({ error: "key_type must be 'client', 'agent', or 'import'" });
+      const validKeyTypes = Object.keys(API_KEY_PREFIX) as ApiKeyType[];
+      if (!validKeyTypes.includes(key_type as ApiKeyType)) {
+        return reply.code(400).send({ error: `key_type must be one of: ${validKeyTypes.join(", ")}` });
       }
 
       // Agent keys can only create import keys, not client or agent keys
@@ -617,7 +619,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       // Client and import keys must be scoped to an app
       if ((key_type === "client" || key_type === "import") && !app_id) {
-        return reply.code(400).send({ error: `${key_type === "client" ? "Client" : "Import"} keys require an app_id` });
+        return reply.code(400).send({ error: `${key_type.charAt(0).toUpperCase() + key_type.slice(1)} keys require an app_id` });
       }
 
       // Agent keys without an app require a team_id

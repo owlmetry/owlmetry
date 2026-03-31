@@ -54,10 +54,6 @@ export interface IngestRequest {
   events: IngestEventPayload[];
 }
 
-export interface ImportRequest {
-  events: IngestEventPayload[];
-}
-
 export interface IngestResponse {
   accepted: number;
   rejected: number;
