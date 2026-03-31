@@ -430,12 +430,12 @@ export default function JobsPage() {
 
       {/* Detail sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-[480px] sm:max-w-[480px] overflow-y-auto">
-          <SheetHeader>
+        <SheetContent className="w-[480px] sm:max-w-[480px] p-0 flex flex-col">
+          <SheetHeader className="px-6 pt-6 pb-4">
             <SheetTitle>Job Run Detail</SheetTitle>
           </SheetHeader>
           {selectedRun && (
-            <div className="mt-4 space-y-4 text-sm">
+            <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4 text-sm">
               <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-3">
                 <span className="text-muted-foreground">Type</span>
                 <span>{getJobLabel(selectedRun.job_type)}</span>
