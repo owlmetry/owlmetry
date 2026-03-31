@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import Link from "next/link";
 import type {
   TeamAppUsersQueryParams,
   ProjectResponse,
   AppResponse,
+  AppUserResponse,
 } from "@owlmetry/shared";
+import { UserDetailSheet } from "@/components/user-detail-sheet";
 import { TIME_RANGES } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
@@ -81,6 +82,19 @@ export default function UsersPage() {
   if (filters.computedUntil) filterParams.until = filters.computedUntil;
 
   const { users, isLoading, isLoadingMore, hasMore, loadMore } = useTeamAppUsers(filterParams);
+
+  const [selectedUser, setSelectedUser] = useState<AppUserResponse | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  function handleRowClick(user: AppUserResponse) {
+    setSelectedUser(user);
+    setSheetOpen(true);
+  }
+
+  function handleSheetFilter(key: string, value: string) {
+    filters.set(key, value);
+    setSheetOpen(false);
+  }
 
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
@@ -250,14 +264,9 @@ export default function UsersPage() {
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id} className="cursor-pointer">
+                  <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleRowClick(user)}>
                     <TableCell className="font-mono text-xs py-1.5">
-                      <Link
-                        href={`/dashboard/events?project_id=${user.project_id}&user_id=${user.user_id}`}
-                        className="hover:underline"
-                      >
-                        {user.user_id}
-                      </Link>
+                      {user.user_id}
                     </TableCell>
                     <TableCell className="py-1.5">
                       {user.is_anonymous ? (
@@ -270,7 +279,15 @@ export default function UsersPage() {
                       <div className="flex flex-wrap gap-1">
                         {user.apps && user.apps.length > 0 ? (
                           user.apps.map((a) => (
-                            <Badge key={a.app_id} variant="outline" className="text-xs">
+                            <Badge
+                              key={a.app_id}
+                              variant="outline"
+                              className="text-xs cursor-pointer hover:bg-accent"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                filters.set("app_id", a.app_id);
+                              }}
+                            >
                               {a.app_name}
                             </Badge>
                           ))
@@ -335,6 +352,13 @@ export default function UsersPage() {
           )}
         </>
       )}
+
+      <UserDetailSheet
+        user={selectedUser}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        onFilter={handleSheetFilter}
+      />
     </div>
   );
 }
