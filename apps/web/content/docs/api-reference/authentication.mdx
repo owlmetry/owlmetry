@@ -272,7 +272,7 @@ Create a new API key. The full key is returned once and cannot be retrieved agai
 // Request
 {
   "name": "Production Agent Key",
-  "key_type": "agent",          // "client" or "agent"
+  "key_type": "agent",          // "client", "agent", or "import"
   "team_id": "uuid",            // required for agent keys without app_id
   "app_id": "uuid",             // required for client keys
   "permissions": ["events:read", "apps:read"],  // optional, defaults applied per key type
@@ -304,10 +304,11 @@ If `permissions` is omitted, defaults are applied:
 
 | Key type | Default permissions |
 |----------|-------------------|
-| Client | `["events:write"]` |
-| Agent | All agent permissions: `events:read`, `funnels:read`, `funnels:write`, `apps:read`, `apps:write`, `projects:read`, `projects:write`, `metrics:read`, `metrics:write`, `audit_logs:read` |
+| Client | `["events:write", "users:write"]` |
+| Agent | All agent permissions: `events:read`, `funnels:read`, `funnels:write`, `apps:read`, `apps:write`, `projects:read`, `projects:write`, `metrics:read`, `metrics:write`, `audit_logs:read`, `users:write`, `integrations:read`, `integrations:write`, `jobs:read`, `jobs:write` |
+| Import | `["events:write", "users:write"]` |
 
-Client keys can only have `events:write`. Agent keys cannot have `events:write`.
+Client and import keys share the same permissions (`events:write`, `users:write`). Import keys require an `app_id` and are used with the [bulk import endpoint](/docs/api-reference/import). Agent keys with `apps:write` permission can create import keys.
 
 ## PATCH /v1/auth/keys/:id
 

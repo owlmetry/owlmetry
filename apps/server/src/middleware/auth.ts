@@ -88,7 +88,8 @@ export async function requireAuth(
   // API key auth
   if (
     token.startsWith(API_KEY_PREFIX.client) ||
-    token.startsWith(API_KEY_PREFIX.agent)
+    token.startsWith(API_KEY_PREFIX.agent) ||
+    token.startsWith(API_KEY_PREFIX.import)
   ) {
     const db = request.server.db;
     const [key] = await db

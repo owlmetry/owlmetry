@@ -7,6 +7,7 @@ import type { JobRunner } from "./services/job-runner.js";
 declare module "fastify" {
   interface FastifyInstance {
     db: Db;
+    databaseUrl: string;
     emailService: EmailService;
     jobRunner: JobRunner;
   }

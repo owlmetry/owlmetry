@@ -2,7 +2,7 @@ export const GUIDE_CONTENT = `# OwlMetry — Agent Guide
 
 OwlMetry is a self-hosted analytics platform for mobile and backend apps. It captures events, structured metrics, and funnel conversions from client SDKs (Swift, Node.js), stores them in a partitioned PostgreSQL database, and exposes query and management APIs.
 
-You are connected via MCP using an **agent key** (\`owl_agent_...\`). Agent keys are for reading data and managing resources. **Client keys** (\`owl_client_...\`) are used by SDKs for event ingestion — you will not ingest events yourself, but you will retrieve client keys when creating apps for SDK configuration.
+You are connected via MCP using an **agent key** (\`owl_agent_...\`). Agent keys are for reading data and managing resources. **Client keys** (\`owl_client_...\`) are used by SDKs for event ingestion — you will not ingest events yourself, but you will retrieve client keys when creating apps for SDK configuration. **Import keys** (\`owl_import_...\`) are for bulk-importing historical event data — you can create these with the \`create-import-key\` tool.
 
 ## Resource Hierarchy
 
@@ -237,4 +237,16 @@ Each guide covers: package installation, \`configure()\` setup, event logging, s
 - Cursor-based pagination: use the \`cursor\` from the response to fetch the next page. \`has_more\` indicates more results.
 - All write tools that modify resources are recorded in the audit log.
 - Soft-deleted resources can be restored by creating a new resource with the same slug.
+
+## Bulk Import
+
+To migrate historical event data from another system into OwlMetry:
+
+1. **Create an import key** using the \`create-import-key\` tool with the target \`app_id\`.
+2. **Write an export script** that reads events from the source system and POSTs them to \`POST /v1/import\` with the import key as a Bearer token.
+3. Each request can contain up to **1000 events**. There is **no timestamp restriction** — any historical date is accepted.
+4. Events are deduplicated by \`client_event_id\` across all time, so re-running an import script is safe.
+5. The request body is \`{ "events": [...] }\` — same event shape as SDK ingestion (\`message\`, \`level\`, \`session_id\` required; \`timestamp\`, \`user_id\`, \`custom_attributes\`, etc. optional).
+6. Metric events (\`metric:slug:phase\` messages) and funnel events (\`track:step_name\` messages) are auto-detected and dual-written.
+7. Import keys use the \`owl_import_\` prefix and are scoped to a single app.
 `;

@@ -11,6 +11,7 @@ import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions
 import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
+import { importRoutes } from "../routes/import.js";
 import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
 import { projectsRoutes } from "../routes/projects.js";
@@ -43,6 +44,8 @@ export const TEST_BACKEND_CLIENT_KEY =
   "owl_client_dddddddddddddddddddddddddddddddddddddddddddddd";
 export const TEST_ANDROID_CLIENT_KEY =
   "owl_client_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+export const TEST_IMPORT_KEY =
+  "owl_import_ffffffffffffffffffffffffffffffffffffffffffffffff";
 export const TEST_ANDROID_BUNDLE_ID = "com.owlmetry.test.android";
 export const TEST_BUNDLE_ID = "com.owlmetry.test";
 export const TEST_SESSION_ID = "00000000-0000-0000-0000-000000000001";
@@ -94,6 +97,13 @@ export async function setupTestDb() {
     if (enumCheck.length === 0) {
       await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
     }
+    const importEnumCheck = await migrationClient`
+      SELECT 1 FROM pg_enum WHERE enumlabel = 'import'
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
+    `;
+    if (importEnumCheck.length === 0) {
+      await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'import'`);
+    }
   }
 
   // Pre-migration fixes for existing databases only (skip on fresh DB)
@@ -140,13 +150,20 @@ export async function setupTestDb() {
     migrationsFolder: "../../packages/db/drizzle",
   });
 
-  // After migration, ensure 'server' exists in api_key_type
+  // After migration, ensure 'server' and 'import' exist in api_key_type
   const serverEnumCheck = await migrationClient`
     SELECT 1 FROM pg_enum WHERE enumlabel = 'server'
       AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
   `;
   if (serverEnumCheck.length === 0) {
     await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'server'`);
+  }
+  const importEnumCheckPost = await migrationClient`
+    SELECT 1 FROM pg_enum WHERE enumlabel = 'import'
+      AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'api_key_type')
+  `;
+  if (importEnumCheckPost.length === 0) {
+    await migrationClient.unsafe(`ALTER TYPE api_key_type ADD VALUE 'import'`);
   }
 
   // Set up partitioned events table
@@ -331,6 +348,7 @@ export async function buildApp() {
   jobRunner.register("test_job", testJobHandler);
 
   app.decorate("db", db);
+  app.decorate("databaseUrl", TEST_DB_URL);
   app.decorate("emailService", testEmailService as EmailService);
   app.decorate("jobRunner", jobRunner);
   await app.register(decompressPlugin);
@@ -341,6 +359,7 @@ export async function buildApp() {
   app.get("/health", async () => ({ status: "ok" }));
   await app.register(authRoutes, { prefix: "/v1/auth" });
   await app.register(ingestRoutes, { prefix: "/v1" });
+  await app.register(importRoutes, { prefix: "/v1" });
   await app.register(eventsRoutes, { prefix: "/v1" });
   await app.register(appsRoutes, { prefix: "/v1" });
   await app.register(projectsRoutes, { prefix: "/v1" });
@@ -501,6 +520,20 @@ export async function seedTestData() {
       'Test Android Client Key',
       ${user.id},
       ${JSON.stringify(["events:write"])}::jsonb
+    )
+  `;
+
+  // Import key (events:write + users:write, scoped to apple app)
+  await client`
+    INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
+    VALUES (
+      ${TEST_IMPORT_KEY},
+      'import',
+      ${app.id},
+      ${team.id},
+      'Test Import Key',
+      ${user.id},
+      ${JSON.stringify(["events:write", "users:write"])}::jsonb
     )
   `;
 

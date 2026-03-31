@@ -1,4 +1,4 @@
-import type { StoredEvent, IngestRequest, IngestResponse, AppPlatform } from "./events.js";
+import type { StoredEvent, IngestRequest, ImportRequest, IngestResponse, AppPlatform } from "./events.js";
 import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission } from "./auth.js";
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics, FunnelDefinitionResponse, FunnelStepAnalytics, FunnelBreakdownGroup } from "./funnels.js";
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
@@ -502,6 +502,7 @@ export interface MetricEventsQueryParams {
 export type {
   StoredEvent,
   IngestRequest,
+  ImportRequest,
   IngestResponse,
   AppPlatform,
   App,

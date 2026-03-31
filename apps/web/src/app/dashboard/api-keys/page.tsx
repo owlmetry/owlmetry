@@ -123,9 +123,9 @@ function CreateKeyDialog({
         key_type: keyType,
         permissions,
       };
-      if (keyType === "client") {
+      if (keyType === "client" || keyType === "import") {
         if (!selectedAppId) {
-          setError("Please select an app for the client key");
+          setError(`Please select an app for the ${keyType} key`);
           setLoading(false);
           return;
         }
@@ -215,11 +215,12 @@ function CreateKeyDialog({
                 <SelectContent>
                   <SelectItem value="client">📱 Client</SelectItem>
                   <SelectItem value="agent">🕶️ Agent</SelectItem>
+                  <SelectItem value="import">📦 Import</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {keyType === "client" && (
+            {(keyType === "client" || keyType === "import") && (
               <div className="space-y-2">
                 <Label>App</Label>
                 <Select value={selectedAppId} onValueChange={setSelectedAppId}>
@@ -519,7 +520,7 @@ export default function ApiKeysPage() {
                       variant={key.key_type === "agent" ? "default" : "secondary"}
                       className="text-xs"
                     >
-                      {key.key_type === "client" ? "📱 client" : "🕶️ agent"}
+                      {key.key_type === "client" ? "📱 client" : key.key_type === "agent" ? "🕶️ agent" : "📦 import"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm py-1.5 text-muted-foreground">

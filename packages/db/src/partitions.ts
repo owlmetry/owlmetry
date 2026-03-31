@@ -193,3 +193,23 @@ const funnelEventsPartitionConfig: PartitionConfig = {
 export async function ensureFunnelEventPartitions(client: postgres.Sql, monthsAhead = 3) {
   await ensureTablePartitions(client, funnelEventsPartitionConfig, monthsAhead);
 }
+
+/**
+ * Ensures partitions exist for all months covered by the given dates.
+ * Used by the import endpoint to create partitions for historical data.
+ * Safe to call multiple times — uses IF NOT EXISTS internally.
+ */
+export async function ensurePartitionsForDates(client: postgres.Sql, dates: Date[]) {
+  const months = new Set<string>();
+  for (const d of dates) {
+    months.add(`${d.getFullYear()}-${d.getMonth()}`);
+  }
+
+  for (const key of months) {
+    const [year, month] = key.split("-").map(Number);
+    const date = new Date(year, month, 1);
+    await createMonthlyPartition(client, eventsPartitionConfig, date);
+    await createMonthlyPartition(client, metricEventsPartitionConfig, date);
+    await createMonthlyPartition(client, funnelEventsPartitionConfig, date);
+  }
+}

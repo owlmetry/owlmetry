@@ -6,6 +6,7 @@ import { createDatabaseConnection } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
+import { importRoutes } from "./routes/import.js";
 import { eventsRoutes } from "./routes/events.js";
 import { appsRoutes } from "./routes/apps.js";
 import { projectsRoutes } from "./routes/projects.js";
@@ -74,6 +75,7 @@ jobRunner.schedule({
 
 // Decorators
 app.decorate("db", db);
+app.decorate("databaseUrl", config.databaseUrl);
 app.decorate("emailService", emailService);
 app.decorate("jobRunner", jobRunner);
 
@@ -93,6 +95,7 @@ app.get("/health", async () => ({ status: "ok" }));
 // Routes
 await app.register(authRoutes, { prefix: "/v1/auth" });
 await app.register(ingestRoutes, { prefix: "/v1" });
+await app.register(importRoutes, { prefix: "/v1" });
 await app.register(eventsRoutes, { prefix: "/v1" });
 await app.register(appsRoutes, { prefix: "/v1" });
 await app.register(projectsRoutes, { prefix: "/v1" });

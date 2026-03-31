@@ -1,0 +1,1 @@
+ALTER TYPE "public"."api_key_type" ADD VALUE 'import';

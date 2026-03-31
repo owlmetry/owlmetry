@@ -1,0 +1,144 @@
+---
+title: Import
+description: POST /v1/import — bulk-import historical events with no timestamp restrictions. Designed for data migration scripts.
+---
+
+Bulk-import historical event data from external systems. Unlike `/v1/ingest` (designed for live SDK traffic), the import endpoint has no timestamp restrictions, no rate limiting, and does not require a `bundle_id`.
+
+## POST /v1/import
+
+Import a batch of events for a specific app.
+
+**Auth required:** Yes (import API key `owl_import_*` with `events:write` permission)
+
+**Rate limited:** No
+
+### Request body
+
+```json
+{
+  "events": [
+    {
+      "client_event_id": "550e8400-e29b-41d4-a716-446655440000",
+      "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "user_id": "user_123",
+      "level": "info",
+      "message": "photo_exported",
+      "source_module": "ExportManager",
+      "screen_name": "Export",
+      "custom_attributes": {
+        "format": "png",
+        "quality": "high"
+      },
+      "environment": "ios",
+      "os_version": "16.2",
+      "app_version": "2.1.0",
+      "build_number": "85",
+      "device_model": "iPhone14,5",
+      "locale": "en_US",
+      "is_dev": false,
+      "timestamp": "2023-06-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+### How it differs from /v1/ingest
+
+| Feature | /v1/ingest | /v1/import |
+|---------|-----------|-----------|
+| Key type | `owl_client_*` | `owl_import_*` |
+| Max batch size | 100 | 1,000 |
+| Timestamp restriction | 30 days past — 5 min future | Any past date — 5 min future |
+| Bundle ID validation | Required for non-backend apps | Not required |
+| Rate limiting | Yes (100 tokens, 10/sec) | No |
+| Dedup window | 48 hours | All time |
+
+### Event fields
+
+Same as [/v1/ingest](/docs/api-reference/ingest#event-fields). Required fields: `message`, `level`, `session_id`.
+
+### Idempotency
+
+The import endpoint deduplicates events by `client_event_id` across **all time** (unlike ingest which uses a 48-hour window). This means:
+
+- If you re-run an import script, previously imported events are silently skipped.
+- Always include a `client_event_id` in each event to enable safe re-runs.
+- Events without a `client_event_id` are always inserted (no dedup possible).
+
+### Partition auto-creation
+
+The import endpoint automatically creates monthly table partitions for any historical months covered by the imported events. You do not need to create partitions manually.
+
+### Dual-write behavior
+
+Same as `/v1/ingest` — events matching `metric:<slug>:<phase>` are written to `metric_events`, and events matching `track:<step_name>` are written to `funnel_events`.
+
+### Response
+
+```json
+{
+  "accepted": 5,
+  "rejected": 1,
+  "errors": [
+    {
+      "index": 3,
+      "message": "events[3]: level must be one of info, debug, warn, error"
+    }
+  ]
+}
+```
+
+## Creating an import key
+
+Import keys are app-scoped (like client keys) but use the `owl_import_` prefix.
+
+**Via dashboard:** Go to API Keys → New Key → select "Import" type → choose the target app.
+
+**Via API:**
+
+```bash
+curl -X POST https://api.owlmetry.com/v1/auth/keys \
+  -H "Authorization: Bearer <your-jwt-or-agent-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "PhotoConvert Import",
+    "key_type": "import",
+    "app_id": "<target-app-id>"
+  }'
+```
+
+Agent keys with `apps:write` permission can create import keys. This enables AI agents to handle the full export-import workflow autonomously.
+
+## Migration guide
+
+When migrating from another analytics system, map your existing fields to OwlMetry's event schema:
+
+| Common source field | OwlMetry field | Notes |
+|-------------------|---------------|-------|
+| `body`, `event_name` | `message` | Required. |
+| `log_level`, `severity` | `level` | Must be `info`, `debug`, `warn`, or `error`. |
+| `source`, `platform` | `environment` | Must be `ios`, `ipados`, `macos`, `android`, `web`, or `backend`. |
+| `meta`, `metadata`, `properties` | `custom_attributes` | Key-value string pairs. Values truncated to 200 chars. |
+| `isDebug`, `debug` | `is_dev` | Boolean. |
+| `userId`, `user_id` | `user_id` | String. Anonymous users should use `owl_anon_` prefix. |
+| `sessionId`, `session_id` | `session_id` | Required. Generate one if your source doesn't have sessions. |
+| `created_at`, `timestamp` | `timestamp` | ISO 8601. Any historical date is accepted. |
+| `unique_id`, `event_id` | `client_event_id` | UUID. Critical for safe re-runs. |
+
+### Example import script
+
+```bash
+#!/bin/bash
+# Simple import script using curl
+IMPORT_KEY="owl_import_..."
+API_URL="https://api.owlmetry.com/v1/import"
+
+# Read events from a JSON file (array of event objects)
+curl -X POST "$API_URL" \
+  -H "Authorization: Bearer $IMPORT_KEY" \
+  -H "Content-Type: application/json" \
+  -d @events-batch-001.json
+```
+
+For large imports, split your data into batches of 1,000 events each and POST them sequentially.

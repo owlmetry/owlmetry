@@ -589,8 +589,15 @@ export async function authRoutes(app: FastifyInstance) {
     { preHandler: requireAuth },
     async (request, reply) => {
       const auth = request.auth;
-      if (auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can create API keys" });
+
+      // Agent keys can create import keys; all other key types require user auth
+      if (auth.type === "api_key") {
+        if (auth.key_type !== "agent") {
+          return reply.code(403).send({ error: "Only users or agent keys can create API keys" });
+        }
+        if (!auth.permissions.includes("apps:write")) {
+          return reply.code(403).send({ error: "Missing permission: apps:write" });
+        }
       }
 
       const { name, key_type, app_id, team_id, permissions: requestedPermissions, expires_in_days } = request.body;
@@ -599,13 +606,18 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "name and key_type required" });
       }
 
-      if (!["client", "agent"].includes(key_type)) {
-        return reply.code(400).send({ error: "key_type must be 'client' or 'agent'" });
+      if (!["client", "agent", "import"].includes(key_type)) {
+        return reply.code(400).send({ error: "key_type must be 'client', 'agent', or 'import'" });
       }
 
-      // Client keys must be scoped to an app
-      if (key_type === "client" && !app_id) {
-        return reply.code(400).send({ error: "Client keys require an app_id" });
+      // Agent keys can only create import keys, not client or agent keys
+      if (auth.type === "api_key" && key_type !== "import") {
+        return reply.code(403).send({ error: "Agent keys can only create import keys" });
+      }
+
+      // Client and import keys must be scoped to an app
+      if ((key_type === "client" || key_type === "import") && !app_id) {
+        return reply.code(400).send({ error: `${key_type === "client" ? "Client" : "Import"} keys require an app_id` });
       }
 
       // Agent keys without an app require a team_id
@@ -634,9 +646,12 @@ export async function authRoutes(app: FastifyInstance) {
         resolvedTeamId = team_id!;
       }
 
-      const keyRoleError = assertTeamRole(auth, resolvedTeamId, "admin");
-      if (keyRoleError) {
-        return reply.code(403).send({ error: keyRoleError });
+      // Role check only applies to user auth (agent keys use permission-based auth)
+      if (auth.type === "user") {
+        const keyRoleError = assertTeamRole(auth, resolvedTeamId, "admin");
+        if (keyRoleError) {
+          return reply.code(403).send({ error: keyRoleError });
+        }
       }
 
       const permissions = requestedPermissions ?? DEFAULT_API_KEY_PERMISSIONS[key_type];
@@ -651,6 +666,8 @@ export async function authRoutes(app: FastifyInstance) {
         ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000)
         : null;
 
+      const createdBy = auth.type === "user" ? auth.user_id : auth.created_by;
+
       const [apiKey] = await app.db
         .insert(apiKeys)
         .values({
@@ -659,7 +676,7 @@ export async function authRoutes(app: FastifyInstance) {
           app_id: app_id || null,
           team_id: resolvedTeamId,
           name,
-          created_by: auth.user_id,
+          created_by: createdBy,
           permissions,
           expires_at,
         })
