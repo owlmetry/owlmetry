@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, inArray, isNull } from "drizzle-orm";
 import postgres from "postgres";
-import { apps, events, ensurePartitionsForDates } from "@owlmetry/db";
+import { apps, events, metricEvents, funnelEvents, ensurePartitionsForDates } from "@owlmetry/db";
 import {
   MAX_IMPORT_BATCH_SIZE,
   ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
@@ -16,7 +16,6 @@ import {
 } from "../utils/event-processing.js";
 
 export async function importRoutes(app: FastifyInstance) {
-  // Shared postgres client for partition DDL — avoids creating a connection per request
   let partitionClient: postgres.Sql | null = null;
 
   function getPartitionClient(): postgres.Sql {
@@ -98,9 +97,7 @@ export async function importRoutes(app: FastifyInstance) {
         validated.push({ index: i, event: e });
       }
 
-      // Dedup: use the batch's own timestamp range as a bound for partition pruning.
-      // Still checks across all time for events in the same month range, which is correct
-      // for re-running an import script (same events will have the same timestamps).
+      // Find existing events by client_event_id (timestamp-bounded for partition pruning)
       const clientEventIds = validated
         .map((v) => v.event.client_event_id)
         .filter((id): id is string => !!id);
@@ -129,25 +126,99 @@ export async function importRoutes(app: FastifyInstance) {
         }
       }
 
-      const valid: Array<typeof events.$inferInsert> = [];
+      // Split into new inserts and updates for existing events
+      const newRows: Array<typeof events.$inferInsert> = [];
+      const updateRows: Array<typeof events.$inferInsert> = [];
       for (const { event: e } of validated) {
+        const row = buildEventRow(e, app_id, auth.key_id);
         if (e.client_event_id && existingIds.has(e.client_event_id)) {
-          continue;
+          updateRows.push(row);
+        } else {
+          newRows.push(row);
         }
-        valid.push(buildEventRow(e, app_id, auth.key_id));
       }
 
-      if (valid.length > 0) {
-        const timestamps = valid.map((e) => e.timestamp as Date);
-        await ensurePartitionsForDates(getPartitionClient(), timestamps);
+      const allRows = [...newRows, ...updateRows];
 
-        await app.db.insert(events).values(valid);
-        dualWriteSpecializedEvents(app.db, valid, auth.key_id, request.log);
-        upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+      if (allRows.length > 0) {
+        const timestamps = allRows.map((e) => e.timestamp as Date);
+        await ensurePartitionsForDates(getPartitionClient(), timestamps);
+      }
+
+      // Insert new events
+      if (newRows.length > 0) {
+        await app.db.insert(events).values(newRows);
+        dualWriteSpecializedEvents(app.db, newRows, auth.key_id, request.log);
+      }
+
+      // Update existing events (all mutable fields)
+      if (updateRows.length > 0) {
+        await Promise.all(updateRows.map((ev) =>
+          app.db
+            .update(events)
+            .set({
+              session_id: ev.session_id,
+              user_id: ev.user_id,
+              level: ev.level,
+              source_module: ev.source_module,
+              message: ev.message,
+              screen_name: ev.screen_name,
+              custom_attributes: ev.custom_attributes,
+              environment: ev.environment,
+              os_version: ev.os_version,
+              app_version: ev.app_version,
+              device_model: ev.device_model,
+              build_number: ev.build_number,
+              locale: ev.locale,
+              is_dev: ev.is_dev,
+              experiments: ev.experiments,
+            })
+            .where(
+              and(
+                eq(events.app_id, app_id),
+                eq(events.client_event_id, ev.client_event_id!),
+              )
+            )
+        ));
+
+        // Update metric_events and funnel_events for changed events.
+        // Delete old rows and re-insert so message changes (e.g. non-metric → metric) are handled.
+        const updateClientIds = updateRows
+          .map((r) => r.client_event_id)
+          .filter((id): id is string => !!id);
+
+        app.db
+          .delete(metricEvents)
+          .where(and(
+            eq(metricEvents.app_id, app_id),
+            inArray(metricEvents.client_event_id, updateClientIds),
+          ))
+          .execute()
+          .then(() =>
+            app.db
+              .delete(funnelEvents)
+              .where(and(
+                eq(funnelEvents.app_id, app_id),
+                inArray(funnelEvents.client_event_id, updateClientIds),
+              ))
+              .execute()
+          )
+          .then(() => {
+            dualWriteSpecializedEvents(app.db, updateRows, auth.key_id, request.log);
+          })
+          .catch((err) => {
+            request.log.warn({ err }, "Failed to update metric/funnel events for import");
+          });
+      }
+
+      // Upsert users for all events (new + updated)
+      if (allRows.length > 0) {
+        upsertAppUsers(app.db, allRows, appRow.project_id, app_id, request.log);
       }
 
       return {
-        accepted: valid.length,
+        accepted: newRows.length,
+        updated: updateRows.length,
         rejected: errors.length,
         ...(errors.length > 0 ? { errors } : {}),
       };

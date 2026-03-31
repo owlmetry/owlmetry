@@ -245,7 +245,7 @@ To migrate historical event data from another system into OwlMetry:
 1. **Create an import key** using the \`create-import-key\` tool with the target \`app_id\`.
 2. **Write an export script** that reads events from the source system and POSTs them to \`POST /v1/import\` with the import key as a Bearer token.
 3. Each request can contain up to **1000 events**. There is **no timestamp restriction** — any historical date is accepted.
-4. Events are deduplicated by \`client_event_id\` across all time, so re-running an import script is safe.
+4. Events with a matching \`client_event_id\` are **updated** (not skipped), so re-running an import script after tweaking attributes is safe.
 5. The request body is \`{ "events": [...] }\` — same event shape as SDK ingestion (\`message\`, \`level\`, \`session_id\` required; \`timestamp\`, \`user_id\`, \`custom_attributes\`, etc. optional).
 6. Metric events (\`metric:slug:phase\` messages) and funnel events (\`track:step_name\` messages) are auto-detected and dual-written.
 7. Import keys use the \`owl_import_\` prefix and are scoped to a single app.

@@ -415,22 +415,82 @@ describe("user upsert", () => {
 });
 
 
-describe("dedup", () => {
-  it("deduplicates events with same client_event_id", async () => {
+describe("upsert on re-import", () => {
+  it("updates existing events instead of skipping them", async () => {
     const clientEventId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     const ts = new Date().toISOString();
-    await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts })]);
-    const res = await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts })]);
-    expect(res.json().accepted).toBe(0);
+
+    // First import
+    const res1 = await importEvents([
+      makeEvent({ client_event_id: clientEventId, timestamp: ts, custom_attributes: { color: "red" } }),
+    ]);
+    expect(res1.json().accepted).toBe(1);
+    expect(res1.json().updated).toBe(0);
+
+    // Re-import with tweaked attributes
+    const res2 = await importEvents([
+      makeEvent({ client_event_id: clientEventId, timestamp: ts, custom_attributes: { color: "blue" } }),
+    ]);
+    expect(res2.json().accepted).toBe(0);
+    expect(res2.json().updated).toBe(1);
+
+    // Verify the update took effect
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const rows = await client`SELECT custom_attributes FROM events WHERE client_event_id = ${clientEventId}`;
+    await client.end();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].custom_attributes.color).toBe("blue");
   });
 
-  it("deduplicates historical events on re-import", async () => {
+  it("updates historical events on re-import", async () => {
     const clientEventId = "11111111-2222-3333-4444-555555555555";
     const ts = "2023-06-15T10:00:00.000Z";
-    await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts })]);
-    // Re-running the same import script — should dedup even though timestamp is years old
-    const res = await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts })]);
+
+    await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts, message: "original" })]);
+    const res = await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts, message: "fixed" })]);
     expect(res.json().accepted).toBe(0);
+    expect(res.json().updated).toBe(1);
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const rows = await client`SELECT message FROM events WHERE client_event_id = ${clientEventId}`;
+    await client.end();
+    expect(rows[0].message).toBe("fixed");
+  });
+
+  it("handles mixed new and existing events in one batch", async () => {
+    const existingId = "22222222-3333-4444-5555-666666666666";
+    const ts = new Date().toISOString();
+
+    await importEvents([makeEvent({ client_event_id: existingId, timestamp: ts })]);
+
+    const res = await importEvents([
+      makeEvent({ client_event_id: existingId, timestamp: ts, message: "updated" }),
+      makeEvent({ client_event_id: "33333333-4444-5555-6666-777777777777", timestamp: ts, message: "brand new" }),
+    ]);
+    expect(res.json().accepted).toBe(1);
+    expect(res.json().updated).toBe(1);
+  });
+
+  it("updates metric dual-write when message changes", async () => {
+    const clientEventId = "44444444-5555-6666-7777-888888888888";
+    const ts = new Date().toISOString();
+
+    // Import as a regular event
+    await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts, message: "regular event" })]);
+
+    // Re-import as a metric event
+    await importEvents([makeEvent({ client_event_id: clientEventId, timestamp: ts, message: "metric:conversion:complete" })]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const metricRows = await client`
+      SELECT metric_slug, phase FROM metric_events WHERE client_event_id = ${clientEventId}
+    `;
+    await client.end();
+    expect(metricRows).toHaveLength(1);
+    expect(metricRows[0].metric_slug).toBe("conversion");
+    expect(metricRows[0].phase).toBe("complete");
   });
 });
 
