@@ -333,6 +333,7 @@ export default function EventsPage() {
               <TableBody>
                 {events.map((event) => {
                   const ts = new Date(event.timestamp);
+                  const date = `${ts.getDate()} ${ts.toLocaleDateString(undefined, { month: "short" })}`;
                   const time = ts.toLocaleTimeString(undefined, { hour12: false });
                   const fullDate = ts.toLocaleString();
                   const isSelected = selectedEvent?.id === event.id;
@@ -347,7 +348,7 @@ export default function EventsPage() {
                         className="font-mono text-xs py-1.5"
                         title={fullDate}
                       >
-                        {time}
+                        {time} {date}
                       </TableCell>
                       <TableCell className="py-1.5">
                         <EventLevelBadge level={event.level as LogLevel} />

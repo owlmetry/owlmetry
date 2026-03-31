@@ -365,10 +365,11 @@ export default function MetricDetailPage() {
               <TableBody>
                 {events.slice(0, 50).map((event, i) => {
                   const ts = new Date(event.timestamp);
+                  const date = `${ts.getDate()} ${ts.toLocaleDateString(undefined, { month: "short" })}`;
                   const time = ts.toLocaleTimeString(undefined, { hour12: false });
                   return (
                     <TableRow key={`${event.timestamp}-${i}`}>
-                      <TableCell className="font-mono text-xs py-1.5">{time}</TableCell>
+                      <TableCell className="font-mono text-xs py-1.5">{time} {date}</TableCell>
                       <TableCell className="py-1.5">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${PHASE_COLORS[event.phase] ?? ""}`}>
                           {event.phase === "start" ? "🚀 start" : event.phase === "complete" ? "✅ complete" : event.phase === "fail" ? "❌ fail" : event.phase === "cancel" ? "🚫 cancel" : "📝 record"}
