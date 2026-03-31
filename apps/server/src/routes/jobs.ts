@@ -140,11 +140,17 @@ export async function jobsRoutes(app: FastifyInstance) {
           ? `manual:user:${auth.user_id}`
           : `manual:api_key:${auth.key_id}`;
 
+      // Merge project_id into params so job handlers can access it uniformly
+      const jobParams = {
+        ...(project_id ? { project_id } : {}),
+        ...params,
+      };
+
       const run = await app.jobRunner.trigger(job_type, {
         triggeredBy,
         teamId,
         projectId: project_id,
-        params,
+        params: jobParams,
         notify: notify ?? false,
       });
 

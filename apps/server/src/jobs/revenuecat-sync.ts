@@ -10,20 +10,19 @@ import {
 
 export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   const projectId = params.project_id as string;
-  const integrationId = params.integration_id as string;
 
-  if (!projectId || !integrationId) {
-    throw new Error("project_id and integration_id are required");
+  if (!projectId) {
+    throw new Error("project_id is required");
   }
 
-  // Load integration config
+  // Look up the active RevenueCat integration for this project
   const [integration] = await ctx.db
     .select()
     .from(projectIntegrations)
     .where(
       and(
-        eq(projectIntegrations.id, integrationId),
         eq(projectIntegrations.project_id, projectId),
+        eq(projectIntegrations.provider, "revenuecat"),
         isNull(projectIntegrations.deleted_at),
         eq(projectIntegrations.enabled, true),
       ),

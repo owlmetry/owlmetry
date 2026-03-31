@@ -191,7 +191,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         triggeredBy,
         teamId: project.team_id,
         projectId,
-        params: { project_id: projectId, integration_id: integration.id },
+        params: { project_id: projectId },
       });
 
       return { syncing: true, total: totalUsers, job_run_id: run.id };
