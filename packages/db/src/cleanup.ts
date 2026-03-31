@@ -141,8 +141,8 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
       `;
     }
 
-    // Junction entries (app_user_apps) cascade-deleted when apps are deleted below.
-    // We'll clean up orphaned app_users after app deletion.
+    // Junction entries (app_user_apps) cascade-delete when apps are hard-deleted below.
+    // app_users rows persist (project-scoped) and cascade-delete when the project is deleted.
 
     // Hard-delete api_keys for these apps
     const appKeysDeleted = await client`
