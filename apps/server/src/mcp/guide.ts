@@ -213,8 +213,8 @@ If a tool returns a permissions error, the agent key is missing the required per
 1. Ask the user for their RevenueCat V2 Secret API key (the only input needed)
 2. \`add-integration\` with \`api_key\` only → returns \`webhook_setup\` with all webhook form values
 3. Present the webhook setup to the user to paste into RevenueCat
-4. \`sync-integration\` → backfill existing data (triggers background job)
-5. \`get-job\` → monitor sync progress
+4. \`sync-integration\` with \`project_id\` (omit \`user_id\`) → queues a bulk background job to backfill existing subscriber data
+5. \`get-job\` with the returned \`job_run_id\` → monitor sync progress
 
 ## SDK Integration Guides
 

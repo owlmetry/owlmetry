@@ -64,6 +64,8 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
           `Events filter:   ${webhookSetup.events_filter}`,
           "",
           "The authorization header contains the webhook secret. It will not be shown again.",
+          "",
+          "Next step: After the user saves the webhook in RevenueCat, call sync-integration with this project_id to backfill existing subscribers.",
         ].join("\n"),
       });
     }
