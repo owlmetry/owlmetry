@@ -22,8 +22,10 @@ export function sinceFromRange(range: string): string {
 /** Format a time range value + optional custom dates into a human-readable chip string. */
 export function formatTimeRangeChip(value: string, since?: string, until?: string): string {
   if (value === "custom") {
-    const fmt = (d: string) =>
-      new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const fmt = (d: string) => {
+      const dt = new Date(d);
+      return `${dt.getDate()} ${dt.toLocaleDateString(undefined, { month: "short" })}`;
+    };
     if (since && until) return `${fmt(since)} – ${fmt(until)}`;
     if (since) return `Since ${fmt(since)}`;
     if (until) return `Until ${fmt(until)}`;
