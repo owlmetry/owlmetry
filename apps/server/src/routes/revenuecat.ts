@@ -7,7 +7,6 @@ import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
 import {
   type RevenueCatConfig,
-  type RevenueCatSubscriberResponse,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
 } from "../utils/revenuecat.js";
@@ -217,12 +216,12 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       const rcConfig = integration.config as unknown as RevenueCatConfig;
 
-      const subscriberData = await fetchRevenueCatSubscriber(rcConfig.api_key, userId);
-      if (!subscriberData) {
+      const subscriberResult = await fetchRevenueCatSubscriber(rcConfig.api_key, userId);
+      if (subscriberResult.status !== "found") {
         return reply.code(404).send({ error: "Subscriber not found in RevenueCat" });
       }
 
-      const props = mapSubscriberToProperties(subscriberData.subscriber);
+      const props = mapSubscriberToProperties(subscriberResult.data.subscriber);
       await mergeUserProperties(app.db, projectId, userId, props);
 
       return { updated: 1, properties: props };

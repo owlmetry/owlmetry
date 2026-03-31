@@ -50,37 +50,73 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
     return { synced: 0, total: 0, skipped: 0 };
   }
 
+  const MAX_USER_IDS = 10;
   const total = users.length;
   let synced = 0;
-  let skipped = 0;
+  let notFound = 0;
+  let errors = 0;
+  let active = 0;
+  let inactive = 0;
+  const notFoundUsers: string[] = [];
+  const errorUsers: string[] = [];
+
+  function buildResult(extra?: Record<string, unknown>) {
+    const result: Record<string, unknown> = {
+      total,
+      synced,
+      skipped: notFound + errors,
+      active,
+      inactive,
+      not_found: notFound,
+      errors,
+      ...extra,
+    };
+    if (notFoundUsers.length > 0) {
+      result.not_found_users = notFound > MAX_USER_IDS
+        ? [...notFoundUsers, `...and ${notFound - MAX_USER_IDS} more`]
+        : notFoundUsers;
+    }
+    if (errorUsers.length > 0) {
+      result.error_users = errors > MAX_USER_IDS
+        ? [...errorUsers, `...and ${errors - MAX_USER_IDS} more`]
+        : errorUsers;
+    }
+    return result;
+  }
 
   await ctx.updateProgress({ processed: 0, total, message: "Starting sync..." });
 
   for (let i = 0; i < users.length; i++) {
     if (ctx.isCancelled()) {
       ctx.log.info(`RevenueCat sync cancelled at ${i}/${total}`);
-      return { synced, total, skipped, cancelled_at: i };
+      return buildResult({ cancelled_at: i });
     }
 
     const user = users[i];
     try {
-      const subscriberData = await fetchRevenueCatSubscriber(rcConfig.api_key, user.user_id);
-      if (subscriberData) {
-        const props = mapSubscriberToProperties(subscriberData.subscriber);
-        if (Object.keys(props).length > 0) {
-          await mergeUserProperties(ctx.db, projectId, user.user_id, props);
-          synced++;
+      const result = await fetchRevenueCatSubscriber(rcConfig.api_key, user.user_id);
+      if (result.status === "found") {
+        const props = mapSubscriberToProperties(result.data.subscriber);
+        await mergeUserProperties(ctx.db, projectId, user.user_id, props);
+        synced++;
+        if (props.rc_status === "active") {
+          active++;
         } else {
-          skipped++;
+          inactive++;
         }
+      } else if (result.status === "not_found") {
+        notFound++;
+        if (notFoundUsers.length < MAX_USER_IDS) notFoundUsers.push(user.user_id);
       } else {
-        skipped++;
+        errors++;
+        if (errorUsers.length < MAX_USER_IDS) errorUsers.push(user.user_id);
       }
       // Rate limit: ~3 requests per second (180/min)
       await new Promise((r) => setTimeout(r, 350));
     } catch (err) {
       ctx.log.warn({ err, userId: user.user_id }, "RC sync failed for user");
-      skipped++;
+      errors++;
+      if (errorUsers.length < MAX_USER_IDS) errorUsers.push(user.user_id);
     }
 
     // Update progress every 10 users
@@ -88,11 +124,11 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       await ctx.updateProgress({
         processed: i + 1,
         total,
-        message: `Synced ${synced} users, ${skipped} skipped`,
+        message: `Synced ${synced} (${active} active, ${inactive} inactive), ${notFound} not found, ${errors} errors`,
       });
     }
   }
 
-  ctx.log.info(`RevenueCat sync complete: ${synced}/${total} users updated`);
-  return { synced, total, skipped };
+  ctx.log.info(`RevenueCat sync complete: ${synced}/${total} synced (${active} active, ${inactive} inactive), ${notFound} not found, ${errors} errors`);
+  return buildResult();
 };

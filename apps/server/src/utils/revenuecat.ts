@@ -63,10 +63,15 @@ export function mapSubscriberToProperties(subscriber: RevenueCatSubscriberRespon
   return props;
 }
 
+export type FetchSubscriberResult =
+  | { status: "found"; data: RevenueCatSubscriberResponse }
+  | { status: "not_found" }
+  | { status: "error"; statusCode?: number };
+
 export async function fetchRevenueCatSubscriber(
   apiKey: string,
   userId: string,
-): Promise<RevenueCatSubscriberResponse | null> {
+): Promise<FetchSubscriberResult> {
   try {
     const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`, {
       headers: {
@@ -75,9 +80,12 @@ export async function fetchRevenueCatSubscriber(
       },
       signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return null;
-    return (await res.json()) as RevenueCatSubscriberResponse;
+    if (res.ok) {
+      return { status: "found", data: (await res.json()) as RevenueCatSubscriberResponse };
+    }
+    if (res.status === 404) return { status: "not_found" };
+    return { status: "error", statusCode: res.status };
   } catch {
-    return null;
+    return { status: "error" };
   }
 }
