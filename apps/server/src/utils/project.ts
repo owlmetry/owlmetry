@@ -34,6 +34,19 @@ export async function resolveProject(
   return project;
 }
 
+/** Look up the project_id for an app. Returns null if app not found. */
+export async function resolveProjectIdFromApp(
+  fastify: FastifyInstance,
+  appId: string,
+): Promise<string | null> {
+  const [row] = await fastify.db
+    .select({ project_id: apps.project_id })
+    .from(apps)
+    .where(and(eq(apps.id, appId), isNull(apps.deleted_at)))
+    .limit(1);
+  return row?.project_id ?? null;
+}
+
 /** Resolve project access and return app IDs for the project. */
 export async function resolveProjectAppIds(
   fastify: FastifyInstance,

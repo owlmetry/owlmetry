@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, desc, inArray, isNull, ilike } from "drizzle-orm";
-import { apps, appUsers, appUserApps } from "@owlmetry/db";
+import { apps, projects, appUsers, appUserApps } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
 import type { AppUsersQueryParams, TeamAppUsersQueryParams } from "@owlmetry/shared";
@@ -146,8 +146,11 @@ export async function appUsersRoutes(app: FastifyInstance) {
 
       const conditions = [];
 
+      // Track whether we need to join through app_user_apps for app filtering
+      let filterByAppId: string | null = null;
+
       if (app_id) {
-        // Filter by specific app — need to join through junction table
+        // Verify app belongs to caller's team
         const [appRow] = await app.db
           .select({ id: apps.id })
           .from(apps)
@@ -158,31 +161,30 @@ export async function appUsersRoutes(app: FastifyInstance) {
         if (!appRow) {
           return { users: [], cursor: null, has_more: false };
         }
-
-        // Get user IDs that have junction entries for this app
-        const junctionUserIds = await app.db
-          .select({ app_user_id: appUserApps.app_user_id })
-          .from(appUserApps)
-          .where(eq(appUserApps.app_id, app_id));
-
-        if (junctionUserIds.length === 0) {
+        filterByAppId = app_id;
+      } else if (project_id) {
+        // Verify project belongs to caller's team
+        const [proj] = await app.db
+          .select({ id: projects.id })
+          .from(projects)
+          .where(
+            and(eq(projects.id, project_id), inArray(projects.team_id, teamIds), isNull(projects.deleted_at))
+          )
+          .limit(1);
+        if (!proj) {
           return { users: [], cursor: null, has_more: false };
         }
-        conditions.push(inArray(appUsers.id, junctionUserIds.map((j) => j.app_user_id)));
-      } else if (project_id) {
-        // Filter directly by project_id on app_users
         conditions.push(eq(appUsers.project_id, project_id));
       } else {
-        // Team scope: get all project IDs for team
+        // Team scope: get all project IDs directly from projects table
         const teamProjects = await app.db
-          .select({ id: apps.project_id })
-          .from(apps)
-          .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
-        const projectIds = [...new Set(teamProjects.map((p) => p.id))];
-        if (projectIds.length === 0) {
+          .select({ id: projects.id })
+          .from(projects)
+          .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
+        if (teamProjects.length === 0) {
           return { users: [], cursor: null, has_more: false };
         }
-        conditions.push(inArray(appUsers.project_id, projectIds));
+        conditions.push(inArray(appUsers.project_id, teamProjects.map((p) => p.id)));
       }
 
       if (is_anonymous === "true") {
@@ -206,10 +208,28 @@ export async function appUsersRoutes(app: FastifyInstance) {
         conditions.push(lt(appUsers.last_seen_at, new Date(cursor)));
       }
 
-      const rows = await app.db
-        .select()
-        .from(appUsers)
-        .where(and(...conditions))
+      // When filtering by app_id, JOIN through junction table instead of unbounded IN
+      const query = filterByAppId
+        ? app.db
+            .select({
+              id: appUsers.id,
+              project_id: appUsers.project_id,
+              user_id: appUsers.user_id,
+              is_anonymous: appUsers.is_anonymous,
+              claimed_from: appUsers.claimed_from,
+              properties: appUsers.properties,
+              first_seen_at: appUsers.first_seen_at,
+              last_seen_at: appUsers.last_seen_at,
+            })
+            .from(appUsers)
+            .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))
+            .where(and(eq(appUserApps.app_id, filterByAppId), ...conditions))
+        : app.db
+            .select()
+            .from(appUsers)
+            .where(and(...conditions));
+
+      const rows = await query
         .orderBy(desc(appUsers.last_seen_at))
         .limit(limit + 1);
 

@@ -82,13 +82,6 @@ export default function UsersPage() {
 
   const { users, isLoading, isLoadingMore, hasMore, loadMore } = useTeamAppUsers(filterParams);
 
-  // Project name lookup
-  const projectNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of projects) map.set(p.id, p.name);
-    return map;
-  }, [projects]);
-
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
     if (projectId && appId) {

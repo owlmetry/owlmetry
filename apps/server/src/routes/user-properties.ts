@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, isNull } from "drizzle-orm";
-import { apps, appUsers } from "@owlmetry/db";
+import { and, eq } from "drizzle-orm";
+import { appUsers } from "@owlmetry/db";
 import {
   MAX_USER_PROPERTY_KEY_LENGTH,
   MAX_USER_PROPERTY_VALUE_LENGTH,
@@ -9,6 +9,7 @@ import {
 import type { SetUserPropertiesRequest, SetUserPropertiesResponse } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
+import { resolveProjectIdFromApp } from "../utils/project.js";
 
 export async function userPropertiesRoutes(app: FastifyInstance) {
   app.post<{ Body: SetUserPropertiesRequest }>(
@@ -54,18 +55,10 @@ export async function userPropertiesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Client key must be scoped to an app" });
       }
 
-      // Resolve project_id from app
-      const [appRow] = await app.db
-        .select({ project_id: apps.project_id })
-        .from(apps)
-        .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
-        .limit(1);
-
-      if (!appRow) {
+      const project_id = await resolveProjectIdFromApp(app, app_id);
+      if (!project_id) {
         return reply.code(400).send({ error: "App not found" });
       }
-
-      const project_id = appRow.project_id;
 
       // Upsert properties (single DB round-trip, race-condition safe)
       if (Object.keys(toSet).length > 0) {

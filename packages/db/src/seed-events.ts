@@ -464,6 +464,15 @@ async function main() {
     }
   }
 
+  // Pre-build lookup: projectId:userId -> sightings[]
+  const sightingsByUser = new Map<string, Array<{ appId: string; earliest: Date; latest: Date }>>();
+  for (const [sKey, sVal] of appUserSightings) {
+    const userKey = sKey.substring(0, sKey.lastIndexOf(":"));
+    const list = sightingsByUser.get(userKey) ?? [];
+    list.push(sVal);
+    sightingsByUser.set(userKey, list);
+  }
+
   for (const [key, val] of projectUserPairs) {
     const userId = key.split(":").slice(1).join(":");
     const [upserted] = await db
@@ -479,14 +488,17 @@ async function main() {
       .returning({ id: appUsers.id });
 
     if (upserted) {
-      // Insert junction entries for each app this user was seen from
-      for (const [sKey, sVal] of appUserSightings) {
-        if (sKey.startsWith(key + ":")) {
-          await db
-            .insert(appUserApps)
-            .values({ app_user_id: upserted.id, app_id: sVal.appId, first_seen_at: sVal.earliest, last_seen_at: sVal.latest })
-            .onConflictDoNothing();
-        }
+      const sightings = sightingsByUser.get(key) ?? [];
+      if (sightings.length > 0) {
+        await db
+          .insert(appUserApps)
+          .values(sightings.map((s) => ({
+            app_user_id: upserted.id,
+            app_id: s.appId,
+            first_seen_at: s.earliest,
+            last_seen_at: s.latest,
+          })))
+          .onConflictDoNothing();
       }
     }
   }

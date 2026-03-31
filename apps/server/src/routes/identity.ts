@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, sql, inArray, isNull } from "drizzle-orm";
 import {
   events,
   apps,
@@ -11,6 +11,7 @@ import {
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
+import { resolveProjectIdFromApp } from "../utils/project.js";
 
 export async function identityRoutes(app: FastifyInstance) {
   app.post<{ Body: IdentityClaimRequest }>(
@@ -49,20 +50,12 @@ export async function identityRoutes(app: FastifyInstance) {
           .send({ error: "Client key must be scoped to an app" });
       }
 
-      // Resolve project_id from app
-      const [appRow] = await app.db
-        .select({ project_id: apps.project_id })
-        .from(apps)
-        .where(and(eq(apps.id, app_id), isNull(apps.deleted_at)))
-        .limit(1);
-
-      if (!appRow) {
+      // Resolve project_id and all sibling app IDs in one query
+      const project_id = await resolveProjectIdFromApp(app, app_id);
+      if (!project_id) {
         return reply.code(400).send({ error: "App not found" });
       }
 
-      const project_id = appRow.project_id;
-
-      // Get all app IDs in the project for cross-app event reassignment
       const projectApps = await app.db
         .select({ id: apps.id })
         .from(apps)
@@ -159,7 +152,6 @@ export async function identityRoutes(app: FastifyInstance) {
 
           // Merge junction entries from anonymous user to real user
           if (anonRow) {
-            // Reassign junction entries
             const anonJunctions = await tx
               .select()
               .from(appUserApps)
@@ -177,8 +169,8 @@ export async function identityRoutes(app: FastifyInstance) {
                 .onConflictDoUpdate({
                   target: [appUserApps.app_user_id, appUserApps.app_id],
                   set: {
-                    first_seen_at: j.first_seen_at < (anonRow.first_seen_at) ? j.first_seen_at : appUserApps.first_seen_at,
-                    last_seen_at: j.last_seen_at > (anonRow.last_seen_at) ? j.last_seen_at : appUserApps.last_seen_at,
+                    first_seen_at: sql`LEAST(${appUserApps.first_seen_at}, EXCLUDED.first_seen_at)`,
+                    last_seen_at: sql`GREATEST(${appUserApps.last_seen_at}, EXCLUDED.last_seen_at)`,
                   },
                 });
             }
