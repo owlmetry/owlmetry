@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from "react";
 // Deep imports bypass the barrel export which pulls in node:crypto
-import type { JobRunResponse, JobRunsQueryParams, TriggerJobRequest, JobType } from "@owlmetry/shared";
+import type { JobRunResponse, JobRunsQueryParams, TriggerJobRequest, JobType, ProjectResponse } from "@owlmetry/shared";
 import { JOB_TYPE_META } from "@owlmetry/shared/jobs";
 import { formatDuration as formatMs } from "@owlmetry/shared/constants";
+import useSWR from "swr";
 
 type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
@@ -94,6 +95,12 @@ function formatTriggeredBy(triggeredBy: string): string {
 
 export default function JobsPage() {
   const { currentTeam } = useTeam();
+  const teamId = currentTeam?.id;
+
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
+  const projects = projectsData?.projects ?? [];
 
   const filters = useUrlFilters({
     path: "/dashboard/jobs",
@@ -232,13 +239,19 @@ export default function JobsPage() {
 
                 {triggerType && getJobScope(triggerType) === "project" && (
                   <div className="space-y-2">
-                    <Label>Project ID</Label>
-                    <Input
-                      value={triggerProjectId}
-                      onChange={(e) => setTriggerProjectId(e.target.value)}
-                      placeholder="Enter project ID"
-                      className="font-mono text-sm"
-                    />
+                    <Label>Project</Label>
+                    <Select value={triggerProjectId} onValueChange={setTriggerProjectId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
 
