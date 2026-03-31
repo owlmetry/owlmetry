@@ -62,7 +62,7 @@ RevenueCat is the first supported integration. It syncs subscription lifecycle e
 RevenueCat Purchase/Renewal/Cancellation
   -> Webhook POST to /v1/webhooks/revenuecat/:projectId
   -> Maps event to user properties (rc_subscriber, rc_status, etc.)
-  -> Merges into app_users.properties for all apps in the project
+  -> Merges into the project-level user's properties
   -> Visible in Users list with Paid/Cancelled badges
 ```
 

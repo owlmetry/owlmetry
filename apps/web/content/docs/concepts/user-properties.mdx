@@ -5,7 +5,7 @@ description: Attach custom key-value metadata to users — subscription status, 
 
 User properties are custom key-value pairs stored on each user in OwlMetry. They let you see at a glance who is a paid subscriber, what plan they're on, how much they've spent, or any other user-level attribute you care about.
 
-Properties are stored on the `app_users` table as a JSONB column and displayed in the Users list in the dashboard.
+Properties are stored on each project-level user and displayed in the Users list in the dashboard. Users are unique per project — the same user ID seen from multiple apps (e.g., iOS and backend) is a single user with one set of properties.
 
 ## How It Works
 
