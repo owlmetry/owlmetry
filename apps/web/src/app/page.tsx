@@ -184,67 +184,85 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-16 mx-auto max-w-3xl space-y-6">
-            {/* Step 1 — Pick editor & copy config */}
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <span
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ background: "oklch(0.555 0.163 48.998)" }}
-                >
-                  1
-                </span>
-                <span className="text-sm font-medium text-muted-foreground">Pick your editor and copy the config</span>
-              </div>
-              <LandingMcpSetup />
-            </div>
+          <div className="mt-14 mx-auto max-w-3xl">
+            {/* Steps with connecting line */}
+            <div className="relative">
+              {/* Vertical connecting line between step badges */}
+              <div className="absolute left-[15px] top-[32px] bottom-[calc(100%-88px)] w-px bg-border md:block hidden" style={{ height: "calc(100% - 64px)" }} />
 
-            {/* Step 2 — Tell your agent */}
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <span
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ background: "oklch(0.555 0.163 48.998)" }}
-                >
-                  2
-                </span>
-                <span className="text-sm font-medium text-muted-foreground">Tell your agent to set up OwlMetry</span>
-              </div>
-              <div className="rounded-xl border border-border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
-                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                    </div>
-                    <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
-                  </div>
-                  <TerminalCopyButton text="Set up OwlMetry for this project and instrument the app with event tracking." />
+              {/* Step 1 — Pick editor & copy config */}
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-3">
+                  <span
+                    className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white shrink-0"
+                    style={{ background: "oklch(0.555 0.163 48.998)", boxShadow: "0 0 16px oklch(0.555 0.163 48.998 / 0.25)" }}
+                  >
+                    1
+                  </span>
+                  <span className="text-sm font-medium text-foreground/80">Pick your editor and copy the config</span>
                 </div>
-                <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
-                  <code>
-                    <span className="text-white/40">&gt;</span>{" "}
-                    <span className="text-white/70">Set up OwlMetry for this project and instrument the app with event tracking.</span>
-                    {"\n\n"}
-                    <span className="text-green-400">✓</span>{" "}
-                    <span className="text-white/55">Authenticated</span>
-                    {"\n"}
-                    <span className="text-green-400">✓</span>{" "}
-                    <span className="text-white/55">Project created</span>
-                    {"\n"}
-                    <span className="text-green-400">✓</span>{" "}
-                    <span className="text-white/55">App created</span>
-                    {"\n"}
-                    <span className="text-green-400">✓</span>{" "}
-                    <span className="text-white/55">SDK installed</span>
-                    {"\n"}
-                    <span className="text-green-400">✓</span>{" "}
-                    <span className="text-white/55">Instrumentation added</span>
-                    {"\n\n"}
-                    <span className="text-white/55">Done. OwlMetry is ready.</span>
-                  </code>
-                </pre>
+                <div className="md:pl-11">
+                  <LandingMcpSetup />
+                </div>
+              </div>
+
+              {/* Step 2 — Tell your agent */}
+              <div className="relative mt-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span
+                    className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white shrink-0"
+                    style={{ background: "oklch(0.555 0.163 48.998)", boxShadow: "0 0 16px oklch(0.555 0.163 48.998 / 0.25)" }}
+                  >
+                    2
+                  </span>
+                  <span className="text-sm font-medium text-foreground/80">Tell your agent to set up OwlMetry</span>
+                </div>
+                <div className="md:pl-11">
+                  <div
+                    className="relative rounded-xl border border-border overflow-hidden"
+                    style={{ background: "oklch(0.13 0.015 55)" }}
+                  >
+                    {/* Top accent line */}
+                    <div
+                      className="absolute inset-x-0 top-0 h-px"
+                      style={{ background: "linear-gradient(90deg, transparent, oklch(0.555 0.163 48.998 / 0.4), transparent)" }}
+                    />
+                    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
+                        </div>
+                        <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
+                      </div>
+                      <TerminalCopyButton text="Set up OwlMetry for this project and instrument the app with event tracking." />
+                    </div>
+                    <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
+                      <code>
+                        <span className="text-white/40">&gt;</span>{" "}
+                        <span className="text-white/70">Set up OwlMetry for this project and instrument the app with event tracking.</span>
+                        {"\n\n"}
+                        <span className="text-green-400">✓</span>{" "}
+                        <span className="text-white/55">Authenticated</span>
+                        {"\n"}
+                        <span className="text-green-400">✓</span>{" "}
+                        <span className="text-white/55">Project created</span>
+                        {"\n"}
+                        <span className="text-green-400">✓</span>{" "}
+                        <span className="text-white/55">App created</span>
+                        {"\n"}
+                        <span className="text-green-400">✓</span>{" "}
+                        <span className="text-white/55">SDK installed</span>
+                        {"\n"}
+                        <span className="text-green-400">✓</span>{" "}
+                        <span className="text-white/55">Instrumentation added</span>
+                        {"\n\n"}
+                        <span className="text-white/55">Done. OwlMetry is ready.</span>
+                      </code>
+                    </pre>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
