@@ -6,14 +6,7 @@ import { Eye, EyeOff, LogIn, KeyRound } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
 import { CopyButton } from "@/components/copy-button";
 import { api } from "@/lib/api";
-import { EDITORS, PLACEHOLDER, MCP_URL, SERVER_NAME } from "@/lib/mcp-editors";
-
-function maskKey(key: string): string {
-  if (!key || key === PLACEHOLDER) return PLACEHOLDER;
-  // Show prefix + first 8 chars, mask the rest
-  const visible = key.slice(0, 18); // "owl_agent_" + 8 hex chars
-  return `${visible}${"*".repeat(8)}`;
-}
+import { EDITORS, PLACEHOLDER, MCP_URL, SERVER_NAME, maskKey } from "@/lib/mcp-editors";
 
 function renderNote(note: string) {
   return (

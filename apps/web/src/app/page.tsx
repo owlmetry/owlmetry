@@ -14,6 +14,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { TerminalCopyButton } from "@/components/terminal-copy-button";
 import { AuthCTA } from "@/components/auth-cta";
 import { LandingMcpSetup } from "@/components/landing-mcp-setup";
+import { LandingAuth } from "@/components/landing-auth";
 
 const features = [
   {
@@ -190,7 +191,7 @@ export default function LandingPage() {
               {/* Vertical connecting line between step badges */}
               <div className="absolute left-[15px] top-[32px] bottom-[calc(100%-88px)] w-px bg-border md:block hidden" style={{ height: "calc(100% - 64px)" }} />
 
-              {/* Step 1 — Pick editor & copy config */}
+              {/* Step 1 — Sign in */}
               <div className="relative">
                 <div className="flex items-center gap-3 mb-3">
                   <span
@@ -199,14 +200,14 @@ export default function LandingPage() {
                   >
                     1
                   </span>
-                  <span className="text-sm font-medium text-foreground/80">Pick your editor and copy the config</span>
+                  <span className="text-sm font-medium text-foreground/80">Sign in to get your API key</span>
                 </div>
                 <div className="md:pl-11">
-                  <LandingMcpSetup />
+                  <LandingAuth />
                 </div>
               </div>
 
-              {/* Step 2 — Tell your agent */}
+              {/* Step 2 — Pick editor & copy config */}
               <div className="relative mt-8">
                 <div className="flex items-center gap-3 mb-3">
                   <span
@@ -214,6 +215,22 @@ export default function LandingPage() {
                     style={{ background: "oklch(0.555 0.163 48.998)", boxShadow: "0 0 16px oklch(0.555 0.163 48.998 / 0.25)" }}
                   >
                     2
+                  </span>
+                  <span className="text-sm font-medium text-foreground/80">Pick your editor and copy the config</span>
+                </div>
+                <div className="md:pl-11">
+                  <LandingMcpSetup />
+                </div>
+              </div>
+
+              {/* Step 3 — Tell your agent */}
+              <div className="relative mt-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <span
+                    className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white shrink-0"
+                    style={{ background: "oklch(0.555 0.163 48.998)", boxShadow: "0 0 16px oklch(0.555 0.163 48.998 / 0.25)" }}
+                  >
+                    3
                   </span>
                   <span className="text-sm font-medium text-foreground/80">Tell your agent to set up OwlMetry</span>
                 </div>

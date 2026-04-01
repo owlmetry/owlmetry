@@ -1,13 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { EDITORS, PLACEHOLDER, MCP_URL, SERVER_NAME } from "@/lib/mcp-editors";
+import { Eye, EyeOff } from "lucide-react";
+import { EDITORS, PLACEHOLDER, MCP_URL, SERVER_NAME, maskKey } from "@/lib/mcp-editors";
+import { useUser } from "@/hooks/use-user";
 import { TerminalCopyButton } from "@/components/terminal-copy-button";
 
 export function LandingMcpSetup() {
+  const { teams } = useUser();
   const [selectedEditor, setSelectedEditor] = useState(0);
+  const [keyVisible, setKeyVisible] = useState(false);
+
+  const defaultKey = teams?.[0]?.default_agent_key;
+  const activeKey = defaultKey || PLACEHOLDER;
+  const hasRealKey = activeKey !== PLACEHOLDER;
+  const displayKey = keyVisible ? activeKey : maskKey(activeKey);
+
   const editor = EDITORS[selectedEditor];
-  const configText = editor.scopes[0].config(PLACEHOLDER, MCP_URL, SERVER_NAME);
+  const configText = editor.scopes[0].config(activeKey, MCP_URL, SERVER_NAME);
+  const configDisplay = editor.scopes[0].config(displayKey, MCP_URL, SERVER_NAME);
 
   return (
     <div>
@@ -56,21 +67,31 @@ export function LandingMcpSetup() {
             </div>
             <span className="text-xs font-medium text-white/50 ml-2">{editor.name}</span>
           </div>
-          <TerminalCopyButton text={configText} />
+          <div className="flex items-center gap-1">
+            {hasRealKey && (
+              <button
+                type="button"
+                onClick={() => setKeyVisible(!keyVisible)}
+                className="p-1.5 rounded-md text-white/30 hover:text-white/60 transition-colors"
+                title={keyVisible ? "Hide key" : "Show key"}
+              >
+                {keyVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            )}
+            <TerminalCopyButton text={configText} />
+          </div>
         </div>
         <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono overflow-x-auto">
-          <code className="text-white/80">{configText}</code>
+          <code className="text-white/80">{configDisplay}</code>
         </pre>
       </div>
 
-      {/* Note — inline with subtle styling */}
-      <p className="mt-2.5 text-[11px] text-muted-foreground/70 tracking-wide">
-        Replace <code className="rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-foreground/60 tracking-wider">YOUR_AGENT_KEY</code> with
-        your key from the{" "}
-        <a href="/login" className="text-primary/70 hover:text-primary transition-colors">
-          dashboard
-        </a>
-      </p>
+      {/* Note — only show when no real key */}
+      {!hasRealKey && (
+        <p className="mt-2.5 text-[11px] text-muted-foreground/70 tracking-wide">
+          Sign in above to get your key auto-filled
+        </p>
+      )}
     </div>
   );
 }
