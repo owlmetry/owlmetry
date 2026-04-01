@@ -13,6 +13,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { TerminalCopyButton } from "@/components/terminal-copy-button";
 import { AuthCTA } from "@/components/auth-cta";
+import { LandingMcpSetup } from "@/components/landing-mcp-setup";
 
 const features = [
   {
@@ -50,13 +51,13 @@ const features = [
 const steps = [
   {
     number: "01",
-    title: "Install the CLI",
-    description: "One command: npm install -g @owlmetry/cli. Then tell your agent to install the skill files.",
+    title: "Add the MCP server",
+    description: "Paste a config snippet into your editor's MCP settings. One JSON block, one minute.",
   },
   {
     number: "02",
     title: "Agent sets you up",
-    description: "Your agent verifies your email, creates a project and app, and configures API keys — all through the CLI.",
+    description: "Your agent creates a project and app, configures API keys, and verifies the connection — all through MCP.",
   },
   {
     number: "03",
@@ -176,75 +177,75 @@ export default function LandingPage() {
               Get started
             </p>
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-              One install. One prompt. You&apos;re done.
+              Add one config. Tell your agent. Done.
             </h2>
             <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
-              Your agent reads the skill files and handles the rest &mdash; auth, project setup, and SDK integration.
+              Add the MCP server to your editor, then your agent handles auth, project setup, and SDK integration.
             </p>
           </div>
 
-          <div className="mt-16 mx-auto max-w-3xl space-y-5">
-            {/* Step 1 — Install */}
-            <div className="rounded-xl border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                  </div>
-                  <span className="text-xs font-medium text-white/50 ml-2">Terminal</span>
-                </div>
-                <TerminalCopyButton text="npm install -g @owlmetry/cli" />
+          <div className="mt-16 mx-auto max-w-3xl space-y-6">
+            {/* Step 1 — Pick editor & copy config */}
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: "oklch(0.555 0.163 48.998)" }}
+                >
+                  1
+                </span>
+                <span className="text-sm font-medium text-muted-foreground">Pick your editor and copy the config</span>
               </div>
-              <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono">
-                <code>
-                  <span className="text-green-400">$</span>{" "}
-                  <span className="text-white/80">npm install -g @owlmetry/cli</span>
-                </code>
-              </pre>
+              <LandingMcpSetup />
             </div>
 
-            {/* Step 2 — Agent conversation */}
-            <div className="rounded-xl border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
-                  </div>
-                  <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
-                </div>
-                <TerminalCopyButton text="Run 'owlmetry skills', install those skill files, then use the CLI skill to set up this project and the relevant SDK skill to instrument the app's code." />
+            {/* Step 2 — Tell your agent */}
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: "oklch(0.555 0.163 48.998)" }}
+                >
+                  2
+                </span>
+                <span className="text-sm font-medium text-muted-foreground">Tell your agent to set up OwlMetry</span>
               </div>
-              <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
-                <code>
-                  <span className="text-white/40">&gt;</span>{" "}
-                  <span className="text-white/70">Run </span>
-                  <span className="text-orange-400">owlmetry skills</span>
-                  <span className="text-white/70">, install those skill files, then use the CLI skill to set up this project and the relevant SDK skill to instrument the app&apos;s code.</span>
-                  {"\n\n"}
-                  <span className="text-white/30">Reading skill files...</span>
-                  {"\n"}
-                  <span className="text-green-400">✓</span>{" "}
-                  <span className="text-white/55">Authenticated!</span>
-                  {"\n"}
-                  <span className="text-green-400">✓</span>{" "}
-                  <span className="text-white/55">Project created</span>
-                  {"\n"}
-                  <span className="text-green-400">✓</span>{" "}
-                  <span className="text-white/55">App created</span>
-                  {"\n"}
-                  <span className="text-green-400">✓</span>{" "}
-                  <span className="text-white/55">SDK installed</span>
-                  {"\n"}
-                  <span className="text-green-400">✓</span>{" "}
-                  <span className="text-white/55">Instrumentation added</span>
-                  {"\n\n"}
-                  <span className="text-white/55">Done. OwlMetry is ready.</span>
-                </code>
-              </pre>
+              <div className="rounded-xl border border-border overflow-hidden" style={{ background: "oklch(0.13 0.015 55)" }}>
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-white/[0.07] ring-1 ring-white/[0.05]" />
+                    </div>
+                    <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
+                  </div>
+                  <TerminalCopyButton text="Set up OwlMetry for this project and instrument the app with event tracking." />
+                </div>
+                <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
+                  <code>
+                    <span className="text-white/40">&gt;</span>{" "}
+                    <span className="text-white/70">Set up OwlMetry for this project and instrument the app with event tracking.</span>
+                    {"\n\n"}
+                    <span className="text-green-400">✓</span>{" "}
+                    <span className="text-white/55">Authenticated</span>
+                    {"\n"}
+                    <span className="text-green-400">✓</span>{" "}
+                    <span className="text-white/55">Project created</span>
+                    {"\n"}
+                    <span className="text-green-400">✓</span>{" "}
+                    <span className="text-white/55">App created</span>
+                    {"\n"}
+                    <span className="text-green-400">✓</span>{" "}
+                    <span className="text-white/55">SDK installed</span>
+                    {"\n"}
+                    <span className="text-green-400">✓</span>{" "}
+                    <span className="text-white/55">Instrumentation added</span>
+                    {"\n\n"}
+                    <span className="text-white/55">Done. OwlMetry is ready.</span>
+                  </code>
+                </pre>
+              </div>
             </div>
           </div>
         </div>
@@ -418,7 +419,7 @@ export default function LandingPage() {
               Your agent does the work
             </h2>
             <p className="mt-4 text-white/50">
-              Install the CLI. Your agent handles everything else.
+              Add one config. Your agent handles everything else.
             </p>
           </div>
 

@@ -240,3 +240,12 @@ div[id^="__lpform"],
   animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: 0.55s;
 }
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
