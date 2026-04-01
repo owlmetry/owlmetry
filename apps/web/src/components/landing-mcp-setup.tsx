@@ -1,24 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { EDITORS, PLACEHOLDER, MCP_URL, SERVER_NAME, maskKey } from "@/lib/mcp-editors";
+import { useState, useEffect } from "react";
+import { EDITORS, PLACEHOLDER, MCP_URL, SERVER_NAME } from "@/lib/mcp-editors";
 import { useUser } from "@/hooks/use-user";
+import { api } from "@/lib/api";
 import { TerminalCopyButton } from "@/components/terminal-copy-button";
 
 export function LandingMcpSetup() {
-  const { teams } = useUser();
+  const { user, teams, mutate } = useUser();
   const [selectedEditor, setSelectedEditor] = useState(0);
-  const [keyVisible, setKeyVisible] = useState(false);
+  const [lazyCreating, setLazyCreating] = useState(false);
 
-  const defaultKey = teams?.[0]?.default_agent_key;
+  const isAuthenticated = !!user;
+  const firstTeam = teams?.[0];
+  const defaultKey = firstTeam?.default_agent_key;
+
+  // Auto lazy-create if authenticated but no key
+  useEffect(() => {
+    if (!isAuthenticated || !firstTeam || defaultKey || lazyCreating) return;
+    setLazyCreating(true);
+    api
+      .post<{ secret: string; created: boolean }>("/v1/auth/default-agent-key", {
+        team_id: firstTeam.id,
+      })
+      .then(() => mutate())
+      .catch(() => {})
+      .finally(() => setLazyCreating(false));
+  }, [isAuthenticated, firstTeam, defaultKey, lazyCreating, mutate]);
   const activeKey = defaultKey || PLACEHOLDER;
   const hasRealKey = activeKey !== PLACEHOLDER;
-  const displayKey = keyVisible ? activeKey : maskKey(activeKey);
 
   const editor = EDITORS[selectedEditor];
   const configText = editor.scopes[0].config(activeKey, MCP_URL, SERVER_NAME);
-  const configDisplay = editor.scopes[0].config(displayKey, MCP_URL, SERVER_NAME);
 
   return (
     <div>
@@ -67,22 +80,17 @@ export function LandingMcpSetup() {
             </div>
             <span className="text-xs font-medium text-white/50 ml-2">{editor.name}</span>
           </div>
-          <div className="flex items-center gap-1">
-            {hasRealKey && (
-              <button
-                type="button"
-                onClick={() => setKeyVisible(!keyVisible)}
-                className="p-1.5 rounded-md text-white/30 hover:text-white/60 transition-colors"
-                title={keyVisible ? "Hide key" : "Show key"}
-              >
-                {keyVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </button>
-            )}
-            <TerminalCopyButton text={configText} />
-          </div>
+          <TerminalCopyButton text={configText} />
         </div>
         <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono overflow-x-auto">
-          <code className="text-white/80">{configDisplay}</code>
+          <code className="text-white/80">{hasRealKey ? (
+            configText.split(activeKey).map((part, i, arr) => (
+              <span key={i}>
+                {part}
+                {i < arr.length - 1 && <span className="text-green-400">{activeKey}</span>}
+              </span>
+            ))
+          ) : configText}</code>
         </pre>
       </div>
 

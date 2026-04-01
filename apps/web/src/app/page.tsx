@@ -185,7 +185,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-14 mx-auto max-w-3xl">
+          <div className="mt-14 mx-auto max-w-4xl">
             {/* Steps with connecting line */}
             <div className="relative">
               {/* Vertical connecting line between step badges */}

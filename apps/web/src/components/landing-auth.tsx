@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, Eye, EyeOff, KeyRound, Mail } from "lucide-react";
+import { Check, Mail } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
 import { api, ApiError } from "@/lib/api";
-import { PLACEHOLDER, maskKey } from "@/lib/mcp-editors";
-import { TerminalCopyButton } from "@/components/terminal-copy-button";
+import { PLACEHOLDER } from "@/lib/mcp-editors";
 
 export function LandingAuth() {
   const { user, teams, isLoading, mutate } = useUser();
@@ -14,28 +13,7 @@ export function LandingAuth() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [keyVisible, setKeyVisible] = useState(false);
-  const [lazyCreating, setLazyCreating] = useState(false);
-
   const isAuthenticated = !!user;
-  const firstTeam = teams?.[0];
-  const defaultKey = firstTeam?.default_agent_key;
-  const activeKey = defaultKey || PLACEHOLDER;
-  const hasRealKey = activeKey !== PLACEHOLDER;
-  const displayKey = keyVisible ? activeKey : maskKey(activeKey);
-
-  // Auto lazy-create if authenticated but no key
-  useEffect(() => {
-    if (!isAuthenticated || !firstTeam || defaultKey || lazyCreating) return;
-    setLazyCreating(true);
-    api
-      .post<{ secret: string; created: boolean }>("/v1/auth/default-agent-key", {
-        team_id: firstTeam.id,
-      })
-      .then(() => mutate())
-      .catch(() => {})
-      .finally(() => setLazyCreating(false));
-  }, [isAuthenticated, firstTeam, defaultKey, lazyCreating, mutate]);
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -91,37 +69,16 @@ export function LandingAuth() {
           className="absolute inset-x-0 top-0 h-px"
           style={{ background: "linear-gradient(90deg, transparent, oklch(0.4 0.17 155 / 0.5), transparent)" }}
         />
-        <div className="px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full shrink-0"
-              style={{ background: "oklch(0.3 0.08 155 / 0.3)" }}
-            >
-              <Check className="h-4 w-4 text-green-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white/80">
-                Signed in as <span className="text-white/60">{user?.email}</span>
-              </p>
-              {hasRealKey && (
-                <div className="mt-1.5 flex items-center gap-2">
-                  <code className="text-xs font-mono text-green-400/70 truncate">{displayKey}</code>
-                  <button
-                    type="button"
-                    onClick={() => setKeyVisible(!keyVisible)}
-                    className="shrink-0 p-1 rounded text-white/30 hover:text-white/60 transition-colors"
-                    title={keyVisible ? "Hide key" : "Show key"}
-                  >
-                    {keyVisible ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </button>
-                  <TerminalCopyButton text={activeKey} />
-                </div>
-              )}
-              {lazyCreating && (
-                <p className="mt-1 text-xs text-white/30 animate-pulse">Creating agent key...</p>
-              )}
-            </div>
+        <div className="px-5 py-4 flex items-center gap-3">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full shrink-0"
+            style={{ background: "oklch(0.3 0.08 155 / 0.3)" }}
+          >
+            <Check className="h-4 w-4 text-green-400" />
           </div>
+          <p className="text-sm font-medium text-white/80">
+            Signed in as <span className="text-white/60">{user?.email}</span>
+          </p>
         </div>
       </div>
     );
