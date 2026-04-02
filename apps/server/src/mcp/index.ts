@@ -2,19 +2,47 @@ import type { FastifyInstance } from "fastify";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { API_KEY_PREFIX } from "@owlmetry/shared";
 import { createMcpServer } from "./server.js";
+import { config } from "../config.js";
 
 export async function mcpRoute(app: FastifyInstance) {
   const bearerPrefix = `Bearer ${API_KEY_PREFIX.agent}`;
+  const resourceUrl = `${config.publicUrl}/mcp`;
+  const resourceMetadataUrl = `${config.publicUrl}/.well-known/oauth-protected-resource`;
+
+  // ── RFC 9728 Protected Resource Metadata ────────────────────────────
+  // Tells MCP clients that this server accepts Bearer tokens in headers.
+  // Serves at both the root and /mcp path-aware locations per the spec.
+  const resourceMetadata = {
+    resource: resourceUrl,
+    bearer_methods_supported: ["header"],
+    resource_documentation: "https://owlmetry.com/docs/mcp",
+  };
+
+  app.get("/.well-known/oauth-protected-resource", async (_request, reply) => {
+    return reply.send(resourceMetadata);
+  });
+  app.get(
+    "/.well-known/oauth-protected-resource/mcp",
+    async (_request, reply) => {
+      return reply.send(resourceMetadata);
+    },
+  );
 
   /** Extract agent key from Bearer header, or send 401 and return null. */
   function extractKey(
     request: { headers: { authorization?: string } },
-    reply: { code: (n: number) => { send: (body: unknown) => void } },
+    reply: {
+      code: (n: number) => { header: (k: string, v: string) => { send: (body: unknown) => void } };
+    },
   ): string | null {
     const header = request.headers.authorization;
     if (!header || !header.startsWith(bearerPrefix)) {
       reply
         .code(401)
+        .header(
+          "WWW-Authenticate",
+          `Bearer resource_metadata="${resourceMetadataUrl}"`,
+        )
         .send({
           error: "MCP endpoint requires an agent API key (owl_agent_*)",
         });
