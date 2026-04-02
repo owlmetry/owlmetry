@@ -134,14 +134,14 @@ describe("MCP endpoint", () => {
       expect(res.json().result.serverInfo.name).toBe("owlmetry");
     });
 
-    it("returns 405 for GET /mcp", async () => {
+    it("returns 401 for GET /mcp without auth", async () => {
       const res = await app.inject({ method: "GET", url: "/mcp" });
-      expect(res.statusCode).toBe(405);
+      expect(res.statusCode).toBe(401);
     });
 
-    it("returns 405 for DELETE /mcp", async () => {
+    it("returns 401 for DELETE /mcp without auth", async () => {
       const res = await app.inject({ method: "DELETE", url: "/mcp" });
-      expect(res.statusCode).toBe(405);
+      expect(res.statusCode).toBe(401);
     });
   });
 
