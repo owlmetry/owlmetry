@@ -134,28 +134,14 @@ describe("MCP endpoint", () => {
       expect(res.json().result.serverInfo.name).toBe("owlmetry");
     });
 
-    it("returns 401 with WWW-Authenticate for GET /mcp without auth", async () => {
+    it("returns 405 for GET /mcp without auth (avoids OAuth trigger)", async () => {
       const res = await app.inject({ method: "GET", url: "/mcp" });
-      expect(res.statusCode).toBe(401);
-      expect(res.headers["www-authenticate"]).toMatch(/Bearer/);
-      expect(res.headers["www-authenticate"]).toMatch(/resource_metadata/);
+      expect(res.statusCode).toBe(405);
     });
 
-    it("returns 401 with WWW-Authenticate for DELETE /mcp without auth", async () => {
+    it("returns 405 for DELETE /mcp", async () => {
       const res = await app.inject({ method: "DELETE", url: "/mcp" });
-      expect(res.statusCode).toBe(401);
-      expect(res.headers["www-authenticate"]).toMatch(/Bearer/);
-    });
-
-    it("serves protected resource metadata at /.well-known/oauth-protected-resource", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: "/.well-known/oauth-protected-resource",
-      });
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      expect(body.resource).toMatch(/\/mcp$/);
-      expect(body.bearer_methods_supported).toContain("header");
+      expect(res.statusCode).toBe(405);
     });
   });
 
