@@ -53,6 +53,7 @@ Owl.configure({
   flushIntervalMs: 5000,          // optional, default: 5000
   flushThreshold: 20,             // optional, default: 20
   maxBufferSize: 10000,           // optional, default: 10000
+  consoleLogging: true,           // optional, default: true — print events to console
 });
 ```
 

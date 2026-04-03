@@ -29,9 +29,10 @@ public enum Owl {
         apiKey: String,
         flushOnBackground: Bool = true,
         compressionEnabled: Bool = true,
-        networkTrackingEnabled: Bool = true
+        networkTrackingEnabled: Bool = true,
+        consoleLogging: Bool = true
     ) throws {
-        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
+        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled, consoleLogging: consoleLogging)
         try configureWith(config)
     }
 
@@ -42,9 +43,10 @@ public enum Owl {
         bundleId: String,
         flushOnBackground: Bool = true,
         compressionEnabled: Bool = true,
-        networkTrackingEnabled: Bool = true
+        networkTrackingEnabled: Bool = true,
+        consoleLogging: Bool = true
     ) throws {
-        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled)
+        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled, consoleLogging: consoleLogging)
         try configureWith(config)
     }
 
@@ -360,6 +362,47 @@ public enum Owl {
 
     // MARK: - Internal
 
+    private static func printToConsole(
+        _ message: String,
+        level: OwlLogLevel,
+        attributes: [String: String]?
+    ) {
+        if message.hasPrefix("sdk:") { return }
+        if message.hasPrefix("metric:") && message.hasSuffix(":start") { return }
+
+        let tag: String
+        switch level {
+        case .info:  tag = "INFO "
+        case .debug: tag = "DEBUG"
+        case .warn:  tag = "WARN "
+        case .error: tag = "ERROR"
+        }
+
+        let displayMessage: String
+        if message.hasPrefix("track:") {
+            displayMessage = "track: \(String(message.dropFirst(6)))"
+        } else if message.hasPrefix("metric:") {
+            let body = String(message.dropFirst(7))
+            if let colonIndex = body.firstIndex(of: ":") {
+                let metricName = body[body.startIndex..<colonIndex]
+                let phase = body[body.index(after: colonIndex)...]
+                displayMessage = "metric: \(metricName) \(phase)"
+            } else {
+                displayMessage = "metric: \(body)"
+            }
+        } else {
+            displayMessage = message
+        }
+
+        var line = "🦉 OwlMetry \(tag) \(displayMessage)"
+        if let attributes, !attributes.isEmpty {
+            let pairs = attributes.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
+            line += " {\(pairs)}"
+        }
+
+        print(line)
+    }
+
     private static func log(
         _ message: String,
         level: OwlLogLevel,
@@ -369,10 +412,11 @@ public enum Owl {
         function: String,
         line: Int
     ) {
-        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?, String?, String)? in
+        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?, String?, String, Bool)? in
             guard let deviceInfo = s.deviceInfo,
                   let transport = s.transport,
-                  let filter = s.duplicateFilter else {
+                  let filter = s.duplicateFilter,
+                  let config = s.configuration else {
                 if !s.hasWarnedNotConfigured {
                     s.hasWarnedNotConfigured = true
                     logger.warning("Owl.configure() has not been called. Events are being dropped.")
@@ -380,10 +424,14 @@ public enum Owl {
                 return nil
             }
             let networkStatus = s.networkMonitor?.status.rawValue ?? "unknown"
-            return (deviceInfo, transport, filter, s.defaultUserId, s.sessionId, networkStatus)
+            return (deviceInfo, transport, filter, s.defaultUserId, s.sessionId, networkStatus, config.consoleLogging)
         }
 
-        guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId, networkStatus) = snapshot else { return }
+        guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId, networkStatus, consoleLogging) = snapshot else { return }
+
+        if consoleLogging {
+            printToConsole(message, level: level, attributes: attributes)
+        }
 
         #if DEBUG
         let isDev = true

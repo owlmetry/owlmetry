@@ -104,6 +104,7 @@ struct MyApp: App {
 - `flushOnBackground: Bool` — auto-flush when app backgrounds (default: `true`)
 - `compressionEnabled: Bool` — gzip request bodies (default: `true`)
 - `networkTrackingEnabled: Bool` — auto-track URLSession HTTP requests (default: `true`)
+- `consoleLogging: Bool` — print events to console/Xcode output (default: `true`)
 
 Auto-detects: bundle ID, debug mode (`#if DEBUG`). Auto-generates: session ID (fresh each launch).
 

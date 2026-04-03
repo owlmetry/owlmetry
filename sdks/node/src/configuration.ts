@@ -12,6 +12,7 @@ export interface ValidatedConfig {
   flushIntervalMs: number;
   flushThreshold: number;
   maxBufferSize: number;
+  consoleLogging: boolean;
 }
 
 export function validateConfiguration(config: OwlConfiguration): ValidatedConfig {
@@ -49,5 +50,6 @@ export function validateConfiguration(config: OwlConfiguration): ValidatedConfig
     flushIntervalMs: config.flushIntervalMs ?? 5000,
     flushThreshold: config.flushThreshold ?? 20,
     maxBufferSize: config.maxBufferSize ?? 10000,
+    consoleLogging: config.consoleLogging ?? true,
   };
 }

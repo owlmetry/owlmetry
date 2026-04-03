@@ -64,6 +64,7 @@ func application(
 | `flushOnBackground` | `Bool` | `true` | Automatically flush buffered events when the app enters the background. |
 | `compressionEnabled` | `Bool` | `true` | Gzip-compress request bodies before sending. |
 | `networkTrackingEnabled` | `Bool` | `true` | Automatically track URLSession HTTP requests. |
+| `consoleLogging` | `Bool` | `true` | Print events to the Xcode console / terminal. Each line is prefixed with `🦉 OwlMetry` and the log level. Set to `false` to suppress. |
 
 ## Full Example with All Options
 
@@ -73,7 +74,8 @@ try Owl.configure(
     apiKey: "owl_client_...",
     flushOnBackground: true,
     compressionEnabled: true,
-    networkTrackingEnabled: false  // disable if you don't want HTTP request tracking
+    networkTrackingEnabled: false,  // disable if you don't want HTTP request tracking
+    consoleLogging: true           // print events to console (default: true)
 )
 ```
 

@@ -19,6 +19,8 @@ export interface OwlConfiguration {
   maxBufferSize?: number;
   /** Mark events as development builds. Defaults to `process.env.NODE_ENV !== "production"` */
   isDev?: boolean;
+  /** Print events to console. Defaults to true. */
+  consoleLogging?: boolean;
 }
 
 export interface LogEvent {

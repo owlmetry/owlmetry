@@ -134,9 +134,54 @@ function createEvent(
   };
 }
 
+function printToConsole(level: OwlLogLevel, message: string, attrs?: Record<string, unknown>): void {
+  if (!config?.consoleLogging) return;
+  if (message.startsWith("sdk:")) return;
+  if (message.startsWith("metric:") && message.endsWith(":start")) return;
+
+  const tag = level.toUpperCase().padEnd(5);
+
+  let displayMessage: string;
+  if (message.startsWith("track:")) {
+    displayMessage = `track: ${message.slice(6)}`;
+  } else if (message.startsWith("metric:")) {
+    const body = message.slice(7);
+    const colonIdx = body.indexOf(":");
+    if (colonIdx !== -1) {
+      displayMessage = `metric: ${body.slice(0, colonIdx)} ${body.slice(colonIdx + 1)}`;
+    } else {
+      displayMessage = `metric: ${body}`;
+    }
+  } else {
+    displayMessage = message;
+  }
+
+  let line = `🦉 OwlMetry ${tag} ${displayMessage}`;
+  if (attrs && Object.keys(attrs).length > 0) {
+    const pairs = Object.entries(attrs)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ");
+    line += ` {${pairs}}`;
+  }
+
+  switch (level) {
+    case "error":
+      console.error(line);
+      break;
+    case "warn":
+      console.warn(line);
+      break;
+    default:
+      console.log(line);
+      break;
+  }
+}
+
 function log(level: OwlLogLevel, message: string, attrs?: Record<string, unknown>, userId?: string): void {
   try {
     const ctx = ensureConfigured();
+    printToConsole(level, message, attrs);
     const event = createEvent(ctx, level, message, attrs, userId);
     ctx.transport.enqueue(event);
   } catch (err) {
