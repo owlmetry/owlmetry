@@ -120,6 +120,13 @@ public enum Owl {
             file: #file, function: #function, line: #line)
     }
 
+    // MARK: - Session
+
+    /// The current session ID, or `nil` if the SDK has not been configured.
+    public static var sessionId: String? {
+        state.withLock { $0.sessionId }
+    }
+
     // MARK: - User Identity
 
     /// Set the real user identifier (call after your app's login).
