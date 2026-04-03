@@ -142,8 +142,8 @@ function printToConsole(level: OwlLogLevel, message: string, attrs?: Record<stri
   const tag = level.toUpperCase().padEnd(5);
 
   let displayMessage: string;
-  if (message.startsWith("track:")) {
-    displayMessage = `track: ${message.slice(6)}`;
+  if (message.startsWith(TRACK_MESSAGE_PREFIX)) {
+    displayMessage = `track: ${message.slice(TRACK_MESSAGE_PREFIX.length)}`;
   } else if (message.startsWith("metric:")) {
     const body = message.slice(7);
     const colonIdx = body.indexOf(":");
