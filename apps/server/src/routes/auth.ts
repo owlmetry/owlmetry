@@ -23,7 +23,7 @@ const COOKIE_OPTIONS = {
   secure: config.cookieSecure,
   sameSite: "lax" as const,
   path: "/",
-  maxAge: 7 * 24 * 60 * 60, // 7 days, matching JWT expiry
+  maxAge: 10 * 365 * 24 * 60 * 60, // 10 years — sessions don't expire
   ...(config.cookieDomain ? { domain: config.cookieDomain } : {}),
 };
 
@@ -212,8 +212,7 @@ export async function authRoutes(app: FastifyInstance) {
       {
         sub: user.id,
         email: user.email,
-      } satisfies UserJwtPayload,
-      { expiresIn: "7d" }
+      } satisfies UserJwtPayload
     );
 
     reply.setCookie("token", token, COOKIE_OPTIONS);
