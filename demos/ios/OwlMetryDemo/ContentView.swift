@@ -103,26 +103,26 @@ struct ContentView: View {
     private var funnelDemoSection: some View {
         Section("Funnel Demo") {
             Button("1. Welcome Screen") {
-                Owl.track("welcome-screen")
-                appendLog("[TRACK] welcome-screen")
+                Owl.step("welcome-screen")
+                appendLog("[STEP] welcome-screen")
             }
             .tint(.purple)
 
             Button("2. Create Account") {
-                Owl.track("create-account")
-                appendLog("[TRACK] create-account")
+                Owl.step("create-account")
+                appendLog("[STEP] create-account")
             }
             .tint(.purple)
 
             Button("3. Complete Profile") {
-                Owl.track("complete-profile")
-                appendLog("[TRACK] complete-profile")
+                Owl.step("complete-profile")
+                appendLog("[STEP] complete-profile")
             }
             .tint(.purple)
 
             Button("4. First Post") {
-                Owl.track("first-post")
-                appendLog("[TRACK] first-post")
+                Owl.step("first-post")
+                appendLog("[STEP] first-post")
             }
             .tint(.purple)
 
@@ -297,14 +297,14 @@ struct ContentView: View {
         // 6. Funnel demo: simulate onboarding flow
         Owl.setExperiment("onboarding", variant: "A")
         appendLog("[EXPERIMENT] onboarding = A")
-        Owl.track("welcome-screen")
-        appendLog("[TRACK] welcome-screen")
+        Owl.step("welcome-screen")
+        appendLog("[STEP] welcome-screen")
         try? await Task.sleep(for: .milliseconds(300))
-        Owl.track("create-account")
-        appendLog("[TRACK] create-account")
+        Owl.step("create-account")
+        appendLog("[STEP] create-account")
         try? await Task.sleep(for: .milliseconds(300))
-        Owl.track("complete-profile")
-        appendLog("[TRACK] complete-profile")
+        Owl.step("complete-profile")
+        appendLog("[STEP] complete-profile")
 
         // 7. User properties
         Owl.setUserProperties(["plan": "premium", "rc_subscriber": "true"])

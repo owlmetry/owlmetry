@@ -155,14 +155,14 @@ const TEMPLATES: EventTemplate[] = [
   },
 ];
 
-// ── Funnel track events ──────────────────────────────────────────────
+// ── Funnel step events ──────────────────────────────────────────────
 
 // Onboarding funnel steps in order — users progress through these with drop-off
 const ONBOARDING_STEPS = [
-  "track:welcome-screen",
-  "track:create-account",
-  "track:complete-profile",
-  "track:first-post",
+  "step:welcome-screen",
+  "step:create-account",
+  "step:complete-profile",
+  "step:first-post",
 ];
 
 const EXPERIMENT_VARIANTS: Record<string, string[]> = {
@@ -335,7 +335,7 @@ async function main() {
     console.log(`Dual-wrote ${metricRows.length} metric events`);
   }
 
-  // ── Generate funnel track events ────────────────────────────────────
+  // ── Generate funnel step events ─────────────────────────────────────
   // Simulate realistic onboarding funnel: ~60 users start, with drop-off at each step
   const funnelUserCount = Math.max(20, Math.ceil(EVENT_COUNT / 4));
   const funnelTrackRows: Array<typeof events.$inferInsert> = [];
@@ -369,7 +369,7 @@ async function main() {
         if (Math.random() > STEP_RETENTION[s]) break;
 
         const stepMessage = ONBOARDING_STEPS[s];
-        const stepName = stepMessage.slice("track:".length);
+        const stepName = stepMessage.slice("step:".length);
         const ts = new Date(baseTime + s * 30_000); // 30s between steps
 
         const eventRow: typeof events.$inferInsert = {
@@ -420,7 +420,7 @@ async function main() {
     for (let i = 0; i < funnelDualRows.length; i += BATCH_SIZE) {
       await db.insert(funnelEvents).values(funnelDualRows.slice(i, i + BATCH_SIZE));
     }
-    console.log(`Generated ${funnelTrackRows.length} track events for ${funnelUserCount} funnel users`);
+    console.log(`Generated ${funnelTrackRows.length} step events for ${funnelUserCount} funnel users`);
     console.log(`Dual-wrote ${funnelDualRows.length} funnel events\n`);
   }
 

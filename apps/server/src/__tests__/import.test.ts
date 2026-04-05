@@ -330,9 +330,9 @@ describe("dual-write: metric events", () => {
 
 
 describe("dual-write: funnel events", () => {
-  it("writes funnel events for track: messages", async () => {
+  it("writes funnel events for step: messages", async () => {
     const res = await importEvents([
-      makeEvent({ message: "track:viewed-product" }),
+      makeEvent({ message: "step:viewed-product" }),
     ]);
     expect(res.json().accepted).toBe(1);
 
@@ -346,6 +346,24 @@ describe("dual-write: funnel events", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].step_name).toBe("viewed-product");
+  });
+
+  it("writes funnel events for legacy track: messages", async () => {
+    const res = await importEvents([
+      makeEvent({ message: "track:legacy-product" }),
+    ]);
+    expect(res.json().accepted).toBe(1);
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const rows = await client`
+      SELECT step_name FROM funnel_events WHERE step_name = 'legacy-product' LIMIT 1
+    `;
+    await client.end();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].step_name).toBe("legacy-product");
   });
 });
 

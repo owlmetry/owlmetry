@@ -89,7 +89,7 @@ Once `Owl.configure()` is in place and the project builds successfully, **you MU
 
 1. **Event & error logging** — Audit the codebase for request handlers, error paths, background jobs, and key operations. Add `Owl.info()`, `Owl.warn()`, `Owl.error()` calls at meaningful points throughout the service. This is SDK-only — no CLI setup required beyond what's already done.
 2. **Structured metrics** — Identify operations worth measuring (API response times, database queries, external service calls, etc.). Add `Owl.startOperation()` / `Owl.recordMetric()` to track durations and success rates. **Requires CLI first:** each metric slug must be defined on the server via `owlmetry metrics create` (use the `/owlmetry-cli` skill) before the SDK can emit events for it.
-3. **Funnel tracking** — Identify server-side user journeys (sign-up flow, payment processing, onboarding steps). Add `Owl.track()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
+3. **Funnel tracking** — Identify server-side user journeys (sign-up flow, payment processing, onboarding steps). Add `Owl.step()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
 
 After the user chooses, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
 
@@ -167,18 +167,18 @@ Backend funnels track server-side conversion flows — signup pipelines, payment
 **User ID is critical for backend funnels.** Funnel analytics group by user to calculate conversion — without a user ID, events can't be attributed. Always use a scoped instance (`Owl.withUser()`) or ensure user identity is set.
 
 ```typescript
-Owl.track('signup-started');
-Owl.track('email-verified', { method: 'link' });
-Owl.track('profile-completed');
+Owl.step('signup-started');
+Owl.step('email-verified', { method: 'link' });
+Owl.step('profile-completed');
 
 // With user scoping:
 const owl = Owl.withUser(userId);
-owl.track('checkout-completed', { item_count: '3' });
+owl.step('checkout-completed', { item_count: '3' });
 ```
 
-The step name you pass to `track()` must match the `step_name` in the funnel definition's `event_filter`. For example, if the step filter is `{"step_name": "signup-started"}`, then call `Owl.track('signup-started')`. Define matching funnels via `/owlmetry-cli`.
+The step name you pass to `step()` must match the `step_name` in the funnel definition's `event_filter`. For example, if the step filter is `{"step_name": "signup-started"}`, then call `Owl.step('signup-started')`. Define matching funnels via `/owlmetry-cli`.
 
-**Note:** `track()` attributes must be `Record<string, string>` (string values only).
+**Note:** `step()` attributes must be `Record<string, string>` (string values only).
 
 ## Structured Metrics
 

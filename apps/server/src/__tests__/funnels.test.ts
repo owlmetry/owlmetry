@@ -272,18 +272,18 @@ describe("Funnel Analytics", () => {
     const now = Date.now();
     // User A completes all 3 steps in order
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 40000).toISOString() },
     ]);
     // User B completes steps 1 and 2 only
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-b", timestamp: new Date(now - 30000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "user-b", timestamp: new Date(now - 20000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b", timestamp: new Date(now - 30000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "user-b", timestamp: new Date(now - 20000).toISOString() },
     ]);
     // User C completes step 1 only
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-c", timestamp: new Date(now - 10000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-c", timestamp: new Date(now - 10000).toISOString() },
     ]);
 
     // Wait a moment for fire-and-forget writes
@@ -343,13 +343,13 @@ describe("Funnel Analytics", () => {
     const now = Date.now();
     // User A completes all 3 steps
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 40000).toISOString() },
     ]);
     // User D only completes step 3 (skips steps 1 and 2)
     await ingest([
-      { level: "info", message: "track:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-d", timestamp: new Date(now - 30000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-d", timestamp: new Date(now - 30000).toISOString() },
     ]);
     await new Promise((r) => setTimeout(r, 200));
 
@@ -395,11 +395,11 @@ describe("Funnel Analytics", () => {
     const now = Date.now();
     // Ingest development events
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-dev", is_dev: true, timestamp: new Date(now - 5000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-dev", is_dev: true, timestamp: new Date(now - 5000).toISOString() },
     ]);
     // Ingest production events
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-prod", is_dev: false, timestamp: new Date(now - 4000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-prod", is_dev: false, timestamp: new Date(now - 4000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -434,8 +434,8 @@ describe("Funnel Analytics", () => {
 
     const now = Date.now();
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-ios", environment: "ios", timestamp: new Date(now - 5000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-android", environment: "android", timestamp: new Date(now - 4000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-ios", environment: "ios", timestamp: new Date(now - 5000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-android", environment: "android", timestamp: new Date(now - 4000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -454,8 +454,8 @@ describe("Funnel Analytics", () => {
 
     const now = Date.now();
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", experiments: { onboarding: "A" }, timestamp: new Date(now - 5000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-b", experiments: { onboarding: "B" }, timestamp: new Date(now - 4000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", experiments: { onboarding: "A" }, timestamp: new Date(now - 5000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b", experiments: { onboarding: "B" }, timestamp: new Date(now - 4000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -474,9 +474,9 @@ describe("Funnel Analytics", () => {
 
     const now = Date.now();
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1a", app_version: "1.0.0", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1b", app_version: "1.0.0", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v2a", app_version: "2.0.0", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1a", app_version: "1.0.0", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1b", app_version: "1.0.0", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-v2a", app_version: "2.0.0", timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -496,9 +496,9 @@ describe("Funnel Analytics", () => {
 
     const now = Date.now();
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1a", app_version: "1.0.0", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1b", app_version: "1.0.0", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-v2a", app_version: "2.0.0", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1a", app_version: "1.0.0", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-v1b", app_version: "1.0.0", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-v2a", app_version: "2.0.0", timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -526,7 +526,7 @@ describe("Funnel Analytics", () => {
     const now = Date.now();
     // Event without user_id
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, timestamp: new Date(now - 5000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, timestamp: new Date(now - 5000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -568,9 +568,9 @@ describe("Funnel Analytics", () => {
 
     const now = Date.now();
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-ios-1", environment: "ios", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "user-ios-1", environment: "ios", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-ipados-1", environment: "ipados", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-ios-1", environment: "ios", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "user-ios-1", environment: "ios", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-ipados-1", environment: "ipados", timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -607,11 +607,11 @@ describe("Funnel Analytics", () => {
     const now = Date.now();
     // Matching message + matching screen_name → should count
     await ingest([
-      { level: "info", message: "track:pay", session_id: TEST_SESSION_ID, user_id: "user-match", screen_name: "PaymentView", timestamp: new Date(now - 5000).toISOString() },
+      { level: "info", message: "step:pay", session_id: TEST_SESSION_ID, user_id: "user-match", screen_name: "PaymentView", timestamp: new Date(now - 5000).toISOString() },
     ]);
     // Matching message + wrong screen_name → should NOT count
     await ingest([
-      { level: "info", message: "track:pay", session_id: TEST_SESSION_ID, user_id: "user-wrong", screen_name: "HomeView", timestamp: new Date(now - 4000).toISOString() },
+      { level: "info", message: "step:pay", session_id: TEST_SESSION_ID, user_id: "user-wrong", screen_name: "HomeView", timestamp: new Date(now - 4000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -647,9 +647,9 @@ describe("Funnel Analytics", () => {
 
     const now = Date.now();
     await ingest([
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-a1", experiments: { onboarding: "A" }, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-b1", experiments: { onboarding: "B" }, timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "user-b2", experiments: { onboarding: "B" }, timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a1", experiments: { onboarding: "A" }, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b1", experiments: { onboarding: "B" }, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b2", experiments: { onboarding: "B" }, timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -698,7 +698,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     await ingest([
       {
         level: "info",
-        message: "track:welcome",
+        message: "step:welcome",
         session_id: TEST_SESSION_ID,
         user_id: "user-1",
       },
@@ -727,7 +727,7 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     await ingest([
       {
         level: "info",
-        message: "track:welcome",
+        message: "step:welcome",
         session_id: TEST_SESSION_ID,
         user_id: "user-1",
         experiments: { onboarding: "B" },
@@ -792,8 +792,8 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("backend", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "be-user-1", environment: "backend", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "be-user-1", environment: "backend", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "be-user-1", environment: "backend", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "be-user-1", environment: "backend", timestamp: new Date(now - 50000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -815,8 +815,8 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("backend", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "dev-user", environment: "backend", is_dev: true, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user", environment: "backend", is_dev: false, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "dev-user", environment: "backend", is_dev: true, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "prod-user", environment: "backend", is_dev: false, timestamp: new Date(now - 50000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -845,7 +845,7 @@ describe("Funnel Cross-Platform Environment", () => {
 
   it("backend funnel rejects non-backend environment events", async () => {
     const res = await ingestForPlatform("backend", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "ios" },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "ios" },
     ]);
     expect(res.json().rejected).toBe(1);
     expect(res.json().errors[0].message).toMatch(/not allowed for backend apps/);
@@ -858,9 +858,9 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("android", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "android-user-1", environment: "android", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "android-user-1", environment: "android", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "android-user-2", environment: "android", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "android-user-1", environment: "android", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "android-user-1", environment: "android", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "android-user-2", environment: "android", timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -883,10 +883,10 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("android", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", timestamp: new Date(now - 55000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", timestamp: new Date(now - 55000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -909,9 +909,9 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("android", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "dev-user", environment: "android", is_dev: true, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-1", environment: "android", is_dev: false, timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-2", environment: "android", is_dev: false, timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "dev-user", environment: "android", is_dev: true, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-1", environment: "android", is_dev: false, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "prod-user-2", environment: "android", is_dev: false, timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -934,7 +934,7 @@ describe("Funnel Cross-Platform Environment", () => {
   it("android funnel rejects non-android environment events", async () => {
     for (const env of ["ios", "ipados", "macos", "web", "backend"]) {
       const res = await ingestForPlatform("android", [
-        { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: env },
+        { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: env },
       ]);
       expect(res.json().rejected).toBe(1);
       expect(res.json().errors[0].message).toMatch(new RegExp(`not allowed for android apps`));
@@ -946,9 +946,9 @@ describe("Funnel Cross-Platform Environment", () => {
 
     const now = Date.now();
     await ingestForPlatform("android", [
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", experiments: { checkout: "A" }, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "track:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", experiments: { checkout: "A" }, timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 40000).toISOString() },
     ]);
 
     await new Promise((r) => setTimeout(r, 200));
@@ -964,5 +964,63 @@ describe("Funnel Cross-Platform Environment", () => {
     const variantB = res.json().analytics.breakdown.find((b: any) => b.value === "B");
     expect(variantA.steps[0].unique_users).toBe(1);
     expect(variantB.steps[0].unique_users).toBe(2);
+  });
+});
+
+describe("Backwards compatibility: legacy track: prefix", () => {
+  it("accepts legacy track: prefix as funnel event", async () => {
+    await createFunnel({
+      name: "Legacy Test",
+      slug: "legacy-test",
+      steps: [{ name: "Welcome", event_filter: { step_name: "welcome" } }],
+    });
+
+    const now = Date.now();
+    await ingest([
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "legacy-user", timestamp: new Date(now - 5000).toISOString() },
+    ]);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/legacy-test/query?data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().analytics.steps[0].unique_users).toBe(1);
+  });
+
+  it("mixes step: and legacy track: events in same funnel", async () => {
+    await createFunnel({
+      name: "Mixed Test",
+      slug: "mixed-test",
+      steps: [
+        { name: "Welcome", event_filter: { step_name: "welcome" } },
+        { name: "Sign Up", event_filter: { step_name: "signup" } },
+      ],
+    });
+
+    const now = Date.now();
+    await ingest([
+      // New SDK client sends step:
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "new-user", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:signup", session_id: TEST_SESSION_ID, user_id: "new-user", timestamp: new Date(now - 50000).toISOString() },
+      // Old SDK client still sends track:
+      { level: "info", message: "track:welcome", session_id: TEST_SESSION_ID, user_id: "old-user", timestamp: new Date(now - 40000).toISOString() },
+      { level: "info", message: "track:signup", session_id: TEST_SESSION_ID, user_id: "old-user", timestamp: new Date(now - 30000).toISOString() },
+    ]);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/funnels/mixed-test/query?data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const steps = res.json().analytics.steps;
+    expect(steps[0].unique_users).toBe(2);
+    expect(steps[1].unique_users).toBe(2);
   });
 });

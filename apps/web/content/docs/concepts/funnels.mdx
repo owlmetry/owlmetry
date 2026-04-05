@@ -12,7 +12,7 @@ Run `owlmetry skills` to find the SDK and CLI skill files.
 - Identify 2-3 key user journeys worth measuring conversion on
   (e.g., onboarding, checkout, activation).
 - For each journey, define the funnel on the server via CLI with
-  3-6 ordered steps, then add Owl.track("step-name") calls at
+  3-6 ordered steps, then add Owl.step("step-name") calls at
   each progression point in the code.
 - Each step must be a point every user passes through — don't
   include optional side-paths or engagement actions as steps.
@@ -53,14 +53,14 @@ A funnel can have up to 20 steps.
 
 ## Tracking Funnel Steps
 
-SDKs provide a `track()` method that emits an event matching the step name in your funnel definition:
+SDKs provide a `step()` method that emits an event matching the step name in your funnel definition:
 
 ```
-track("viewed-pricing")    → matches event_filter { "step_name": "viewed-pricing" }
-track("started-trial")     → matches event_filter { "step_name": "started-trial" }
+step("viewed-pricing")    → matches event_filter { "step_name": "viewed-pricing" }
+step("started-trial")     → matches event_filter { "step_name": "started-trial" }
 ```
 
-The step name you pass to `track()` must match the `step_name` in the funnel definition's `event_filter`. For SDK-specific usage, see the [Swift SDK](/docs/sdks/swift/funnels) or [Node SDK](/docs/sdks/node/funnels) guides.
+The step name you pass to `step()` must match the `step_name` in the funnel definition's `event_filter`. For SDK-specific usage, see the [Swift SDK](/docs/sdks/swift/funnels) or [Node SDK](/docs/sdks/node/funnels) guides.
 
 You can also define steps that match on `screen_name` instead of or in addition to `step_name`. A step filter matching `screen_name: "CheckoutScreen"` would count any event from that screen.
 
@@ -84,7 +84,7 @@ Closed mode answers: "How many users completed the full progression from step 1 
 
 Both modes group events by `user_id`. A "user" in funnel analytics means a distinct `user_id` value. In closed mode, the system tracks each user's earliest timestamp at each step and requires strict chronological ordering — step N must occur after step N-1.
 
-**Important:** Events with no `user_id` are excluded from funnel analytics. If your app tracks funnel steps before calling `Owl.identify()`, those events will have no `user_id` and won't appear in funnel results. To track anonymous users through funnels, call `Owl.identify()` with an anonymous identifier before emitting `track()` events.
+**Important:** Events with no `user_id` are excluded from funnel analytics. If your app tracks funnel steps before calling `Owl.identify()`, those events will have no `user_id` and won't appear in funnel results. To track anonymous users through funnels, call `Owl.identify()` with an anonymous identifier before emitting `step()` events.
 
 ## Analytics Results
 

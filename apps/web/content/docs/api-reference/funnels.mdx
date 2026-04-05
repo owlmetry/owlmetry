@@ -5,7 +5,7 @@ description: Funnel definition CRUD and analytics query endpoints with open/clos
 
 Funnel definition CRUD and analytics queries. All routes are nested under `/v1/projects/:projectId`.
 
-Funnels define a series of steps users should complete. Each step has a name and an event filter (matching on `step_name` and/or `screen_name`). SDKs track funnel steps via `track(stepName)`, where the step name matches the `event_filter.step_name` in the funnel definition.
+Funnels define a series of steps users should complete. Each step has a name and an event filter (matching on `step_name` and/or `screen_name`). SDKs record funnel steps via `step(stepName)`, where the step name matches the `event_filter.step_name` in the funnel definition.
 
 ## GET /v1/projects/:projectId/funnels
 
@@ -116,7 +116,7 @@ Create a new funnel definition.
 |-------|------|----------|-------------|
 | `name` | string | Yes | Step display name. |
 | `event_filter` | object | Yes | Must have at least `step_name` or `screen_name`. |
-| `event_filter.step_name` | string | No | Match events with this step name. Should match the string passed to `track()` in the SDK. |
+| `event_filter.step_name` | string | No | Match events with this step name. Should match the string passed to `step()` in the SDK. |
 | `event_filter.screen_name` | string | No | Match events with this exact screen name. |
 
 Returns `409` if a funnel with the same slug already exists in the project.

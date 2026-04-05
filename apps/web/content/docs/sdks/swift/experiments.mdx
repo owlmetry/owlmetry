@@ -55,7 +55,7 @@ Experiment assignments are stored in the device Keychain under the service `com.
 
 ## Auto-Inclusion on Events
 
-All events emitted by the SDK automatically include an `experiments` field containing the current set of assignments. You do not need to pass experiment data manually -- it is attached to every `info()`, `debug()`, `warn()`, `error()`, `track()`, `startOperation()`, `recordMetric()`, and all automatic lifecycle events.
+All events emitted by the SDK automatically include an `experiments` field containing the current set of assignments. You do not need to pass experiment data manually -- it is attached to every `info()`, `debug()`, `warn()`, `error()`, `step()`, `startOperation()`, `recordMetric()`, and all automatic lifecycle events.
 
 This enables segmenting any data by variant without additional instrumentation.
 
@@ -94,8 +94,8 @@ Experiment assignments are especially useful with [funnels](/docs/sdks/swift/fun
 ```swift
 let variant = Owl.getVariant("onboarding-flow", options: ["control", "streamlined"])
 
-// All track() calls automatically carry the experiment assignment
-Owl.track("welcome-screen")
-Owl.track("create-account")
-Owl.track("complete-profile")
+// All step() calls automatically carry the experiment assignment
+Owl.step("welcome-screen")
+Owl.step("create-account")
+Owl.step("complete-profile")
 ```

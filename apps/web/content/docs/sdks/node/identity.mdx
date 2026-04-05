@@ -13,10 +13,10 @@ The Node.js SDK provides `Owl.withUser()` to associate events with a specific us
 const owl = Owl.withUser("user_42");
 owl.info("Profile updated");
 owl.warn("Rate limit approaching");
-owl.track("onboarding-complete");
+owl.step("onboarding-complete");
 ```
 
-The returned `ScopedOwl` has the same API as `Owl` -- `info()`, `debug()`, `warn()`, `error()`, `track()`, `startOperation()`, and `recordMetric()`.
+The returned `ScopedOwl` has the same API as `Owl` -- `info()`, `debug()`, `warn()`, `error()`, `step()`, `startOperation()`, and `recordMetric()`.
 
 ## Middleware Pattern
 
@@ -110,10 +110,10 @@ Funnel analytics correlate steps by user ID. Always use a scoped instance when t
 
 ```typescript
 const owl = Owl.withUser(userId);
-owl.track("signup-started");
+owl.step("signup-started");
 // ... later
-owl.track("email-verified");
-owl.track("first-project-created");
+owl.step("email-verified");
+owl.step("first-project-created");
 ```
 
 Without a user ID, the server cannot determine which user completed which steps. See the [Funnels guide](/docs/sdks/node/funnels) for more backend funnel patterns.

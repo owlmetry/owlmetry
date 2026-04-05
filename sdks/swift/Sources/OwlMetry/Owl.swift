@@ -236,9 +236,22 @@ public enum Owl {
             file: file, function: function, line: line)
     }
 
-    // MARK: - Funnel Tracking
+    // MARK: - Funnel Steps
 
-    /// Track a funnel step. Sends an info-level event with message `"track:<stepName>"`.
+    /// Record a funnel step. Sends an info-level event with message `"step:<stepName>"`.
+    public static func step(
+        _ stepName: String,
+        attributes: [String: String]? = nil,
+        file: String = #file,
+        function: String = #function,
+        line: Int = #line
+    ) {
+        info("step:\(stepName)", attributes: attributes, file: file, function: function, line: line)
+    }
+
+    /// Record a funnel step.
+    /// - Note: Deprecated. Use `step(_:attributes:)` instead.
+    @available(*, deprecated, renamed: "step(_:attributes:file:function:line:)")
     public static func track(
         _ stepName: String,
         attributes: [String: String]? = nil,
@@ -246,7 +259,7 @@ public enum Owl {
         function: String = #function,
         line: Int = #line
     ) {
-        info("track:\(stepName)", attributes: attributes, file: file, function: function, line: line)
+        step(stepName, attributes: attributes, file: file, function: function, line: line)
     }
 
     // MARK: - Experiments
@@ -379,8 +392,11 @@ public enum Owl {
         }
 
         let displayMessage: String
-        if message.hasPrefix("track:") {
-            displayMessage = "track: \(String(message.dropFirst(6)))"
+        if message.hasPrefix("step:") {
+            displayMessage = "step: \(String(message.dropFirst(5)))"
+        } else if message.hasPrefix("track:") {
+            // Legacy "track:" prefix from older SDK versions — display as "step:"
+            displayMessage = "step: \(String(message.dropFirst(6)))"
         } else if message.hasPrefix("metric:") {
             let body = String(message.dropFirst(7))
             if let colonIndex = body.firstIndex(of: ":") {

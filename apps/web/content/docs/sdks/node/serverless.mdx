@@ -144,7 +144,7 @@ export const handler = Owl.wrapHandler(async (event) => {
 
   try {
     const charge = await processPayment(body);
-    owl.track("payment-completed");
+    owl.step("payment-completed");
     op.complete({ charge_id: charge.id });
 
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };

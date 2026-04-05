@@ -28,7 +28,7 @@ All list tools support an optional \`team_id\` parameter to scope results.
 ## Concepts
 
 ### Events
-Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error()\`, \`Owl.track()\`, etc. Each event has:
+Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error()\`, \`Owl.step()\`, etc. Each event has:
 - **level**: \`info\`, \`debug\`, \`warn\`, \`error\`
 - **message**: the log message or event name
 - **session_id**: unique per SDK \`configure()\` call, groups events in a session
@@ -55,7 +55,7 @@ Metric slugs: lowercase letters, numbers, hyphens only (\`/^[a-z0-9-]+$/\`).
 ### Funnels
 Funnels measure how users progress through a multi-step flow and where they drop off. Each funnel has ordered steps with an \`event_filter\` matching on \`step_name\` and/or \`screen_name\`.
 
-The \`step_name\` in the filter matches what developers pass to \`Owl.track("step-name")\` — no prefix transformation needed.
+The \`step_name\` in the filter matches what developers pass to \`Owl.step("step-name")\` — no prefix transformation needed.
 
 Two analysis modes:
 - **Open mode** (default): independent — each step counts distinct users separately, regardless of other steps. Good for non-linear flows.
@@ -247,6 +247,6 @@ To migrate historical event data from another system into OwlMetry:
 3. Each request can contain up to **1000 events**. There is **no timestamp restriction** — any historical date is accepted.
 4. Events with a matching \`client_event_id\` are **updated** (not skipped), so re-running an import script after tweaking attributes is safe.
 5. The request body is \`{ "events": [...] }\` — same event shape as SDK ingestion (\`message\`, \`level\`, \`session_id\` required; \`timestamp\`, \`user_id\`, \`custom_attributes\`, etc. optional).
-6. Metric events (\`metric:slug:phase\` messages) and funnel events (\`track:step_name\` messages) are auto-detected and dual-written.
+6. Metric events (\`metric:slug:phase\` messages) and funnel events (\`step:step_name\` messages, or legacy \`track:step_name\`) are auto-detected and dual-written.
 7. Import keys use the \`owl_import_\` prefix and are scoped to a single app.
 `;

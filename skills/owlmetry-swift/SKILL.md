@@ -133,7 +133,7 @@ Once `Owl.configure()` is in place and the project builds successfully, **you MU
 1. **Screen tracking** — Add `.owlScreen("ScreenName")` to every distinct screen in the app. This is the quickest win — automatic screen view and time-on-screen tracking with a single modifier per screen. No CLI setup needed.
 2. **Event & error logging** — Audit the codebase for user actions, error handling, and key flows. Add `Owl.info()`, `Owl.warn()`, `Owl.error()` calls at meaningful points. This is SDK-only — no CLI setup required beyond what's already done.
 3. **Structured metrics** — Identify operations worth measuring (data loading, image processing, etc.). Add `Owl.startOperation()` / `Owl.recordMetric()` to track durations and success rates. **Requires CLI first:** each metric slug must be defined on the server via `owlmetry metrics create` (use the `/owlmetry-cli` skill) before the SDK can emit events for it.
-4. **Funnel tracking** — Identify user journeys (onboarding, checkout, key conversions). Add `Owl.track()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
+4. **Funnel tracking** — Identify user journeys (onboarding, checkout, key conversions). Add `Owl.step()` calls at each step to measure drop-off. **Requires CLI first:** the funnel definition (with steps and event filters) must be created via `owlmetry funnels create` (use the `/owlmetry-cli` skill) before tracking makes sense.
 
 After the user chooses, do a thorough audit of the entire codebase to find all relevant locations, then present a summary of proposed changes before making any edits.
 
@@ -257,10 +257,10 @@ Owl.clearUser(newAnonymousId: true)
 Funnels measure how users progress through a multi-step flow (onboarding, checkout, activation) and where they drop off. The system has three parts:
 
 1. **Define** the funnel server-side (via CLI or API) with ordered steps and event filters.
-2. **Track** steps client-side with `Owl.track("step-name")`.
+2. **Record** steps client-side with `Owl.step("step-name")`.
 3. **Query** analytics to see conversion rates and drop-off between steps.
 
-The step name you pass to `Owl.track()` must match the `step_name` in the funnel definition's `event_filter`. For example, if the step filter is `{"step_name": "welcome-screen"}`, then call `Owl.track("welcome-screen")`.
+The step name you pass to `Owl.step()` must match the `step_name` in the funnel definition's `event_filter`. For example, if the step filter is `{"step_name": "welcome-screen"}`, then call `Owl.step("welcome-screen")`.
 
 **Funnel design rules:**
 - Each step must be a point that **every user in the funnel passes through** on the way to the goal. If a step is conditional (e.g., paywall only shown to free users), it breaks the chain — users who skip it show as 0% conversion from that point.
@@ -272,10 +272,10 @@ The step name you pass to `Owl.track()` must match the `step_name` in the funnel
 Use `attributes` when you need to segment funnel analytics later (e.g., by signup method or referral source).
 
 ```swift
-Owl.track("welcome-screen")
-Owl.track("create-account", attributes: ["method": "email"])
-Owl.track("complete-profile")
-Owl.track("first-post")
+Owl.step("welcome-screen")
+Owl.step("create-account", attributes: ["method": "email"])
+Owl.step("complete-profile")
+Owl.step("first-post")
 ```
 
 Define matching funnel definitions via `/owlmetry-cli`:

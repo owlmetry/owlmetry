@@ -254,7 +254,7 @@ Slugs: lowercase letters, numbers, hyphens only (`/^[a-z0-9-]+$/`).
 
 Funnels measure how users progress through a multi-step flow and where they drop off. Each funnel has an ordered list of steps, and each step has an `event_filter` that matches on `step_name` and/or `screen_name`.
 
-Step definitions match directly on the step name passed to `track()` in the SDK — no prefix or transformation needed.
+Step definitions match directly on the step name passed to `step()` in the SDK — no prefix or transformation needed.
 
 Both modes group events by `user_id` — events with no `user_id` are excluded from funnel analytics. Funnels support two analysis modes:
 - **Closed mode** (`--closed` on query): sequential — a user must complete steps in order. The system uses each user's earliest timestamp per step and requires strict chronological ordering (step 2 must occur after step 1). Use for linear flows like onboarding or checkout.
@@ -332,7 +332,7 @@ owlmetry jobs trigger revenuecat_sync --team-id <id> --project-id <id> --wait
 
 ### Events
 
-Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.track()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window.
+Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.step()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window.
 
 ```bash
 owlmetry events [--project-id <id>] [--app-id <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user-id <id>] [--session-id <id>] [--screen-name <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] --format json
@@ -492,7 +492,7 @@ After setup, the SDK skill will prompt the user to choose which instrumentation 
 |------|-------------------|-----------|
 | **Event & error logging** | No — just add SDK calls | `Owl.info()`, `Owl.error()`, `Owl.warn()`, `Owl.debug()` |
 | **Structured metrics** | Yes — `owlmetry metrics create` for each metric slug | `Owl.startOperation()`, `Owl.recordMetric()` |
-| **Funnel tracking** | Yes — `owlmetry funnels create` with steps JSON | `Owl.track("step-name")` |
+| **Funnel tracking** | Yes — `owlmetry funnels create` with steps JSON | `Owl.step("step-name")` |
 
 For metrics and funnels, the CLI defines **what** to track (server-side definitions), and the SDK implements **where** to track it (code instrumentation). The definition must exist before the SDK emits events for that slug.
 

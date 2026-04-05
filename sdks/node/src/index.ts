@@ -12,6 +12,8 @@ export { OwlOperation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 const SLUG_REGEX = /^[a-z0-9-]+$/;
+const STEP_MESSAGE_PREFIX = "step:";
+/** @deprecated Legacy prefix — kept for console display of old events */
 const TRACK_MESSAGE_PREFIX = "track:";
 
 const EXPERIMENTS_DIR = join(homedir(), ".owlmetry");
@@ -142,8 +144,11 @@ function printToConsole(level: OwlLogLevel, message: string, attrs?: Record<stri
   const tag = level.toUpperCase().padEnd(5);
 
   let displayMessage: string;
-  if (message.startsWith(TRACK_MESSAGE_PREFIX)) {
-    displayMessage = `track: ${message.slice(TRACK_MESSAGE_PREFIX.length)}`;
+  if (message.startsWith(STEP_MESSAGE_PREFIX)) {
+    displayMessage = `step: ${message.slice(STEP_MESSAGE_PREFIX.length)}`;
+  } else if (message.startsWith(TRACK_MESSAGE_PREFIX)) {
+    // Legacy "track:" prefix from older SDK versions — display as "step:"
+    displayMessage = `step: ${message.slice(TRACK_MESSAGE_PREFIX.length)}`;
   } else if (message.startsWith("metric:")) {
     const body = message.slice(7);
     const colonIdx = body.indexOf(":");
@@ -218,11 +223,15 @@ export class ScopedOwl {
   }
 
   /**
-   * Track a named step (e.g. funnel step, user action). Sends an info-level event
-   * with message `track:<stepName>`.
+   * Record a named funnel step. Sends an info-level event with message `step:<stepName>`.
    */
+  step(stepName: string, attributes?: Record<string, string>): void {
+    log("info", `${STEP_MESSAGE_PREFIX}${stepName}`, attributes, this.userId);
+  }
+
+  /** @deprecated Use `step()` instead. Will be removed in a future version. */
   track(stepName: string, attributes?: Record<string, string>): void {
-    log("info", `${TRACK_MESSAGE_PREFIX}${stepName}`, attributes, this.userId);
+    this.step(stepName, attributes);
   }
 
   /**
@@ -315,11 +324,15 @@ export const Owl = {
   },
 
   /**
-   * Track a named step (e.g. funnel step, user action). Sends an info-level event
-   * with message `track:<stepName>`.
+   * Record a named funnel step. Sends an info-level event with message `step:<stepName>`.
    */
+  step(stepName: string, attributes?: Record<string, string>): void {
+    log("info", `${STEP_MESSAGE_PREFIX}${stepName}`, attributes);
+  },
+
+  /** @deprecated Use `step()` instead. Will be removed in a future version. */
   track(stepName: string, attributes?: Record<string, string>): void {
-    log("info", `${TRACK_MESSAGE_PREFIX}${stepName}`, attributes);
+    Owl.step(stepName, attributes);
   },
 
   /**

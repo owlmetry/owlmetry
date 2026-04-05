@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "@owlmetry/db";
 import { events, appUsers, appUserApps, metricEvents, funnelEvents } from "@owlmetry/db";
-import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseTrackMessage } from "@owlmetry/shared";
+import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseFunnelStepMessage } from "@owlmetry/shared";
 import {
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
   LOG_LEVELS,
@@ -132,7 +132,8 @@ export function buildFunnelRows(
 ): Array<typeof funnelEvents.$inferInsert> {
   const rows: Array<typeof funnelEvents.$inferInsert> = [];
   for (const ev of validEvents) {
-    const stepName = parseTrackMessage(ev.message);
+    // Accepts both "step:" (new) and legacy "track:" prefixed messages from older clients
+    const stepName = parseFunnelStepMessage(ev.message);
     if (!stepName) continue;
 
     rows.push({

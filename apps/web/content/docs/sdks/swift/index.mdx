@@ -19,7 +19,7 @@ The SDK is a static `Owl` enum. All calls are non-blocking -- events are buffere
 
 - **[Event logging](/docs/sdks/swift/events)** -- four log levels (info, debug, warn, error) with optional screen name and custom attributes. Source file, function, and line are captured automatically.
 - **[Structured metrics](/docs/sdks/swift/metrics)** -- lifecycle operations (`startOperation` / `complete` / `fail` / `cancel`) with automatic duration tracking, and single-shot measurements via `recordMetric`.
-- **[Funnel tracking](/docs/sdks/swift/funnels)** -- track user progression through multi-step flows with `Owl.track()`.
+- **[Funnel tracking](/docs/sdks/swift/funnels)** -- track user progression through multi-step flows with `Owl.step()`.
 - **[A/B experiments](/docs/sdks/swift/experiments)** -- client-side variant assignment persisted in Keychain, automatically included on all events.
 - **[Screen tracking](/docs/sdks/swift/screen-tracking)** -- `.owlScreen()` SwiftUI view modifier for automatic screen view and time-on-screen tracking.
 - **[Identity management](/docs/sdks/swift/identity)** -- anonymous IDs generated and persisted in Keychain, with server-side claim to link anonymous events to real users after login.

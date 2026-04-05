@@ -29,8 +29,8 @@ const op = OwlMetry.startOperation("api-request");
 // ... do work ...
 op.complete({ route: "/users" });
 
-// Track funnels
-OwlMetry.track("signup-started");
+// Record funnel steps
+OwlMetry.step("signup-started");
 
 // Serverless support
 export default OwlMetry.wrapHandler(async (req, res) => {

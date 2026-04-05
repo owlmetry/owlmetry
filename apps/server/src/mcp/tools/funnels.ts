@@ -40,7 +40,7 @@ export function registerFunnelsTools(server: McpServer, app: FastifyInstance, ag
       steps: z.array(z.object({
         name: z.string().describe("Step display name"),
         event_filter: z.object({
-          step_name: z.string().optional().describe("Match events with this step_name (what devs pass to track())"),
+          step_name: z.string().optional().describe("Match events with this step_name (what devs pass to step())"),
           screen_name: z.string().optional().describe("Match events on this screen"),
         }),
       })).describe("Ordered list of funnel steps (max 20)"),

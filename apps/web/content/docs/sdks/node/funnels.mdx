@@ -1,22 +1,22 @@
 ---
 title: Funnels
-description: Track funnel step completions with Owl.track() in the Node.js SDK.
+description: Record funnel step completions with Owl.step() in the Node.js SDK.
 ---
 
-Use `Owl.track()` to emit named step completions that feed into [funnel analytics](/docs/concepts/funnels). The step name you pass must match the `step_name` in your funnel definition's `event_filter`.
+Use `Owl.step()` to emit named step completions that feed into [funnel analytics](/docs/concepts/funnels). The step name you pass must match the `step_name` in your funnel definition's `event_filter`.
 
 ## Tracking Steps
 
 ```typescript
-Owl.track("signup-started");
-Owl.track("email-verified");
-Owl.track("profile-completed");
+Owl.step("signup-started");
+Owl.step("email-verified");
+Owl.step("profile-completed");
 ```
 
 You can include optional attributes:
 
 ```typescript
-Owl.track("plan-selected", { plan: "pro", interval: "annual" });
+Owl.step("plan-selected", { plan: "pro", interval: "annual" });
 ```
 
 ## Per-User Funnel Tracking
@@ -25,10 +25,10 @@ Funnels are most useful when steps are associated with a specific user. Use a sc
 
 ```typescript
 const owl = Owl.withUser(userId);
-owl.track("checkout-started");
+owl.step("checkout-started");
 // ... later
-owl.track("payment-completed");
-owl.track("order-confirmed");
+owl.step("payment-completed");
+owl.step("order-confirmed");
 ```
 
 Without a user ID, funnel analytics cannot correlate steps across a conversion path.
@@ -45,11 +45,11 @@ app.post("/webhooks/stripe", async (req, res) => {
   const owl = Owl.withUser(event.data.object.metadata.user_id);
 
   if (event.type === "payment_intent.succeeded") {
-    owl.track("payment-succeeded", { amount: String(event.data.object.amount) });
+    owl.step("payment-succeeded", { amount: String(event.data.object.amount) });
   }
 
   if (event.type === "invoice.paid") {
-    owl.track("subscription-activated");
+    owl.step("subscription-activated");
   }
 
   res.sendStatus(200);
@@ -63,15 +63,15 @@ async function processOnboarding(userId: string) {
   const owl = Owl.withUser(userId);
 
   await generateWelcomeEmail(userId);
-  owl.track("welcome-email-sent");
+  owl.step("welcome-email-sent");
 
   await provisionAccount(userId);
-  owl.track("account-provisioned");
+  owl.step("account-provisioned");
 }
 ```
 
 ## Defining Funnels
 
-Funnel steps recorded by the SDK are matched against funnel definitions on the server. Define your funnels in the dashboard or CLI with the step names you use in `track()` calls. Each step's `event_filter.step_name` should match the string you pass to `track()`.
+Funnel steps recorded by the SDK are matched against funnel definitions on the server. Define your funnels in the dashboard or CLI with the step names you use in `step()` calls. Each step's `event_filter.step_name` should match the string you pass to `step()`.
 
 See [Funnels](/docs/concepts/funnels) for details on how funnel definitions, analytics, and query modes work.
