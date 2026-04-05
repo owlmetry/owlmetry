@@ -391,12 +391,14 @@ public enum Owl {
         case .error: tag = "ERROR"
         }
 
+        let stepPrefix = "step:"
+        let legacyTrackPrefix = "track:" // Legacy prefix from older SDK versions
+
         let displayMessage: String
-        if message.hasPrefix("step:") {
-            displayMessage = "step: \(String(message.dropFirst(5)))"
-        } else if message.hasPrefix("track:") {
-            // Legacy "track:" prefix from older SDK versions — display as "step:"
-            displayMessage = "step: \(String(message.dropFirst(6)))"
+        if message.hasPrefix(stepPrefix) {
+            displayMessage = "step: \(String(message.dropFirst(stepPrefix.count)))"
+        } else if message.hasPrefix(legacyTrackPrefix) {
+            displayMessage = "step: \(String(message.dropFirst(legacyTrackPrefix.count)))"
         } else if message.hasPrefix("metric:") {
             let body = String(message.dropFirst(7))
             if let colonIndex = body.firstIndex(of: ":") {

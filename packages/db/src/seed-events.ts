@@ -1,7 +1,7 @@
 import { createDatabaseConnection } from "./index.js";
 import { apps, events, appUsers, appUserApps, metricEvents, funnelEvents } from "./schema.js";
 import { eq, isNull, and } from "drizzle-orm";
-import { parseMetricMessage } from "@owlmetry/shared";
+import { parseMetricMessage, parseStepMessage } from "@owlmetry/shared";
 import crypto from "node:crypto";
 import "dotenv/config";
 
@@ -338,7 +338,7 @@ async function main() {
   // ── Generate funnel step events ─────────────────────────────────────
   // Simulate realistic onboarding funnel: ~60 users start, with drop-off at each step
   const funnelUserCount = Math.max(20, Math.ceil(EVENT_COUNT / 4));
-  const funnelTrackRows: Array<typeof events.$inferInsert> = [];
+  const funnelStepRows: Array<typeof events.$inferInsert> = [];
   const funnelDualRows: Array<typeof funnelEvents.$inferInsert> = [];
 
   // Use only non-backend apps for funnel events
@@ -369,7 +369,7 @@ async function main() {
         if (Math.random() > STEP_RETENTION[s]) break;
 
         const stepMessage = ONBOARDING_STEPS[s];
-        const stepName = stepMessage.slice("step:".length);
+        const stepName = parseStepMessage(stepMessage)!;
         const ts = new Date(baseTime + s * 30_000); // 30s between steps
 
         const eventRow: typeof events.$inferInsert = {
@@ -389,7 +389,7 @@ async function main() {
           experiments,
           timestamp: ts,
         };
-        funnelTrackRows.push(eventRow);
+        funnelStepRows.push(eventRow);
 
         funnelDualRows.push({
           app_id: session.appId,
@@ -411,16 +411,16 @@ async function main() {
     }
 
     // Insert track events into events table
-    for (let i = 0; i < funnelTrackRows.length; i += BATCH_SIZE) {
-      await db.insert(events).values(funnelTrackRows.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < funnelStepRows.length; i += BATCH_SIZE) {
+      await db.insert(events).values(funnelStepRows.slice(i, i + BATCH_SIZE));
     }
-    inserted += funnelTrackRows.length;
+    inserted += funnelStepRows.length;
 
     // Dual-write into funnel_events table
     for (let i = 0; i < funnelDualRows.length; i += BATCH_SIZE) {
       await db.insert(funnelEvents).values(funnelDualRows.slice(i, i + BATCH_SIZE));
     }
-    console.log(`Generated ${funnelTrackRows.length} step events for ${funnelUserCount} funnel users`);
+    console.log(`Generated ${funnelStepRows.length} step events for ${funnelUserCount} funnel users`);
     console.log(`Dual-wrote ${funnelDualRows.length} funnel events\n`);
   }
 
@@ -432,7 +432,7 @@ async function main() {
   const projectUserPairs = new Map<string, { projectId: string; isAnon: boolean; earliest: Date; latest: Date }>();
   const appUserSightings = new Map<string, { appId: string; earliest: Date; latest: Date }>();
 
-  for (const row of [...rows, ...funnelTrackRows]) {
+  for (const row of [...rows, ...funnelStepRows]) {
     if (!row.user_id) continue;
     const projectId = appProjectMap.get(row.app_id);
     if (!projectId) continue;

@@ -63,10 +63,14 @@ export function buildStepMessage(stepName: string): string {
   return `${STEP_MESSAGE_PREFIX}${stepName}`;
 }
 
+function parsePrefixedMessage(message: string, prefix: string): string | null {
+  if (!message.startsWith(prefix)) return null;
+  const body = message.slice(prefix.length);
+  return body || null;
+}
+
 export function parseStepMessage(message: string): string | null {
-  if (!message.startsWith(STEP_MESSAGE_PREFIX)) return null;
-  const stepName = message.slice(STEP_MESSAGE_PREFIX.length);
-  return stepName || null;
+  return parsePrefixedMessage(message, STEP_MESSAGE_PREFIX);
 }
 
 /**
@@ -91,7 +95,5 @@ export function buildTrackMessage(stepName: string): string {
 
 /** @deprecated Use parseFunnelStepMessage (for server) or parseStepMessage (for new code). Will be removed in a future version. */
 export function parseTrackMessage(message: string): string | null {
-  if (!message.startsWith(TRACK_MESSAGE_PREFIX)) return null;
-  const stepName = message.slice(TRACK_MESSAGE_PREFIX.length);
-  return stepName || null;
+  return parsePrefixedMessage(message, TRACK_MESSAGE_PREFIX);
 }
