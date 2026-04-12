@@ -102,8 +102,10 @@ function IssueDetailModal({
   const { issue, isLoading, mutate: mutateIssue } = useIssue(projectId, issueId);
   const [resolveVersion, setResolveVersion] = useState("");
   const [showResolveInput, setShowResolveInput] = useState(false);
+  const [showMergeSelect, setShowMergeSelect] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const { issues: allIssues } = useIssues(projectId);
 
   const handleStatusChange = async (status: string, version?: string) => {
     setActionLoading(true);
@@ -199,7 +201,43 @@ function IssueDetailModal({
                   🆕 Reopen
                 </Button>
               )}
+              <Button size="sm" variant="outline" onClick={() => setShowMergeSelect(!showMergeSelect)} disabled={actionLoading}>
+                Merge
+              </Button>
             </div>
+
+            {showMergeSelect && (
+              <div className="border rounded-md p-3 mt-2 space-y-2">
+                <p className="text-xs text-muted-foreground">Select an issue to merge into this one:</p>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {allIssues
+                    .filter((i) => i.id !== issueId)
+                    .map((i) => (
+                      <button
+                        key={i.id}
+                        className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted truncate"
+                        onClick={async () => {
+                          setActionLoading(true);
+                          try {
+                            await issueActions.merge(projectId, issueId, i.id);
+                            mutateIssue();
+                            onMutate();
+                            setShowMergeSelect(false);
+                          } finally {
+                            setActionLoading(false);
+                          }
+                        }}
+                        disabled={actionLoading}
+                      >
+                        {STATUS_CONFIG[i.status]?.emoji} {i.title.slice(0, 60)}{i.title.length > 60 ? "..." : ""}
+                      </button>
+                    ))}
+                  {allIssues.filter((i) => i.id !== issueId).length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">No other issues to merge</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Comments */}
             <div className="mt-6">

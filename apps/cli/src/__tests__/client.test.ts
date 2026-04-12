@@ -442,6 +442,75 @@ describe("queryFunnel", () => {
 
 // --- Audit Logs ---
 
+// --- Issues ---
+
+describe("listIssues", () => {
+  it("GET /v1/projects/:projectId/issues with params", async () => {
+    mockFetchJson({ issues: [], cursor: null, has_more: false });
+    await makeClient().listIssues("p-1", { status: "new", app_id: "a-1", limit: "10" });
+    const call = getLastFetchCall();
+    expect(call.method).toBe("GET");
+    expect(call.url).toContain("/v1/projects/p-1/issues");
+    expect(call.url).toContain("status=new");
+    expect(call.url).toContain("app_id=a-1");
+    expect(call.url).toContain("limit=10");
+  });
+});
+
+describe("getIssue", () => {
+  it("GET /v1/projects/:projectId/issues/:issueId", async () => {
+    mockFetchJson({ id: "i-1", status: "new", occurrences: [], comments: [], fingerprints: [] });
+    await makeClient().getIssue("p-1", "i-1");
+    const call = getLastFetchCall();
+    expect(call.method).toBe("GET");
+    expect(call.url).toContain("/v1/projects/p-1/issues/i-1");
+  });
+});
+
+describe("updateIssue", () => {
+  it("PATCH /v1/projects/:projectId/issues/:issueId with status", async () => {
+    mockFetchJson({ id: "i-1", status: "resolved" });
+    await makeClient().updateIssue("p-1", "i-1", { status: "resolved", resolved_at_version: "2.0.0" });
+    const call = getLastFetchCall();
+    expect(call.method).toBe("PATCH");
+    expect(call.url).toContain("/v1/projects/p-1/issues/i-1");
+    expect(call.body.status).toBe("resolved");
+    expect(call.body.resolved_at_version).toBe("2.0.0");
+  });
+});
+
+describe("mergeIssues", () => {
+  it("POST /v1/projects/:projectId/issues/:targetId/merge", async () => {
+    mockFetchJson({ id: "target-1", fingerprints: ["fp1", "fp2"] });
+    await makeClient().mergeIssues("p-1", "target-1", { source_issue_id: "source-1" });
+    const call = getLastFetchCall();
+    expect(call.method).toBe("POST");
+    expect(call.url).toContain("/v1/projects/p-1/issues/target-1/merge");
+    expect(call.body.source_issue_id).toBe("source-1");
+  });
+});
+
+describe("addIssueComment", () => {
+  it("POST /v1/projects/:projectId/issues/:issueId/comments", async () => {
+    mockFetchJson({ id: "c-1", body: "test comment", author_type: "agent" });
+    await makeClient().addIssueComment("p-1", "i-1", { body: "test comment" });
+    const call = getLastFetchCall();
+    expect(call.method).toBe("POST");
+    expect(call.url).toContain("/v1/projects/p-1/issues/i-1/comments");
+    expect(call.body.body).toBe("test comment");
+  });
+});
+
+describe("listIssueComments", () => {
+  it("GET /v1/projects/:projectId/issues/:issueId/comments", async () => {
+    mockFetchJson({ comments: [] });
+    await makeClient().listIssueComments("p-1", "i-1");
+    const call = getLastFetchCall();
+    expect(call.method).toBe("GET");
+    expect(call.url).toContain("/v1/projects/p-1/issues/i-1/comments");
+  });
+});
+
 describe("queryAuditLogs", () => {
   it("GET /v1/teams/:teamId/audit-logs with params", async () => {
     mockFetchJson({ audit_logs: [AUDIT_LOG], cursor: null, has_more: false });

@@ -914,6 +914,137 @@ describe("MCP endpoint", () => {
     });
   });
 
+  // ── Issues ───────────────────────────────────────────────────────────
+
+  describe("issues", () => {
+    async function createMcpIssue(agentKey: string, projectId: string) {
+      const client = (await import("postgres")).default("postgres://localhost:5432/owlmetry_test", { max: 1 });
+      const appRows = await client`SELECT id FROM apps WHERE project_id = ${projectId} AND deleted_at IS NULL LIMIT 1`;
+      const appId = appRows[0].id;
+      const [issue] = await client`
+        INSERT INTO issues (app_id, project_id, status, title, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'new', 'MCP test error', false, NOW(), NOW(), 1, 1)
+        RETURNING id
+      `;
+      await client`
+        INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+        VALUES (${`mcp_fp_${issue.id.slice(0, 8)}`}, ${appId}, false, ${issue.id})
+      `;
+      await client.end();
+      return issue.id;
+    }
+
+    it("list-issues returns issues for a project", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Issue Test", slug: "issue-test" }),
+      );
+      const { parsed: app } = parseToolResult(
+        await callTool(key, "create-app", { project_id: project.id, name: "Test App", platform: "backend" }),
+      );
+      const issueId = await createMcpIssue(key, project.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "list-issues", { project_id: project.id }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.issues.length).toBeGreaterThanOrEqual(1);
+      expect(parsed.issues.some((i: any) => i.id === issueId)).toBe(true);
+    });
+
+    it("get-issue returns detail with fingerprints", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Issue Detail", slug: "issue-detail" }),
+      );
+      await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" });
+      const issueId = await createMcpIssue(key, project.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "get-issue", { project_id: project.id, issue_id: issueId }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.id).toBe(issueId);
+      expect(parsed.fingerprints).toBeInstanceOf(Array);
+      expect(parsed.occurrences).toBeInstanceOf(Array);
+      expect(parsed.comments).toBeInstanceOf(Array);
+    });
+
+    it("resolve-issue changes status", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Resolve Test", slug: "resolve-test" }),
+      );
+      await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" });
+      const issueId = await createMcpIssue(key, project.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "resolve-issue", { project_id: project.id, issue_id: issueId, version: "1.0.0" }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.status).toBe("resolved");
+      expect(parsed.resolved_at_version).toBe("1.0.0");
+    });
+
+    it("claim-issue sets in_progress", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Claim Test", slug: "claim-test" }),
+      );
+      await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" });
+      const issueId = await createMcpIssue(key, project.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "claim-issue", { project_id: project.id, issue_id: issueId }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.status).toBe("in_progress");
+    });
+
+    it("add-issue-comment creates agent comment", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Comment Test", slug: "comment-test" }),
+      );
+      await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" });
+      const issueId = await createMcpIssue(key, project.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "add-issue-comment", { project_id: project.id, issue_id: issueId, body: "MCP agent note" }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.author_type).toBe("agent");
+      expect(parsed.body).toBe("MCP agent note");
+    });
+
+    it("merge-issues combines two issues", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Merge Test", slug: "merge-test" }),
+      );
+      await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" });
+      const targetId = await createMcpIssue(key, project.id);
+      const sourceId = await createMcpIssue(key, project.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "merge-issues", {
+          project_id: project.id,
+          target_issue_id: targetId,
+          source_issue_id: sourceId,
+        }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.id).toBe(targetId);
+      expect(parsed.fingerprints.length).toBe(2);
+
+      // Source should be gone
+      const { isError: sourceError } = parseToolResult(
+        await callTool(key, "get-issue", { project_id: project.id, issue_id: sourceId }),
+      );
+      expect(sourceError).toBe(true);
+    });
+  });
+
   // ── Error handling ────────────────────────────────────────────────────
 
   describe("error handling", () => {

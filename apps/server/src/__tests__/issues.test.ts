@@ -1018,6 +1018,110 @@ describe("Issues API", () => {
       expect(userNotFoundIssues).toHaveLength(1);
       expect(userNotFoundIssues[0].occurrence_count).toBe(2);
     });
+
+    it("resolved issue stays resolved for same/older app version", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const message = "Resolved error stays AAAA";
+      const fp = await generateIssueFingerprint(message, null);
+
+      // Create a resolved issue with version 2.0.0
+      const [issue] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, is_dev, resolved_at_version, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'resolved', ${message}, false, '2.0.0', NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`
+        INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fp}, ${appId}, false, ${issue.id})
+      `;
+
+      // Ingest error with older version
+      await ingestEvents([
+        { level: "error", message, app_version: "1.9.0", session_id: "00000000-0000-0000-0000-d00000000001" },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      const result = await issueScanHandler(createJobContext(), {});
+      expect(result.events_processed).toBeGreaterThanOrEqual(1);
+
+      // Should still be resolved (not regressed since 1.9.0 < 2.0.0)
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${issue.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("resolved");
+      // But the occurrence was still recorded
+      expect(body.occurrence_count).toBeGreaterThanOrEqual(1);
+    });
+
+    it("silenced issue stays silenced but records occurrence", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const message = "Silenced error stays BBBB";
+      const fp = await generateIssueFingerprint(message, null);
+
+      const [issue] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'silenced', ${message}, false, NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`
+        INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fp}, ${appId}, false, ${issue.id})
+      `;
+
+      await ingestEvents([
+        { level: "error", message, session_id: "00000000-0000-0000-0000-e00000000001" },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${issue.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("silenced");
+      expect(body.occurrence_count).toBeGreaterThanOrEqual(1);
+    });
+
+    it("merged issue routes new events to surviving issue", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const messageA = "Surviving issue CCCC";
+      const messageB = "Merged away issue DDDD";
+      const fpA = await generateIssueFingerprint(messageA, null);
+      const fpB = await generateIssueFingerprint(messageB, null);
+
+      // Create target issue with fingerprint A
+      const [target] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'new', ${messageA}, false, NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fpA}, ${appId}, false, ${target.id})`;
+
+      // Simulate a merge: fingerprint B also points to target issue
+      await dbClient`INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fpB}, ${appId}, false, ${target.id})`;
+
+      // Ingest error matching message B (the merged-away fingerprint)
+      await ingestEvents([
+        { level: "error", message: messageB, session_id: "00000000-0000-0000-0000-f00000000001" },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      // The occurrence should route to the target issue
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${target.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.occurrence_count).toBeGreaterThanOrEqual(1);
+      expect(body.occurrences.some((o: any) => o.session_id === "00000000-0000-0000-0000-f00000000001")).toBe(true);
+    });
   });
 });
 
