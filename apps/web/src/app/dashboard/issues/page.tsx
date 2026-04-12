@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Bug, Clock, Users } from "lucide-react";
+import { VisuallyHidden } from "radix-ui";
 
 const STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: string; color: string }> = {
   new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
@@ -138,7 +139,10 @@ function IssueDetailModal({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         {isLoading || !issue ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+          <div className="py-8 text-center text-muted-foreground">
+            <VisuallyHidden.Root><DialogTitle>Loading issue</DialogTitle></VisuallyHidden.Root>
+            Loading...
+          </div>
         ) : (
           <>
             <DialogHeader>
