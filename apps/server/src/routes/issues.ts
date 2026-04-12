@@ -340,8 +340,8 @@ export async function issuesRoutes(app: FastifyInstance) {
         .set({
           occurrence_count: counts?.occ_count ?? 0,
           unique_user_count: counts?.user_count ?? 0,
-          first_seen_at: counts?.min_ts ?? target.first_seen_at,
-          last_seen_at: counts?.max_ts ?? target.last_seen_at,
+          first_seen_at: counts?.min_ts ? new Date(counts.min_ts as unknown as string) : target.first_seen_at,
+          last_seen_at: counts?.max_ts ? new Date(counts.max_ts as unknown as string) : target.last_seen_at,
         })
         .where(eq(issues.id, targetId));
 
