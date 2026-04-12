@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, IssueResponse, IssueStatus } from "@owlmetry/shared";
-import { ISSUE_STATUSES } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
 import { api } from "@/lib/api";
@@ -326,17 +325,18 @@ export default function IssuesPage() {
   );
   const projects = projectsData?.projects ?? [];
 
-  const initialProjectId = searchParams.get("project") ?? "";
-  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId);
-  const effectiveProjectId = selectedProjectId || projects[0]?.id;
+  const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? "");
+  function setProjectId(id: string) {
+    setProjectIdState(id);
+    const params = new URLSearchParams();
+    if (id) params.set("project_id", id);
+    const qs = params.toString();
+    router.replace(`/dashboard/issues${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+  const selectedProjectId = projectId || projects[0]?.id || "";
 
-  const { issues, isLoading, mutate } = useIssues(effectiveProjectId);
+  const { issues, isLoading, mutate } = useIssues(selectedProjectId || undefined);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-
-  const handleProjectChange = (value: string) => {
-    setSelectedProjectId(value);
-    router.replace(`/dashboard/issues?project=${value}`, { scroll: false });
-  };
 
   // Group issues by status for kanban columns
   const issuesByStatus: Record<string, IssueResponse[]> = {};
@@ -347,23 +347,27 @@ export default function IssuesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Issues</h1>
-        {projects.length > 0 && (
-          <Select value={effectiveProjectId} onValueChange={handleProjectChange}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Select project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Project</label>
+            <Select value={selectedProjectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[220px] h-8 text-xs">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
-      {!effectiveProjectId ? (
-        <p className="text-muted-foreground">Select a project to view issues</p>
+      {!selectedProjectId ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <p className="text-sm">Select a project to view issues</p>
+        </div>
       ) : isLoading ? (
         <p className="text-muted-foreground">Loading issues...</p>
       ) : issues.length === 0 ? (
@@ -408,9 +412,9 @@ export default function IssuesPage() {
         </div>
       )}
 
-      {selectedIssueId && effectiveProjectId && (
+      {selectedIssueId && selectedProjectId && (
         <IssueDetailModal
-          projectId={effectiveProjectId}
+          projectId={selectedProjectId}
           issueId={selectedIssueId}
           open={!!selectedIssueId}
           onClose={() => setSelectedIssueId(null)}

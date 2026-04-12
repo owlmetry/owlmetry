@@ -10,6 +10,7 @@
     "db:migrate": "pnpm --filter @owlmetry/db migrate",
     "dev:seed": "pnpm --filter @owlmetry/db dev:seed",
     "dev:seed-events": "pnpm --filter @owlmetry/db dev:seed-events",
+    "dev:seed-issues": "pnpm --filter @owlmetry/db dev:seed-issues",
     "dev:unsafe-reset": "pnpm --filter @owlmetry/db dev:unsafe-reset",
     "db:cleanup": "pnpm --filter @owlmetry/db cleanup",
     "test": "pnpm -r test && pnpm test:swift-sdk && pnpm test:cli",
