@@ -25,7 +25,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Bug, Clock, Users } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Bug, ChevronDown, Clock, Users } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 
 const STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: string; color: string }> = {
@@ -102,7 +112,6 @@ function IssueDetailModal({
   const { issue, isLoading, mutate: mutateIssue } = useIssue(projectId, issueId);
   const [resolveVersion, setResolveVersion] = useState("");
   const [showResolveInput, setShowResolveInput] = useState(false);
-  const [showMergeSelect, setShowMergeSelect] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const { issues: allIssues } = useIssues(projectId);
@@ -169,13 +178,8 @@ function IssueDetailModal({
             </div>
 
             {/* Actions */}
-            <div className="flex flex-wrap gap-2 mt-4">
-              {issue.status !== "resolved" && !showResolveInput && (
-                <Button size="sm" variant="outline" onClick={() => setShowResolveInput(true)} disabled={actionLoading}>
-                  ✅ Resolve
-                </Button>
-              )}
-              {showResolveInput && (
+            <div className="flex items-center gap-2 mt-4">
+              {showResolveInput ? (
                 <div className="flex items-center gap-2 w-full">
                   <Input
                     placeholder="Version (optional)"
@@ -188,59 +192,67 @@ function IssueDetailModal({
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowResolveInput(false)}>Cancel</Button>
                 </div>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" disabled={actionLoading}>
+                      Actions <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {issue.status !== "resolved" && (
+                      <DropdownMenuItem onClick={() => setShowResolveInput(true)}>
+                        ✅ Resolve
+                      </DropdownMenuItem>
+                    )}
+                    {issue.status !== "silenced" && (
+                      <DropdownMenuItem onClick={() => handleStatusChange("silenced")}>
+                        🔇 Silence
+                      </DropdownMenuItem>
+                    )}
+                    {issue.status !== "in_progress" && issue.status !== "resolved" && (
+                      <DropdownMenuItem onClick={() => handleStatusChange("in_progress")}>
+                        🔧 Claim
+                      </DropdownMenuItem>
+                    )}
+                    {(issue.status === "resolved" || issue.status === "silenced" || issue.status === "in_progress") && (
+                      <DropdownMenuItem onClick={() => handleStatusChange("new")}>
+                        🆕 Reopen
+                      </DropdownMenuItem>
+                    )}
+                    {allIssues.filter((i) => i.id !== issueId).length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Merge into this</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="max-h-48 overflow-y-auto">
+                            {allIssues
+                              .filter((i) => i.id !== issueId)
+                              .map((i) => (
+                                <DropdownMenuItem
+                                  key={i.id}
+                                  onClick={async () => {
+                                    setActionLoading(true);
+                                    try {
+                                      await issueActions.merge(projectId, issueId, i.id);
+                                      mutateIssue();
+                                      onMutate();
+                                    } finally {
+                                      setActionLoading(false);
+                                    }
+                                  }}
+                                >
+                                  {STATUS_CONFIG[i.status]?.emoji} {i.title.slice(0, 50)}{i.title.length > 50 ? "..." : ""}
+                                </DropdownMenuItem>
+                              ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
-              {issue.status !== "silenced" && (
-                <Button size="sm" variant="outline" onClick={() => handleStatusChange("silenced")} disabled={actionLoading}>
-                  🔇 Silence
-                </Button>
-              )}
-              {issue.status !== "in_progress" && issue.status !== "resolved" && (
-                <Button size="sm" variant="outline" onClick={() => handleStatusChange("in_progress")} disabled={actionLoading}>
-                  🔧 Claim
-                </Button>
-              )}
-              {(issue.status === "resolved" || issue.status === "silenced" || issue.status === "in_progress") && (
-                <Button size="sm" variant="outline" onClick={() => handleStatusChange("new")} disabled={actionLoading}>
-                  🆕 Reopen
-                </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={() => setShowMergeSelect(!showMergeSelect)} disabled={actionLoading}>
-                Merge
-              </Button>
             </div>
-
-            {showMergeSelect && (
-              <div className="border rounded-md p-3 mt-2 space-y-2">
-                <p className="text-xs text-muted-foreground">Select an issue to merge into this one:</p>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {allIssues
-                    .filter((i) => i.id !== issueId)
-                    .map((i) => (
-                      <button
-                        key={i.id}
-                        className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted truncate"
-                        onClick={async () => {
-                          setActionLoading(true);
-                          try {
-                            await issueActions.merge(projectId, issueId, i.id);
-                            mutateIssue();
-                            onMutate();
-                            setShowMergeSelect(false);
-                          } finally {
-                            setActionLoading(false);
-                          }
-                        }}
-                        disabled={actionLoading}
-                      >
-                        {STATUS_CONFIG[i.status]?.emoji} {i.title.slice(0, 60)}{i.title.length > 60 ? "..." : ""}
-                      </button>
-                    ))}
-                  {allIssues.filter((i) => i.id !== issueId).length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-2">No other issues to merge</p>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Comments */}
             <div className="mt-6">
