@@ -6,6 +6,7 @@ import type { JobRunResponse, JobRunsQueryParams, TriggerJobRequest, JobType, Pr
 import { JOB_TYPE_META } from "@owlmetry/shared/jobs";
 import { formatDuration as formatMs } from "@owlmetry/shared/constants";
 import useSWR from "swr";
+import { formatDateTime, formatCompactDateTime } from "@/lib/format-date";
 
 type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
@@ -386,14 +387,7 @@ export default function JobsPage() {
                 {jobRuns.map((run) => {
                   const label = getJobLabel(run.job_type);
                   const ts = new Date(run.created_at);
-                  const time = ts.toLocaleString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: false,
-                  });
+                  const time = formatCompactDateTime(ts);
 
                   const progressPct = run.progress?.total
                     ? Math.round((run.progress.processed / run.progress.total) * 100)
@@ -465,19 +459,19 @@ export default function JobsPage() {
                 </span>
 
                 <span className="text-muted-foreground">Created</span>
-                <span className="font-mono text-xs">{new Date(selectedRun.created_at).toLocaleString()}</span>
+                <span className="font-mono text-xs">{formatDateTime(selectedRun.created_at)}</span>
 
                 {selectedRun.started_at && (
                   <>
                     <span className="text-muted-foreground">Started</span>
-                    <span className="font-mono text-xs">{new Date(selectedRun.started_at).toLocaleString()}</span>
+                    <span className="font-mono text-xs">{formatDateTime(selectedRun.started_at)}</span>
                   </>
                 )}
 
                 {selectedRun.completed_at && (
                   <>
                     <span className="text-muted-foreground">Completed</span>
-                    <span className="font-mono text-xs">{new Date(selectedRun.completed_at).toLocaleString()}</span>
+                    <span className="font-mono text-xs">{formatDateTime(selectedRun.completed_at)}</span>
                   </>
                 )}
 

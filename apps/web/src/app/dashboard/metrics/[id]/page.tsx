@@ -12,6 +12,7 @@ import { useMetricQuery, useMetricEvents } from "@/hooks/use-metrics";
 import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
 import { type FilterChip, truncateId } from "@/components/filter-sheet";
 import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
+import { formatShortDate, formatTime } from "@/lib/format-date";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -365,8 +366,8 @@ export default function MetricDetailPage() {
               <TableBody>
                 {events.slice(0, 50).map((event, i) => {
                   const ts = new Date(event.timestamp);
-                  const date = `${ts.getDate()} ${ts.toLocaleDateString(undefined, { month: "short" })}`;
-                  const time = ts.toLocaleTimeString(undefined, { hour12: false });
+                  const date = formatShortDate(ts);
+                  const time = formatTime(ts);
                   return (
                     <TableRow key={`${event.timestamp}-${i}`}>
                       <TableCell className="font-mono text-xs py-1.5">{time} {date}</TableCell>

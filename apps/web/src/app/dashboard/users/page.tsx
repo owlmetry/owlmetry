@@ -13,6 +13,7 @@ import { TIME_RANGES } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
+import { formatDateTime } from "@/lib/format-date";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { Badge } from "@/components/ui/badge";
@@ -327,10 +328,10 @@ export default function UsersPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs py-1.5" title={user.first_seen_at}>
-                      {new Date(user.first_seen_at).toLocaleString()}
+                      {formatDateTime(user.first_seen_at)}
                     </TableCell>
                     <TableCell className="text-xs py-1.5" title={user.last_seen_at}>
-                      {new Date(user.last_seen_at).toLocaleString()}
+                      {formatDateTime(user.last_seen_at)}
                     </TableCell>
                   </TableRow>
                 ))}

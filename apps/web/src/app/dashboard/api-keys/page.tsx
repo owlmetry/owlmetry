@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { formatDate } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,7 +62,7 @@ function formatRelativeTime(dateStr: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 30) return `${diffDays}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return formatDate(dateStr);
 }
 
 // --- Create Key Dialog ---

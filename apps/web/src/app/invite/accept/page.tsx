@@ -13,6 +13,7 @@ import type {
   AcceptInvitationResponse,
   MeResponse,
 } from "@owlmetry/shared";
+import { formatFullDate } from "@/lib/format-date";
 
 export default function AcceptInvitationPage() {
   return (
@@ -251,11 +252,7 @@ function AcceptInvitationContent() {
 
                   <p className="text-xs text-muted-foreground text-center border-t pt-4">
                     Expires{" "}
-                    {new Date(invite.expires_at).toLocaleDateString(undefined, {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+                    {formatFullDate(invite.expires_at)}
                   </p>
                 </CardContent>
               </Card>

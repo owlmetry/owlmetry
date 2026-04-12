@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { InvestigateTimeline } from "@/components/investigate-timeline";
 import { DetailRow } from "@/components/detail-row";
+import { formatDateTime } from "@/lib/format-date";
 import { Search } from "lucide-react";
 import type { StoredEventResponse } from "@owlmetry/shared";
 import type { LogLevel } from "@owlmetry/shared";
@@ -45,7 +46,7 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
           <div className="flex items-center gap-2">
             <EventLevelBadge level={event.level as LogLevel} />
             <span className="text-xs text-muted-foreground">
-              {ts.toLocaleString()}
+              {formatDateTime(ts)}
             </span>
           </div>
           <SheetTitle className="text-base font-medium mt-1 break-words">

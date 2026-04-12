@@ -7,6 +7,7 @@ import { useTeam } from "@/contexts/team-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FolderOpen, Plus, ArrowRight, Activity, Plug } from "lucide-react";
 import type { ProjectResponse } from "@owlmetry/shared";
+import { formatLongDate } from "@/lib/format-date";
 
 export default function DashboardPage() {
   const { user, teams } = useUser();
@@ -19,11 +20,7 @@ export default function DashboardPage() {
   const teamCount = teams?.length ?? 0;
   const projectCount = projectsData?.projects?.length ?? 0;
 
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const today = formatLongDate(new Date());
 
   return (
     <div className="space-y-8 animate-fade-in-up">

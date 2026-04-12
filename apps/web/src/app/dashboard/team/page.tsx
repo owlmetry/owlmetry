@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { Trash2, LogOut, X, Mail, CheckCircle2, Key } from "lucide-react";
+import { formatDate } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -143,7 +144,7 @@ export default function TeamPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(member.joined_at).toLocaleDateString()}
+                        {formatDate(member.joined_at)}
                       </TableCell>
                       <TableCell>
                         {isSelf ? (
@@ -211,7 +212,7 @@ export default function TeamPage() {
                         {inv.invited_by.name}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(inv.expires_at).toLocaleDateString()}
+                        {formatDate(inv.expires_at)}
                       </TableCell>
                       <TableCell>
                         <RevokeInvitationButton
@@ -420,7 +421,7 @@ function AgentKeyList({ keys }: { keys: AgentKeyInfo[] }) {
               </TooltipContent>
             </Tooltip>
             <span className="text-muted-foreground/40">&middot;</span>
-            <span>{new Date(key.created_at).toLocaleDateString()}</span>
+            <span>{formatDate(key.created_at)}</span>
           </div>
         </div>
       ))}

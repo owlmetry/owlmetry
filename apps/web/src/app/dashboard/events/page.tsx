@@ -12,6 +12,7 @@ import type {
 import { TIME_RANGES, ENVIRONMENTS } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
+import { formatDateTime, formatTime, formatShortDate } from "@/lib/format-date";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
@@ -333,9 +334,9 @@ export default function EventsPage() {
               <TableBody>
                 {events.map((event) => {
                   const ts = new Date(event.timestamp);
-                  const date = `${ts.getDate()} ${ts.toLocaleDateString(undefined, { month: "short" })}`;
-                  const time = ts.toLocaleTimeString(undefined, { hour12: false });
-                  const fullDate = ts.toLocaleString();
+                  const date = formatShortDate(ts);
+                  const time = formatTime(ts);
+                  const fullDate = formatDateTime(ts);
                   const isSelected = selectedEvent?.id === event.id;
 
                   return (

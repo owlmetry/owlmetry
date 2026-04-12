@@ -7,6 +7,7 @@ import { useTeam } from "@/contexts/team-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { FilterSheet, type FilterChip, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
+import { formatDateTime, formatCompactDateTime } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -234,14 +235,7 @@ export default function AuditLogPage() {
               <TableBody>
                 {auditLogs.map((log) => {
                   const ts = new Date(log.timestamp);
-                  const time = ts.toLocaleString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: false,
-                  });
+                  const time = formatCompactDateTime(ts);
 
                   return (
                     <TableRow
@@ -298,7 +292,7 @@ export default function AuditLogPage() {
             <div className="mt-4 space-y-4 text-sm">
               <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-3">
                 <span className="text-muted-foreground">Time</span>
-                <span className="font-mono text-xs">{new Date(selectedLog.timestamp).toLocaleString()}</span>
+                <span className="font-mono text-xs">{formatDateTime(selectedLog.timestamp)}</span>
 
                 <span className="text-muted-foreground">Action</span>
                 <Badge variant={actionBadgeVariant(selectedLog.action)} className="w-fit text-xs">

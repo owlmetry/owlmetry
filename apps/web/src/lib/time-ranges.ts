@@ -1,3 +1,5 @@
+import { formatShortDate } from "@/lib/format-date";
+
 export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
 
 export const TIME_RANGES = [
@@ -22,10 +24,7 @@ export function sinceFromRange(range: string): string {
 /** Format a time range value + optional custom dates into a human-readable chip string. */
 export function formatTimeRangeChip(value: string, since?: string, until?: string): string {
   if (value === "custom") {
-    const fmt = (d: string) => {
-      const dt = new Date(d);
-      return `${dt.getDate()} ${dt.toLocaleDateString(undefined, { month: "short" })}`;
-    };
+    const fmt = (d: string) => formatShortDate(d);
     if (since && until) return `${fmt(since)} – ${fmt(until)}`;
     if (since) return `Since ${fmt(since)}`;
     if (until) return `Until ${fmt(until)}`;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatShortDate } from "@/lib/format-date";
 
 interface TimeSeriesChartProps {
   data: Array<{ bucket: string; count: number; complete_count?: number; fail_count?: number }>;
@@ -19,7 +20,7 @@ export function TimeSeriesChart({ data }: TimeSeriesChartProps) {
         {data.map((item, i) => {
           const height = (item.count / maxCount) * 100;
           const date = new Date(item.bucket);
-          const label = `${date.getDate()} ${date.toLocaleDateString(undefined, { month: "short" })}`;
+          const label = formatShortDate(date);
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
               <span className="text-[10px] text-muted-foreground">{item.count}</span>

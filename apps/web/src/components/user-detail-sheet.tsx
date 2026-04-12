@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { ArrowRight } from "lucide-react";
+import { formatDateTime } from "@/lib/format-date";
 import type { AppUserResponse } from "@owlmetry/shared";
 
 interface UserDetailSheetProps {
@@ -51,8 +52,8 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter }: UserDeta
               onFilter={onFilter ? () => onFilter("project_id", user.project_id) : undefined}
               filterKey="project"
             />
-            <DetailRow label="First Seen" value={new Date(user.first_seen_at).toLocaleString()} />
-            <DetailRow label="Last Seen" value={new Date(user.last_seen_at).toLocaleString()} />
+            <DetailRow label="First Seen" value={formatDateTime(user.first_seen_at)} />
+            <DetailRow label="Last Seen" value={formatDateTime(user.last_seen_at)} />
             {user.claimed_from && user.claimed_from.length > 0 && (
               <DetailRow label="Claimed From" value={user.claimed_from.join(", ")} />
             )}
@@ -74,8 +75,8 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter }: UserDeta
                     >
                       {app.app_name}
                     </Badge>
-                    <DetailRow label="First Seen" value={new Date(app.first_seen_at).toLocaleString()} />
-                    <DetailRow label="Last Seen" value={new Date(app.last_seen_at).toLocaleString()} />
+                    <DetailRow label="First Seen" value={formatDateTime(app.first_seen_at)} />
+                    <DetailRow label="Last Seen" value={formatDateTime(app.last_seen_at)} />
                   </div>
                 ))}
               </div>

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { levelColors } from "@/lib/level-colors";
 import { cn } from "@/lib/utils";
 import type { EventsResponse, StoredEventResponse, LogLevel } from "@owlmetry/shared";
+import { formatShortDate, formatTime } from "@/lib/format-date";
 
 interface InvestigateTimelineProps {
   event: StoredEventResponse;
@@ -80,8 +81,8 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
         {events.map((e) => {
           const isTarget = e.id === event.id;
           const ts = new Date(e.timestamp);
-          const date = `${ts.getDate()} ${ts.toLocaleDateString(undefined, { month: "short" })}`;
-          const time = `${ts.toLocaleTimeString(undefined, { hour12: false })} ${date}`;
+          const date = formatShortDate(ts);
+          const time = `${formatTime(ts)} ${date}`;
           const colors = levelColors[e.level as LogLevel];
 
           return (
