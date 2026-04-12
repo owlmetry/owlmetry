@@ -1,95 +1,73 @@
 /**
  * Locale-aware date formatting utilities.
  *
- * Detects the user's region from their timezone (not just browser language)
- * so dates format correctly even when navigator.language is "en-US" but the
- * user is physically elsewhere. For example, a user in South Africa with an
- * en-US browser sees dd/mm/yyyy instead of mm/dd/yyyy.
+ * Detects the user's region from their browser languages and timezone,
+ * so dates format correctly even when navigator.language is "en-US" but
+ * the user is physically elsewhere.
+ *
+ * Detection strategy:
+ * 1. Check navigator.languages for a non-primary language with a region
+ *    (e.g. "af" → maximize → "af-Latn-ZA" → region ZA)
+ * 2. Fall back to timezone continent — anything outside America/* is
+ *    unlikely to want US-style mm/dd/yyyy
+ * 3. Fall back to navigator.language (browser default)
  */
-
-// ---------------------------------------------------------------------------
-// Timezone → ISO 3166-1 region code mapping
-// ---------------------------------------------------------------------------
-const TZ_TO_REGION: Record<string, string> = {
-  // Africa
-  "Africa/Abidjan": "CI", "Africa/Accra": "GH", "Africa/Addis_Ababa": "ET",
-  "Africa/Algiers": "DZ", "Africa/Cairo": "EG", "Africa/Casablanca": "MA",
-  "Africa/Dar_es_Salaam": "TZ", "Africa/Johannesburg": "ZA", "Africa/Kampala": "UG",
-  "Africa/Khartoum": "SD", "Africa/Kigali": "RW", "Africa/Lagos": "NG",
-  "Africa/Luanda": "AO", "Africa/Maputo": "MZ", "Africa/Nairobi": "KE",
-  "Africa/Tunis": "TN", "Africa/Windhoek": "NA",
-  // Americas
-  "America/Anchorage": "US", "America/Argentina/Buenos_Aires": "AR",
-  "America/Bogota": "CO", "America/Caracas": "VE", "America/Chicago": "US",
-  "America/Costa_Rica": "CR", "America/Denver": "US", "America/Edmonton": "CA",
-  "America/Guatemala": "GT", "America/Halifax": "CA", "America/Havana": "CU",
-  "America/Indiana/Indianapolis": "US", "America/Jamaica": "JM",
-  "America/Lima": "PE", "America/Los_Angeles": "US", "America/Manaus": "BR",
-  "America/Mexico_City": "MX", "America/Monterrey": "MX",
-  "America/Montevideo": "UY", "America/New_York": "US", "America/Panama": "PA",
-  "America/Phoenix": "US", "America/Puerto_Rico": "PR", "America/Regina": "CA",
-  "America/Santiago": "CL", "America/Santo_Domingo": "DO",
-  "America/Sao_Paulo": "BR", "America/St_Johns": "CA", "America/Tijuana": "MX",
-  "America/Toronto": "CA", "America/Vancouver": "CA", "America/Winnipeg": "CA",
-  // Asia
-  "Asia/Almaty": "KZ", "Asia/Amman": "JO", "Asia/Baghdad": "IQ",
-  "Asia/Bahrain": "BH", "Asia/Baku": "AZ", "Asia/Bangkok": "TH",
-  "Asia/Beirut": "LB", "Asia/Colombo": "LK", "Asia/Damascus": "SY",
-  "Asia/Dhaka": "BD", "Asia/Dubai": "AE", "Asia/Ho_Chi_Minh": "VN",
-  "Asia/Hong_Kong": "HK", "Asia/Jakarta": "ID", "Asia/Jerusalem": "IL",
-  "Asia/Kabul": "AF", "Asia/Karachi": "PK", "Asia/Kathmandu": "NP",
-  "Asia/Kolkata": "IN", "Asia/Kuala_Lumpur": "MY", "Asia/Kuwait": "KW",
-  "Asia/Macau": "MO", "Asia/Manila": "PH", "Asia/Muscat": "OM",
-  "Asia/Nicosia": "CY", "Asia/Qatar": "QA", "Asia/Riyadh": "SA",
-  "Asia/Seoul": "KR", "Asia/Shanghai": "CN", "Asia/Singapore": "SG",
-  "Asia/Taipei": "TW", "Asia/Tashkent": "UZ", "Asia/Tbilisi": "GE",
-  "Asia/Tehran": "IR", "Asia/Tokyo": "JP", "Asia/Urumqi": "CN",
-  "Asia/Yangon": "MM", "Asia/Yekaterinburg": "RU", "Asia/Yerevan": "AM",
-  // Australia & Pacific
-  "Australia/Adelaide": "AU", "Australia/Brisbane": "AU",
-  "Australia/Darwin": "AU", "Australia/Hobart": "AU",
-  "Australia/Melbourne": "AU", "Australia/Perth": "AU",
-  "Australia/Sydney": "AU", "Pacific/Auckland": "NZ",
-  "Pacific/Fiji": "FJ", "Pacific/Guam": "GU", "Pacific/Honolulu": "US",
-  // Europe
-  "Europe/Amsterdam": "NL", "Europe/Athens": "GR", "Europe/Belgrade": "RS",
-  "Europe/Berlin": "DE", "Europe/Bratislava": "SK", "Europe/Brussels": "BE",
-  "Europe/Bucharest": "RO", "Europe/Budapest": "HU", "Europe/Chisinau": "MD",
-  "Europe/Copenhagen": "DK", "Europe/Dublin": "IE", "Europe/Helsinki": "FI",
-  "Europe/Istanbul": "TR", "Europe/Kaliningrad": "RU", "Europe/Kyiv": "UA",
-  "Europe/Lisbon": "PT", "Europe/Ljubljana": "SI", "Europe/London": "GB",
-  "Europe/Madrid": "ES", "Europe/Minsk": "BY", "Europe/Moscow": "RU",
-  "Europe/Oslo": "NO", "Europe/Paris": "FR", "Europe/Prague": "CZ",
-  "Europe/Riga": "LV", "Europe/Rome": "IT", "Europe/Samara": "RU",
-  "Europe/Sofia": "BG", "Europe/Stockholm": "SE", "Europe/Tallinn": "EE",
-  "Europe/Vienna": "AT", "Europe/Vilnius": "LT", "Europe/Warsaw": "PL",
-  "Europe/Zagreb": "HR", "Europe/Zurich": "CH",
-};
 
 // ---------------------------------------------------------------------------
 // Locale detection (cached)
 // ---------------------------------------------------------------------------
 let _locale: string | undefined;
 
-/** Detect the user's locale from their timezone + browser language. */
+/**
+ * Detect the user's locale from browser signals.
+ *
+ * Returns a BCP 47 locale string like "en-ZA" or undefined to use the
+ * browser default.
+ */
 function getLocale(): string | undefined {
   if (_locale !== undefined) return _locale || undefined;
 
   if (typeof window === "undefined") {
-    // SSR — no detection possible, use browser default
     _locale = "";
     return undefined;
   }
 
   try {
-    const { timeZone } = Intl.DateTimeFormat().resolvedOptions();
-    const region = TZ_TO_REGION[timeZone];
-    if (region) {
-      const lang = navigator.language.split("-")[0];
-      _locale = `${lang}-${region}`;
-    } else {
-      _locale = "";
+    const primary = navigator.language;
+    const primaryLang = primary.split("-")[0];
+
+    // 1. Look for a secondary language that implies a different region.
+    //    e.g. ["en-US", "en", "af"] — "af" maximizes to "af-Latn-ZA" → ZA
+    for (let i = 1; i < navigator.languages.length; i++) {
+      try {
+        const loc = new Intl.Locale(navigator.languages[i]).maximize();
+        if (loc.region && loc.region !== "US") {
+          _locale = `${primaryLang}-${loc.region}`;
+          return _locale;
+        }
+      } catch { /* skip invalid locales */ }
     }
+
+    // 2. Use timezone continent as a heuristic.
+    //    Only America/* timezones commonly use mm/dd/yyyy; everywhere else
+    //    the US format is unexpected.
+    const { timeZone } = Intl.DateTimeFormat().resolvedOptions();
+    if (timeZone && !timeZone.startsWith("America/") && !timeZone.startsWith("US/")) {
+      // Map continent to a sensible English locale for date ordering
+      const continent = timeZone.split("/")[0];
+      const CONTINENT_LOCALE: Record<string, string> = {
+        Europe: "GB", Africa: "GB", Asia: "GB", Australia: "AU",
+        Pacific: "NZ", Indian: "GB", Atlantic: "GB", Antarctica: "GB",
+      };
+      const region = CONTINENT_LOCALE[continent];
+      if (region) {
+        _locale = `${primaryLang}-${region}`;
+        return _locale;
+      }
+    }
+
+    // 3. Browser default
+    _locale = "";
   } catch {
     _locale = "";
   }
