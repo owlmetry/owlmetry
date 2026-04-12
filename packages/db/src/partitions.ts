@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 
 const PARTITION_NAME_PATTERN = /^events_\d{4}_\d{2}$/;
+const GENERIC_PARTITION_NAME_PATTERN = /^(?:events|metric_events|funnel_events)_\d{4}_\d{2}$/;
 
 export async function getDatabaseSizeBytes(client: postgres.Sql): Promise<number> {
   const result = await client`SELECT pg_database_size(current_database()) AS size`;
@@ -120,6 +121,10 @@ async function createMonthlyPartition(client: postgres.Sql, config: PartitionCon
 
   const from = `${year}-${month}-01`;
   const to = `${nextYear}-${nextMo}-01`;
+
+  if (!GENERIC_PARTITION_NAME_PATTERN.test(partitionName)) {
+    throw new Error(`createMonthlyPartition: invalid partition name "${partitionName}"`);
+  }
 
   try {
     await client.unsafe(`

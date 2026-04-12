@@ -109,22 +109,19 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
       appIdsByProject.set(projectId, list);
     }
 
-    const eventsDeleted = await client.unsafe(
-      `DELETE FROM events WHERE app_id = ANY($1)`,
-      [expiredAppIds]
-    );
+    const eventsDeleted = await client`
+      DELETE FROM events WHERE app_id = ANY(${expiredAppIds})
+    `;
     result.events = Number(eventsDeleted.count ?? 0);
 
-    const metricEventsDeleted = await client.unsafe(
-      `DELETE FROM metric_events WHERE app_id = ANY($1)`,
-      [expiredAppIds]
-    );
+    const metricEventsDeleted = await client`
+      DELETE FROM metric_events WHERE app_id = ANY(${expiredAppIds})
+    `;
     result.metricEvents = Number(metricEventsDeleted.count ?? 0);
 
-    const funnelEventsDeleted = await client.unsafe(
-      `DELETE FROM funnel_events WHERE app_id = ANY($1)`,
-      [expiredAppIds]
-    );
+    const funnelEventsDeleted = await client`
+      DELETE FROM funnel_events WHERE app_id = ANY(${expiredAppIds})
+    `;
     result.funnelEvents = Number(funnelEventsDeleted.count ?? 0);
 
     // Log event deletions to audit table (one row per project)

@@ -130,7 +130,7 @@ describe("dropOldestEventPartitions", () => {
     }
 
     // Verify rows exist
-    const before = await client.unsafe(`SELECT count(*)::int AS count FROM events`);
+    const before = await client`SELECT count(*)::int AS count FROM events`;
     expect(before[0].count).toBe(10);
 
     // 1-byte limit forces row-level deletion

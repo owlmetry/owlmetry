@@ -61,12 +61,17 @@ function daysAgo(days: number): Date {
   return d;
 }
 
+const ALLOWED_EVENT_TABLES = new Set(["events", "metric_events", "funnel_events"]);
+
 async function deleteByTimestamp(
   client: postgres.Sql,
   tableName: string,
   appIds: string[],
   cutoff: Date
 ): Promise<number> {
+  if (!ALLOWED_EVENT_TABLES.has(tableName)) {
+    throw new Error(`deleteByTimestamp: invalid table name "${tableName}"`);
+  }
   // Direct DELETE — PostgreSQL routes to the correct partitions automatically.
   // The WHERE uses (app_id, timestamp) which matches existing partition indexes.
   // Uses unsafe() for dynamic table name, with explicit cast for timestamp param.

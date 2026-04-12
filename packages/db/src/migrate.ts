@@ -43,7 +43,7 @@ async function removeStaleLogLevelEnumValues(client: postgres.Sql) {
 
   for (const val of staleValues) {
     try {
-      await client.unsafe(`UPDATE events SET level = 'info' WHERE level = '${val}'`);
+      await client.unsafe(`UPDATE events SET level = $1 WHERE level = $2`, ['info', val]);
     } catch {
       // events table may not exist yet
     }
