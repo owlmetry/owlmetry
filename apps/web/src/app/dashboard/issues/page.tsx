@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, IssueResponse, IssueStatus } from "@owlmetry/shared";
+import { ISSUE_STATUSES } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
 import { api } from "@/lib/api";
@@ -27,7 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Bug, Clock, Users } from "lucide-react";
 
-const STATUS_CONFIG: Record<string, { label: string; emoji: string; color: string }> = {
+const STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: string; color: string }> = {
   new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
   in_progress: { label: "In Progress", emoji: "🔧", color: "bg-blue-500/10 text-blue-600" },
   regressed: { label: "Regressed", emoji: "🔄", color: "bg-yellow-500/10 text-yellow-600" },

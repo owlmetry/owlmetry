@@ -1,9 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { ISSUE_STATUSES } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
-
-const ISSUE_STATUSES = ["new", "in_progress", "resolved", "silenced", "regressed"] as const;
 
 export function registerIssuesTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-issues", {

@@ -143,7 +143,7 @@ issuesCommand
     output(
       globals.format as OutputFormat,
       result,
-      () => formatIssuesTable(result.issues) + paginationHint(result.cursor),
+      () => formatIssuesTable(result.issues) + paginationHint(result),
     );
   });
 

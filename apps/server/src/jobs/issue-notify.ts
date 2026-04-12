@@ -105,29 +105,31 @@ export const issueNotifyHandler: JobHandler = async (ctx) => {
     }
 
     // 6. Send digest email to each member
-    const emailService = (ctx as any).emailService;
-    if (emailService) {
-      const issueList = qualifyingIssues.map((i) => ({
-        title: i.title.length > 120 ? i.title.slice(0, 117) + "..." : i.title,
-        status: i.status as "new" | "regressed",
-        occurrence_count: i.occurrence_count,
-        unique_user_count: i.unique_user_count,
-        app_name: appNameMap.get(i.app_id) ?? "Unknown",
-      }));
+    const issueList = qualifyingIssues.map((i) => ({
+      title: i.title,
+      status: i.status as "new" | "regressed",
+      occurrence_count: i.occurrence_count,
+      unique_user_count: i.unique_user_count,
+      app_name: appNameMap.get(i.app_id) ?? "Unknown",
+    }));
 
-      for (const member of members) {
-        try {
-          await emailService.sendIssueDigest(member.email, {
-            project_name: project.name,
-            issues: issueList,
-            dashboard_url: `${process.env.WEB_URL ?? "https://owlmetry.com"}/dashboard/issues`,
-          });
-          notificationsSent++;
-        } catch (err) {
-          ctx.log.error(`Failed to send issue digest to ${member.email}:`, err);
-        }
-      }
+    if (!ctx.emailService) {
+      projectsChecked++;
+      continue;
     }
+
+    const emailPromises = members.map((member) =>
+      ctx.emailService!.sendIssueDigest(member.email, {
+        project_name: project.name,
+        issues: issueList,
+        dashboard_url: `${process.env.WEB_URL ?? "https://owlmetry.com"}/dashboard/issues`,
+      }).then(() => {
+        notificationsSent++;
+      }).catch((err) => {
+        ctx.log.error(`Failed to send issue digest to ${member.email}:`, err);
+      })
+    );
+    await Promise.all(emailPromises);
 
     // 7. Update last_notified_at on notified issues
     const issueIds = qualifyingIssues.map((i) => i.id);

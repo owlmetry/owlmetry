@@ -222,6 +222,7 @@ export async function projectsRoutes(app: FastifyInstance) {
           retention_days_events: projects.retention_days_events,
           retention_days_metrics: projects.retention_days_metrics,
           retention_days_funnels: projects.retention_days_funnels,
+          issue_alert_frequency: projects.issue_alert_frequency,
         })
         .from(projects)
         .where(
@@ -263,7 +264,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       }
       if (issue_alert_frequency !== undefined) {
         setFields.issue_alert_frequency = issue_alert_frequency;
-        changes.issue_alert_frequency = { before: (project as any).issue_alert_frequency, after: issue_alert_frequency };
+        changes.issue_alert_frequency = { before: project.issue_alert_frequency, after: issue_alert_frequency };
       }
 
       const [updated] = await app.db

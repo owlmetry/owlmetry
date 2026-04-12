@@ -3,6 +3,7 @@ import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
 import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES } from "@owlmetry/shared";
 import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
+import type { IssueAlertFrequency } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { resolveProject } from "../utils/project.js";
@@ -61,7 +62,7 @@ function serializeComment(row: typeof issueComments.$inferSelect) {
 }
 
 // Valid status transitions (job-only transitions like resolved→regressed are not exposed via API)
-const VALID_TRANSITIONS: Record<string, IssueStatus[]> = {
+const VALID_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
   new: ["in_progress", "resolved", "silenced"],
   in_progress: ["new", "resolved", "silenced"],
   resolved: ["new", "silenced"],
@@ -95,7 +96,6 @@ export async function issuesRoutes(app: FastifyInstance) {
         conditions.push(eq(issues.is_dev, is_dev === "true"));
       }
 
-      // Cursor-based pagination (cursor = last issue ID)
       if (cursor) {
         conditions.push(sql`${issues.id} < ${cursor}`);
       }
@@ -104,7 +104,7 @@ export async function issuesRoutes(app: FastifyInstance) {
         .select()
         .from(issues)
         .where(and(...conditions))
-        .orderBy(desc(issues.unique_user_count), desc(issues.last_seen_at), desc(issues.id))
+        .orderBy(desc(issues.last_seen_at), desc(issues.id))
         .limit(limit + 1);
 
       const hasMore = rows.length > limit;
@@ -159,16 +159,6 @@ export async function issuesRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Issue not found" });
       }
 
-      // Fingerprints
-      const fps = await app.db
-        .select({ fingerprint: issueFingerprints.fingerprint })
-        .from(issueFingerprints)
-        .where(eq(issueFingerprints.issue_id, issueId));
-
-      // App name
-      const [appRow] = await app.db.select({ name: apps.name }).from(apps).where(eq(apps.id, issue.app_id)).limit(1);
-
-      // Paginated occurrences
       const { occurrence_cursor, occurrence_limit: occLimitStr } = request.query;
       const occLimit = Math.min(Math.max(parseInt(occLimitStr || "", 10) || 50, 1), 200);
 
@@ -177,22 +167,28 @@ export async function issuesRoutes(app: FastifyInstance) {
         occConditions.push(sql`${issueOccurrences.id} < ${occurrence_cursor}`);
       }
 
-      const occRows = await app.db
-        .select()
-        .from(issueOccurrences)
-        .where(and(...occConditions))
-        .orderBy(desc(issueOccurrences.timestamp), desc(issueOccurrences.id))
-        .limit(occLimit + 1);
+      // Run independent queries in parallel
+      const [fps, [appRow], occRows, commentRows] = await Promise.all([
+        app.db
+          .select({ fingerprint: issueFingerprints.fingerprint })
+          .from(issueFingerprints)
+          .where(eq(issueFingerprints.issue_id, issueId)),
+        app.db.select({ name: apps.name }).from(apps).where(eq(apps.id, issue.app_id)).limit(1),
+        app.db
+          .select()
+          .from(issueOccurrences)
+          .where(and(...occConditions))
+          .orderBy(desc(issueOccurrences.timestamp), desc(issueOccurrences.id))
+          .limit(occLimit + 1),
+        app.db
+          .select()
+          .from(issueComments)
+          .where(and(eq(issueComments.issue_id, issueId), isNull(issueComments.deleted_at)))
+          .orderBy(issueComments.created_at),
+      ]);
 
       const occHasMore = occRows.length > occLimit;
       const occPage = occHasMore ? occRows.slice(0, occLimit) : occRows;
-
-      // Comments (non-deleted, chronological)
-      const commentRows = await app.db
-        .select()
-        .from(issueComments)
-        .where(and(eq(issueComments.issue_id, issueId), isNull(issueComments.deleted_at)))
-        .orderBy(issueComments.created_at);
 
       return {
         ...serializeIssue(issue, fps.map((f) => f.fingerprint), appRow?.name),

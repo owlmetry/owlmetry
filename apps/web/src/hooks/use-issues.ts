@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import { buildQueryString } from "@/lib/query";
-import type { IssuesResponse, IssueDetailResponse, IssuesQueryParams, IssueCommentResponse } from "@owlmetry/shared";
+import type { IssuesResponse, IssueDetailResponse, IssuesQueryParams } from "@owlmetry/shared";
 
 export function useIssues(projectId: string | undefined, filters: Partial<IssuesQueryParams> = {}) {
   const qs = buildQueryString(filters);
@@ -31,14 +31,6 @@ export function useIssue(projectId: string | undefined, issueId: string | undefi
   });
 
   return { issue: data ?? null, isLoading, error, mutate };
-}
-
-export function useIssueComments(projectId: string | undefined, issueId: string | undefined) {
-  const key = projectId && issueId ? `/v1/projects/${projectId}/issues/${issueId}/comments` : null;
-
-  const { data, isLoading, error, mutate } = useSWR<{ comments: IssueCommentResponse[] }>(key);
-
-  return { comments: data?.comments ?? [], isLoading, error, mutate };
 }
 
 // Issue API actions

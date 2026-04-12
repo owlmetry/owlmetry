@@ -18,6 +18,7 @@ export interface JobContext {
   };
   db: Db;
   createClient(): postgres.Sql;
+  emailService?: EmailService;
 }
 
 export type JobHandler = (
@@ -171,6 +172,7 @@ export class JobRunner {
       log: this.log,
       db: this.db,
       createClient: () => postgres(this.databaseUrl, { max: 1 }),
+      emailService: this.emailService,
     };
 
     const startedAt = Date.now();

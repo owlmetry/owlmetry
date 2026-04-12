@@ -1,10 +1,10 @@
 export type IssueStatus = "new" | "in_progress" | "resolved" | "silenced" | "regressed";
 export type IssueAlertFrequency = "none" | "hourly" | "6_hourly" | "daily" | "weekly";
 
-export const ISSUE_STATUSES: IssueStatus[] = ["new", "in_progress", "resolved", "silenced", "regressed"];
-export const ISSUE_ALERT_FREQUENCIES: IssueAlertFrequency[] = [
+export const ISSUE_STATUSES = ["new", "in_progress", "resolved", "silenced", "regressed"] as const;
+export const ISSUE_ALERT_FREQUENCIES = [
   "none", "hourly", "6_hourly", "daily", "weekly",
-];
+] as const;
 
 // --- API Response Types ---
 
@@ -40,10 +40,12 @@ export interface IssueOccurrenceResponse {
   created_at: string;
 }
 
+export type IssueCommentAuthorType = "user" | "agent";
+
 export interface IssueCommentResponse {
   id: string;
   issue_id: string;
-  author_type: string;
+  author_type: IssueCommentAuthorType;
   author_id: string;
   author_name: string;
   body: string;
