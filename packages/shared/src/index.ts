@@ -10,3 +10,4 @@ export * from "./audit.js";
 export * from "./time.js";
 export * from "./integrations.js";
 export * from "./jobs.js";
+export * from "./issues.js";

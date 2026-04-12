@@ -26,6 +26,8 @@ export const logLevelEnum = pgEnum("log_level", [
 
 export const metricPhaseEnum = pgEnum("metric_phase", ["start", "complete", "fail", "cancel", "record"]);
 export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "completed", "failed", "cancelled"]);
+export const issueStatusEnum = pgEnum("issue_status", ["new", "in_progress", "resolved", "silenced", "regressed"]);
+export const issueAlertFrequencyEnum = pgEnum("issue_alert_frequency", ["none", "hourly", "6_hourly", "daily", "weekly"]);
 
 // Users
 export const users = pgTable("users", {
@@ -106,6 +108,7 @@ export const projects = pgTable(
     retention_days_events: integer("retention_days_events"),
     retention_days_metrics: integer("retention_days_metrics"),
     retention_days_funnels: integer("retention_days_funnels"),
+    issue_alert_frequency: issueAlertFrequencyEnum("issue_alert_frequency").default("daily"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -517,6 +520,115 @@ export const jobRuns = pgTable(
     index("job_runs_status_idx").on(table.status),
     index("job_runs_team_id_created_at_idx").on(table.team_id, table.created_at),
     index("job_runs_project_id_idx").on(table.project_id),
+  ]
+);
+
+// Issues — error events grouped by fingerprint for tracking and resolution
+export const issues = pgTable(
+  "issues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    status: issueStatusEnum("status").notNull().default("new"),
+    title: text("title").notNull(),
+    source_module: text("source_module"),
+    is_dev: boolean("is_dev").notNull().default(false),
+    occurrence_count: integer("occurrence_count").notNull().default(0),
+    unique_user_count: integer("unique_user_count").notNull().default(0),
+    resolved_at_version: varchar("resolved_at_version", { length: 50 }),
+    first_seen_at: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    last_seen_at: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    last_notified_at: timestamp("last_notified_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("issues_project_status_idx").on(table.project_id, table.status),
+    index("issues_project_last_seen_idx").on(table.project_id, table.last_seen_at),
+    index("issues_project_unique_users_idx").on(table.project_id, table.unique_user_count),
+    index("issues_app_status_idx").on(table.app_id, table.status),
+  ]
+);
+
+// Issue Fingerprints — lookup table for deduplication, supports merging
+export const issueFingerprints = pgTable(
+  "issue_fingerprints",
+  {
+    fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull().default(false),
+    issue_id: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    // Composite PK — guarantees no two issues claim the same fingerprint
+    uniqueIndex("issue_fingerprints_pk").on(table.fingerprint, table.app_id, table.is_dev),
+    index("issue_fingerprints_issue_id_idx").on(table.issue_id),
+  ]
+);
+
+// Issue Occurrences — one per session per issue
+export const issueOccurrences = pgTable(
+  "issue_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    issue_id: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    session_id: uuid("session_id").notNull(),
+    user_id: varchar("user_id", { length: 255 }),
+    app_version: varchar("app_version", { length: 50 }),
+    environment: environmentEnum("environment"),
+    event_id: uuid("event_id"),
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("issue_occurrences_issue_session_idx").on(table.issue_id, table.session_id),
+    index("issue_occurrences_issue_timestamp_idx").on(table.issue_id, table.timestamp),
+    index("issue_occurrences_user_id_idx").on(table.user_id),
+  ]
+);
+
+// Issue Comments — investigation notes from users and agents
+export const issueComments = pgTable(
+  "issue_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    issue_id: uuid("issue_id")
+      .notNull()
+      .references(() => issues.id, { onDelete: "cascade" }),
+    author_type: varchar("author_type", { length: 10 }).notNull(),
+    author_id: uuid("author_id").notNull(),
+    author_name: varchar("author_name", { length: 255 }).notNull(),
+    body: text("body").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("issue_comments_issue_created_at_idx").on(table.issue_id, table.created_at),
+    index("issue_comments_author_id_idx").on(table.author_id),
   ]
 );
 

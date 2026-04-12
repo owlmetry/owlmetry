@@ -15,6 +15,7 @@ import { whoamiCommand } from "./commands/whoami.js";
 import { switchCommand } from "./commands/switch.js";
 import { integrationsCommand } from "./commands/integrations.js";
 import { jobsCommand } from "./commands/jobs.js";
+import { issuesCommand } from "./commands/issues.js";
 
 declare const __CLI_VERSION__: string;
 
@@ -47,6 +48,7 @@ program.addCommand(whoamiCommand);
 program.addCommand(switchCommand);
 program.addCommand(integrationsCommand);
 program.addCommand(jobsCommand);
+program.addCommand(issuesCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

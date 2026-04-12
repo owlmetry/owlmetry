@@ -182,6 +182,17 @@ owlmetry integrations update <provider> --project-id <id> [--api-key <key>] [--w
 owlmetry integrations remove <provider> --project-id <id>
 owlmetry integrations sync <provider> --project-id <id> [--user <userId>] --format json
 
+# Issues
+owlmetry issues list --project-id <id> [--status new|in_progress|resolved|silenced|regressed] [--app-id <id>] [--dev] [--limit <n>] --format json
+owlmetry issues view <issueId> --project-id <id> --format json
+owlmetry issues resolve <issueId> --project-id <id> [--version <v>] --format json
+owlmetry issues silence <issueId> --project-id <id> --format json
+owlmetry issues reopen <issueId> --project-id <id> --format json
+owlmetry issues claim <issueId> --project-id <id> --format json
+owlmetry issues merge <targetIssueId> --project-id <id> --source <sourceIssueId> --format json
+owlmetry issues comment <issueId> --project-id <id> --body "..." --format json
+owlmetry issues comments <issueId> --project-id <id> --format json
+
 # Events
 owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] --format json
 owlmetry events view <id> --format json
@@ -328,6 +339,30 @@ Or use `owlmetry jobs trigger` directly for more control (e.g., `--wait` for blo
 owlmetry jobs trigger revenuecat_sync --team-id <id> --project-id <id> --wait
 ```
 
+### Issues
+
+Issues are automatically created by an hourly background scan that detects error-level events, deduplicates them by fingerprint (normalized message + source module), and groups related occurrences. Each issue tracks affected sessions, unique users, and app versions.
+
+**Status lifecycle:** `new` → `in_progress` (claimed by agent/user) → `resolved` (optionally with version) → may `regress` if the error reappears in a newer app version. Issues can be `silenced` to stop notifications while still tracking occurrences.
+
+```bash
+owlmetry issues list --project-id <id> [--status new] [--app-id <id>] [--dev] --format json
+owlmetry issues view <issueId> --project-id <id> --format json              # Detail with occurrences + comments
+owlmetry issues resolve <issueId> --project-id <id> --version 2.1.0         # Resolve with fix version
+owlmetry issues silence <issueId> --project-id <id>                          # Suppress notifications
+owlmetry issues reopen <issueId> --project-id <id>                           # Reopen
+owlmetry issues claim <issueId> --project-id <id>                            # Set to in_progress
+owlmetry issues merge <targetId> --project-id <id> --source <sourceId>       # Merge two issues
+owlmetry issues comment <issueId> --project-id <id> --body "Root cause: ..."  # Add investigation note
+owlmetry issues comments <issueId> --project-id <id> --format json           # List comments
+```
+
+**Comments** are investigation notes attached to issues. Agents use them to document findings, root causes, and fixes. Comments are visible on the dashboard and preserved across merges.
+
+**Merging**: If two issues are actually the same problem (different normalization), merge them. All fingerprints, occurrences, and comments move to the target issue.
+
+**Notifications**: Per-project email digest frequency configurable via `owlmetry projects update <id> --issue-alert-frequency daily`. Options: `none`, `hourly`, `6_hourly`, `daily`, `weekly`.
+
 ## Querying
 
 ### Events
@@ -448,7 +483,7 @@ Add this to your MCP client configuration (Claude Desktop, Cursor, VS Code, etc.
 
 For self-hosted instances, replace `api.owlmetry.com` with your server's domain. The endpoint is at `/mcp` on the same Fastify server.
 
-### Available Tools (37)
+### Available Tools (46)
 
 | Domain | Tools |
 |--------|-------|
@@ -458,6 +493,7 @@ For self-hosted instances, replace `api.owlmetry.com` with your server's domain.
 | Events | `query-events`, `get-event`, `investigate-event` |
 | Metrics | `list-metrics`, `get-metric`, `create-metric`, `update-metric`, `delete-metric`, `query-metric`, `list-metric-events` |
 | Funnels | `list-funnels`, `get-funnel`, `create-funnel`, `update-funnel`, `delete-funnel`, `query-funnel` |
+| Issues | `list-issues`, `get-issue`, `resolve-issue`, `silence-issue`, `reopen-issue`, `claim-issue`, `merge-issues`, `list-issue-comments`, `add-issue-comment` |
 | Integrations | `list-providers`, `list-integrations`, `add-integration`, `update-integration`, `remove-integration`, `sync-integration` |
 | Jobs | `list-jobs`, `get-job`, `trigger-job`, `cancel-job` |
 | Audit Logs | `list-audit-logs` |

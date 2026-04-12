@@ -3,6 +3,7 @@ import type { App, User, Team, Project, ApiKey, ApiKeyType, TeamRole, Permission
 import type { FunnelDefinition, FunnelStep, FunnelAnalytics, FunnelDefinitionResponse, FunnelStepAnalytics, FunnelBreakdownGroup } from "./funnels.js";
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
 import type { AuditAction, AuditActorType, AuditResourceType } from "./audit.js";
+import type { IssueAlertFrequency } from "./issues.js";
 
 // Data mode for global development/production filtering
 export type DataMode = "production" | "development" | "all";
@@ -162,6 +163,7 @@ export interface UpdateProjectRequest {
   retention_days_events?: number | null;
   retention_days_metrics?: number | null;
   retention_days_funnels?: number | null;
+  issue_alert_frequency?: IssueAlertFrequency;
 }
 
 // Apps
@@ -187,6 +189,7 @@ export type ProjectResponse = Omit<Project, "created_at" | "deleted_at"> & {
   effective_retention_days_events: number;
   effective_retention_days_metrics: number;
   effective_retention_days_funnels: number;
+  effective_issue_alert_frequency: IssueAlertFrequency;
 };
 export type ProjectDetailResponse = ProjectResponse & { apps: AppResponse[] };
 

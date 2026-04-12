@@ -188,6 +188,7 @@ export default function ProjectDetailPage() {
       </div>
 
       <RetentionSettings project={project} onSaved={mutate} />
+      <IssueAlertSettings project={project} onSaved={mutate} />
 
       {newClientSecret && (
         <Card className="border-primary">
@@ -377,6 +378,67 @@ function RetentionSettings({ project, onSaved }: { project: ProjectDetailRespons
             {success && <span className="text-sm text-green-600">Saved</span>}
           </div>
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+const ALERT_FREQUENCY_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "hourly", label: "Hourly" },
+  { value: "6_hourly", label: "Every 6 hours" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+];
+
+function IssueAlertSettings({ project, onSaved }: { project: ProjectDetailResponse; onSaved: () => void }) {
+  const [frequency, setFrequency] = useState<string>(project.effective_issue_alert_frequency ?? "daily");
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setFrequency(project.effective_issue_alert_frequency ?? "daily");
+  }, [project.effective_issue_alert_frequency]);
+
+  async function handleSave() {
+    if (frequency === project.effective_issue_alert_frequency) return;
+    setSaving(true);
+    try {
+      await api.patch(`/v1/projects/${project.id}`, { issue_alert_frequency: frequency });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Issue Alerts</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-3">
+          <Label htmlFor="alert-frequency" className="whitespace-nowrap">Email digest frequency</Label>
+          <select
+            id="alert-frequency"
+            className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value)}
+          >
+            {ALERT_FREQUENCY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <Button size="sm" onClick={handleSave} disabled={saving || frequency === project.effective_issue_alert_frequency}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+          {success && <span className="text-sm text-green-600">Saved</span>}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Controls how often team members receive email digests of new and regressed issues.
+        </p>
       </CardContent>
     </Card>
   );

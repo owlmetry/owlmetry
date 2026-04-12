@@ -19,6 +19,14 @@ import type {
   FunnelDefinitionResponse,
   FunnelQueryParams,
   FunnelQueryResponse,
+  IssuesQueryParams,
+  IssuesResponse,
+  IssueDetailResponse,
+  IssueResponse,
+  IssueCommentResponse,
+  UpdateIssueRequest,
+  MergeIssuesRequest,
+  CreateIssueCommentRequest,
   JobRunResponse,
   JobRunsQueryParams,
   JobRunsResponse,
@@ -310,6 +318,31 @@ export class OwlMetryClient {
 
   async cancelJob(runId: string): Promise<{ cancelled: boolean }> {
     return this.request<{ cancelled: boolean }>("POST", `/v1/jobs/${runId}/cancel`);
+  }
+
+  // Issues
+  async listIssues(projectId: string, params: Partial<IssuesQueryParams> = {}): Promise<IssuesResponse> {
+    return this.request<IssuesResponse>("GET", `/v1/projects/${projectId}/issues`, { params: params as Record<string, string> });
+  }
+
+  async getIssue(projectId: string, issueId: string): Promise<IssueDetailResponse> {
+    return this.request<IssueDetailResponse>("GET", `/v1/projects/${projectId}/issues/${issueId}`);
+  }
+
+  async updateIssue(projectId: string, issueId: string, body: UpdateIssueRequest): Promise<IssueResponse> {
+    return this.request<IssueResponse>("PATCH", `/v1/projects/${projectId}/issues/${issueId}`, { body });
+  }
+
+  async mergeIssues(projectId: string, targetId: string, body: MergeIssuesRequest): Promise<IssueResponse> {
+    return this.request<IssueResponse>("POST", `/v1/projects/${projectId}/issues/${targetId}/merge`, { body });
+  }
+
+  async listIssueComments(projectId: string, issueId: string): Promise<{ comments: IssueCommentResponse[] }> {
+    return this.request<{ comments: IssueCommentResponse[] }>("GET", `/v1/projects/${projectId}/issues/${issueId}/comments`);
+  }
+
+  async addIssueComment(projectId: string, issueId: string, body: CreateIssueCommentRequest): Promise<IssueCommentResponse> {
+    return this.request<IssueCommentResponse>("POST", `/v1/projects/${projectId}/issues/${issueId}/comments`, { body });
   }
 
   // Audit Logs

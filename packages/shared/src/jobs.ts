@@ -4,6 +4,8 @@ export const JOB_TYPES = [
   "partition_creation",
   "revenuecat_sync",
   "retention_cleanup",
+  "issue_scan",
+  "issue_notify",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -69,6 +71,20 @@ export const JOB_TYPE_META: Record<
       "Deletes events, metric events, and funnel events older than each project's retention policy",
     scope: "system",
     default_schedule: "0 2 * * *",
+    params: [],
+  },
+  issue_scan: {
+    label: "Issue Scan",
+    description: "Scans error events and creates/updates issues with deduplication",
+    scope: "system",
+    default_schedule: "0 * * * *",
+    params: [],
+  },
+  issue_notify: {
+    label: "Issue Notification",
+    description: "Sends issue digest emails per project alert settings",
+    scope: "system",
+    default_schedule: "5 * * * *",
     params: [],
   },
 };

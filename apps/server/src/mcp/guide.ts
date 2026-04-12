@@ -98,6 +98,17 @@ Third-party service connections (e.g., RevenueCat) that sync data into user prop
 3. The response includes a \`webhook_setup\` section with every value the user needs to paste into RevenueCat's webhook form (Settings → Webhooks → + New Webhook): webhook URL, authorization header (contains the auto-generated secret), environment, and events filter. Present these to the user.
 4. After the user confirms the webhook is saved, run \`sync-integration\` to backfill existing subscriber data.
 
+### Issues
+Error events are automatically scanned hourly and grouped into **issues** via fingerprinting (normalized error message + source module). Each issue tracks:
+- **Occurrences**: one per unique session — links to the session for investigation
+- **Unique users**: how many distinct users are affected (severity indicator)
+- **Status lifecycle**: \`new\` → \`in_progress\` (claimed by agent/user) → \`resolved\` (optionally with app version) → may \`regress\` if the error reappears in a newer version. Issues can also be \`silenced\` to suppress notifications while still tracking occurrences.
+- **Comments**: investigation notes from users (\`👤\`) and agents (\`🕶️\`). Markdown supported.
+- **Merge**: if two issues turn out to be the same problem, merge them — all fingerprints, occurrences, and comments move to the target.
+- **Notifications**: per-project configurable email digest (none/hourly/6-hourly/daily/weekly). Only non-dev, new/regressed issues with activity since last notification are included.
+
+Dev events (\`is_dev = true\`) create separate issues — they are tracked but never trigger notifications.
+
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.
 
@@ -147,6 +158,17 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`delete-funnel\` — Soft-delete (needs \`funnels:write\`)
 - \`query-funnel\` — Conversion analytics with mode (open/closed) and grouping
 
+### Issues
+- \`list-issues\` — List issues for a project (filter by status, app, dev/prod)
+- \`get-issue\` — Get issue detail with occurrences, comments, and fingerprints
+- \`resolve-issue\` — Mark resolved, optionally with the fix version
+- \`silence-issue\` — Silence notifications (still tracks occurrences)
+- \`reopen-issue\` — Reopen a resolved or silenced issue
+- \`claim-issue\` — Set status to in_progress (claim for investigation)
+- \`merge-issues\` — Merge source issue into target (moves all data, deletes source)
+- \`list-issue-comments\` — List investigation comments on an issue
+- \`add-issue-comment\` — Add a comment to document findings or fixes
+
 ### Integrations
 - \`list-providers\` — Supported providers and config fields
 - \`list-integrations\` — Configured integrations for a project
@@ -179,6 +201,8 @@ Your agent key has specific permissions. Common permission sets:
 | \`metrics:write\` | create-metric, update-metric, delete-metric |
 | \`funnels:read\` | list-funnels, get-funnel, query-funnel |
 | \`funnels:write\` | create-funnel, update-funnel, delete-funnel |
+| \`issues:read\` | list-issues, get-issue, list-issue-comments |
+| \`issues:write\` | resolve-issue, silence-issue, reopen-issue, claim-issue, merge-issues, add-issue-comment |
 | \`integrations:read\` | list-providers, list-integrations |
 | \`integrations:write\` | add-integration, update-integration, remove-integration, sync-integration |
 | \`jobs:read\` | list-jobs, get-job |

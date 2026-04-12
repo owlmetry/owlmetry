@@ -39,7 +39,9 @@ export type Permission =
   | "integrations:read"
   | "integrations:write"
   | "jobs:read"
-  | "jobs:write";
+  | "jobs:write"
+  | "issues:read"
+  | "issues:write";
 
 export const VALID_PERMISSIONS: Permission[] = [
   "events:write",
@@ -58,17 +60,19 @@ export const VALID_PERMISSIONS: Permission[] = [
   "integrations:write",
   "jobs:read",
   "jobs:write",
+  "issues:read",
+  "issues:write",
 ];
 
 export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
   client: ["events:write", "users:write"],
-  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write"],
   import: ["events:write", "users:write"],
 };
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
   client: ["events:write", "users:write"],
-  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write"],
   import: ["events:write", "users:write"],
 };
 
@@ -149,6 +153,7 @@ export interface Project {
   retention_days_events: number | null;
   retention_days_metrics: number | null;
   retention_days_funnels: number | null;
+  issue_alert_frequency: import("./issues.js").IssueAlertFrequency | null;
   created_at: Date;
   deleted_at: Date | null;
 }

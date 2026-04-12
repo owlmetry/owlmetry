@@ -26,6 +26,7 @@ import { userPropertiesRoutes } from "../routes/user-properties.js";
 import { integrationsRoutes } from "../routes/integrations.js";
 import { revenuecatRoutes } from "../routes/revenuecat.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
+import { issuesRoutes } from "../routes/issues.js";
 import { mcpRoute } from "../mcp/index.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
@@ -75,6 +76,14 @@ export class TestEmailService implements EmailService {
   async sendJobAlert(email: string, params: { job_type: string; status: string; duration: string; error?: string }): Promise<void> {
     this.lastJobAlertEmail = email;
     this.lastJobAlertParams = params;
+  }
+
+  lastIssueDigestEmail: string = "";
+  lastIssueDigestParams: { project_name: string; issues: Array<{ title: string; status: string; occurrence_count: number; unique_user_count: number; app_name: string }>; dashboard_url: string } | null = null;
+
+  async sendIssueDigest(email: string, params: { project_name: string; issues: Array<{ title: string; status: string; occurrence_count: number; unique_user_count: number; app_name: string }>; dashboard_url: string }): Promise<void> {
+    this.lastIssueDigestEmail = email;
+    this.lastIssueDigestParams = params;
   }
 }
 
@@ -377,6 +386,7 @@ export async function buildApp() {
   await app.register(revenuecatRoutes, { prefix: "/v1" });
   await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
   await app.register(jobsByIdRoutes, { prefix: "/v1" });
+  await app.register(issuesRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(mcpRoute);
 
   await app.ready();
@@ -385,6 +395,10 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM issue_comments`.catch(() => {});
+  await client`DELETE FROM issue_occurrences`.catch(() => {});
+  await client`DELETE FROM issue_fingerprints`.catch(() => {});
+  await client`DELETE FROM issues`.catch(() => {});
   await client`DELETE FROM event_deletions`.catch(() => {});
   await client`DELETE FROM job_runs`.catch(() => {});
   await client`DELETE FROM project_integrations`.catch(() => {});

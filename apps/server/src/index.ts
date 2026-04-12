@@ -21,6 +21,7 @@ import { userPropertiesRoutes } from "./routes/user-properties.js";
 import { integrationsRoutes } from "./routes/integrations.js";
 import { revenuecatRoutes } from "./routes/revenuecat.js";
 import { jobsRoutes, jobsByIdRoutes } from "./routes/jobs.js";
+import { issuesRoutes } from "./routes/issues.js";
 import { mcpRoute } from "./mcp/index.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 import { createEmailService } from "./services/email.js";
@@ -72,6 +73,18 @@ jobRunner.schedule({
   enabled: () => true,
   params: () => ({}),
 });
+jobRunner.schedule({
+  jobType: "issue_scan",
+  cron: isDev ? "*/5 * * * *" : "0 * * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
+  jobType: "issue_notify",
+  cron: isDev ? "*/5 * * * *" : "5 * * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
 
 // Decorators
 app.decorate("db", db);
@@ -113,6 +126,7 @@ await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(revenuecatRoutes, { prefix: "/v1" });
 await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
 await app.register(jobsByIdRoutes, { prefix: "/v1" });
+await app.register(issuesRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(mcpRoute);
 
 // Start

@@ -10,6 +10,7 @@ import {
   DEFAULT_RETENTION_DAYS_FUNNELS,
   MIN_RETENTION_DAYS,
   MAX_RETENTION_DAYS,
+  ISSUE_ALERT_FREQUENCIES,
 } from "@owlmetry/shared";
 import { serializeApp, getClientSecretMap } from "../utils/serialize.js";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
@@ -27,6 +28,8 @@ function serializeProject(p: typeof projects.$inferSelect) {
     effective_retention_days_events: p.retention_days_events ?? DEFAULT_RETENTION_DAYS_EVENTS,
     effective_retention_days_metrics: p.retention_days_metrics ?? DEFAULT_RETENTION_DAYS_METRICS,
     effective_retention_days_funnels: p.retention_days_funnels ?? DEFAULT_RETENTION_DAYS_FUNNELS,
+    issue_alert_frequency: p.issue_alert_frequency,
+    effective_issue_alert_frequency: p.issue_alert_frequency ?? "daily",
     created_at: p.created_at.toISOString(),
   };
 }
@@ -195,16 +198,20 @@ export async function projectsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { name, retention_days_events, retention_days_metrics, retention_days_funnels } = request.body;
+      const { name, retention_days_events, retention_days_metrics, retention_days_funnels, issue_alert_frequency } = request.body;
 
       const hasRetention = retention_days_events !== undefined || retention_days_metrics !== undefined || retention_days_funnels !== undefined;
-      if (!name && !hasRetention) {
+      if (!name && !hasRetention && issue_alert_frequency === undefined) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
       for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
         const err = validateRetentionDays(value, field);
         if (err) return reply.code(400).send({ error: err });
+      }
+
+      if (issue_alert_frequency !== undefined && !ISSUE_ALERT_FREQUENCIES.includes(issue_alert_frequency)) {
+        return reply.code(400).send({ error: `issue_alert_frequency must be one of: ${ISSUE_ALERT_FREQUENCIES.join(", ")}` });
       }
 
       const [project] = await app.db
@@ -253,6 +260,10 @@ export async function projectsRoutes(app: FastifyInstance) {
       if (retention_days_funnels !== undefined) {
         setFields.retention_days_funnels = retention_days_funnels;
         changes.retention_days_funnels = { before: project.retention_days_funnels, after: retention_days_funnels };
+      }
+      if (issue_alert_frequency !== undefined) {
+        setFields.issue_alert_frequency = issue_alert_frequency;
+        changes.issue_alert_frequency = { before: (project as any).issue_alert_frequency, after: issue_alert_frequency };
       }
 
       const [updated] = await app.db

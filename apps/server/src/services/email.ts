@@ -16,10 +16,23 @@ export interface JobAlertEmailParams {
   result?: Record<string, unknown>;
 }
 
+export interface IssueDigestEmailParams {
+  project_name: string;
+  issues: Array<{
+    title: string;
+    status: "new" | "regressed";
+    occurrence_count: number;
+    unique_user_count: number;
+    app_name: string;
+  }>;
+  dashboard_url: string;
+}
+
 export interface EmailService {
   sendVerificationCode(email: string, code: string): Promise<void>;
   sendTeamInvitation(email: string, params: TeamInvitationEmailParams): Promise<void>;
   sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void>;
+  sendIssueDigest(email: string, params: IssueDigestEmailParams): Promise<void>;
 }
 
 /** Escape user-controlled strings before interpolation into HTML emails. */
@@ -69,6 +82,17 @@ export class ConsoleEmailService implements EmailService {
     console.log(`  ${emoji} Job ${params.status}: ${params.job_type}`);
     console.log(`  To: ${email} | Duration: ${params.duration}`);
     if (params.error) console.log(`  Error: ${params.error}`);
+    console.log(`========================================\n`);
+  }
+
+  async sendIssueDigest(email: string, params: IssueDigestEmailParams): Promise<void> {
+    console.log(`\n========================================`);
+    console.log(`  🐛 Issue Digest: ${params.project_name}`);
+    console.log(`  To: ${email} | ${params.issues.length} issue(s)`);
+    for (const issue of params.issues) {
+      const statusEmoji = issue.status === "regressed" ? "🔄" : "🆕";
+      console.log(`  ${statusEmoji} ${issue.title.slice(0, 60)} (${issue.occurrence_count} occ, ${issue.unique_user_count} users) [${issue.app_name}]`);
+    }
     console.log(`========================================\n`);
   }
 }
@@ -156,6 +180,54 @@ export class ResendEmailService implements EmailService {
         to: email,
         subject,
         html: lines.join(""),
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Resend API error (${res.status}): ${body}`);
+    }
+  }
+
+  async sendIssueDigest(email: string, params: IssueDigestEmailParams): Promise<void> {
+    const subject = `[OwlMetry] 🐛 ${params.issues.length} issue(s) in ${escapeHtml(params.project_name)}`;
+    const issueRows = params.issues.map((issue) => {
+      const statusEmoji = issue.status === "regressed" ? "🔄" : "🆕";
+      return `<tr>
+        <td style="padding:8px;border-bottom:1px solid #eee">${statusEmoji} ${escapeHtml(issue.status)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(issue.title.length > 80 ? issue.title.slice(0, 77) + "..." : issue.title)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${issue.occurrence_count}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${issue.unique_user_count}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(issue.app_name)}</td>
+      </tr>`;
+    }).join("");
+
+    const html = [
+      `<p>New issues detected in <strong>${escapeHtml(params.project_name)}</strong>:</p>`,
+      `<table style="border-collapse:collapse;width:100%;font-size:14px">`,
+      `<thead><tr style="background:#f5f5f5">`,
+      `<th style="padding:8px;text-align:left">Status</th>`,
+      `<th style="padding:8px;text-align:left">Title</th>`,
+      `<th style="padding:8px;text-align:center">Occurrences</th>`,
+      `<th style="padding:8px;text-align:center">Users</th>`,
+      `<th style="padding:8px;text-align:left">App</th>`,
+      `</tr></thead>`,
+      `<tbody>${issueRows}</tbody>`,
+      `</table>`,
+      `<p><a href="${escapeHtml(params.dashboard_url)}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;margin-top:16px">View Issues</a></p>`,
+    ].join("");
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: this.from,
+        to: email,
+        subject,
+        html,
       }),
     });
 
