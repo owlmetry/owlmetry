@@ -11,6 +11,7 @@
     "metrics",
     "funnels",
     "audit-log",
+    "issues",
     "integrations",
     "jobs"
   ]

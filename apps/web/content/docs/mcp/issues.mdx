@@ -1,0 +1,94 @@
+---
+title: Issues
+description: List, investigate, and manage error issues via MCP tools.
+---
+
+Error [issues](/docs/concepts/issues) are automatically detected from error events and grouped by fingerprint. Use these tools to investigate issues, update their status, merge duplicates, and add investigation notes.
+
+## list-issues
+
+List issues for a project, ordered by most recently seen. Filter by status, app, or dev/prod mode.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `status` | string | No | `new`, `in_progress`, `resolved`, `silenced`, or `regressed` |
+| `app_id` | UUID | No | Filter to a specific app |
+| `is_dev` | boolean | No | Filter by dev/prod (`true` = dev only) |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50) |
+
+## get-issue
+
+Get details of a specific issue, including occurrences (sessions affected), comments, and fingerprints.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+
+## resolve-issue
+
+Mark an issue as resolved. Optionally specify the app version where the fix was applied. If the error reappears in a newer version, the issue will automatically be marked as `regressed`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+| `version` | string | No | App version where the fix was applied |
+
+## silence-issue
+
+Silence an issue to stop notifications. Occurrences are still tracked.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+
+## reopen-issue
+
+Reopen a resolved or silenced issue, setting status back to `new`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+
+## claim-issue
+
+Claim an issue by setting its status to `in_progress`. Use this when you start investigating or working on a fix.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+
+## merge-issues
+
+Merge a source issue into a target issue. All occurrences, fingerprints, and comments are moved to the target. The source is deleted. Future events matching any merged fingerprint route to the surviving issue.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `target_issue_id` | UUID | Yes | The target issue ID (survives the merge) |
+| `source_issue_id` | UUID | Yes | The source issue ID (will be deleted) |
+
+## list-issue-comments
+
+List comments on an issue in chronological order. Comments provide investigation context from users and agents.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+
+## add-issue-comment
+
+Add a comment to an issue. Use this to document investigations, root causes, fixes, or context for future reference. Markdown is supported.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+| `body` | string | Yes | The comment text |

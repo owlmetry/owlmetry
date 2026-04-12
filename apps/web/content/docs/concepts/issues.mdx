@@ -1,0 +1,127 @@
+---
+title: Issues
+description: Automatic error detection, deduplication, and tracking with resolution workflows and email notifications.
+---
+
+Issues are error events automatically grouped by fingerprint into trackable units. A background job scans for error-level events every hour, deduplicates them, and creates issues that can be investigated, resolved, silenced, or merged.
+
+## How Issues Are Created
+
+The **issue scan** job runs hourly (system job, `issue_scan`). It:
+
+1. Queries all error-level events (`level = 'error'`) received since the last scan.
+2. Normalizes each error message by stripping variable parts (UUIDs, numbers, quoted strings) and lowercasing.
+3. Generates a SHA-256 fingerprint from the normalized message + source module.
+4. Looks up the fingerprint in the `issue_fingerprints` table to find an existing issue.
+5. If no match: creates a new issue with status `new`.
+6. If a match exists: records a new occurrence (one per session per issue).
+
+This means the scan has **zero impact on event ingestion** — the ingest endpoint is never slowed down.
+
+## Fingerprinting and Deduplication
+
+Two error events are considered the same issue when they produce the same fingerprint. The fingerprint is computed from:
+
+- **Normalized message**: Variable parts stripped — `"User 123 not found"` and `"User 456 not found"` both normalize to `"user <n> not found"`.
+- **Source module**: The `source_module` field from the event, if present.
+- **App + dev mode**: Fingerprints are scoped per app and per dev/prod mode.
+
+The normalization strips:
+- UUIDs (e.g., `550e8400-...` becomes `<uuid>`)
+- Numbers (e.g., `404` becomes `<n>`)
+- Quoted strings (e.g., `"username"` becomes `"<s>"`)
+
+## Occurrences
+
+Each issue tracks **occurrences** — one per unique session where the error happened. An occurrence records:
+
+- **Session ID**: Links back to the session's full event stream for investigation.
+- **User ID**: Which user was affected (if known).
+- **App version**: Which version the error occurred in.
+- **Environment**: iOS, Android, web, backend, etc.
+- **Timestamp**: When the error occurred.
+
+The issue's **occurrence count** and **unique user count** are denormalized for fast querying and sorting by severity.
+
+## Status Lifecycle
+
+Issues follow a status lifecycle:
+
+```
+new → in_progress → resolved
+                  → silenced
+
+resolved → regressed (automatic, via scan job)
+         → new (manual reopen)
+
+regressed → in_progress → resolved
+                        → silenced
+
+silenced → new (manual reopen)
+```
+
+| Status | Meaning |
+|--------|---------|
+| `new` | Detected by the scan job, not yet investigated. |
+| `in_progress` | Claimed by a user or agent for investigation. |
+| `resolved` | Fixed. Optionally tagged with the app version where the fix was applied. |
+| `silenced` | Known issue, notifications suppressed. Occurrences still tracked. |
+| `regressed` | Was resolved, but the error reappeared in a **newer** app version. |
+
+### Regression Detection
+
+When the scan job finds an error matching a `resolved` issue, it checks the event's `app_version` against the issue's `resolved_at_version`. If the event version is newer (string comparison), the issue is automatically set to `regressed`.
+
+If either version is null, the scan does not trigger a regression (can't determine version ordering).
+
+## Comments
+
+Issues support **comments** for investigation notes. Both users and agents can add comments:
+
+- **User comments** (`author_type: "user"`): Posted via the dashboard or API with JWT auth.
+- **Agent comments** (`author_type: "agent"`): Posted via CLI or MCP with agent key auth.
+
+Comments support markdown and are soft-deleted (excluded from queries, hard-deleted after 7 days).
+
+## Merging
+
+If two issues turn out to be the same underlying problem (e.g., different normalization paths), they can be merged:
+
+1. All **fingerprints** from the source issue are reassigned to the target.
+2. All **occurrences** are moved (duplicates by session are skipped).
+3. All **comments** are transferred.
+4. The source issue is deleted.
+5. Future events matching any of the merged fingerprints automatically route to the surviving issue.
+
+## Dev vs Production
+
+Both dev (`is_dev: true`) and production events create issues, tracked separately via the `is_dev` flag on each issue. Dev issues:
+
+- Are visible in the dashboard with a dev badge.
+- Are **never** included in email notifications.
+- Can be filtered with `is_dev=true` in the API.
+
+## Email Notifications
+
+Each project has a configurable **issue alert frequency**:
+
+| Frequency | Interval |
+|-----------|----------|
+| `none` | Notifications disabled |
+| `hourly` | Every hour |
+| `6_hourly` | Every 6 hours |
+| `daily` | Every 24 hours (default) |
+| `weekly` | Every 7 days |
+
+The **issue notify** job runs hourly and checks each project's frequency. When a notification is due, it sends a digest email to all team members listing new and regressed issues with activity since the last notification. Only production issues (non-dev) are included.
+
+Configure the frequency via the project settings in the dashboard, CLI (`owlmetry projects update <id> --issue-alert-frequency daily`), or API (`PATCH /v1/projects/:id`).
+
+## Permissions
+
+| Permission | Description |
+|-----------|-------------|
+| `issues:read` | List issues, view details, list comments |
+| `issues:write` | Update status, merge, add/edit/delete comments |
+
+Both permissions are included in the default agent key permissions.

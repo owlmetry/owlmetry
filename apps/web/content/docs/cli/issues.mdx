@@ -1,0 +1,94 @@
+---
+title: Issues
+description: View and manage error issues from the OwlMetry CLI.
+---
+
+The `owlmetry issues` command group lets you list, investigate, and manage [issues](/docs/concepts/issues) — errors automatically detected and deduplicated from your app's events.
+
+## List Issues
+
+```bash
+owlmetry issues list --project-id <id> --format json
+```
+
+Lists issues for a project, ordered by most recently seen.
+
+### Filters
+
+| Flag | Description |
+|------|-------------|
+| `--status <status>` | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed` |
+| `--app-id <id>` | Filter to a specific app |
+| `--dev` | Show dev issues only |
+| `--limit <n>` | Max entries to return |
+| `--cursor <cursor>` | Pagination cursor from previous response |
+
+## View Issue Details
+
+```bash
+owlmetry issues view <issueId> --project-id <id> --format json
+```
+
+Shows full issue details including occurrences (affected sessions), comments, and fingerprints.
+
+## Resolve an Issue
+
+```bash
+owlmetry issues resolve <issueId> --project-id <id> --format json
+```
+
+Marks an issue as resolved. Optionally tag the fix version:
+
+```bash
+owlmetry issues resolve <issueId> --project-id <id> --version 2.1.0
+```
+
+If the error reappears in a newer version, the issue will automatically be marked as `regressed` by the scan job.
+
+## Silence an Issue
+
+```bash
+owlmetry issues silence <issueId> --project-id <id>
+```
+
+Silences notifications for the issue. Occurrences are still tracked — useful for known issues that don't need alerts.
+
+## Reopen an Issue
+
+```bash
+owlmetry issues reopen <issueId> --project-id <id>
+```
+
+Reopens a resolved or silenced issue, setting its status back to `new`.
+
+## Claim an Issue
+
+```bash
+owlmetry issues claim <issueId> --project-id <id>
+```
+
+Sets the issue to `in_progress`. Use this when you or an agent starts investigating or working on a fix.
+
+## Merge Issues
+
+```bash
+owlmetry issues merge <targetIssueId> --project-id <id> --source <sourceIssueId>
+```
+
+Merges the source issue into the target. All occurrences, fingerprints, and comments move to the target. The source is deleted. Future events matching either fingerprint will route to the surviving issue.
+
+## Add a Comment
+
+```bash
+owlmetry issues comment <issueId> --project-id <id> --body "Root cause: null pointer in UserService.fetch()"
+```
+
+Adds an investigation note to the issue. Comments are visible to all team members and preserved across merges.
+
+## List Comments
+
+```bash
+owlmetry issues comments <issueId> --project-id <id> --format json
+```
+
+Lists all comments on an issue in chronological order.

@@ -1,0 +1,182 @@
+---
+title: Issues
+description: Issue tracking API — list, view, update, merge issues and manage comments.
+---
+
+Manage [issues](/docs/concepts/issues) — errors automatically detected and grouped from ingested events.
+
+## GET /v1/projects/:projectId/issues
+
+List issues for a project. Results are ordered by most recently seen.
+
+**Auth required:** Yes (`issues:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`. |
+| `app_id` | string | Filter to a specific app. |
+| `is_dev` | string | Filter by dev mode: `true` or `false`. |
+| `cursor` | string | Cursor from previous response for pagination. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+```json
+{
+  "issues": [
+    {
+      "id": "uuid",
+      "app_id": "uuid",
+      "project_id": "uuid",
+      "status": "new",
+      "title": "Connection refused",
+      "source_module": "NetworkService",
+      "is_dev": false,
+      "occurrence_count": 42,
+      "unique_user_count": 15,
+      "resolved_at_version": null,
+      "first_seen_at": "2024-01-15T10:00:00.000Z",
+      "last_seen_at": "2024-01-15T14:30:00.000Z",
+      "last_notified_at": "2024-01-15T13:00:00.000Z",
+      "created_at": "2024-01-15T10:00:00.000Z",
+      "updated_at": "2024-01-15T14:30:00.000Z",
+      "fingerprints": ["a1b2c3..."],
+      "app_name": "iOS App"
+    }
+  ],
+  "cursor": "uuid-or-null",
+  "has_more": false
+}
+```
+
+## GET /v1/projects/:projectId/issues/:issueId
+
+Get full issue details including paginated occurrences, comments, and fingerprints.
+
+**Auth required:** Yes (`issues:read`)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `occurrence_cursor` | string | Cursor for occurrence pagination. |
+| `occurrence_limit` | number | Max occurrences per page (1-200, default 50). |
+
+### Response
+
+Extends the list response with:
+
+```json
+{
+  "occurrences": [
+    {
+      "id": "uuid",
+      "issue_id": "uuid",
+      "session_id": "uuid",
+      "user_id": "user123",
+      "app_version": "2.1.0",
+      "environment": "ios",
+      "event_id": "uuid",
+      "timestamp": "2024-01-15T14:30:00.000Z",
+      "created_at": "2024-01-15T14:30:01.000Z"
+    }
+  ],
+  "occurrence_cursor": "uuid-or-null",
+  "occurrence_has_more": false,
+  "comments": [
+    {
+      "id": "uuid",
+      "issue_id": "uuid",
+      "author_type": "user",
+      "author_id": "uuid",
+      "author_name": "Jane Doe",
+      "body": "Investigating root cause...",
+      "created_at": "2024-01-15T15:00:00.000Z",
+      "updated_at": "2024-01-15T15:00:00.000Z"
+    }
+  ]
+}
+```
+
+## PATCH /v1/projects/:projectId/issues/:issueId
+
+Update issue status. Validates status transitions.
+
+**Auth required:** Yes (`issues:write`)
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | string | Yes | Target status: `new`, `in_progress`, `resolved`, `silenced`. Note: `regressed` is set automatically by the scan job. |
+| `resolved_at_version` | string | No | App version where the fix was applied. Only used when `status` is `resolved`. |
+
+### Valid status transitions
+
+| From | Allowed targets |
+|------|----------------|
+| `new` | `in_progress`, `resolved`, `silenced` |
+| `in_progress` | `new`, `resolved`, `silenced` |
+| `resolved` | `new`, `silenced` |
+| `regressed` | `in_progress`, `resolved`, `silenced` |
+| `silenced` | `new`, `in_progress`, `resolved` |
+
+Returns 400 if the transition is not allowed.
+
+## POST /v1/projects/:projectId/issues/:issueId/merge
+
+Merge a source issue into the target issue. Moves all fingerprints, occurrences (deduplicated by session), and comments to the target. Deletes the source.
+
+**Auth required:** Yes (`issues:write`)
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source_issue_id` | string | Yes | The issue to merge from (will be deleted). |
+
+Both issues must belong to the same project. Returns 400 if merging into itself.
+
+## GET /v1/projects/:projectId/issues/:issueId/comments
+
+List comments on an issue in chronological order. Soft-deleted comments are excluded.
+
+**Auth required:** Yes (`issues:read`)
+
+## POST /v1/projects/:projectId/issues/:issueId/comments
+
+Add a comment to an issue. Author is resolved from auth context (user JWT or agent API key).
+
+**Auth required:** Yes (`issues:write`)
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `body` | string | Yes | Comment text. Markdown supported. |
+
+Returns 201 with the created comment.
+
+## PATCH /v1/projects/:projectId/issues/:issueId/comments/:commentId
+
+Edit a comment. Only the original author can edit.
+
+**Auth required:** Yes (`issues:write`)
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `body` | string | Yes | Updated comment text. |
+
+Returns 403 if the authenticated user/agent is not the original author.
+
+## DELETE /v1/projects/:projectId/issues/:issueId/comments/:commentId
+
+Soft-delete a comment. The original author or a team admin/owner can delete.
+
+**Auth required:** Yes (`issues:write`)
+
+Returns `{ "deleted": true }`.
