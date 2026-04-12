@@ -286,7 +286,12 @@ function IssueDetailModal({
                   {issue.occurrences.map((occ) => (
                     <div key={occ.id} className="grid grid-cols-5 gap-2 p-2">
                       <span>{new Date(occ.timestamp).toLocaleString()}</span>
-                      <span className="font-mono truncate">{occ.session_id.slice(0, 8)}…</span>
+                      <a
+                        href={`/dashboard/events?session_id=${occ.session_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono truncate text-primary hover:underline"
+                      >{occ.session_id.slice(0, 8)}…</a>
                       <span className="truncate">{occ.user_id ?? <span className="text-muted-foreground">anon</span>}</span>
                       <span>{occ.app_version ?? "—"}</span>
                       <span>{occ.environment ?? "—"}</span>
