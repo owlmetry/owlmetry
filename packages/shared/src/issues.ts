@@ -26,6 +26,7 @@ export interface IssueResponse {
   updated_at: string;
   fingerprints: string[];
   app_name?: string;
+  project_name?: string;
 }
 
 export interface IssueOccurrenceResponse {
@@ -63,9 +64,12 @@ export interface IssueDetailResponse extends IssueResponse {
 // --- API Request Types ---
 
 export interface IssuesQueryParams {
+  team_id?: string;
+  project_id?: string;
   status?: string;
   app_id?: string;
   is_dev?: string;
+  data_mode?: string;
   cursor?: string;
   limit?: string;
 }

@@ -1,17 +1,20 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
-import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys } from "@owlmetry/db";
+import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys, projects } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES } from "@owlmetry/shared";
 import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { resolveProject } from "../utils/project.js";
+import { dataModeToDrizzle } from "../utils/data-mode.js";
+import { normalizeLimit } from "../utils/pagination.js";
 
 function serializeIssue(
   row: typeof issues.$inferSelect,
   fingerprints: string[],
   appName?: string,
+  projectName?: string,
 ) {
   return {
     id: row.id,
@@ -31,6 +34,7 @@ function serializeIssue(
     updated_at: row.updated_at.toISOString(),
     fingerprints,
     ...(appName !== undefined ? { app_name: appName } : {}),
+    ...(projectName !== undefined ? { project_name: projectName } : {}),
   };
 }
 
@@ -536,6 +540,101 @@ export async function issuesRoutes(app: FastifyInstance) {
         .where(eq(issueComments.id, commentId));
 
       return { deleted: true };
+    }
+  );
+}
+
+/** Team-level issues route at /v1/issues (mirrors events pattern) */
+export async function teamIssuesRoutes(app: FastifyInstance) {
+  app.get<{ Querystring: IssuesQueryParams }>(
+    "/issues",
+    { preHandler: requirePermission("issues:read") },
+    async (request) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+
+      const { team_id, project_id, status, app_id, is_dev, data_mode, cursor, limit: rawLimit } = request.query;
+      const limit = normalizeLimit(rawLimit);
+
+      // Scope to requested team or all accessible teams
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
+      if (teamIds.length === 0) {
+        return { issues: [], cursor: null, has_more: false };
+      }
+
+      // Find accessible project IDs
+      const projectConditions = [inArray(projects.team_id, teamIds), isNull(projects.deleted_at)];
+      if (project_id) {
+        projectConditions.push(eq(projects.id, project_id));
+      }
+      const accessibleProjects = await app.db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(and(...projectConditions));
+
+      if (accessibleProjects.length === 0) {
+        return { issues: [], cursor: null, has_more: false };
+      }
+
+      const projectIds = accessibleProjects.map((p) => p.id);
+      const projectNameMap = new Map(accessibleProjects.map((p) => [p.id, p.name]));
+
+      // Build conditions
+      const conditions = [inArray(issues.project_id, projectIds)];
+
+      if (status && ISSUE_STATUSES.includes(status as IssueStatus)) {
+        conditions.push(eq(issues.status, status as IssueStatus));
+      }
+      if (app_id) {
+        conditions.push(eq(issues.app_id, app_id));
+      }
+      const devCondition = dataModeToDrizzle(issues.is_dev, data_mode as any);
+      if (devCondition) conditions.push(devCondition);
+
+      if (cursor) {
+        conditions.push(sql`${issues.id} < ${cursor}`);
+      }
+
+      const rows = await app.db
+        .select()
+        .from(issues)
+        .where(and(...conditions))
+        .orderBy(desc(issues.last_seen_at), desc(issues.id))
+        .limit(limit + 1);
+
+      const hasMore = rows.length > limit;
+      const page = hasMore ? rows.slice(0, limit) : rows;
+
+      // Fetch fingerprints
+      const issueIds = page.map((i) => i.id);
+      const fpRows = issueIds.length > 0
+        ? await app.db
+            .select({ issue_id: issueFingerprints.issue_id, fingerprint: issueFingerprints.fingerprint })
+            .from(issueFingerprints)
+            .where(inArray(issueFingerprints.issue_id, issueIds))
+        : [];
+      const fpMap = new Map<string, string[]>();
+      for (const fp of fpRows) {
+        const list = fpMap.get(fp.issue_id) ?? [];
+        list.push(fp.fingerprint);
+        fpMap.set(fp.issue_id, list);
+      }
+
+      // Fetch app names
+      const appIds = [...new Set(page.map((i) => i.app_id))];
+      const appRows = appIds.length > 0
+        ? await app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
+        : [];
+      const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
+
+      return {
+        issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id), projectNameMap.get(i.project_id))),
+        cursor: hasMore ? page[page.length - 1].id : null,
+        has_more: hasMore,
+      };
     }
   );
 }

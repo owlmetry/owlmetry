@@ -5,9 +5,10 @@ import { api } from "@/lib/api";
 import { buildQueryString } from "@/lib/query";
 import type { IssuesResponse, IssueDetailResponse, IssuesQueryParams } from "@owlmetry/shared";
 
-export function useIssues(projectId: string | undefined, filters: Partial<IssuesQueryParams> = {}) {
+export function useIssues(filters: Partial<IssuesQueryParams> = {}) {
   const qs = buildQueryString(filters);
-  const key = projectId ? `/v1/projects/${projectId}/issues${qs ? `?${qs}` : ""}` : null;
+  const hasTeamOrProject = filters.team_id || filters.project_id;
+  const key = hasTeamOrProject ? `/v1/issues${qs ? `?${qs}` : ""}` : null;
 
   const { data, isLoading, error, mutate } = useSWR<IssuesResponse>(key, {
     refreshInterval: 30_000,

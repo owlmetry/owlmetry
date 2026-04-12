@@ -5,8 +5,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, IssueResponse, IssueStatus } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
-import { api } from "@/lib/api";
+import { formatDateTime } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -59,7 +59,6 @@ function timeAgo(dateStr: string): string {
 }
 
 function IssueCard({ issue, onClick }: { issue: IssueResponse; onClick: () => void }) {
-  const config = STATUS_CONFIG[issue.status];
   return (
     <Card
       className="cursor-pointer hover:border-primary/30 transition-colors"
@@ -81,16 +80,23 @@ function IssueCard({ issue, onClick }: { issue: IssueResponse; onClick: () => vo
             {timeAgo(issue.last_seen_at)}
           </span>
         </div>
-        {issue.app_name && (
-          <Badge variant="outline" className="text-[10px] h-5">
-            {issue.app_name}
-          </Badge>
-        )}
-        {issue.is_dev && (
-          <Badge variant="secondary" className="text-[10px] h-5 ml-1">
-            🛠️ dev
-          </Badge>
-        )}
+        <div className="flex items-center gap-1 flex-wrap">
+          {issue.project_name && (
+            <Badge variant="outline" className="text-[10px] h-5">
+              {issue.project_name}
+            </Badge>
+          )}
+          {issue.app_name && (
+            <Badge variant="outline" className="text-[10px] h-5">
+              {issue.app_name}
+            </Badge>
+          )}
+          {issue.is_dev && (
+            <Badge variant="secondary" className="text-[10px] h-5">
+              🛠️ dev
+            </Badge>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -102,19 +108,23 @@ function IssueDetailModal({
   open,
   onClose,
   onMutate,
+  allIssues,
 }: {
   projectId: string;
   issueId: string;
   open: boolean;
   onClose: () => void;
   onMutate: () => void;
+  allIssues: IssueResponse[];
 }) {
   const { issue, isLoading, mutate: mutateIssue } = useIssue(projectId, issueId);
   const [resolveVersion, setResolveVersion] = useState("");
   const [showResolveInput, setShowResolveInput] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const { issues: allIssues } = useIssues(projectId);
+
+  // Only show merge candidates from the same project
+  const mergeableSameProject = allIssues.filter((i) => i.id !== issueId && i.project_id === projectId);
 
   const handleStatusChange = async (status: string, version?: string) => {
     setActionLoading(true);
@@ -170,8 +180,8 @@ function IssueDetailModal({
               <div><span className="text-muted-foreground">Source:</span> {issue.source_module ?? "—"}</div>
               <div><span className="text-muted-foreground">Occurrences:</span> {issue.occurrence_count}</div>
               <div><span className="text-muted-foreground">Unique Users:</span> {issue.unique_user_count}</div>
-              <div><span className="text-muted-foreground">First Seen:</span> {new Date(issue.first_seen_at).toLocaleString()}</div>
-              <div><span className="text-muted-foreground">Last Seen:</span> {new Date(issue.last_seen_at).toLocaleString()}</div>
+              <div><span className="text-muted-foreground">First Seen:</span> {formatDateTime(issue.first_seen_at)}</div>
+              <div><span className="text-muted-foreground">Last Seen:</span> {formatDateTime(issue.last_seen_at)}</div>
               {issue.resolved_at_version && (
                 <div className="col-span-2"><span className="text-muted-foreground">Resolved In:</span> v{issue.resolved_at_version}</div>
               )}
@@ -220,15 +230,13 @@ function IssueDetailModal({
                         🆕 Reopen
                       </DropdownMenuItem>
                     )}
-                    {allIssues.filter((i) => i.id !== issueId).length > 0 && (
+                    {mergeableSameProject.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuSub>
                           <DropdownMenuSubTrigger>Merge into this</DropdownMenuSubTrigger>
                           <DropdownMenuSubContent className="max-h-48 overflow-y-auto">
-                            {allIssues
-                              .filter((i) => i.id !== issueId)
-                              .map((i) => (
+                            {mergeableSameProject.map((i) => (
                                 <DropdownMenuItem
                                   key={i.id}
                                   onClick={async () => {
@@ -266,7 +274,7 @@ function IssueDetailModal({
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                       <span>{c.author_type === "agent" ? "🕶️" : "👤"} {c.author_name}</span>
                       <span>·</span>
-                      <span>{new Date(c.created_at).toLocaleString()}</span>
+                      <span>{formatDateTime(c.created_at)}</span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{c.body}</p>
                   </div>
@@ -301,7 +309,7 @@ function IssueDetailModal({
                   </div>
                   {issue.occurrences.map((occ) => (
                     <div key={occ.id} className="grid grid-cols-5 gap-2 p-2">
-                      <span>{new Date(occ.timestamp).toLocaleString()}</span>
+                      <span>{formatDateTime(occ.timestamp)}</span>
                       <a
                         href={`/dashboard/events?session_id=${occ.session_id}`}
                         target="_blank"
@@ -339,6 +347,7 @@ export default function IssuesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentTeam } = useTeam();
+  const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
 
   const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
@@ -346,18 +355,26 @@ export default function IssuesPage() {
   );
   const projects = projectsData?.projects ?? [];
 
-  const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? "");
+  const ALL = "__all__";
+  const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? ALL);
   function setProjectId(id: string) {
     setProjectIdState(id);
     const params = new URLSearchParams();
-    if (id) params.set("project_id", id);
+    if (id && id !== ALL) params.set("project_id", id);
     const qs = params.toString();
     router.replace(`/dashboard/issues${qs ? `?${qs}` : ""}`, { scroll: false });
   }
-  const selectedProjectId = projectId || projects[0]?.id || "";
 
-  const { issues, isLoading, mutate } = useIssues(selectedProjectId || undefined);
+  const selectedProjectId = projectId !== ALL ? projectId : "";
+
+  const { issues, isLoading, mutate } = useIssues({
+    team_id: teamId,
+    ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
+    data_mode: dataMode,
+  });
+
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const selectedIssue = selectedIssueId ? issues.find((i) => i.id === selectedIssueId) : null;
 
   // Group issues by status for kanban columns
   const issuesByStatus: Record<string, IssueResponse[]> = {};
@@ -367,29 +384,24 @@ export default function IssuesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Project</label>
-            <Select value={selectedProjectId} onValueChange={setProjectId}>
-              <SelectTrigger className="w-[220px] h-8 text-xs">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Project</label>
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger className="w-[220px] h-8 text-xs">
+              <SelectValue placeholder="All projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All projects</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {!selectedProjectId ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <p className="text-sm">Select a project to view issues</p>
-        </div>
-      ) : isLoading ? (
+      {isLoading ? (
         <p className="text-muted-foreground">Loading issues...</p>
       ) : issues.length === 0 ? (
         <div className="text-center py-12">
@@ -433,13 +445,14 @@ export default function IssuesPage() {
         </div>
       )}
 
-      {selectedIssueId && selectedProjectId && (
+      {selectedIssueId && selectedIssue && (
         <IssueDetailModal
-          projectId={selectedProjectId}
+          projectId={selectedIssue.project_id}
           issueId={selectedIssueId}
           open={!!selectedIssueId}
           onClose={() => setSelectedIssueId(null)}
           onMutate={() => mutate()}
+          allIssues={issues}
         />
       )}
     </div>
