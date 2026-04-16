@@ -46,7 +46,7 @@ export default function UsersPage() {
       app_id: "",
       search: "",
       is_anonymous: "",
-      time_range: "24h",
+      time_range: "",
       since: "",
       until: "",
     },
@@ -113,7 +113,7 @@ export default function UsersPage() {
     const c: FilterChip[] = [];
     if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId), onDismiss: () => filters.set("project_id", "") });
     if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId), onDismiss: () => filters.set("app_id", "") });
-    if (timeRange && timeRange !== "24h") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "24h", since: "", until: "" }) });
+    if (timeRange) c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "", since: "", until: "" }) });
     if (isAnonymous) c.push({ label: "Type", value: isAnonymous === "true" ? "Anonymous" : "Real", onDismiss: () => filters.set("is_anonymous", "") });
     if (search) c.push({ label: "Search", value: truncateId(search), onDismiss: () => filters.set("search", "") });
     return c;
@@ -161,11 +161,15 @@ export default function UsersPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Time Range</label>
-          <Select value={filters.get("time_range")} onValueChange={filters.handleTimeRangeChange}>
+          <Select
+            value={filters.get("time_range") || "all"}
+            onValueChange={(v) => filters.handleTimeRangeChange(v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
               {TIME_RANGES.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
