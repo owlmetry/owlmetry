@@ -64,11 +64,16 @@ async function getProjectUsers(projectId: string) {
 
 /** Poll until a condition is met on app_users, to avoid flaky fire-and-forget race. */
 async function waitForAppUser(projectId: string, userId: string, maxWaitMs = 2000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const users = await getProjectUsers(projectId);
-    if (users.some((u: any) => u.user_id === userId)) return;
-    await new Promise((r) => setTimeout(r, 50));
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  try {
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      const rows = await client`SELECT 1 FROM app_users WHERE project_id = ${projectId} AND user_id = ${userId} LIMIT 1`;
+      if (rows.length > 0) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  } finally {
+    await client.end();
   }
 }
 
@@ -81,11 +86,16 @@ async function getMetricEvents(appId: string) {
 
 /** Poll until expected metric_events appear, to avoid flaky fire-and-forget race. */
 async function waitForMetricEvents(appId: string, expectedCount: number, maxWaitMs = 2000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < maxWaitMs) {
-    const rows = await getMetricEvents(appId);
-    if (rows.length >= expectedCount) return;
-    await new Promise((r) => setTimeout(r, 50));
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  try {
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      const [{ count }] = await client`SELECT COUNT(*)::int AS count FROM metric_events WHERE app_id = ${appId}`;
+      if (count >= expectedCount) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  } finally {
+    await client.end();
   }
 }
 
