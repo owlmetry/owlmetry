@@ -42,14 +42,18 @@ export async function auditLogsRoutes(app: FastifyInstance) {
       if (until) conditions.push(lte(auditLogs.timestamp, parseTimeParam(until)));
 
       // Cursor-based pagination: cursor is "timestamp|id"
+      // Note: PostgreSQL timestamps have microsecond precision but JavaScript
+      // Dates have only millisecond precision. Use a range to cover the full
+      // millisecond instead of exact equality for the tie-breaker.
       if (cursor) {
         const [cursorTs, cursorId] = cursor.split("|");
         if (cursorTs && cursorId) {
           const cursorDate = new Date(cursorTs);
+          const cursorNextMs = new Date(cursorDate.getTime() + 1);
           conditions.push(
             or(
               lt(auditLogs.timestamp, cursorDate),
-              and(eq(auditLogs.timestamp, cursorDate), lt(auditLogs.id, cursorId)),
+              and(gte(auditLogs.timestamp, cursorDate), lt(auditLogs.timestamp, cursorNextMs), lt(auditLogs.id, cursorId)),
             )!,
           );
         }

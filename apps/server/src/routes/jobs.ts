@@ -41,10 +41,11 @@ export async function jobsRoutes(app: FastifyInstance) {
         const [cursorTs, cursorId] = cursor.split("|");
         if (cursorTs && cursorId) {
           const cursorDate = new Date(cursorTs);
+          const cursorNextMs = new Date(cursorDate.getTime() + 1);
           conditions.push(
             or(
               lt(jobRuns.created_at, cursorDate),
-              and(eq(jobRuns.created_at, cursorDate), lt(jobRuns.id, cursorId)),
+              and(gte(jobRuns.created_at, cursorDate), lt(jobRuns.created_at, cursorNextMs), lt(jobRuns.id, cursorId)),
             )!,
           );
         }
