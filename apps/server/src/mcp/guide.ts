@@ -121,7 +121,7 @@ To fully investigate an issue, follow this workflow:
    - \`event_id\` — the specific error event
    - \`app_version\` / \`environment\` — which build and platform
    - \`timestamp\` — when it happened
-4. **Reconstruct the session**: Pick an occurrence and use \`query-events\` with \`session_id\` to see **every event in that session** — what screens the user visited, what actions they took, and what led up to the error. Sort by timestamp to build a timeline.
+4. **Reconstruct the session**: Pick an occurrence and use \`query-events\` with \`session_id\` to see **every event in that session** — what screens the user visited, what actions they took, and what led up to the error. Sort by timestamp to build a timeline. Pass \`compact: true\` to drop verbose fields (custom_attributes, experiments, device metadata) and avoid MCP token overflow on long sessions.
 5. **Read the error event**: Use \`get-event\` with the occurrence's \`event_id\` to see the full error details including \`custom_attributes\` (stack traces, error codes, etc.).
 6. **Check multiple occurrences**: Repeat steps 4-5 for other occurrences to see if the error has a common pattern (same screen, same version, same user flow).
 7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, affected versions, reproduction steps, or a fix plan. This is visible to the team.
@@ -155,9 +155,9 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`list-app-users\` — List users for an app (search, anonymous filter, pagination)
 
 ### Events
-- \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination.
+- \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`compact: true\` to drop verbose fields.
 - \`get-event\` — Get full event details by ID
-- \`investigate-event\` — Get target event + surrounding context events from same app/user within a time window (default 5 min)
+- \`investigate-event\` — Get target event + surrounding context events from same app/user within a time window (default 5 min). Use when you don't have a \`session_id\`; for single-session drill-down, prefer \`query-events\` with \`session_id\`. Supports \`compact: true\`.
 
 ### Metrics
 - \`list-metrics\` — List definitions for a project
@@ -254,7 +254,7 @@ If a tool returns a permissions error, the agent key is missing the required per
 1. \`list-issues\` → find open issues sorted by severity
 2. \`claim-issue\` → mark as in_progress
 3. \`get-issue\` → read occurrences (each has \`session_id\`, \`event_id\`, \`user_id\`)
-4. \`query-events\` with \`session_id\` → reconstruct the full session timeline to see what led to the error
+4. \`query-events\` with \`session_id\` (add \`compact: true\` for long sessions) → reconstruct the full session timeline to see what led to the error
 5. \`get-event\` with \`event_id\` → read the full error details (custom_attributes, stack trace)
 6. Repeat for multiple occurrences to find common patterns
 7. \`add-issue-comment\` → document root cause and findings

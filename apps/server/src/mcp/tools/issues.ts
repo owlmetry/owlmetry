@@ -23,7 +23,7 @@ export function registerIssuesTools(server: McpServer, app: FastifyInstance, age
   });
 
   server.registerTool("get-issue", {
-    description: "Get details of a specific issue, including occurrences (sessions affected), comments, and fingerprints.",
+    description: "Get details of a specific issue, including occurrences (sessions affected), comments, and fingerprints. Each occurrence includes a session_id — pass it to query-events to reconstruct the full session timeline around the error.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       issue_id: z.string().uuid().describe("The issue ID"),

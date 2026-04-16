@@ -515,6 +515,90 @@ describe("MCP endpoint", () => {
       expect(parsed.target.message).toBe("target");
       expect(parsed.context.length).toBeGreaterThanOrEqual(2);
     });
+
+    it("query-events compact=true drops verbose fields", async () => {
+      const now = new Date();
+      await ingestEvents([
+        {
+          level: "info",
+          message: "compact me",
+          session_id: TEST_SESSION_ID,
+          timestamp: now.toISOString(),
+          screen_name: "HomeScreen",
+          custom_attributes: { big_payload: "x".repeat(200) },
+          experiments: { flag_a: "on" },
+          device_model: "iPhone15,2",
+        },
+      ]);
+
+      // Default: full shape preserved
+      const { parsed: full } = parseToolResult(
+        await callTool(TEST_AGENT_KEY, "query-events", { app_id: testData.appId, data_mode: "all" }),
+      );
+      expect(full.events[0].custom_attributes).toBeTruthy();
+      expect(full.events[0].device_model).toBe("iPhone15,2");
+
+      // Compact: verbose fields dropped, essentials kept
+      const { parsed: compact } = parseToolResult(
+        await callTool(TEST_AGENT_KEY, "query-events", { app_id: testData.appId, data_mode: "all", compact: true }),
+      );
+      expect(compact.events.length).toBe(1);
+      expect(compact.events[0].message).toBe("compact me");
+      expect(compact.events[0].screen_name).toBe("HomeScreen");
+      expect(compact.events[0].level).toBe("info");
+      expect(compact.events[0].timestamp).toBeTruthy();
+      expect(compact.events[0].custom_attributes).toBeUndefined();
+      expect(compact.events[0].experiments).toBeUndefined();
+      expect(compact.events[0].device_model).toBeUndefined();
+      expect(compact.events[0].app_id).toBeUndefined();
+      // Pagination metadata still present
+      expect(compact.has_more).toBe(false);
+    });
+
+    it("investigate-event compact=true shapes target and context", async () => {
+      const now = new Date();
+      await ingestEvents([
+        {
+          level: "info",
+          message: "before",
+          session_id: TEST_SESSION_ID,
+          timestamp: new Date(now.getTime() - 60000).toISOString(),
+          custom_attributes: { a: "1" },
+        },
+        {
+          level: "error",
+          message: "target",
+          session_id: TEST_SESSION_ID,
+          timestamp: now.toISOString(),
+          custom_attributes: { stack: "boom" },
+          device_model: "iPhone15,2",
+        },
+      ]);
+
+      const { parsed: queried } = parseToolResult(
+        await callTool(TEST_AGENT_KEY, "query-events", { app_id: testData.appId, data_mode: "all" }),
+      );
+      const target = queried.events.find((e: { message: string }) => e.message === "target");
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(TEST_AGENT_KEY, "investigate-event", {
+          event_id: target.id,
+          window_minutes: 5,
+          data_mode: "all",
+          compact: true,
+        }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.target.message).toBe("target");
+      expect(parsed.target.custom_attributes).toBeUndefined();
+      expect(parsed.target.device_model).toBeUndefined();
+      expect(parsed.context.length).toBeGreaterThanOrEqual(2);
+      for (const ev of parsed.context) {
+        expect(ev.custom_attributes).toBeUndefined();
+        expect(ev.device_model).toBeUndefined();
+        expect(ev.timestamp).toBeTruthy();
+      }
+    });
   });
 
   // ── Metrics CRUD + query ──────────────────────────────────────────────
