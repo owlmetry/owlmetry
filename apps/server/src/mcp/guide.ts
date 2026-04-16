@@ -100,7 +100,7 @@ Third-party service connections (e.g., RevenueCat) that sync data into user prop
 
 ### Issues
 Error events are automatically scanned hourly and grouped into **issues** via fingerprinting (normalized error message + source module). Each issue tracks:
-- **Occurrences**: one per unique session — links to the session for investigation
+- **Occurrences**: one per unique session. Each occurrence records the \`session_id\`, \`user_id\`, \`event_id\`, \`app_version\`, and \`environment\` — use these to drill into what happened.
 - **Unique users**: how many distinct users are affected (severity indicator)
 - **Status lifecycle**: \`new\` → \`in_progress\` (claimed by agent/user) → \`resolved\` (optionally with app version) → may \`regress\` if the error reappears in a newer version. Issues can also be \`silenced\` to suppress notifications while still tracking occurrences.
 - **Comments**: investigation notes from users (\`👤\`) and agents (\`🕶️\`). Markdown supported.
@@ -108,6 +108,24 @@ Error events are automatically scanned hourly and grouped into **issues** via fi
 - **Notifications**: per-project configurable email digest (none/hourly/6-hourly/daily/weekly). Only non-dev, new/regressed issues with activity since last notification are included.
 
 Dev events (\`is_dev = true\`) create separate issues — they are tracked but never trigger notifications.
+
+#### Investigating an issue
+
+To fully investigate an issue, follow this workflow:
+
+1. **Find the issue**: \`list-issues\` with \`project_id\` to see open issues sorted by severity (unique users affected). Filter by \`status: "new"\` to focus on uninvestigated issues.
+2. **Claim it**: \`claim-issue\` to set status to \`in_progress\`, signaling that you're investigating.
+3. **Read the detail**: \`get-issue\` returns the issue with its \`occurrences\` array. Each occurrence represents a unique session where the error happened and includes:
+   - \`session_id\` — the session where the error occurred
+   - \`user_id\` — the affected user (null if anonymous)
+   - \`event_id\` — the specific error event
+   - \`app_version\` / \`environment\` — which build and platform
+   - \`timestamp\` — when it happened
+4. **Reconstruct the session**: Pick an occurrence and use \`query-events\` with \`session_id\` to see **every event in that session** — what screens the user visited, what actions they took, and what led up to the error. Sort by timestamp to build a timeline.
+5. **Read the error event**: Use \`get-event\` with the occurrence's \`event_id\` to see the full error details including \`custom_attributes\` (stack traces, error codes, etc.).
+6. **Check multiple occurrences**: Repeat steps 4-5 for other occurrences to see if the error has a common pattern (same screen, same version, same user flow).
+7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, affected versions, reproduction steps, or a fix plan. This is visible to the team.
+8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
 
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.
@@ -227,11 +245,20 @@ If a tool returns a permissions error, the agent key is missing the required per
 3. Instrument the SDK code with the corresponding metric slugs and step names — see the SDK guides for API details
 
 ### Querying and analysis
-1. \`query-events\` → search for specific events, errors, or user activity
-2. \`investigate-event\` → get context around a specific event (flight recorder)
-3. \`query-metric\` → aggregated performance stats with grouping
-4. \`list-metric-events\` → drill into individual metric events
-5. \`query-funnel\` → conversion rates and drop-off analysis
+1. \`query-events\` → search for specific events, errors, or user activity. Use \`session_id\` to reconstruct a full user session.
+2. \`query-metric\` → aggregated performance stats with grouping
+3. \`list-metric-events\` → drill into individual metric events
+4. \`query-funnel\` → conversion rates and drop-off analysis
+
+### Investigating issues
+1. \`list-issues\` → find open issues sorted by severity
+2. \`claim-issue\` → mark as in_progress
+3. \`get-issue\` → read occurrences (each has \`session_id\`, \`event_id\`, \`user_id\`)
+4. \`query-events\` with \`session_id\` → reconstruct the full session timeline to see what led to the error
+5. \`get-event\` with \`event_id\` → read the full error details (custom_attributes, stack trace)
+6. Repeat for multiple occurrences to find common patterns
+7. \`add-issue-comment\` → document root cause and findings
+8. \`resolve-issue\` → mark resolved with fix version
 
 ### Connecting integrations (RevenueCat)
 1. Ask the user for their RevenueCat V2 Secret API key (the only input needed)

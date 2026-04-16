@@ -26,6 +26,10 @@ Query analytics events with flexible filters. Defaults to the last 24 hours.
 
 Returns `{ events: [...], cursor, has_more }`. Pass `cursor` to the next call for pagination.
 
+### Session reconstruction
+
+Use `session_id` to reconstruct a full user session — every event the SDK logged during that session, in order. This is the primary way to investigate [issues](/docs/mcp/issues): get an occurrence's `session_id` from `get-issue`, then `query-events` with that `session_id` to see what the user did before, during, and after the error.
+
 ### Time formats
 
 **Relative** — a number followed by a unit suffix:

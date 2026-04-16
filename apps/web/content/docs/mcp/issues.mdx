@@ -5,6 +5,23 @@ description: List, investigate, and manage error issues via MCP tools.
 
 Error [issues](/docs/concepts/issues) are automatically detected from error events and grouped by fingerprint. Use these tools to investigate issues, update their status, merge duplicates, and add investigation notes.
 
+## Investigation workflow
+
+To fully investigate an issue from discovery to resolution:
+
+1. **Find the issue** — `list-issues` with `project_id` to see open issues sorted by severity. Filter `status: "new"` for uninvestigated issues.
+2. **Claim it** — `claim-issue` to set status to `in_progress`, signaling you're investigating.
+3. **Read the detail** — `get-issue` returns the issue with its `occurrences` array. Each occurrence has:
+   - `session_id` — the session where the error occurred
+   - `user_id` — the affected user (null if anonymous)
+   - `event_id` — the specific error event
+   - `app_version` / `environment` — which build and platform
+4. **Reconstruct the session** — Use [`query-events`](/docs/mcp/events#query-events) with the occurrence's `session_id` to see every event in that session — what screens the user visited, what actions they took, and what led up to the error.
+5. **Read the error event** — Use [`get-event`](/docs/mcp/events#get-event) with the occurrence's `event_id` to see full error details including `custom_attributes` (stack traces, error codes, etc.).
+6. **Check multiple occurrences** — Repeat steps 4-5 for other occurrences to find common patterns (same screen, same version, same user flow).
+7. **Document findings** — `add-issue-comment` to record root cause, affected versions, reproduction steps, or a fix plan. Visible to the whole team.
+8. **Resolve or escalate** — `resolve-issue` with the fix version once patched, or leave the comment for the team to act on.
+
 ## list-issues
 
 List issues for a project, ordered by most recently seen. Filter by status, app, or dev/prod mode.
