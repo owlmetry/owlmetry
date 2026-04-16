@@ -203,6 +203,6 @@ export const issueScanHandler: JobHandler = async (ctx) => {
     issues_created: issuesCreated,
     issues_regressed: issuesRegressed,
     occurrences_created: occurrencesCreated,
-    _silent: eventsProcessed === 0,
+    _silent: issuesCreated === 0 && issuesRegressed === 0,
   };
 };
