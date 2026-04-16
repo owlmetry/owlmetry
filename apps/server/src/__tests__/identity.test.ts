@@ -62,11 +62,31 @@ async function getProjectUsers(projectId: string) {
   return rows;
 }
 
+/** Poll until a condition is met on app_users, to avoid flaky fire-and-forget race. */
+async function waitForAppUser(projectId: string, userId: string, maxWaitMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const users = await getProjectUsers(projectId);
+    if (users.some((u: any) => u.user_id === userId)) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 async function getMetricEvents(appId: string) {
   const client = postgres(TEST_DB_URL, { max: 1 });
   const rows = await client`SELECT * FROM metric_events WHERE app_id = ${appId}`;
   await client.end();
   return rows;
+}
+
+/** Poll until expected metric_events appear, to avoid flaky fire-and-forget race. */
+async function waitForMetricEvents(appId: string, expectedCount: number, maxWaitMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    const rows = await getMetricEvents(appId);
+    if (rows.length >= expectedCount) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
 }
 
 describe("POST /v1/identity/claim", () => {
@@ -195,22 +215,22 @@ describe("POST /v1/identity/claim", () => {
   it("creates app_users row on ingest and merges on claim", async () => {
     const anonId = "owl_anon_test-app-users";
 
-    // Ingest to create anonymous app_user
-    const ingestRes = await ingest([
-      { level: "info", message: "test", user_id: anonId, session_id: TEST_SESSION_ID },
-    ]);
-    expect(ingestRes.statusCode).toBe(200);
-
-    // Wait briefly for fire-and-forget upsert
-    await new Promise((r) => setTimeout(r, 100));
-
     // Get project_id from test data
     const seedData = await app.inject({
       method: "GET",
       url: "/v1/apps",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
     });
-    const projectId = seedData.json().apps[0].project_id;
+    const projectId = seedData.json().apps.find((a: any) => a.bundle_id === TEST_BUNDLE_ID).project_id;
+
+    // Ingest to create anonymous app_user
+    const ingestRes = await ingest([
+      { level: "info", message: "test", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+    expect(ingestRes.statusCode).toBe(200);
+
+    // Wait for fire-and-forget upsert to complete
+    await waitForAppUser(projectId, anonId);
 
     // Verify anonymous user was created
     let users = await getProjectUsers(projectId);
@@ -237,25 +257,26 @@ describe("POST /v1/identity/claim", () => {
   it("merges into existing real user on claim", async () => {
     const anonId = "owl_anon_test-merge";
 
+    const seedData = await app.inject({
+      method: "GET",
+      url: "/v1/apps",
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    const projectId = seedData.json().apps.find((a: any) => a.bundle_id === TEST_BUNDLE_ID).project_id;
+
     // Ingest events for both anon and real user
     await ingest([
       { level: "info", message: "anon event", user_id: anonId, session_id: TEST_SESSION_ID },
       { level: "info", message: "real event", user_id: "existing-real", session_id: TEST_SESSION_ID },
     ]);
 
-    // Wait for fire-and-forget
-    await new Promise((r) => setTimeout(r, 100));
+    // Wait for fire-and-forget upserts to complete
+    await waitForAppUser(projectId, anonId);
+    await waitForAppUser(projectId, "existing-real");
 
     // Claim anon -> existing-real
     const res = await claim({ anonymous_id: anonId, user_id: "existing-real" });
     expect(res.statusCode).toBe(200);
-
-    const seedData = await app.inject({
-      method: "GET",
-      url: "/v1/apps",
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-    });
-    const projectId = seedData.json().apps[0].project_id;
 
     const users = await getProjectUsers(projectId);
     const realUser = users.find((u: any) => u.user_id === "existing-real");
@@ -295,7 +316,10 @@ describe("POST /v1/identity/claim", () => {
       url: "/v1/apps",
       headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
     });
-    const appId = seedData.json().apps[0].id;
+    const appId = seedData.json().apps.find((a: any) => a.bundle_id === TEST_BUNDLE_ID).id;
+
+    // Wait for fire-and-forget dualWriteSpecializedEvents to complete
+    await waitForMetricEvents(appId, 2);
 
     // Verify metric_events exist with anonymous user_id
     let metricRows = await getMetricEvents(appId);

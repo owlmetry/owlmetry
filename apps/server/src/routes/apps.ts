@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, inArray, isNull, asc } from "drizzle-orm";
 import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
 import { APP_PLATFORMS, DEFAULT_API_KEY_PERMISSIONS, generateApiKeySecret } from "@owlmetry/shared";
@@ -29,7 +29,8 @@ export async function appsRoutes(app: FastifyInstance) {
       const rows = await app.db
         .select()
         .from(apps)
-        .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+        .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)))
+        .orderBy(asc(apps.created_at), asc(apps.id));
 
       const secretMap = await getClientSecretMap(app.db, rows.map(r => r.id));
 

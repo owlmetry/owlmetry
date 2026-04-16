@@ -10,6 +10,25 @@ import { resolveProject } from "../utils/project.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
 import { normalizeLimit } from "../utils/pagination.js";
 
+/** Encode a keyset cursor from the last row's (last_seen_at, id). */
+function encodeIssueCursor(lastSeenAt: Date, id: string): string {
+  return Buffer.from(JSON.stringify([lastSeenAt.toISOString(), id])).toString("base64url");
+}
+
+/** Decode a keyset cursor back to (last_seen_at, id). Returns null on bad input. */
+function decodeIssueCursor(cursor: string): { lastSeenAt: string; id: string } | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString());
+    if (Array.isArray(parsed) && parsed.length === 2) {
+      return { lastSeenAt: parsed[0], id: parsed[1] };
+    }
+    // Legacy plain-UUID cursor: treat as id-only with epoch lastSeenAt so it won't filter on time
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function serializeIssue(
   row: typeof issues.$inferSelect,
   fingerprints: string[],
@@ -101,7 +120,15 @@ export async function issuesRoutes(app: FastifyInstance) {
       }
 
       if (cursor) {
-        conditions.push(sql`${issues.id} < ${cursor}`);
+        const decoded = decodeIssueCursor(cursor);
+        if (decoded) {
+          conditions.push(
+            sql`(${issues.last_seen_at} < ${decoded.lastSeenAt}::timestamptz OR (${issues.last_seen_at} = ${decoded.lastSeenAt}::timestamptz AND ${issues.id} < ${decoded.id}))`,
+          );
+        } else {
+          // Fallback for legacy plain-UUID cursors
+          conditions.push(sql`${issues.id} < ${cursor}`);
+        }
       }
 
       const rows = await app.db
@@ -136,9 +163,10 @@ export async function issuesRoutes(app: FastifyInstance) {
         : [];
       const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
 
+      const lastItem = page[page.length - 1];
       return {
         issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id))),
-        cursor: hasMore ? page[page.length - 1].id : null,
+        cursor: hasMore && lastItem ? encodeIssueCursor(lastItem.last_seen_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }
@@ -595,7 +623,14 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
       if (devCondition) conditions.push(devCondition);
 
       if (cursor) {
-        conditions.push(sql`${issues.id} < ${cursor}`);
+        const decoded = decodeIssueCursor(cursor);
+        if (decoded) {
+          conditions.push(
+            sql`(${issues.last_seen_at} < ${decoded.lastSeenAt}::timestamptz OR (${issues.last_seen_at} = ${decoded.lastSeenAt}::timestamptz AND ${issues.id} < ${decoded.id}))`,
+          );
+        } else {
+          conditions.push(sql`${issues.id} < ${cursor}`);
+        }
       }
 
       const rows = await app.db
@@ -630,9 +665,10 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
         : [];
       const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
 
+      const lastItem = page[page.length - 1];
       return {
         issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id), projectNameMap.get(i.project_id))),
-        cursor: hasMore ? page[page.length - 1].id : null,
+        cursor: hasMore && lastItem ? encodeIssueCursor(lastItem.last_seen_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }

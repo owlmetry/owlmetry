@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, inArray, isNull, isNotNull, asc } from "drizzle-orm";
 import { projects, apps, apiKeys, metricDefinitions, funnelDefinitions } from "@owlmetry/db";
 import type { CreateProjectRequest, UpdateProjectRequest } from "@owlmetry/shared";
 import {
@@ -67,7 +67,8 @@ export async function projectsRoutes(app: FastifyInstance) {
       const rows = await app.db
         .select()
         .from(projects)
-        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
+        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)))
+        .orderBy(asc(projects.created_at), asc(projects.id));
 
       return {
         projects: rows.map(serializeProject),
