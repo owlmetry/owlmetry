@@ -197,6 +197,7 @@ export type ProjectDetailResponse = ProjectResponse & { apps: AppResponse[] };
 export type StoredEventResponse = Omit<StoredEvent, "timestamp" | "received_at"> & {
   timestamp: string;
   received_at: string;
+  project_id?: string;
 };
 
 // Events query

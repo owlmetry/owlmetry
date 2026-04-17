@@ -157,7 +157,7 @@ export async function eventsRoutes(app: FastifyInstance) {
 
       // Verify event belongs to an app the user has access to
       const [eventApp] = await app.db
-        .select({ team_id: apps.team_id })
+        .select({ team_id: apps.team_id, project_id: apps.project_id })
         .from(apps)
         .where(and(eq(apps.id, event.app_id), isNull(apps.deleted_at)))
         .limit(1);
@@ -168,6 +168,7 @@ export async function eventsRoutes(app: FastifyInstance) {
 
       return {
         ...event,
+        project_id: eventApp.project_id,
         timestamp: event.timestamp.toISOString(),
         received_at: event.received_at.toISOString(),
       };

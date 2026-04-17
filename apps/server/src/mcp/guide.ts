@@ -121,7 +121,7 @@ To fully investigate an issue, follow this workflow:
    - \`event_id\` — the specific error event
    - \`app_version\` / \`environment\` — which build and platform
    - \`timestamp\` — when it happened
-4. **Reconstruct the session**: Pick an occurrence and use \`query-events\` with \`session_id\` to see **every event in that session** — what screens the user visited, what actions they took, and what led up to the error. Sort by timestamp to build a timeline. Pass \`compact: true\` to drop verbose fields (custom_attributes, experiments, device metadata) and avoid MCP token overflow on long sessions.
+4. **Reconstruct breadcrumbs**: Pick an occurrence and use \`investigate-event\` with the \`event_id\` to get the best timeline we can build — the full session (or a ±5 min window for events without a session_id), enriched with cross-app events (e.g. backend) for the same user in the same project. Results come merged, deduped, and sorted ascending by timestamp. Pass \`compact: true\` to drop verbose fields (custom_attributes, experiments, device metadata) and avoid MCP token overflow on long timelines.
 5. **Read the error event**: Use \`get-event\` with the occurrence's \`event_id\` to see the full error details including \`custom_attributes\` (stack traces, error codes, etc.).
 6. **Check multiple occurrences**: Repeat steps 4-5 for other occurrences to see if the error has a common pattern (same screen, same version, same user flow).
 7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, affected versions, reproduction steps, or a fix plan. This is visible to the team.
@@ -157,7 +157,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 ### Events
 - \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`compact: true\` to drop verbose fields.
 - \`get-event\` — Get full event details by ID
-- \`investigate-event\` — Get target event + surrounding context events from same app/user within a time window (default 5 min). Use when you don't have a \`session_id\`; for single-session drill-down, prefer \`query-events\` with \`session_id\`. Supports \`compact: true\`.
+- \`investigate-event\` — Best breadcrumb trail for an event. Pulls the full session (or ±window_minutes if no session_id), then enriches with cross-app events for the same user in the same project. Returns a single chronological \`events\` array with \`target_event_id\`. Prefer this over \`query-events\` when drilling into a specific event. Supports \`compact: true\`.
 
 ### Metrics
 - \`list-metrics\` — List definitions for a project

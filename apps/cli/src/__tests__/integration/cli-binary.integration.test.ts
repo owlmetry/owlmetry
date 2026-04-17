@@ -295,9 +295,10 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
     it("shows surrounding events", () => {
       if (!eventId) return;
       const result = cli("investigate", eventId, "--window", "10");
-      expect(result).toHaveProperty("target");
-      expect(result).toHaveProperty("context");
-      expect(result.target.id).toBe(eventId);
+      expect(result).toHaveProperty("events");
+      expect(result).toHaveProperty("target_event_id");
+      expect(result.target_event_id).toBe(eventId);
+      expect(result.events.some((e: { id: string }) => e.id === eventId)).toBe(true);
     });
   });
 

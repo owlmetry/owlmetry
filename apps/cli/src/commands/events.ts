@@ -81,10 +81,10 @@ eventsCommand
   });
 
 export const investigateCommand = new Command("investigate")
-  .description("Show events surrounding a specific event")
+  .description("Build a breadcrumb timeline around a specific event (full session + cross-app user events)")
   .argument("<eventId>", "Target event ID")
   .addOption(
-    new Option("--window <minutes>", "Time window in minutes around target event")
+    new Option("--window <minutes>", "Fallback time window in minutes, used only when the target has no session_id")
       .default(5)
       .argParser((v) => parsePositiveInt(v, "--window")),
   )
@@ -93,17 +93,51 @@ export const investigateCommand = new Command("investigate")
     const format = globals.format === "table" ? "log" as OutputFormat : globals.format;
 
     const target = await client.getEvent(eventId);
-    const windowMs = opts.window * 60_000;
     const targetTime = new Date(target.timestamp).getTime();
 
-    const result = await client.queryEvents({
-      app_id: target.app_id,
-      user_id: target.user_id ?? undefined,
-      since: new Date(targetTime - windowMs).toISOString(),
-      until: new Date(targetTime + windowMs).toISOString(),
-      limit: 200,
-    });
+    // Phase A: full session (same app) or ±window fallback.
+    const phaseA = target.session_id
+      ? await client.queryEvents({
+          app_id: target.app_id,
+          session_id: target.session_id,
+          limit: 1000,
+        })
+      : await client.queryEvents({
+          app_id: target.app_id,
+          user_id: target.user_id ?? undefined,
+          since: new Date(targetTime - opts.window * 60_000).toISOString(),
+          until: new Date(targetTime + opts.window * 60_000).toISOString(),
+          limit: 1000,
+        });
 
-    const logOutput = () => formatEventsLog(result.events, { highlightId: eventId });
-    output(format, { target, context: result.events }, logOutput, logOutput);
+    // Phase B: project-wide events for the same user, bounded by Phase A's time range.
+    let phaseBEvents: typeof phaseA.events = [];
+    if (target.user_id && target.project_id) {
+      const timestamps = phaseA.events
+        .map((e) => new Date(e.timestamp).getTime())
+        .filter((n) => Number.isFinite(n));
+      const earliestMs = timestamps.length ? Math.min(...timestamps, targetTime) : targetTime;
+      const latestMs = timestamps.length ? Math.max(...timestamps, targetTime) : targetTime;
+
+      const phaseB = await client.queryEvents({
+        project_id: target.project_id,
+        user_id: target.user_id,
+        since: new Date(earliestMs).toISOString(),
+        until: new Date(latestMs).toISOString(),
+        limit: 1000,
+      });
+      phaseBEvents = phaseB.events;
+    }
+
+    // Merge target + Phase A + Phase B, dedupe by id, sort ascending by timestamp.
+    const byId = new Map<string, typeof phaseA.events[number]>();
+    for (const e of [target, ...phaseA.events, ...phaseBEvents]) {
+      if (!byId.has(e.id)) byId.set(e.id, e);
+    }
+    const events = Array.from(byId.values()).sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+
+    const logOutput = () => formatEventsLog(events, { highlightId: eventId });
+    output(format, { events, target_event_id: eventId, total: events.length }, logOutput, logOutput);
   });

@@ -495,7 +495,7 @@ describe("MCP endpoint", () => {
       expect(parsed.screen_name).toBe("HomeScreen");
     });
 
-    it("investigate-event returns target and context", async () => {
+    it("investigate-event returns a merged chronological timeline", async () => {
       const now = new Date();
       await ingestEvents([
         { level: "info", message: "before", session_id: TEST_SESSION_ID, timestamp: new Date(now.getTime() - 60000).toISOString() },
@@ -509,11 +509,24 @@ describe("MCP endpoint", () => {
       const target = queried.events.find((e: { message: string }) => e.message === "target");
 
       const { parsed, isError } = parseToolResult(
-        await callTool(TEST_AGENT_KEY, "investigate-event", { event_id: target.id, window_minutes: 5 }),
+        await callTool(TEST_AGENT_KEY, "investigate-event", { event_id: target.id, data_mode: "all" }),
       );
       expect(isError).toBe(false);
-      expect(parsed.target.message).toBe("target");
-      expect(parsed.context.length).toBeGreaterThanOrEqual(2);
+      expect(parsed.target_event_id).toBe(target.id);
+      expect(parsed.events.length).toBeGreaterThanOrEqual(3);
+      expect(parsed.events.some((e: { id: string }) => e.id === target.id)).toBe(true);
+      const messages = parsed.events.map((e: { message: string }) => e.message);
+      expect(messages).toContain("before");
+      expect(messages).toContain("target");
+      expect(messages).toContain("after");
+      // Merged timeline is sorted ascending by timestamp
+      const timestamps = parsed.events.map((e: { timestamp: string }) => new Date(e.timestamp).getTime());
+      for (let i = 1; i < timestamps.length; i++) {
+        expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1]);
+      }
+      // Dedup by id — no duplicates
+      const ids = parsed.events.map((e: { id: string }) => e.id);
+      expect(new Set(ids).size).toBe(ids.length);
     });
 
     it("query-events compact=true drops verbose fields", async () => {
@@ -555,7 +568,7 @@ describe("MCP endpoint", () => {
       expect(compact.has_more).toBe(false);
     });
 
-    it("investigate-event compact=true shapes target and context", async () => {
+    it("investigate-event compact=true drops verbose fields from every event", async () => {
       const now = new Date();
       await ingestEvents([
         {
@@ -583,19 +596,17 @@ describe("MCP endpoint", () => {
       const { parsed, isError } = parseToolResult(
         await callTool(TEST_AGENT_KEY, "investigate-event", {
           event_id: target.id,
-          window_minutes: 5,
           data_mode: "all",
           compact: true,
         }),
       );
       expect(isError).toBe(false);
-      expect(parsed.target.message).toBe("target");
-      expect(parsed.target.custom_attributes).toBeUndefined();
-      expect(parsed.target.device_model).toBeUndefined();
-      expect(parsed.context.length).toBeGreaterThanOrEqual(2);
-      for (const ev of parsed.context) {
+      expect(parsed.target_event_id).toBe(target.id);
+      expect(parsed.events.length).toBeGreaterThanOrEqual(2);
+      for (const ev of parsed.events) {
         expect(ev.custom_attributes).toBeUndefined();
         expect(ev.device_model).toBeUndefined();
+        expect(ev.experiments).toBeUndefined();
         expect(ev.timestamp).toBeTruthy();
       }
     });

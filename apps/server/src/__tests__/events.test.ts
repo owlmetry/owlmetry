@@ -249,7 +249,10 @@ describe("GET /v1/events/:id", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().message).toBe("Find me");
+    const body = res.json();
+    expect(body.message).toBe("Find me");
+    expect(typeof body.project_id).toBe("string");
+    expect(body.project_id.length).toBeGreaterThan(0);
   });
 
   it("returns 404 for non-existent event", async () => {

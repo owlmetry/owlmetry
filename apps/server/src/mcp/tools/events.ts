@@ -86,12 +86,12 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
 
   server.registerTool("investigate-event", {
     description:
-      "Retrieve a target event and surrounding context events from the same app and user within a time window. Use when you don't have a session_id, or to see cross-session activity near a timestamp. For single-session drill-down, prefer query-events with session_id. Set compact=true to drop verbose fields and stay under MCP token limits.",
+      "Build the best possible breadcrumb trail around a target event. If the target has a session_id, pulls the full session; otherwise falls back to a ±window_minutes time window on the same app. Then enriches with cross-app events for the same user in the same project (bounded by the session/window's time range) so backend and client events appear together even without a shared session_id. Results are merged, deduped by id, and sorted ascending by timestamp. Prefer this over query-events when drilling into a specific event. Set compact=true to drop verbose fields and stay under MCP token limits.",
     inputSchema: {
       event_id: z.string().uuid().describe("The target event ID"),
-      window_minutes: z.number().optional().default(5).describe("Time window in minutes around the event (default: 5)"),
+      window_minutes: z.number().optional().default(5).describe("Fallback time window in minutes, used only when the target has no session_id (default: 5)"),
       data_mode: z.enum(DATA_MODES).optional().describe("Data mode (default: production). Set to match the target event's mode."),
-      compact: z.boolean().optional().describe("Return a compact event shape for both target and context (drops custom_attributes, experiments, device metadata)."),
+      compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, experiments, device metadata)."),
     },
   }, async ({ event_id, window_minutes, data_mode, compact }) => {
     const targetRes = await callApiRaw(app, agentKey, {
@@ -101,31 +101,81 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
     if (targetRes.error) return targetRes.error;
 
     const target = targetRes.body;
-    const timestamp = new Date(target.timestamp as string);
-    const windowMs = (window_minutes ?? 5) * 60 * 1000;
-    const since = new Date(timestamp.getTime() - windowMs).toISOString();
-    const until = new Date(timestamp.getTime() + windowMs).toISOString();
+    const appId = target.app_id as string;
+    const projectId = target.project_id as string | undefined;
+    const sessionId = target.session_id as string | undefined;
+    const userId = target.user_id as string | undefined;
+    const targetTimestamp = target.timestamp as string;
 
-    const contextRes = await callApiRaw(app, agentKey, {
+    // Phase A: full session (same app) or ±window fallback.
+    const phaseAQuery: Record<string, string | number | boolean | undefined> = {
+      app_id: appId,
+      limit: 1000,
+      data_mode,
+    };
+    if (sessionId) {
+      phaseAQuery.session_id = sessionId;
+    } else {
+      const t = new Date(targetTimestamp).getTime();
+      const windowMs = (window_minutes ?? 5) * 60 * 1000;
+      phaseAQuery.since = new Date(t - windowMs).toISOString();
+      phaseAQuery.until = new Date(t + windowMs).toISOString();
+      if (userId) phaseAQuery.user_id = userId;
+    }
+
+    const phaseARes = await callApiRaw(app, agentKey, {
       method: "GET",
-      url: `/v1/events${buildQuery({
-        app_id: target.app_id as string,
-        ...(target.user_id ? { user_id: target.user_id as string } : {}),
-        since,
-        until,
-        limit: 200,
-        data_mode,
-      })}`,
+      url: `/v1/events${buildQuery(phaseAQuery)}`,
     });
-    if (contextRes.error) return contextRes.error;
+    if (phaseARes.error) return phaseARes.error;
+    const phaseAEvents = (phaseARes.body.events as Array<Record<string, unknown>> | undefined) ?? [];
 
-    const events = (contextRes.body.events as Array<Record<string, unknown>> | undefined) ?? [];
-    const shapedTarget = compact ? compactEvent(target) : target;
-    const shapedContext = compact ? events.map(compactEvent) : events;
+    // Phase B: project-wide events for the same user, bounded by Phase A's time range.
+    let phaseBEvents: Array<Record<string, unknown>> = [];
+    if (userId && projectId) {
+      const timestamps = phaseAEvents
+        .map((e) => new Date(e.timestamp as string).getTime())
+        .filter((n) => Number.isFinite(n));
+      const targetMs = new Date(targetTimestamp).getTime();
+      const earliestMs = timestamps.length ? Math.min(...timestamps, targetMs) : targetMs;
+      const latestMs = timestamps.length ? Math.max(...timestamps, targetMs) : targetMs;
+
+      const phaseBRes = await callApiRaw(app, agentKey, {
+        method: "GET",
+        url: `/v1/events${buildQuery({
+          project_id: projectId,
+          user_id: userId,
+          since: new Date(earliestMs).toISOString(),
+          until: new Date(latestMs).toISOString(),
+          limit: 1000,
+          data_mode,
+        })}`,
+      });
+      if (phaseBRes.error) return phaseBRes.error;
+      phaseBEvents = (phaseBRes.body.events as Array<Record<string, unknown>> | undefined) ?? [];
+    }
+
+    // Merge target + Phase A + Phase B, dedupe by id, sort ascending by timestamp.
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const e of [target, ...phaseAEvents, ...phaseBEvents]) {
+      const id = e.id as string | undefined;
+      if (id && !byId.has(id)) byId.set(id, e);
+    }
+    const merged = Array.from(byId.values()).sort((a, b) => {
+      const ta = new Date(a.timestamp as string).getTime();
+      const tb = new Date(b.timestamp as string).getTime();
+      return ta - tb;
+    });
+    const shaped = compact ? merged.map(compactEvent) : merged;
+
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify({ target: shapedTarget, context: shapedContext, total_context: shapedContext.length }, null, 2),
+        text: JSON.stringify({
+          events: shaped,
+          target_event_id: event_id,
+          total: shaped.length,
+        }, null, 2),
       }],
     };
   });
