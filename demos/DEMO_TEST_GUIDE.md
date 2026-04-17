@@ -179,13 +179,13 @@ node apps/cli/dist/index.js events view <CHECKOUT_ERROR_ID> --format json
 
 Look at the custom attributes — you'll see `item: "Premium Plan"`.
 
-### Step 3: Investigate surrounding events
+### Step 3: Investigate the error's breadcrumb trail
 
 ```bash
 node apps/cli/dist/index.js investigate <CHECKOUT_ERROR_ID> --window 5
 ```
 
-This shows events within 5 minutes of the error. You should see the **warn → error chain**:
+This builds a breadcrumb trail around the error: the full session from the same app (or a ±5 min window when the target has no `session_id`), enriched with cross-app events for the same user. You should see the **warn → error chain**:
 
 1. `info` — "Checkout started" (the operation began)
 2. `warn` — "Payment gateway timeout" (first sign of trouble)

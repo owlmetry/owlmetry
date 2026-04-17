@@ -292,7 +292,7 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
   // --- Group 7: Investigate ---
 
   describe("investigate", () => {
-    it("shows surrounding events", () => {
+    it("returns a merged breadcrumb timeline", () => {
       if (!eventId) return;
       const result = cli("investigate", eventId, "--window", "10");
       expect(result).toHaveProperty("events");

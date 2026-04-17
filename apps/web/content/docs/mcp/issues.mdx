@@ -16,7 +16,7 @@ To fully investigate an issue from discovery to resolution:
    - `user_id` — the affected user (null if anonymous)
    - `event_id` — the specific error event
    - `app_version` / `environment` — which build and platform
-4. **Reconstruct the session** — Use [`query-events`](/docs/mcp/events#query-events) with the occurrence's `session_id` to see every event in that session — what screens the user visited, what actions they took, and what led up to the error.
+4. **Reconstruct breadcrumbs** — Use [`investigate-event`](/docs/mcp/events#investigate-event) with the occurrence's `event_id` to get the best timeline we can build: the full session (or a ±5 min window for events without a `session_id`), enriched with cross-app events (e.g. backend) for the same user in the same project. Merged, deduped, and sorted ascending by timestamp.
 5. **Read the error event** — Use [`get-event`](/docs/mcp/events#get-event) with the occurrence's `event_id` to see full error details including `custom_attributes` (stack traces, error codes, etc.).
 6. **Check multiple occurrences** — Repeat steps 4-5 for other occurrences to find common patterns (same screen, same version, same user flow).
 7. **Document findings** — `add-issue-comment` to record root cause, affected versions, reproduction steps, or a fix plan. Visible to the whole team.

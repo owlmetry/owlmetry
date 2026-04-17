@@ -91,20 +91,20 @@ Shows full event details including custom attributes, device info, and experimen
 owlmetry investigate <eventId> [--window <minutes>]
 ```
 
-Shows events surrounding a specific event, scoped to the same app and user. Useful for understanding the context around an error or notable event.
+Builds the best possible breadcrumb trail around a specific event. If the target has a `session_id`, pulls the full session from that app; otherwise falls back to a `--window` time window. Then enriches with cross-app events for the same user in the same project (bounded by the session/window's time range) so backend and client events appear together even without a shared `session_id`. Results are merged, deduped by event id, and shown ascending by timestamp.
 
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<eventId>` | Yes | Target event UUID |
-| `--window <minutes>` | No | Time window in minutes before and after the target event (default: `5`) |
+| `--window <minutes>` | No | Fallback window, used only when the target has no `session_id` (default: `5`) |
 
 The target event is highlighted in the output. The default output format is `log` (even when `--format table` is set).
 
 ```bash
-# See 5 minutes of context around an event
+# Investigate a session-linked event (pulls the full session + cross-app user events)
 owlmetry investigate a1b2c3d4-...
 
-# Wider window: 30 minutes of context
+# Backend/no-session event: widen the fallback window
 owlmetry investigate a1b2c3d4-... --window 30
 ```
 

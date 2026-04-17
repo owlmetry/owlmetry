@@ -376,15 +376,15 @@ owlmetry events view <id> --format json
 
 Defaults to last 24 hours if no `--since`/`--until` specified.
 
-### Investigate (contextual events)
+### Investigate (breadcrumb timeline)
 
-Investigate works like a flight recorder — given a single event ID, it returns the surrounding events from the same app within a time window. Use this when you have a specific error or anomaly and want to see what happened immediately before and after it.
+Investigate builds the best possible breadcrumb trail around a single event. If the target has a `session_id`, it pulls the full session from that app; otherwise it falls back to a `--window` time window. It then enriches with cross-app events for the same user in the same project (bounded by the session/window's time range) — so backend and client events appear together even when they don't share a `session_id`. Results are merged, deduped by event id, and shown ascending by timestamp.
 
 ```bash
 owlmetry investigate <eventId> [--window <minutes>] --format json
 ```
 
-Shows events surrounding a target event. Default window: 5 minutes.
+Output is a single chronological `events` array with `target_event_id` flagging the event you passed in. The fallback `--window` (default 5 min) only applies when the target has no `session_id`.
 
 ### Users
 

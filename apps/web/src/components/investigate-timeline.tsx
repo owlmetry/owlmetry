@@ -23,30 +23,69 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
     setEvents(null);
     setError("");
 
-    const ts = new Date(event.timestamp);
-    const since = new Date(ts.getTime() - 5 * 60 * 1000).toISOString();
-    const until = new Date(ts.getTime() + 5 * 60 * 1000).toISOString();
+    (async () => {
+      try {
+        // Fetch fresh target to get project_id (not returned on list queries).
+        const target = await api.get<StoredEventResponse>(`/v1/events/${event.id}`);
+        if (cancelled) return;
 
-    const params = new URLSearchParams({
-      app_id: event.app_id,
-      since,
-      until,
-      limit: "200",
-    });
-    if (event.user_id) params.set("user_id", event.user_id);
-    params.set("data_mode", "all");
+        const targetMs = new Date(target.timestamp).getTime();
 
-    api
-      .get<EventsResponse>(`/v1/events?${params}`)
-      .then((res) => {
-        if (!cancelled) setEvents(res.events);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message ?? "Failed to load timeline");
-      });
+        // Phase A: full session (same app) or ±5 min fallback.
+        const phaseAParams = new URLSearchParams({
+          app_id: target.app_id,
+          limit: "1000",
+          data_mode: "all",
+        });
+        if (target.session_id) {
+          phaseAParams.set("session_id", target.session_id);
+        } else {
+          phaseAParams.set("since", new Date(targetMs - 5 * 60 * 1000).toISOString());
+          phaseAParams.set("until", new Date(targetMs + 5 * 60 * 1000).toISOString());
+          if (target.user_id) phaseAParams.set("user_id", target.user_id);
+        }
+        const phaseA = await api.get<EventsResponse>(`/v1/events?${phaseAParams}`);
+        if (cancelled) return;
+
+        // Phase B: project-wide events for the same user, bounded by Phase A's time range.
+        let phaseBEvents: StoredEventResponse[] = [];
+        if (target.user_id && target.project_id) {
+          const timestamps = phaseA.events
+            .map((e) => new Date(e.timestamp).getTime())
+            .filter((n) => Number.isFinite(n));
+          const earliestMs = timestamps.length ? Math.min(...timestamps, targetMs) : targetMs;
+          const latestMs = timestamps.length ? Math.max(...timestamps, targetMs) : targetMs;
+
+          const phaseBParams = new URLSearchParams({
+            project_id: target.project_id,
+            user_id: target.user_id,
+            since: new Date(earliestMs).toISOString(),
+            until: new Date(latestMs).toISOString(),
+            limit: "1000",
+            data_mode: "all",
+          });
+          const phaseB = await api.get<EventsResponse>(`/v1/events?${phaseBParams}`);
+          if (cancelled) return;
+          phaseBEvents = phaseB.events;
+        }
+
+        // Merge target + Phase A + Phase B, dedupe by id, sort ascending by timestamp.
+        const byId = new Map<string, StoredEventResponse>();
+        for (const e of [target, ...phaseA.events, ...phaseBEvents]) {
+          if (!byId.has(e.id)) byId.set(e.id, e);
+        }
+        const merged = Array.from(byId.values()).sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+
+        if (!cancelled) setEvents(merged);
+      } catch (err) {
+        if (!cancelled) setError((err as Error).message ?? "Failed to load timeline");
+      }
+    })();
 
     return () => { cancelled = true; };
-  }, [event.id, event.app_id, event.user_id, event.timestamp]);
+  }, [event.id]);
 
   // Auto-scroll to target event
   useEffect(() => {
@@ -75,7 +114,7 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
   return (
     <div>
       <h3 className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Timeline ({events.length} events, ±5 min)
+        Timeline ({events.length} events)
       </h3>
       <div className="space-y-0.5">
         {events.map((e) => {
