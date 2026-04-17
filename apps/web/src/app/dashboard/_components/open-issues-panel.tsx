@@ -40,7 +40,7 @@ export function OpenIssuesPanel() {
     .slice(0, 5);
 
   return (
-    <DashboardSection title="Open Issues" viewAllHref="/dashboard/issues">
+    <DashboardSection eyebrow="Triage" title="Open Issues" viewAllHref="/dashboard/issues">
       {isLoading ? (
         <SkeletonRows />
       ) : unresolved.length === 0 ? (

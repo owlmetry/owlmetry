@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+type StatTone = "default" | "alert";
 
 interface StatCardProps {
   label: string;
@@ -11,40 +13,61 @@ interface StatCardProps {
   icon: LucideIcon;
   href?: string;
   isLoading?: boolean;
-  hint?: string;
+  tone?: StatTone;
 }
 
-export function StatCard({ label, value, icon: Icon, href, isLoading, hint }: StatCardProps) {
-  const body = (
-    <Card
-      className={
-        href
-          ? "group cursor-pointer transition-colors hover:border-primary/40"
-          : undefined
-      }
-    >
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {label}
-        </CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <Skeleton className="h-8 w-12" />
-        ) : (
-          <div className="flex items-baseline gap-2">
-            <p className="text-3xl font-bold tabular-nums">
-              {value ?? "—"}
-            </p>
-            {hint && (
-              <span className="text-xs text-muted-foreground">{hint}</span>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+export function StatCard({
+  label,
+  value,
+  icon: Icon,
+  href,
+  isLoading,
+  tone = "default",
+}: StatCardProps) {
+  const hasValue = value !== null && value !== undefined && value !== "" && value !== 0 && value !== "0";
+  const valueClass = cn(
+    "font-semibold tabular-nums leading-none tracking-tight text-4xl",
+    tone === "alert" && hasValue
+      ? "text-destructive"
+      : "text-foreground"
   );
 
-  return href ? <Link href={href}>{body}</Link> : body;
+  const body = (
+    <div className="group relative block px-5 py-5 transition-colors hover:bg-muted/40 h-full">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {label}
+        </span>
+        <Icon
+          className={cn(
+            "h-3.5 w-3.5 text-muted-foreground/70 transition-colors",
+            href && "group-hover:text-primary"
+          )}
+        />
+      </div>
+      {isLoading ? (
+        <Skeleton className="h-9 w-16" />
+      ) : (
+        <p className={valueClass}>{value ?? "—"}</p>
+      )}
+    </div>
+  );
+
+  return href ? (
+    <Link href={href} className="block">
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+}
+
+export function StatRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-md border bg-card shadow-sm overflow-hidden">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4 sm:divide-y-0">
+        {children}
+      </div>
+    </div>
+  );
 }

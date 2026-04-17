@@ -41,7 +41,7 @@ export function RecentEventsPanel() {
   const visible = events.filter((e) => e.level !== "debug").slice(0, 5);
 
   return (
-    <DashboardSection title="Recent Events" viewAllHref="/dashboard/events">
+    <DashboardSection eyebrow="Stream" title="Recent Events" viewAllHref="/dashboard/events">
       {isLoading && !events.length ? (
         <SkeletonRows />
       ) : visible.length === 0 ? (

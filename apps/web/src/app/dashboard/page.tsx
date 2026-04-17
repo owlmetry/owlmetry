@@ -13,7 +13,7 @@ import { useUser } from "@/hooks/use-user";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
-import { StatCard } from "./_components/stat-card";
+import { StatCard, StatRow } from "./_components/stat-card";
 import { OpenIssuesPanel } from "./_components/open-issues-panel";
 import { RecentEventsPanel } from "./_components/recent-events-panel";
 import { RecentJobsPanel } from "./_components/recent-jobs-panel";
@@ -68,26 +68,38 @@ export default function DashboardPage() {
         : `${eventCount}`;
 
   const today = formatLongDate(new Date());
+  const firstName = user?.name?.split(" ")[0];
 
   return (
     <div className="space-y-8 animate-fade-in-up">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Welcome back, {user?.name}
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm">{today}</p>
+      <div className="flex items-baseline justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            {today}
+          </p>
+          <h1 className="mt-1.5 text-3xl font-semibold tracking-tight">
+            Welcome back{firstName ? `, ${firstName}` : ""}
+          </h1>
+        </div>
+        {currentTeam && (
+          <p className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground/60">Team ·</span>{" "}
+            <span className="font-medium text-foreground">{currentTeam.name}</span>
+          </p>
+        )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StatRow>
         <StatCard
           label="Open Issues"
           icon={Bug}
           value={openIssueCount}
           isLoading={issuesLoading}
           href="/dashboard/issues"
+          tone="alert"
         />
         <StatCard
-          label="Events (24h)"
+          label="Events · 24h"
           icon={ScrollText}
           value={eventsDisplay}
           isLoading={eventsLoading}
@@ -107,7 +119,7 @@ export default function DashboardPage() {
           isLoading={appsLoading}
           href="/dashboard/projects"
         />
-      </div>
+      </StatRow>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <OpenIssuesPanel />
@@ -116,10 +128,7 @@ export default function DashboardPage() {
         {isAdmin && <RecentAuditPanel />}
       </div>
 
-      <div>
-        <h2 className="text-lg font-medium mb-3">Documentation</h2>
-        <QuickLinks />
-      </div>
+      <QuickLinks />
     </div>
   );
 }

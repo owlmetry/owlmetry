@@ -48,7 +48,7 @@ export function RecentJobsPanel() {
   if (!isAdmin) return null;
 
   return (
-    <DashboardSection title="Recent Jobs" viewAllHref="/dashboard/jobs">
+    <DashboardSection eyebrow="Work" title="Recent Jobs" viewAllHref="/dashboard/jobs">
       {isLoading ? (
         <SkeletonRows />
       ) : jobRuns.length === 0 ? (

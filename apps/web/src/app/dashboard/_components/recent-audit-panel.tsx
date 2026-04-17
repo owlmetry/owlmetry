@@ -31,7 +31,7 @@ export function RecentAuditPanel() {
   if (!isAdmin) return null;
 
   return (
-    <DashboardSection title="Recent Activity" viewAllHref="/dashboard/audit-log">
+    <DashboardSection eyebrow="Trail" title="Recent Activity" viewAllHref="/dashboard/audit-log">
       {isLoading ? (
         <SkeletonRows />
       ) : auditLogs.length === 0 ? (

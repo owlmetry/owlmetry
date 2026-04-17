@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Rocket, Smartphone, Server, Terminal, Plug } from "lucide-react";
+import { ArrowUpRight, Rocket, Smartphone, Server, Terminal, Plug } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Card } from "@/components/ui/card";
 
 interface DocLink {
   label: string;
@@ -15,31 +14,31 @@ interface DocLink {
 const LINKS: DocLink[] = [
   {
     label: "Getting Started",
-    description: "Set up your first project",
+    description: "Your first project",
     href: "/docs/getting-started",
     icon: Rocket,
   },
   {
     label: "Swift SDK",
-    description: "Instrument iOS, iPadOS, macOS",
+    description: "iOS, iPadOS, macOS",
     href: "/docs/sdks/swift",
     icon: Smartphone,
   },
   {
     label: "Node SDK",
-    description: "Instrument your backend",
+    description: "Backend instrumentation",
     href: "/docs/sdks/node",
     icon: Server,
   },
   {
     label: "CLI",
-    description: "Query from your terminal",
+    description: "Query from terminal",
     href: "/docs/cli",
     icon: Terminal,
   },
   {
-    label: "MCP Setup",
-    description: "Connect your AI coding agent",
+    label: "MCP",
+    description: "Connect AI agents",
     href: "/docs/mcp/setup",
     icon: Plug,
   },
@@ -47,18 +46,35 @@ const LINKS: DocLink[] = [
 
 export function QuickLinks() {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {LINKS.map((link) => (
-        <Link key={link.href} href={link.href}>
-          <Card className="group h-full rounded-md p-4 transition-colors hover:border-primary/40">
-            <link.icon className="h-5 w-5 text-primary mb-2" />
-            <p className="text-sm font-medium">{link.label}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {link.description}
-            </p>
-          </Card>
-        </Link>
-      ))}
+    <div className="rounded-md border bg-card shadow-sm overflow-hidden">
+      <div className="flex items-baseline justify-between px-4 pt-3.5 pb-2.5 border-b">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            Docs
+          </span>
+          <h3 className="text-sm font-semibold tracking-tight">Documentation</h3>
+        </div>
+      </div>
+      <div className="grid divide-y divide-border/60 md:grid-cols-5 md:divide-y-0 md:divide-x">
+        {LINKS.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/40"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+              <link.icon className="h-4 w-4" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium leading-tight">{link.label}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                {link.description}
+              </p>
+            </div>
+            <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/50 transition-all group-hover:text-primary group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
