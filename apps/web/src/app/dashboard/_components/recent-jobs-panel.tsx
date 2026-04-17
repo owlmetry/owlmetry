@@ -67,19 +67,20 @@ export function RecentJobsPanel() {
               href="/dashboard/jobs"
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
-              {statusBadge(run.status)}
+              <div className="shrink-0 w-[88px] flex justify-start">
+                {statusBadge(run.status)}
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{label}</p>
-                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span>{timeAgo(run.created_at)}</span>
-                  {duration && (
-                    <>
-                      <span>·</span>
-                      <span className="font-mono">{duration}</span>
-                    </>
-                  )}
-                </div>
+                {duration && (
+                  <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
+                    {duration}
+                  </div>
+                )}
               </div>
+              <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                {timeAgo(run.created_at)}
+              </span>
             </Link>
           );
         })
@@ -93,11 +94,12 @@ function SkeletonRows() {
     <>
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-          <Skeleton className="h-5 w-16" />
+          <Skeleton className="h-5 w-20" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-3 w-2/3" />
             <Skeleton className="h-3 w-1/4" />
           </div>
+          <Skeleton className="h-3 w-10" />
         </div>
       ))}
     </>

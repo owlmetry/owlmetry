@@ -72,6 +72,26 @@ List events with optional filters. Results are ordered by timestamp descending (
 
 When `has_more` is `true`, pass the `cursor` value to the next request to fetch the next page. When `has_more` is `false`, `cursor` is `null`.
 
+## GET /v1/events/count
+
+Return just the count of events matching the filters — cheaper than fetching rows when you only need a total (e.g. dashboard stats).
+
+**Auth required:** Yes (`events:read` permission or JWT)
+
+**Rate limited:** Yes
+
+### Query parameters
+
+Accepts the same filter parameters as `GET /v1/events` (except `cursor`, `limit`, and `order`): `team_id`, `project_id`, `app_id`, `level`, `user_id`, `session_id`, `environment`, `screen_name`, `since`, `until`, `data_mode`.
+
+### Response
+
+```json
+{
+  "count": 1284
+}
+```
+
 ## GET /v1/events/:id
 
 Get a single event by ID.

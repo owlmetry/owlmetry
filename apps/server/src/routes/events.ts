@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, lt, gt, desc, asc, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, lte, lt, gt, desc, asc, inArray, isNull, sql } from "drizzle-orm";
 import { events, apps } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
-import type { EventsQueryParams } from "@owlmetry/shared";
+import type { EventsQueryParams, EventsCountQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { normalizeLimit } from "../utils/pagination.js";
@@ -137,6 +137,81 @@ export async function eventsRoutes(app: FastifyInstance) {
           : null,
         has_more,
       };
+    }
+  );
+
+  // Count events (same filters as list, returns just a number)
+  app.get<{ Querystring: EventsCountQueryParams }>(
+    "/events/count",
+    { preHandler: [requirePermission("events:read"), rateLimit] },
+    async (request) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+
+      const {
+        team_id,
+        project_id,
+        app_id,
+        level,
+        user_id,
+        session_id,
+        environment,
+        screen_name,
+        since,
+        until,
+        data_mode,
+      } = request.query;
+
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
+      if (teamIds.length === 0) return { count: 0 };
+
+      const conditions = [];
+
+      if (app_id) {
+        const [appRow] = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(and(eq(apps.id, app_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)))
+          .limit(1);
+        if (!appRow) return { count: 0 };
+        conditions.push(eq(events.app_id, app_id));
+      } else if (project_id) {
+        const projectApps = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+        const ids = projectApps.map((a) => a.id);
+        if (ids.length === 0) return { count: 0 };
+        conditions.push(inArray(events.app_id, ids));
+      } else {
+        const teamApps = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+        const ids = teamApps.map((a) => a.id);
+        if (ids.length === 0) return { count: 0 };
+        conditions.push(inArray(events.app_id, ids));
+      }
+
+      const devCondition = dataModeToDrizzle(events.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
+      if (level) conditions.push(eq(events.level, level as any));
+      if (user_id) conditions.push(eq(events.user_id, user_id));
+      if (session_id) conditions.push(eq(events.session_id, session_id));
+      if (environment) conditions.push(eq(events.environment, environment as any));
+      if (screen_name) conditions.push(eq(events.screen_name, screen_name));
+      if (since) conditions.push(gte(events.timestamp, parseTimeParam(since)));
+      if (until) conditions.push(lte(events.timestamp, parseTimeParam(until)));
+
+      const [row] = await app.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(events)
+        .where(and(...conditions));
+
+      return { count: row?.count ?? 0 };
     }
   );
 

@@ -224,6 +224,24 @@ export interface EventsResponse {
   has_more: boolean;
 }
 
+export interface EventsCountQueryParams {
+  team_id?: string;
+  project_id?: string;
+  app_id?: string;
+  level?: string;
+  user_id?: string;
+  session_id?: string;
+  environment?: string;
+  screen_name?: string;
+  since?: string;
+  until?: string;
+  data_mode?: DataMode;
+}
+
+export interface EventsCountResponse {
+  count: number;
+}
+
 // Funnels
 export interface CreateFunnelRequest {
   name: string;

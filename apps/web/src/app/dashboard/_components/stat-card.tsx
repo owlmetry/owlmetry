@@ -5,15 +5,12 @@ import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-type StatTone = "default" | "alert";
-
 interface StatCardProps {
   label: string;
   value: string | number | null | undefined;
   icon: LucideIcon;
   href?: string;
   isLoading?: boolean;
-  tone?: StatTone;
 }
 
 export function StatCard({
@@ -22,16 +19,7 @@ export function StatCard({
   icon: Icon,
   href,
   isLoading,
-  tone = "default",
 }: StatCardProps) {
-  const hasValue = value !== null && value !== undefined && value !== "" && value !== 0 && value !== "0";
-  const valueClass = cn(
-    "font-semibold tabular-nums leading-none tracking-tight text-4xl",
-    tone === "alert" && hasValue
-      ? "text-destructive"
-      : "text-foreground"
-  );
-
   const body = (
     <div className="group relative block px-5 py-5 transition-colors hover:bg-muted/40 h-full">
       <div className="flex items-center justify-between mb-4">
@@ -48,7 +36,9 @@ export function StatCard({
       {isLoading ? (
         <Skeleton className="h-9 w-16" />
       ) : (
-        <p className={valueClass}>{value ?? "—"}</p>
+        <p className="font-semibold tabular-nums leading-none tracking-tight text-4xl">
+          {value ?? "—"}
+        </p>
       )}
     </div>
   );
@@ -65,7 +55,7 @@ export function StatCard({
 export function StatRow({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-md border bg-card shadow-sm overflow-hidden">
-      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4 sm:divide-y-0">
+      <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
         {children}
       </div>
     </div>

@@ -2,10 +2,10 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { Bug, FolderOpen, Smartphone, ScrollText } from "lucide-react";
+import { Bug, FolderOpen, ScrollText } from "lucide-react";
 import type {
   AppResponse,
-  EventsResponse,
+  EventsCountResponse,
   IssuesResponse,
   ProjectResponse,
 } from "@owlmetry/shared";
@@ -47,25 +47,26 @@ export default function DashboardPage() {
     [hourBucket]
   );
 
-  const { data: eventsData, isLoading: eventsLoading } = useSWR<EventsResponse>(
-    teamId
-      ? `/v1/events?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}&limit=100`
-      : null
-  );
+  const { data: eventsCountData, isLoading: eventsCountLoading } =
+    useSWR<EventsCountResponse>(
+      teamId
+        ? `/v1/events/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        : null,
+      { refreshInterval: 30_000 }
+    );
 
   const projectCount = projectsData?.projects.length;
   const appCount = appsData?.apps.length;
   const openIssueCount = issuesData?.issues.filter((i) =>
     UNRESOLVED_STATUSES.has(i.status)
   ).length;
-  const eventCount = eventsData?.events.length;
-  const eventsHasMore = eventsData?.has_more ?? false;
-  const eventsDisplay =
-    eventCount === undefined
+  const eventCount = eventsCountData?.count;
+
+  const projectsAppsLoading = projectsLoading || appsLoading;
+  const projectsAppsValue =
+    projectCount === undefined || appCount === undefined
       ? undefined
-      : eventsHasMore
-        ? `${eventCount}+`
-        : `${eventCount}`;
+      : `${projectCount} · ${appCount}`;
 
   const today = formatLongDate(new Date());
   const firstName = user?.name?.split(" ")[0];
@@ -96,27 +97,19 @@ export default function DashboardPage() {
           value={openIssueCount}
           isLoading={issuesLoading}
           href="/dashboard/issues"
-          tone="alert"
         />
         <StatCard
           label="Events · 24h"
           icon={ScrollText}
-          value={eventsDisplay}
-          isLoading={eventsLoading}
+          value={eventCount}
+          isLoading={eventsCountLoading}
           href="/dashboard/events"
         />
         <StatCard
-          label="Projects"
+          label="Projects · Apps"
           icon={FolderOpen}
-          value={projectCount}
-          isLoading={projectsLoading}
-          href="/dashboard/projects"
-        />
-        <StatCard
-          label="Apps"
-          icon={Smartphone}
-          value={appCount}
-          isLoading={appsLoading}
+          value={projectsAppsValue}
+          isLoading={projectsAppsLoading}
           href="/dashboard/projects"
         />
       </StatRow>

@@ -59,21 +59,19 @@ export function RecentEventsPanel() {
             <Link
               key={event.id}
               href="/dashboard/events"
-              className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
-              <EventLevelBadge level={event.level as LogLevel} />
+              <div className="shrink-0 w-16 flex justify-start">
+                <EventLevelBadge level={event.level as LogLevel} />
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-mono truncate">{event.message}</p>
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span>{timeAgo(event.timestamp)}</span>
                   {meta && (
-                    <>
-                      <span>·</span>
-                      <span className="flex items-center gap-1 truncate">
-                        <ProjectDot projectId={meta.projectId} size={6} />
-                        <span className="truncate max-w-[120px]">{meta.name}</span>
-                      </span>
-                    </>
+                    <span className="flex items-center gap-1 truncate">
+                      <ProjectDot projectId={meta.projectId} size={5} />
+                      <span className="truncate max-w-[140px]">{meta.name}</span>
+                    </span>
                   )}
                   {event.environment && (
                     <>
@@ -83,6 +81,9 @@ export function RecentEventsPanel() {
                   )}
                 </div>
               </div>
+              <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                {timeAgo(event.timestamp)}
+              </span>
             </Link>
           );
         })
@@ -101,6 +102,7 @@ function SkeletonRows() {
             <Skeleton className="h-3 w-5/6" />
             <Skeleton className="h-3 w-1/3" />
           </div>
+          <Skeleton className="h-3 w-10" />
         </div>
       ))}
     </>
