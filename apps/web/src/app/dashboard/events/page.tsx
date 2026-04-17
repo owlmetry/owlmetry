@@ -108,10 +108,15 @@ export default function EventsPage() {
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filterParams);
 
-  // App name lookup
+  // App name + project lookup
   const appNameMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of allApps) map.set(a.id, a.name);
+    return map;
+  }, [allApps]);
+  const appProjectMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allApps) map.set(a.id, a.project_id);
     return map;
   }, [allApps]);
 
@@ -401,7 +406,10 @@ export default function EventsPage() {
                         {event.message}
                       </TableCell>
                       <TableCell className="text-xs py-1.5 truncate max-w-[140px]">
-                        {appNameMap.get(event.app_id) ?? event.app_id}
+                        <span className="flex items-center gap-1.5">
+                          <ProjectDot projectId={appProjectMap.get(event.app_id)} size={6} />
+                          <span className="truncate">{appNameMap.get(event.app_id) ?? event.app_id}</span>
+                        </span>
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {event.environment ?? "—"}
@@ -440,6 +448,7 @@ export default function EventsPage() {
         onOpenChange={setSheetOpen}
         onEventSelect={handleEventSelect}
         onFilter={handleFilter}
+        projectId={selectedEvent ? appProjectMap.get(selectedEvent.app_id) : undefined}
       />
     </div>
   );

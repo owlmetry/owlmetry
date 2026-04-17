@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
@@ -37,6 +37,7 @@ import { CopyButton } from "@/components/copy-button";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useTeam } from "@/contexts/team-context";
 import { api, ApiError } from "@/lib/api";
+import { ProjectDot } from "@/lib/project-color";
 import type {
   ApiKeyResponse,
   AppResponse,
@@ -474,6 +475,14 @@ function RevokeKeyDialog({
 export default function ApiKeysPage() {
   const { currentTeam } = useTeam();
   const { apiKeys, isLoading, mutate: mutateKeys } = useApiKeys(currentTeam?.id ?? null);
+  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
+    currentTeam ? `/v1/apps?team_id=${currentTeam.id}` : null
+  );
+  const appProjectMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of appsData?.apps ?? []) m.set(a.id, a.project_id);
+    return m;
+  }, [appsData]);
 
   if (!currentTeam) {
     return <p className="text-muted-foreground">Loading...</p>;
@@ -525,7 +534,14 @@ export default function ApiKeysPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm py-1.5 text-muted-foreground">
-                    {key.app_name ?? "\u2014"}
+                    {key.app_id ? (
+                      <span className="flex items-center gap-1.5">
+                        <ProjectDot projectId={appProjectMap.get(key.app_id)} size={6} />
+                        <span>{key.app_name ?? "\u2014"}</span>
+                      </span>
+                    ) : (
+                      "\u2014"
+                    )}
                   </TableCell>
                   <TableCell className="py-1.5">
                     <code className="text-xs text-muted-foreground">

@@ -384,6 +384,7 @@ export default function UsersPage() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         onFilter={handleSheetFilter}
+        appProjectMap={appProjectMap}
       />
     </div>
   );
