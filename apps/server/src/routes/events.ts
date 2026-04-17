@@ -35,7 +35,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       } = request.query;
 
       const limit = normalizeLimit(rawLimit);
-      const order: "asc" | "desc" = rawOrder === "asc" ? "asc" : "desc";
+      const isAsc = rawOrder === "asc";
 
       // If team_id is specified, validate access and scope to that team
       const teamIds = team_id
@@ -113,16 +113,14 @@ export async function eventsRoutes(app: FastifyInstance) {
       }
       if (cursor) {
         const cursorDate = new Date(cursor);
-        conditions.push(
-          order === "asc" ? gt(events.timestamp, cursorDate) : lt(events.timestamp, cursorDate),
-        );
+        conditions.push(isAsc ? gt(events.timestamp, cursorDate) : lt(events.timestamp, cursorDate));
       }
 
       const rows = await app.db
         .select()
         .from(events)
         .where(and(...conditions))
-        .orderBy(order === "asc" ? asc(events.timestamp) : desc(events.timestamp))
+        .orderBy(isAsc ? asc(events.timestamp) : desc(events.timestamp))
         .limit(limit + 1);
 
       const has_more = rows.length > limit;

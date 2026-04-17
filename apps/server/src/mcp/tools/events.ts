@@ -5,6 +5,7 @@ import { LOG_LEVELS, ENVIRONMENTS } from "@owlmetry/shared";
 import { callApi, callApiRaw, buildQuery } from "../helpers.js";
 
 const DATA_MODES = ["production", "development", "all"] as const;
+const ORDER_DIRECTIONS = ["asc", "desc"] as const;
 
 const COMPACT_FIELDS = [
   "id",
@@ -47,7 +48,7 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
       cursor: z.string().optional().describe("Pagination cursor from previous response"),
       limit: z.number().optional().describe("Max results (default 50, max 1000)"),
       data_mode: z.enum(DATA_MODES).optional().describe("Filter by data mode (default: production)"),
-      order: z.enum(["asc", "desc"]).optional().describe("Sort direction by timestamp. Default 'desc' (newest first). Use 'asc' to walk events chronologically — preferred for session timelines and breadcrumb investigations."),
+      order: z.enum(ORDER_DIRECTIONS).optional().describe("Sort direction by timestamp. Default 'desc' (newest first). Use 'asc' to walk events chronologically — preferred for session timelines and breadcrumb investigations."),
       compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, experiments, device metadata). Recommended for session timelines to avoid MCP token overflow."),
     },
   }, async (params) => {
