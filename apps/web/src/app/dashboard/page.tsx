@@ -1,30 +1,76 @@
 "use client";
 
-import Link from "next/link";
+import { useMemo } from "react";
 import useSWR from "swr";
+import { Bug, FolderOpen, Smartphone, ScrollText } from "lucide-react";
+import type {
+  AppResponse,
+  EventsResponse,
+  IssuesResponse,
+  ProjectResponse,
+} from "@owlmetry/shared";
 import { useUser } from "@/hooks/use-user";
 import { useTeam } from "@/contexts/team-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FolderOpen, Plus, ArrowRight, Activity, Plug } from "lucide-react";
-import type { ProjectResponse } from "@owlmetry/shared";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
+import { StatCard } from "./_components/stat-card";
+import { OpenIssuesPanel } from "./_components/open-issues-panel";
+import { RecentEventsPanel } from "./_components/recent-events-panel";
+import { RecentJobsPanel } from "./_components/recent-jobs-panel";
+import { RecentAuditPanel } from "./_components/recent-audit-panel";
+import { QuickLinks } from "./_components/quick-links";
+
+const UNRESOLVED_STATUSES = new Set(["new", "in_progress", "regressed"]);
 
 export default function DashboardPage() {
-  const { user, teams } = useUser();
-  const { currentTeam } = useTeam();
+  const { user } = useUser();
+  const { currentTeam, currentRole } = useTeam();
+  const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
-    teamId ? `/v1/projects?team_id=${teamId}` : null
+  const isAdmin = currentRole === "owner" || currentRole === "admin";
+
+  const { data: projectsData, isLoading: projectsLoading } = useSWR<{
+    projects: ProjectResponse[];
+  }>(teamId ? `/v1/projects?team_id=${teamId}` : null);
+
+  const { data: appsData, isLoading: appsLoading } = useSWR<{ apps: AppResponse[] }>(
+    teamId ? `/v1/apps?team_id=${teamId}` : null
   );
 
-  const teamCount = teams?.length ?? 0;
-  const projectCount = projectsData?.projects?.length ?? 0;
+  const { data: issuesData, isLoading: issuesLoading } = useSWR<IssuesResponse>(
+    teamId ? `/v1/issues?team_id=${teamId}&data_mode=${dataMode}&limit=100` : null
+  );
+
+  const hourBucket = Math.floor(Date.now() / 3_600_000);
+  const eventsSince = useMemo(
+    () => new Date(hourBucket * 3_600_000 - 24 * 60 * 60 * 1000).toISOString(),
+    [hourBucket]
+  );
+
+  const { data: eventsData, isLoading: eventsLoading } = useSWR<EventsResponse>(
+    teamId
+      ? `/v1/events?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}&limit=100`
+      : null
+  );
+
+  const projectCount = projectsData?.projects.length;
+  const appCount = appsData?.apps.length;
+  const openIssueCount = issuesData?.issues.filter((i) =>
+    UNRESOLVED_STATUSES.has(i.status)
+  ).length;
+  const eventCount = eventsData?.events.length;
+  const eventsHasMore = eventsData?.has_more ?? false;
+  const eventsDisplay =
+    eventCount === undefined
+      ? undefined
+      : eventsHasMore
+        ? `${eventCount}+`
+        : `${eventCount}`;
 
   const today = formatLongDate(new Date());
 
   return (
     <div className="space-y-8 animate-fade-in-up">
-      {/* Welcome */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Welcome back, {user?.name}
@@ -32,115 +78,47 @@ export default function DashboardPage() {
         <p className="text-muted-foreground mt-1 text-sm">{today}</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Teams
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{teamCount}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Projects
-            </CardTitle>
-            <FolderOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{projectCount}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Status
-            </CardTitle>
-            <Activity className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-sm font-medium">Operational</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Open Issues"
+          icon={Bug}
+          value={openIssueCount}
+          isLoading={issuesLoading}
+          href="/dashboard/issues"
+        />
+        <StatCard
+          label="Events (24h)"
+          icon={ScrollText}
+          value={eventsDisplay}
+          isLoading={eventsLoading}
+          href="/dashboard/events"
+        />
+        <StatCard
+          label="Projects"
+          icon={FolderOpen}
+          value={projectCount}
+          isLoading={projectsLoading}
+          href="/dashboard/projects"
+        />
+        <StatCard
+          label="Apps"
+          icon={Smartphone}
+          value={appCount}
+          isLoading={appsLoading}
+          href="/dashboard/projects"
+        />
       </div>
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-medium mb-3">Quick Actions</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Link href="/dashboard/projects">
-            <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
-              <CardContent className="flex items-center gap-3 pt-6">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <FolderOpen className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">View Projects</p>
-                  <p className="text-xs text-muted-foreground">
-                    Manage your projects and apps
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1" />
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/dashboard/projects">
-            <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
-              <CardContent className="flex items-center gap-3 pt-6">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Plus className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">New Project</p>
-                  <p className="text-xs text-muted-foreground">
-                    Create a new project to get started
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1" />
-              </CardContent>
-            </Card>
-          </Link>
-          <Link href="/docs/mcp/setup">
-            <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/40 hover:shadow-md">
-              <CardContent className="flex items-center gap-3 pt-6">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Plug className="h-5 w-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">Setup MCP</p>
-                  <p className="text-xs text-muted-foreground">
-                    Connect your AI coding agent
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-1" />
-              </CardContent>
-            </Card>
-          </Link>
-        </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <OpenIssuesPanel />
+        <RecentEventsPanel />
+        {isAdmin && <RecentJobsPanel />}
+        {isAdmin && <RecentAuditPanel />}
       </div>
 
-      {/* Recent Activity */}
       <div>
-        <h2 className="text-lg font-medium mb-3">Recent Activity</h2>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <Activity className="h-8 w-8 text-muted-foreground/40 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              Activity feed coming soon
-            </p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              Events from your apps will appear here
-            </p>
-          </CardContent>
-        </Card>
+        <h2 className="text-lg font-medium mb-3">Documentation</h2>
+        <QuickLinks />
       </div>
     </div>
   );
