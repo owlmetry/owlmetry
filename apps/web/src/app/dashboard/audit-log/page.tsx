@@ -158,11 +158,15 @@ export default function AuditLogPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Resource Type</label>
-          <Select value={resourceType} onValueChange={(v) => filters.set("resource_type", v)}>
+          <Select
+            value={resourceType || "all"}
+            onValueChange={(v) => filters.set("resource_type", v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All types" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
               {RESOURCE_TYPES.map((t) => (
                 <SelectItem key={t} value={t}>
                   {t.replace(/_/g, " ")}
@@ -174,11 +178,15 @@ export default function AuditLogPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Action</label>
-          <Select value={action} onValueChange={(v) => filters.set("action", v)}>
+          <Select
+            value={action || "all"}
+            onValueChange={(v) => filters.set("action", v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All actions" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All actions</SelectItem>
               {ACTIONS.map((a) => (
                 <SelectItem key={a} value={a}>
                   {a === "create" ? "✨ create" : a === "update" ? "✏️ update" : "🗑️ delete"}

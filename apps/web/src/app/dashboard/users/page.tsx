@@ -135,11 +135,15 @@ export default function UsersPage() {
       >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
-          <Select value={projectId} onValueChange={(v) => filters.set("project_id", v)}>
+          <Select
+            value={projectId || "all"}
+            onValueChange={(v) => filters.set("project_id", v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All projects" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All projects</SelectItem>
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   <span className="flex items-center gap-2">
@@ -154,11 +158,15 @@ export default function UsersPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">App</label>
-          <Select value={appId} onValueChange={(v) => filters.set("app_id", v)}>
+          <Select
+            value={appId || "all"}
+            onValueChange={(v) => filters.set("app_id", v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All apps" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All apps</SelectItem>
               {availableApps.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   <span className="flex items-center gap-2">

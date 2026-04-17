@@ -332,11 +332,15 @@ export default function JobsPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Job Type</label>
-          <Select value={jobType} onValueChange={(v) => filters.set("job_type", v)}>
+          <Select
+            value={jobType || "all"}
+            onValueChange={(v) => filters.set("job_type", v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All types" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
               {PROJECT_JOB_TYPES.map(([type, meta]) => (
                 <SelectItem key={type} value={type}>
                   {meta.label}
@@ -348,11 +352,15 @@ export default function JobsPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Status</label>
-          <Select value={status} onValueChange={(v) => filters.set("status", v)}>
+          <Select
+            value={status || "all"}
+            onValueChange={(v) => filters.set("status", v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All statuses" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
               {(["pending", "running", "completed", "failed", "cancelled"] as JobStatus[]).map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}
