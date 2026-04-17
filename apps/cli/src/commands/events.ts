@@ -30,6 +30,10 @@ export const eventsCommand = new Command("events")
       .choices(["production", "development", "all"])
       .default("production"),
   )
+  .addOption(
+    new Option("--order <direction>", "Sort direction by timestamp (default: desc)")
+      .choices(["asc", "desc"]),
+  )
   .action(async (opts: {
     projectId?: string;
     appId?: string;
@@ -42,6 +46,7 @@ export const eventsCommand = new Command("events")
     limit?: number;
     cursor?: string;
     dataMode: string;
+    order?: string;
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
@@ -60,6 +65,7 @@ export const eventsCommand = new Command("events")
       limit: opts.limit,
       cursor: opts.cursor,
       data_mode: opts.dataMode as any,
+      order: opts.order as "asc" | "desc" | undefined,
     });
 
     const hint = paginationHint(result);

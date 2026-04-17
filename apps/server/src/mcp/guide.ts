@@ -155,7 +155,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`list-app-users\` — List users for an app (search, anonymous filter, pagination)
 
 ### Events
-- \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`compact: true\` to drop verbose fields.
+- \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`order: "asc"\` to walk events chronologically (default \`desc\`/newest-first) — use ascending for session timelines and breadcrumb investigations. Pass \`compact: true\` to drop verbose fields.
 - \`get-event\` — Get full event details by ID
 - \`investigate-event\` — Best breadcrumb trail for an event. Pulls the full session (or ±window_minutes if no session_id), then enriches with cross-app events for the same user in the same project. Returns a single chronological \`events\` array with \`target_event_id\`. Prefer this over \`query-events\` when drilling into a specific event. Supports \`compact: true\`.
 

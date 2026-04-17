@@ -215,6 +215,7 @@ export interface EventsQueryParams {
   cursor?: string;
   limit?: number;
   data_mode?: DataMode;
+  order?: "asc" | "desc";
 }
 
 export interface EventsResponse {

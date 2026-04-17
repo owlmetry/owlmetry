@@ -24,6 +24,7 @@ owlmetry events [options]
 | `--limit <n>` | No | Max events to return |
 | `--cursor <cursor>` | No | Pagination cursor (from previous response) |
 | `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
+| `--order <direction>` | No | Sort by timestamp: `desc` (default, newest first) or `asc` (oldest first) |
 
 ### Time formats
 
@@ -60,6 +61,9 @@ owlmetry events --session-id a1b2c3d4-...
 
 # Development events only
 owlmetry events --since 1h --data-mode development
+
+# Walk a session chronologically (oldest first)
+owlmetry events --session-id a1b2c3d4-... --order asc
 ```
 
 ### Pagination

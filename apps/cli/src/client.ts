@@ -170,6 +170,7 @@ export class OwlMetryClient {
       cursor: params.cursor,
       limit: params.limit?.toString(),
       data_mode: params.data_mode,
+      order: params.order,
     };
     return this.request<EventsResponse>("GET", "/v1/events", { params: stringParams });
   }

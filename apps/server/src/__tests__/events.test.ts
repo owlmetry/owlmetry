@@ -140,6 +140,60 @@ describe("GET /v1/events", () => {
     expect(ids1.filter((id: string) => ids2.includes(id))).toHaveLength(0);
   });
 
+  it("orders events ascending when order=asc", async () => {
+    const now = Date.now();
+    await ingestEvents([
+      { level: "info", message: "Oldest", timestamp: new Date(now - 3000).toISOString(), session_id: TEST_SESSION_ID },
+      { level: "info", message: "Middle", timestamp: new Date(now - 2000).toISOString(), session_id: TEST_SESSION_ID },
+      { level: "info", message: "Newest", timestamp: new Date(now - 1000).toISOString(), session_id: TEST_SESSION_ID },
+    ]);
+
+    const res = await queryEvents({ order: "asc" });
+    const body = res.json();
+    expect(body.events).toHaveLength(3);
+    expect(body.events.map((e: any) => e.message)).toEqual(["Oldest", "Middle", "Newest"]);
+
+    const timestamps = body.events.map((e: any) => new Date(e.timestamp).getTime());
+    for (let i = 1; i < timestamps.length; i++) {
+      expect(timestamps[i]).toBeGreaterThanOrEqual(timestamps[i - 1]);
+    }
+  });
+
+  it("paginates ascending with cursor", async () => {
+    const now = Date.now();
+    const events = Array.from({ length: 5 }, (_, i) => ({
+      level: "info" as const,
+      message: `Event ${i}`,
+      timestamp: new Date(now - (4 - i) * 1000).toISOString(),
+      session_id: TEST_SESSION_ID,
+    }));
+    await ingestEvents(events);
+
+    const page1 = await queryEvents({ limit: "2", order: "asc" });
+    const body1 = page1.json();
+    expect(body1.events).toHaveLength(2);
+    expect(body1.has_more).toBe(true);
+    expect(body1.cursor).toBeDefined();
+    expect(body1.events[0].message).toBe("Event 0");
+    expect(body1.events[1].message).toBe("Event 1");
+
+    const page2 = await queryEvents({ limit: "2", order: "asc", cursor: body1.cursor });
+    const body2 = page2.json();
+    expect(body2.events).toHaveLength(2);
+    expect(body2.events[0].message).toBe("Event 2");
+    expect(body2.events[1].message).toBe("Event 3");
+
+    const ids1 = body1.events.map((e: any) => e.id);
+    const ids2 = body2.events.map((e: any) => e.id);
+    expect(ids1.filter((id: string) => ids2.includes(id))).toHaveLength(0);
+
+    const page3 = await queryEvents({ limit: "2", order: "asc", cursor: body2.cursor });
+    const body3 = page3.json();
+    expect(body3.events).toHaveLength(1);
+    expect(body3.events[0].message).toBe("Event 4");
+    expect(body3.has_more).toBe(false);
+  });
+
   it("excludes development events by default", async () => {
     await ingestEvents([
       { level: "info", message: "Production event", session_id: TEST_SESSION_ID },

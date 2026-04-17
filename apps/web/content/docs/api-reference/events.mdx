@@ -7,7 +7,7 @@ Query stored events with filters and cursor-based pagination.
 
 ## GET /v1/events
 
-List events with optional filters. Results are ordered by timestamp descending (newest first).
+List events with optional filters. Results are ordered by timestamp descending (newest first) by default. Pass `order=asc` to walk events chronologically — useful for reconstructing a session or building a breadcrumb timeline.
 
 **Auth required:** Yes (`events:read` permission or JWT)
 
@@ -28,8 +28,9 @@ List events with optional filters. Results are ordered by timestamp descending (
 | `since` | string | Start time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
 | `until` | string | End time. Relative (`1h`, `30m`, `7d`, `1w`, `30s`) or ISO 8601. |
 | `data_mode` | string | `production` (default), `development`, or `all`. |
-| `cursor` | string | Cursor from previous response for pagination. |
+| `cursor` | string | Cursor from previous response for pagination. Tied to the current `order`. |
 | `limit` | number | Items per page (1-200, default 50). |
+| `order` | string | Sort direction by timestamp: `desc` (default, newest first) or `asc` (oldest first). |
 
 ### Response
 

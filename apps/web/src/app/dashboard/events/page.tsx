@@ -58,6 +58,7 @@ export default function EventsPage() {
       time_range: "",
       since: "",
       until: "",
+      order: "",
     },
   });
 
@@ -102,6 +103,8 @@ export default function EventsPage() {
   if (filters.computedSince) filterParams.since = filters.computedSince;
   if (filters.computedUntil) filterParams.until = filters.computedUntil;
   filterParams.data_mode = dataMode;
+  const order = filters.get("order");
+  if (order === "asc" || order === "desc") filterParams.order = order;
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filterParams);
 
@@ -134,8 +137,9 @@ export default function EventsPage() {
     if (userId) c.push({ label: "User", value: truncateId(userId), onDismiss: () => filters.set("user_id", "") });
     if (sessionId) c.push({ label: "Session", value: truncateId(sessionId), onDismiss: () => filters.set("session_id", "") });
     if (screenName) c.push({ label: "Screen", value: screenName, onDismiss: () => filters.set("screen_name", "") });
+    if (order === "asc") c.push({ label: "Sort", value: "Oldest first", onDismiss: () => filters.set("order", "") });
     return c;
-  }, [projectId, appId, timeRange, sinceInput, untilInput, level, environment, userId, sessionId, screenName, projects, allApps, filters]);
+  }, [projectId, appId, timeRange, sinceInput, untilInput, level, environment, userId, sessionId, screenName, order, projects, allApps, filters]);
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);
@@ -305,6 +309,22 @@ export default function EventsPage() {
             placeholder="Filter by screen"
             className="h-8 text-xs"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Sort</label>
+          <Select
+            value={order || "desc"}
+            onValueChange={(v) => filters.set("order", v === "desc" ? "" : v)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="desc">Newest first</SelectItem>
+              <SelectItem value="asc">Oldest first</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </FilterSheet>
 

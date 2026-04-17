@@ -194,7 +194,7 @@ owlmetry issues comment <issueId> --project-id <id> --body "..." --format json
 owlmetry issues comments <issueId> --project-id <id> --format json
 
 # Events
-owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] --format json
+owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] [--order asc|desc] --format json
 owlmetry events view <id> --format json
 owlmetry investigate <eventId> [--window <minutes>] --format json
 
@@ -370,11 +370,11 @@ owlmetry issues comments <issueId> --project-id <id> --format json           # L
 Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.step()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window.
 
 ```bash
-owlmetry events [--project-id <id>] [--app-id <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user-id <id>] [--session-id <id>] [--screen-name <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] --format json
+owlmetry events [--project-id <id>] [--app-id <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user-id <id>] [--session-id <id>] [--screen-name <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] [--order asc|desc] --format json
 owlmetry events view <id> --format json
 ```
 
-Defaults to last 24 hours if no `--since`/`--until` specified.
+Defaults to last 24 hours if no `--since`/`--until` specified. Default sort is `--order desc` (newest first). Pass `--order asc` to walk events chronologically — preferred when reconstructing a session or reading a breadcrumb timeline. The pagination cursor is tied to the current order, so keep `--order` consistent across pages.
 
 ### Investigate (breadcrumb timeline)
 

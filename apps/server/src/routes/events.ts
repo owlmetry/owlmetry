@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, lt, desc, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, lte, lt, gt, desc, asc, inArray, isNull } from "drizzle-orm";
 import { events, apps } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
 import type { EventsQueryParams } from "@owlmetry/shared";
@@ -31,9 +31,11 @@ export async function eventsRoutes(app: FastifyInstance) {
         cursor,
         limit: rawLimit,
         data_mode,
+        order: rawOrder,
       } = request.query;
 
       const limit = normalizeLimit(rawLimit);
+      const order: "asc" | "desc" = rawOrder === "asc" ? "asc" : "desc";
 
       // If team_id is specified, validate access and scope to that team
       const teamIds = team_id
@@ -110,14 +112,17 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(lte(events.timestamp, parseTimeParam(until)));
       }
       if (cursor) {
-        conditions.push(lt(events.timestamp, new Date(cursor)));
+        const cursorDate = new Date(cursor);
+        conditions.push(
+          order === "asc" ? gt(events.timestamp, cursorDate) : lt(events.timestamp, cursorDate),
+        );
       }
 
       const rows = await app.db
         .select()
         .from(events)
         .where(and(...conditions))
-        .orderBy(desc(events.timestamp))
+        .orderBy(order === "asc" ? asc(events.timestamp) : desc(events.timestamp))
         .limit(limit + 1);
 
       const has_more = rows.length > limit;
