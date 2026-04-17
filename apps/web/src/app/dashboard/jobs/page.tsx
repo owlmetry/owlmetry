@@ -109,7 +109,7 @@ export default function JobsPage() {
     defaults: {
       job_type: "",
       status: "",
-      time_range: "24h",
+      time_range: "",
       since: "",
       until: "",
     },
@@ -145,11 +145,11 @@ export default function JobsPage() {
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
-    if (timeRange && timeRange !== "24h") {
+    if (timeRange) {
       c.push({
         label: "Time",
         value: formatTimeRangeChip(timeRange, sinceInput, untilInput),
-        onDismiss: () => filters.setMany({ time_range: "24h", since: "", until: "" }),
+        onDismiss: () => filters.setMany({ time_range: "", since: "", until: "" }),
       });
     }
     if (jobType) {
@@ -293,11 +293,15 @@ export default function JobsPage() {
       >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Time Range</label>
-          <Select value={filters.get("time_range")} onValueChange={filters.handleTimeRangeChange}>
+          <Select
+            value={filters.get("time_range") || "all"}
+            onValueChange={(v) => filters.handleTimeRangeChange(v === "all" ? "" : v)}
+          >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
               {TIME_RANGES.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
