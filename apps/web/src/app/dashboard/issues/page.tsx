@@ -82,12 +82,6 @@ function IssueCard({ issue, onClick }: { issue: IssueResponse; onClick: () => vo
           </span>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
-          {issue.project_name && (
-            <Badge variant="outline" className="text-[10px] h-5 flex items-center gap-1">
-              <ProjectDot projectId={issue.project_id} size={6} />
-              {issue.project_name}
-            </Badge>
-          )}
           {issue.app_name && (
             <Badge variant="outline" className="text-[10px] h-5 flex items-center gap-1">
               <ProjectDot projectId={issue.project_id} size={6} />
