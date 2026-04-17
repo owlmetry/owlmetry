@@ -15,6 +15,7 @@ function validateMetricSlug(slug: string): string | null {
 }
 import { useTeam } from "@/contexts/team-context";
 import { useMetricDefinitions } from "@/hooks/use-metrics";
+import { ProjectDot } from "@/lib/project-color";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,7 +107,10 @@ export default function MetricsPage() {
               <SelectContent>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name}
+                    <span className="flex items-center gap-2">
+                      <ProjectDot projectId={p.id} />
+                      {p.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

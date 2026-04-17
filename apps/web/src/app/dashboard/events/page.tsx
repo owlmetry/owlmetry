@@ -21,6 +21,7 @@ import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
+import { ProjectDot } from "@/lib/project-color";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -167,7 +168,10 @@ export default function EventsPage() {
             <SelectContent>
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.name}
+                  <span className="flex items-center gap-2">
+                    <ProjectDot projectId={p.id} />
+                    {p.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -183,7 +187,10 @@ export default function EventsPage() {
             <SelectContent>
               {availableApps.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
-                  {a.name}
+                  <span className="flex items-center gap-2">
+                    <ProjectDot projectId={a.project_id} />
+                    {a.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

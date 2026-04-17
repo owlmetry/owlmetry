@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RevenueCatIntegration } from "@/components/revenuecat-integration";
+import { ProjectDot } from "@/lib/project-color";
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -49,7 +50,10 @@ export default function IntegrationsPage() {
               <SelectContent>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.name}
+                    <span className="flex items-center gap-2">
+                      <ProjectDot projectId={p.id} />
+                      {p.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

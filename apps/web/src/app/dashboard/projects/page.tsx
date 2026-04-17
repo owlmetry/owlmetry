@@ -20,6 +20,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { useTeam } from "@/contexts/team-context";
 import { useUser } from "@/hooks/use-user";
+import { ProjectDot, getProjectColor } from "@/lib/project-color";
 import type { ProjectResponse } from "@owlmetry/shared";
 
 function slugify(name: string): string {
@@ -108,9 +109,15 @@ export default function ProjectsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
             <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
-              <Card className="transition-colors hover:border-primary/50">
+              <Card
+                className="border-l-4 transition-colors hover:border-primary/50"
+                style={{ borderLeftColor: getProjectColor(project.id) }}
+              >
                 <CardHeader>
-                  <CardTitle>{project.name}</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <ProjectDot projectId={project.id} />
+                    <span>{project.name}</span>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">{project.slug}</p>

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
 import { api, ApiError } from "@/lib/api";
+import { ProjectDot, getProjectColor } from "@/lib/project-color";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
 
 // Inline to avoid pulling node:crypto via the @owlmetry/shared barrel
@@ -149,6 +150,7 @@ export default function ProjectDetailPage() {
           </form>
         ) : (
           <div className="flex items-center gap-2">
+            <ProjectDot projectId={project.id} size={12} />
             <h1 className="text-2xl font-semibold">{project.name}</h1>
             <Button
               variant="ghost"
@@ -476,7 +478,10 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
   }
 
   return (
-    <Card>
+    <Card
+      className="border-l-4"
+      style={{ borderLeftColor: getProjectColor(app.project_id) }}
+    >
       <CardHeader>
         {editingName ? (
           <form onSubmit={handleRename} className="flex items-center gap-2">

@@ -28,6 +28,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ProjectDot } from "@/lib/project-color";
 
 const FUNNEL_GROUP_BY_OPTIONS = [
   { value: "environment", label: "Environment" },
@@ -145,7 +146,10 @@ export default function FunnelDetailPage() {
                 <SelectItem value="all">All apps</SelectItem>
                 {apps.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
-                    {a.name}
+                    <span className="flex items-center gap-2">
+                      <ProjectDot projectId={a.project_id} />
+                      {a.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

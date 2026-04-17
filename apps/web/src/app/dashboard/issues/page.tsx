@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Bug, ChevronDown, Clock, Users } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
+import { ProjectDot } from "@/lib/project-color";
 
 const STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: string; color: string }> = {
   new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
@@ -394,7 +395,12 @@ export default function IssuesPage() {
             <SelectContent>
               <SelectItem value={ALL}>All projects</SelectItem>
               {projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="flex items-center gap-2">
+                    <ProjectDot projectId={p.id} />
+                    {p.name}
+                  </span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

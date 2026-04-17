@@ -19,6 +19,7 @@ function getJobScope(jobType: string): string | undefined {
 }
 import { useJobRuns } from "@/hooks/use-jobs";
 import { useTeam } from "@/contexts/team-context";
+import { ProjectDot } from "@/lib/project-color";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { FilterSheet, type FilterChip, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
@@ -248,7 +249,10 @@ export default function JobsPage() {
                       <SelectContent>
                         {projects.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.name}
+                            <span className="flex items-center gap-2">
+                              <ProjectDot projectId={p.id} />
+                              {p.name}
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectContent>

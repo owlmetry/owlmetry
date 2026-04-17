@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ProjectDot } from "@/lib/project-color";
 
 export default function UsersPage() {
   const { currentTeam } = useTeam();
@@ -62,6 +63,11 @@ export default function UsersPage() {
 
   const projects = projectsData?.projects ?? [];
   const allApps = appsData?.apps ?? [];
+  const appProjectMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of allApps) m.set(a.id, a.project_id);
+    return m;
+  }, [allApps]);
 
   const projectId = filters.get("project_id");
   const appId = filters.get("app_id");
@@ -136,7 +142,10 @@ export default function UsersPage() {
             <SelectContent>
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.name}
+                  <span className="flex items-center gap-2">
+                    <ProjectDot projectId={p.id} />
+                    {p.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -152,7 +161,10 @@ export default function UsersPage() {
             <SelectContent>
               {availableApps.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
-                  {a.name}
+                  <span className="flex items-center gap-2">
+                    <ProjectDot projectId={a.project_id} />
+                    {a.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -287,12 +299,13 @@ export default function UsersPage() {
                             <Badge
                               key={a.app_id}
                               variant="outline"
-                              className="text-xs cursor-pointer hover:bg-accent"
+                              className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 filters.set("app_id", a.app_id);
                               }}
                             >
+                              <ProjectDot projectId={appProjectMap.get(a.app_id)} size={6} />
                               {a.app_name}
                             </Badge>
                           ))
