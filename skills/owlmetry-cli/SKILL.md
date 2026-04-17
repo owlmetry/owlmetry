@@ -80,7 +80,7 @@ owlmetry projects --format json
 
 If the user already has a project and app, skip to SDK integration.
 
-**Create a project** — infer a good name from the user's repository or directory name:
+**Create a project** — infer a good name from the user's repository or directory name. **Strict:** the project name MUST be the bare product name only (e.g. `Lofi`). Never include a platform suffix like "iOS" or "Backend" on the project.
 ```bash
 owlmetry projects create --name "<ProjectName>" --slug "<project-slug>" --format json
 ```
@@ -95,6 +95,7 @@ Save the returned `id` — you need it for the next command.
 ```bash
 owlmetry apps create --project-id <project-id> --name "<AppName>" --platform <platform> [--bundle-id <bundle-id>] --format json
 ```
+- **Strict naming:** app names MUST be `<project name> <platform>` — e.g. "Lofi iOS", "Lofi Android", "Lofi Web", "Lofi Backend". Always include the platform suffix, even if the project name seems to imply a platform.
 - `--bundle-id` is required for apple/android/web (e.g., `com.example.myapp`), omitted for backend.
 - The response includes a `client_secret` (`owl_client_...`) — this is the SDK API key for event ingestion. Save it.
 
