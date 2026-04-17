@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { Bug, FolderOpen, ScrollText } from "lucide-react";
+import { Bug, FolderOpen, ScrollText, UserSearch, Waypoints } from "lucide-react";
 import type {
   AppResponse,
   EventsCountResponse,
@@ -61,6 +61,8 @@ export default function DashboardPage() {
     UNRESOLVED_STATUSES.has(i.status)
   ).length;
   const eventCount = eventsCountData?.count;
+  const uniqueUsers = eventsCountData?.unique_users;
+  const uniqueSessions = eventsCountData?.unique_sessions;
 
   const projectsAppsLoading = projectsLoading || appsLoading;
   const projectsAppsValue =
@@ -104,6 +106,19 @@ export default function DashboardPage() {
           value={eventCount}
           isLoading={eventsCountLoading}
           href="/dashboard/events"
+        />
+        <StatCard
+          label="Users · 24h"
+          icon={UserSearch}
+          value={uniqueUsers}
+          isLoading={eventsCountLoading}
+          href="/dashboard/users"
+        />
+        <StatCard
+          label="Sessions · 24h"
+          icon={Waypoints}
+          value={uniqueSessions}
+          isLoading={eventsCountLoading}
         />
         <StatCard
           label="Projects · Apps"

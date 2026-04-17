@@ -166,7 +166,8 @@ export async function eventsRoutes(app: FastifyInstance) {
         ? (allTeamIds.includes(team_id) ? [team_id] : [])
         : allTeamIds;
 
-      if (teamIds.length === 0) return { count: 0 };
+      const empty = { count: 0, unique_users: 0, unique_sessions: 0 };
+      if (teamIds.length === 0) return empty;
 
       const conditions = [];
 
@@ -176,7 +177,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           .from(apps)
           .where(and(eq(apps.id, app_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)))
           .limit(1);
-        if (!appRow) return { count: 0 };
+        if (!appRow) return empty;
         conditions.push(eq(events.app_id, app_id));
       } else if (project_id) {
         const projectApps = await app.db
@@ -184,7 +185,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           .from(apps)
           .where(and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
         const ids = projectApps.map((a) => a.id);
-        if (ids.length === 0) return { count: 0 };
+        if (ids.length === 0) return empty;
         conditions.push(inArray(events.app_id, ids));
       } else {
         const teamApps = await app.db
@@ -192,7 +193,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           .from(apps)
           .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
         const ids = teamApps.map((a) => a.id);
-        if (ids.length === 0) return { count: 0 };
+        if (ids.length === 0) return empty;
         conditions.push(inArray(events.app_id, ids));
       }
 
@@ -207,11 +208,19 @@ export async function eventsRoutes(app: FastifyInstance) {
       if (until) conditions.push(lte(events.timestamp, parseTimeParam(until)));
 
       const [row] = await app.db
-        .select({ count: sql<number>`count(*)::int` })
+        .select({
+          count: sql<number>`count(*)::int`,
+          unique_users: sql<number>`count(distinct ${events.user_id})::int`,
+          unique_sessions: sql<number>`count(distinct ${events.session_id})::int`,
+        })
         .from(events)
         .where(and(...conditions));
 
-      return { count: row?.count ?? 0 };
+      return {
+        count: row?.count ?? 0,
+        unique_users: row?.unique_users ?? 0,
+        unique_sessions: row?.unique_sessions ?? 0,
+      };
     }
   );
 

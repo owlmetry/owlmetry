@@ -74,7 +74,7 @@ When `has_more` is `true`, pass the `cursor` value to the next request to fetch 
 
 ## GET /v1/events/count
 
-Return just the count of events matching the filters — cheaper than fetching rows when you only need a total (e.g. dashboard stats).
+Return aggregate counts for events matching the filters — cheaper than fetching rows when you only need totals (e.g. dashboard stats). Returns the total event count alongside the number of distinct users and sessions in the window.
 
 **Auth required:** Yes (`events:read` permission or JWT)
 
@@ -88,7 +88,9 @@ Accepts the same filter parameters as `GET /v1/events` (except `cursor`, `limit`
 
 ```json
 {
-  "count": 1284
+  "count": 1284,
+  "unique_users": 128,
+  "unique_sessions": 342
 }
 ```
 

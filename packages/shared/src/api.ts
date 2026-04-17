@@ -240,6 +240,8 @@ export interface EventsCountQueryParams {
 
 export interface EventsCountResponse {
   count: number;
+  unique_users: number;
+  unique_sessions: number;
 }
 
 // Funnels
