@@ -1,12 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, isNotNull, sql, gte, lte, type SQL } from "drizzle-orm";
-import { funnelDefinitions, funnelEvents, projects } from "@owlmetry/db";
+import { funnelDefinitions, funnelEvents, projects, apps } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
 import type {
   CreateFunnelRequest,
   UpdateFunnelRequest,
   FunnelQueryParams,
   FunnelStepAnalytics,
+  CompletionsCountQueryParams,
 } from "@owlmetry/shared";
 import { validateFunnelSlug, PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
@@ -421,8 +422,104 @@ export async function funnelsRoutes(app: FastifyInstance) {
   );
 }
 
-/** Standalone by-id endpoint registered at /v1 prefix */
+/** Standalone endpoints registered at /v1 prefix */
 export async function funnelByIdRoutes(app: FastifyInstance) {
+  // Aggregate count of funnel completion events across all team funnels.
+  // A "completion" is a funnel_event matching the last step's event_filter of
+  // any active funnel definition. Used by the all-projects dashboard stat HUD.
+  app.get<{ Querystring: CompletionsCountQueryParams }>(
+    "/funnels/completions/count",
+    { preHandler: requirePermission("funnels:read") },
+    async (request) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+
+      const { team_id, project_id, app_id, since, until, data_mode } = request.query;
+
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
+      const empty = { count: 0 };
+      if (teamIds.length === 0) return empty;
+
+      // Resolve target apps and group them by project so we can pair each
+      // funnel definition with the apps in its project.
+      let resolvedApps: Array<{ id: string; project_id: string }> = [];
+      if (app_id) {
+        const [appRow] = await app.db
+          .select({ id: apps.id, project_id: apps.project_id })
+          .from(apps)
+          .where(and(eq(apps.id, app_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)))
+          .limit(1);
+        if (!appRow) return empty;
+        resolvedApps = [appRow];
+      } else if (project_id) {
+        resolvedApps = await app.db
+          .select({ id: apps.id, project_id: apps.project_id })
+          .from(apps)
+          .where(and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+      } else {
+        resolvedApps = await app.db
+          .select({ id: apps.id, project_id: apps.project_id })
+          .from(apps)
+          .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+      }
+      if (resolvedApps.length === 0) return empty;
+
+      const appsByProject = new Map<string, string[]>();
+      for (const a of resolvedApps) {
+        const list = appsByProject.get(a.project_id) ?? [];
+        list.push(a.id);
+        appsByProject.set(a.project_id, list);
+      }
+
+      const projectIds = Array.from(appsByProject.keys());
+      const funnels = await app.db
+        .select({
+          id: funnelDefinitions.id,
+          project_id: funnelDefinitions.project_id,
+          steps: funnelDefinitions.steps,
+        })
+        .from(funnelDefinitions)
+        .where(and(
+          inArray(funnelDefinitions.project_id, projectIds),
+          isNull(funnelDefinitions.deleted_at),
+        ));
+
+      if (funnels.length === 0) return empty;
+
+      const sinceDate = since ? parseTimeParam(since) : undefined;
+      const untilDate = until ? parseTimeParam(until) : undefined;
+      const devCondition = dataModeToDrizzle(funnelEvents.is_dev, data_mode);
+
+      const counts = await Promise.all(funnels.map(async (funnel) => {
+        const lastStep = funnel.steps[funnel.steps.length - 1];
+        if (!lastStep) return 0;
+        const projectAppIds = appsByProject.get(funnel.project_id) ?? [];
+        if (projectAppIds.length === 0) return 0;
+
+        const conditions: SQL[] = [
+          inArray(funnelEvents.app_id, projectAppIds),
+          buildStepFilterSql(lastStep.event_filter),
+        ];
+        if (sinceDate) conditions.push(gte(funnelEvents.timestamp, sinceDate));
+        if (untilDate) conditions.push(lte(funnelEvents.timestamp, untilDate));
+        if (devCondition) conditions.push(devCondition);
+
+        const [row] = await app.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(funnelEvents)
+          .where(and(...conditions));
+
+        return row?.count ?? 0;
+      }));
+
+      const total = counts.reduce((sum, n) => sum + n, 0);
+      return { count: total };
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     "/funnels/by-id/:id",
     { preHandler: requirePermission("funnels:read") },

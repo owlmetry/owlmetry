@@ -2,9 +2,10 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { Bug, FolderOpen, ScrollText, UserSearch, Waypoints } from "lucide-react";
+import { Bug, CheckCircle2, Filter, FolderOpen, ScrollText, UserSearch, Waypoints } from "lucide-react";
 import type {
   AppResponse,
+  CompletionsCountResponse,
   EventsCountResponse,
   IssuesResponse,
   ProjectResponse,
@@ -55,6 +56,22 @@ export default function DashboardPage() {
       { refreshInterval: 30_000 }
     );
 
+  const { data: metricsCompletedData, isLoading: metricsCompletedLoading } =
+    useSWR<CompletionsCountResponse>(
+      teamId
+        ? `/v1/metrics/completions/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        : null,
+      { refreshInterval: 30_000 }
+    );
+
+  const { data: funnelsCompletedData, isLoading: funnelsCompletedLoading } =
+    useSWR<CompletionsCountResponse>(
+      teamId
+        ? `/v1/funnels/completions/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        : null,
+      { refreshInterval: 30_000 }
+    );
+
   const projectCount = projectsData?.projects.length;
   const appCount = appsData?.apps.length;
   const openIssueCount = issuesData?.issues.filter((i) =>
@@ -63,6 +80,8 @@ export default function DashboardPage() {
   const eventCount = eventsCountData?.count;
   const uniqueUsers = eventsCountData?.unique_users;
   const uniqueSessions = eventsCountData?.unique_sessions;
+  const metricsCompleted = metricsCompletedData?.count;
+  const funnelsCompleted = funnelsCompletedData?.count;
 
   const projectsAppsLoading = projectsLoading || appsLoading;
   const projectsAppsValue =
@@ -119,6 +138,20 @@ export default function DashboardPage() {
           icon={Waypoints}
           value={uniqueSessions}
           isLoading={eventsCountLoading}
+        />
+        <StatCard
+          label="Metrics ✅ · 24h"
+          icon={CheckCircle2}
+          value={metricsCompleted}
+          isLoading={metricsCompletedLoading}
+          href="/dashboard/metrics"
+        />
+        <StatCard
+          label="Funnels ✅ · 24h"
+          icon={Filter}
+          value={funnelsCompleted}
+          isLoading={funnelsCompletedLoading}
+          href="/dashboard/funnels"
         />
         <StatCard
           label="Projects · Apps"

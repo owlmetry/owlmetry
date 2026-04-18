@@ -9,6 +9,7 @@ import type {
   MetricEventsQueryParams,
   MetricAggregationResult,
   MetricPhase,
+  CompletionsCountQueryParams,
 } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
@@ -542,8 +543,68 @@ export async function metricsRoutes(app: FastifyInstance) {
   );
 }
 
-/** Standalone by-id endpoint registered at /v1 prefix */
+/** Standalone endpoints registered at /v1 prefix */
 export async function metricByIdRoutes(app: FastifyInstance) {
+  // Aggregate count of metric completions across all team metrics. Used by the
+  // all-projects dashboard stat HUD.
+  app.get<{ Querystring: CompletionsCountQueryParams }>(
+    "/metrics/completions/count",
+    { preHandler: requirePermission("metrics:read") },
+    async (request) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+
+      const { team_id, project_id, app_id, since, until, data_mode } = request.query;
+
+      const teamIds = team_id
+        ? (allTeamIds.includes(team_id) ? [team_id] : [])
+        : allTeamIds;
+
+      const empty = { count: 0 };
+      if (teamIds.length === 0) return empty;
+
+      const conditions = [eq(metricEvents.phase, "complete" as MetricPhase)];
+
+      if (app_id) {
+        const [appRow] = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(and(eq(apps.id, app_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)))
+          .limit(1);
+        if (!appRow) return empty;
+        conditions.push(eq(metricEvents.app_id, app_id));
+      } else if (project_id) {
+        const projectApps = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(and(eq(apps.project_id, project_id), inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+        const ids = projectApps.map((a) => a.id);
+        if (ids.length === 0) return empty;
+        conditions.push(inArray(metricEvents.app_id, ids));
+      } else {
+        const teamApps = await app.db
+          .select({ id: apps.id })
+          .from(apps)
+          .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)));
+        const ids = teamApps.map((a) => a.id);
+        if (ids.length === 0) return empty;
+        conditions.push(inArray(metricEvents.app_id, ids));
+      }
+
+      const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
+      if (since) conditions.push(gte(metricEvents.timestamp, parseTimeParam(since)));
+      if (until) conditions.push(lte(metricEvents.timestamp, parseTimeParam(until)));
+
+      const [row] = await app.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(metricEvents)
+        .where(and(...conditions));
+
+      return { count: row?.count ?? 0 };
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     "/metrics/by-id/:id",
     { preHandler: requirePermission("metrics:read") },

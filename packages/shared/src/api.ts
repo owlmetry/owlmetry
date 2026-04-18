@@ -244,6 +244,19 @@ export interface EventsCountResponse {
   unique_sessions: number;
 }
 
+export interface CompletionsCountQueryParams {
+  team_id?: string;
+  project_id?: string;
+  app_id?: string;
+  since?: string;
+  until?: string;
+  data_mode?: DataMode;
+}
+
+export interface CompletionsCountResponse {
+  count: number;
+}
+
 // Funnels
 export interface CreateFunnelRequest {
   name: string;
