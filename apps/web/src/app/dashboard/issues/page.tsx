@@ -355,12 +355,27 @@ export default function IssuesPage() {
 
   const ALL = "__all__";
   const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? ALL);
-  function setProjectId(id: string) {
-    setProjectIdState(id);
+  const selectedIssueId = searchParams.get("issue_id");
+
+  function updateUrl(nextProjectId: string, nextIssueId: string | null) {
     const params = new URLSearchParams();
-    if (id && id !== ALL) params.set("project_id", id);
+    if (nextProjectId && nextProjectId !== ALL) params.set("project_id", nextProjectId);
+    if (nextIssueId) params.set("issue_id", nextIssueId);
     const qs = params.toString();
     router.replace(`/dashboard/issues${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  function setProjectId(id: string) {
+    setProjectIdState(id);
+    updateUrl(id, null);
+  }
+
+  function openIssue(id: string) {
+    updateUrl(projectId, id);
+  }
+
+  function closeIssue() {
+    updateUrl(projectId, null);
   }
 
   const selectedProjectId = projectId !== ALL ? projectId : "";
@@ -371,7 +386,6 @@ export default function IssuesPage() {
     data_mode: dataMode,
   });
 
-  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const selectedIssue = selectedIssueId ? issues.find((i) => i.id === selectedIssueId) : null;
 
   // Group issues by status for kanban columns
@@ -433,7 +447,7 @@ export default function IssuesPage() {
                     <IssueCard
                       key={issue.id}
                       issue={issue}
-                      onClick={() => setSelectedIssueId(issue.id)}
+                      onClick={() => openIssue(issue.id)}
                     />
                   ))}
                   {colIssues.length === 0 && (
@@ -453,7 +467,7 @@ export default function IssuesPage() {
           projectId={selectedIssue.project_id}
           issueId={selectedIssueId}
           open={!!selectedIssueId}
-          onClose={() => setSelectedIssueId(null)}
+          onClose={closeIssue}
           onMutate={() => mutate()}
           allIssues={issues}
         />
