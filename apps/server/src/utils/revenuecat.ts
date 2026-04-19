@@ -66,7 +66,7 @@ export function mapSubscriberToProperties(subscriber: RevenueCatSubscriberRespon
 export type FetchSubscriberResult =
   | { status: "found"; data: RevenueCatSubscriberResponse }
   | { status: "not_found" }
-  | { status: "error"; statusCode?: number };
+  | { status: "error"; statusCode?: number; message?: string };
 
 export async function fetchRevenueCatSubscriber(
   apiKey: string,
@@ -84,8 +84,16 @@ export async function fetchRevenueCatSubscriber(
       return { status: "found", data: (await res.json()) as RevenueCatSubscriberResponse };
     }
     if (res.status === 404) return { status: "not_found" };
-    return { status: "error", statusCode: res.status };
-  } catch {
-    return { status: "error" };
+    let message: string | undefined;
+    try {
+      const body = await res.text();
+      if (body) message = body.slice(0, 500);
+    } catch {
+      // ignore body read failures
+    }
+    return { status: "error", statusCode: res.status, message };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: "error", message };
   }
 }

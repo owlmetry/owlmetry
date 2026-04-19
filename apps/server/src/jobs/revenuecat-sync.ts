@@ -59,6 +59,12 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   let inactive = 0;
   const notFoundUsers: string[] = [];
   const errorUsers: string[] = [];
+  const errorStatusCounts: Record<string, number> = {};
+
+  function recordErrorStatus(statusCode: number | undefined) {
+    const key = statusCode !== undefined ? String(statusCode) : "network";
+    errorStatusCounts[key] = (errorStatusCounts[key] ?? 0) + 1;
+  }
 
   function buildResult(extra?: Record<string, unknown>) {
     const result: Record<string, unknown> = {
@@ -80,6 +86,9 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       result.error_users = errors > MAX_USER_IDS
         ? [...errorUsers, `...and ${errors - MAX_USER_IDS} more`]
         : errorUsers;
+    }
+    if (Object.keys(errorStatusCounts).length > 0) {
+      result.error_status_counts = errorStatusCounts;
     }
     return result;
   }
@@ -110,6 +119,23 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       } else {
         errors++;
         if (errorUsers.length < MAX_USER_IDS) errorUsers.push(user.user_id);
+        recordErrorStatus(result.statusCode);
+        ctx.log.warn(
+          { userId: user.user_id, statusCode: result.statusCode, message: result.message },
+          "RC sync error for user",
+        );
+        // Auth failures are systemic — every subsequent call will fail the same way.
+        // Abort early instead of burning 350ms/user on a misconfigured key.
+        if (result.statusCode === 401 || result.statusCode === 403) {
+          ctx.log.error(
+            { statusCode: result.statusCode, message: result.message },
+            "RC sync aborting — API key rejected (likely wrong key type; REST API requires a secret key starting with sk_)",
+          );
+          return buildResult({
+            aborted: true,
+            abort_reason: `RevenueCat API key rejected with HTTP ${result.statusCode}. The REST API requires a secret key (sk_*), not a platform SDK key (appl_*/goog_*).`,
+          });
+        }
       }
       // Rate limit: ~3 requests per second (180/min)
       await new Promise((r) => setTimeout(r, 350));
@@ -117,6 +143,7 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       ctx.log.warn({ err, userId: user.user_id }, "RC sync failed for user");
       errors++;
       if (errorUsers.length < MAX_USER_IDS) errorUsers.push(user.user_id);
+      recordErrorStatus(undefined);
     }
 
     // Update progress every 10 users

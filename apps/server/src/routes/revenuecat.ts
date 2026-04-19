@@ -217,8 +217,19 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       const rcConfig = integration.config as unknown as RevenueCatConfig;
 
       const subscriberResult = await fetchRevenueCatSubscriber(rcConfig.api_key, userId);
-      if (subscriberResult.status !== "found") {
+      if (subscriberResult.status === "not_found") {
         return reply.code(404).send({ error: "Subscriber not found in RevenueCat" });
+      }
+      if (subscriberResult.status === "error") {
+        app.log.warn(
+          { projectId, userId, statusCode: subscriberResult.statusCode, message: subscriberResult.message },
+          "RevenueCat API error during single-user sync",
+        );
+        return reply.code(502).send({
+          error: "RevenueCat API error",
+          statusCode: subscriberResult.statusCode,
+          message: subscriberResult.message,
+        });
       }
 
       const props = mapSubscriberToProperties(subscriberResult.data.subscriber);
