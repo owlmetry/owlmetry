@@ -145,14 +145,14 @@ export default function DashboardPage() {
           isLoading={eventsCountLoading}
         />
         <StatCard
-          label="Metrics Completed · 24h"
+          label="Metrics · 24h"
           icon={CheckCircle2}
           value={metricsCompleted}
           isLoading={metricsCompletedLoading}
           href="/dashboard/metrics"
         />
         <StatCard
-          label="Funnels Completed/Started · 24h"
+          label="Funnels · 24h"
           icon={Filter}
           value={funnelsValue}
           isLoading={funnelsCompletedLoading}
