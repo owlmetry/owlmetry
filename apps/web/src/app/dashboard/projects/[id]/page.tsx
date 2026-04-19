@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
 import { api, ApiError } from "@/lib/api";
-import { ProjectDot, getProjectColor } from "@/lib/project-color";
+import { ProjectDot } from "@/lib/project-color";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
+import { PROJECT_COLORS, isValidProjectColor } from "@owlmetry/shared/project-colors";
 
 // Inline to avoid pulling node:crypto via the @owlmetry/shared barrel
 const DEFAULT_RETENTION_DAYS_EVENTS = 120;
@@ -150,7 +151,7 @@ export default function ProjectDetailPage() {
           </form>
         ) : (
           <div className="flex items-center gap-2">
-            <ProjectDot projectId={project.id} size={12} />
+            <ProjectDot color={project.color} size={12} />
             <h1 className="text-2xl font-semibold">{project.name}</h1>
             <Button
               variant="ghost"
@@ -189,6 +190,7 @@ export default function ProjectDetailPage() {
         </Link>
       </div>
 
+      <ColorSettings project={project} onSaved={mutate} />
       <RetentionSettings project={project} onSaved={mutate} />
       <IssueAlertSettings project={project} onSaved={mutate} />
 
@@ -276,7 +278,7 @@ export default function ProjectDetailPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {project.apps.map((app) => (
-            <AppCard key={app.id} app={app} onChanged={mutate} />
+            <AppCard key={app.id} app={app} projectColor={project.color} onChanged={mutate} />
           ))}
         </div>
       )}
@@ -446,7 +448,93 @@ function IssueAlertSettings({ project, onSaved }: { project: ProjectDetailRespon
   );
 }
 
-function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }) {
+function ColorSettings({ project, onSaved }: { project: ProjectDetailResponse; onSaved: () => void }) {
+  const [color, setColor] = useState(project.color);
+  const [customInput, setCustomInput] = useState(project.color);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setColor(project.color);
+    setCustomInput(project.color);
+  }, [project.color]);
+
+  async function save(next: string) {
+    if (!isValidProjectColor(next)) {
+      setError("Enter a valid #RRGGBB hex color");
+      return;
+    }
+    if (next.toLowerCase() === project.color.toLowerCase()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.patch(`/v1/projects/${project.id}`, { color: next });
+      setColor(next);
+      setCustomInput(next);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2000);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Color</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {PROJECT_COLORS.map((c) => {
+            const isActive = c.toLowerCase() === color.toLowerCase();
+            return (
+              <button
+                key={c}
+                type="button"
+                aria-label={c}
+                disabled={saving}
+                onClick={() => save(c)}
+                className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 ${
+                  isActive ? "border-foreground scale-110" : "border-transparent"
+                }`}
+                style={{ backgroundColor: c }}
+              />
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-3">
+          <Label htmlFor="custom-color" className="whitespace-nowrap text-xs text-muted-foreground">
+            Custom hex
+          </Label>
+          <Input
+            id="custom-color"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onBlur={() => save(customInput)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                save(customInput);
+              }
+            }}
+            placeholder="#RRGGBB"
+            className="h-8 w-32 font-mono text-xs"
+            disabled={saving}
+          />
+          <ProjectDot color={color} size={20} />
+          {success && <span className="text-xs text-green-600">Saved</span>}
+        </div>
+        {error && <p className="text-xs text-destructive">{error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AppCard({ app, projectColor, onChanged }: { app: AppResponse; projectColor: string; onChanged: () => void }) {
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(app.name);
   const [error, setError] = useState("");
@@ -480,7 +568,7 @@ function AppCard({ app, onChanged }: { app: AppResponse; onChanged: () => void }
   return (
     <Card
       className="border-l-4"
-      style={{ borderLeftColor: getProjectColor(app.project_id) }}
+      style={{ borderLeftColor: projectColor }}
     >
       <CardHeader>
         {editingName ? (

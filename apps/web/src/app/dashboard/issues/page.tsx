@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, IssueResponse, IssueStatus } from "@owlmetry/shared";
@@ -59,7 +59,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function IssueCard({ issue, onClick }: { issue: IssueResponse; onClick: () => void }) {
+function IssueCard({ issue, projectColor, onClick }: { issue: IssueResponse; projectColor: string | undefined; onClick: () => void }) {
   return (
     <Card
       className="cursor-pointer hover:border-primary/30 transition-colors"
@@ -84,7 +84,7 @@ function IssueCard({ issue, onClick }: { issue: IssueResponse; onClick: () => vo
         <div className="flex items-center gap-1 flex-wrap">
           {issue.app_name && (
             <Badge variant="outline" className="text-[10px] h-5 flex items-center gap-1">
-              <ProjectDot projectId={issue.project_id} size={6} />
+              <ProjectDot color={projectColor} size={6} />
               {issue.app_name}
             </Badge>
           )}
@@ -101,6 +101,7 @@ function IssueCard({ issue, onClick }: { issue: IssueResponse; onClick: () => vo
 
 function IssueDetailModal({
   projectId,
+  projectColor,
   issueId,
   open,
   onClose,
@@ -108,6 +109,7 @@ function IssueDetailModal({
   allIssues,
 }: {
   projectId: string;
+  projectColor: string | undefined;
   issueId: string;
   open: boolean;
   onClose: () => void;
@@ -163,7 +165,7 @@ function IssueDetailModal({
           <>
             <DialogHeader>
               <div className="flex items-center gap-2">
-                <ProjectDot projectId={issue.project_id} />
+                <ProjectDot color={projectColor} />
                 <Badge className={config?.color}>
                   {config?.emoji} {config?.label}
                 </Badge>
@@ -352,6 +354,11 @@ export default function IssuesPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
   const projects = projectsData?.projects ?? [];
+  const projectColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects) map.set(p.id, p.color);
+    return map;
+  }, [projects]);
 
   const ALL = "__all__";
   const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? ALL);
@@ -408,7 +415,7 @@ export default function IssuesPage() {
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   <span className="flex items-center gap-2">
-                    <ProjectDot projectId={p.id} />
+                    <ProjectDot color={p.color} />
                     {p.name}
                   </span>
                 </SelectItem>
@@ -447,6 +454,7 @@ export default function IssuesPage() {
                     <IssueCard
                       key={issue.id}
                       issue={issue}
+                      projectColor={projectColorMap.get(issue.project_id)}
                       onClick={() => openIssue(issue.id)}
                     />
                   ))}
@@ -465,6 +473,7 @@ export default function IssuesPage() {
       {selectedIssueId && selectedIssue && (
         <IssueDetailModal
           projectId={selectedIssue.project_id}
+          projectColor={projectColorMap.get(selectedIssue.project_id)}
           issueId={selectedIssueId}
           open={!!selectedIssueId}
           onClose={closeIssue}

@@ -49,10 +49,12 @@ export function registerProjectsTools(server: McpServer, app: FastifyInstance, a
   });
 
   server.registerTool("update-project", {
-    description: "Update a project's name or data retention policies. Requires projects:write permission.",
+    description: "Update a project's name, color, or data retention policies. Requires projects:write permission.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       name: z.string().optional().describe("New project name"),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional()
+        .describe("Project color as #RRGGBB hex (e.g. '#22c55e')"),
       retention_days_events: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
         .describe("Days to retain events (null = use default 120)"),
       retention_days_metrics: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
@@ -60,9 +62,10 @@ export function registerProjectsTools(server: McpServer, app: FastifyInstance, a
       retention_days_funnels: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
         .describe("Days to retain funnel events (null = use default 365)"),
     },
-  }, async ({ project_id, name, retention_days_events, retention_days_metrics, retention_days_funnels }) => {
+  }, async ({ project_id, name, color, retention_days_events, retention_days_metrics, retention_days_funnels }) => {
     const payload: Record<string, unknown> = {};
     if (name !== undefined) payload.name = name;
+    if (color !== undefined) payload.color = color;
     if (retention_days_events !== undefined) payload.retention_days_events = retention_days_events;
     if (retention_days_metrics !== undefined) payload.retention_days_metrics = retention_days_metrics;
     if (retention_days_funnels !== undefined) payload.retention_days_funnels = retention_days_funnels;

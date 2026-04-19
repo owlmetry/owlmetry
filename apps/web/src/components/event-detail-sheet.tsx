@@ -25,10 +25,10 @@ interface EventDetailSheetProps {
   onOpenChange: (open: boolean) => void;
   onEventSelect: (event: StoredEventResponse) => void;
   onFilter?: (key: string, value: string) => void;
-  projectId?: string;
+  projectColor?: string;
 }
 
-export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onFilter, projectId }: EventDetailSheetProps) {
+export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onFilter, projectColor }: EventDetailSheetProps) {
   const [showTimeline, setShowTimeline] = useState(false);
 
   // Reset timeline when sheet closes or event changes
@@ -46,7 +46,7 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
       <SheetContent className="w-full sm:max-w-[500px] p-0 flex flex-col">
         <SheetHeader className="px-6 pt-6 pb-4">
           <div className="flex items-center gap-2">
-            <ProjectDot projectId={projectId} />
+            <ProjectDot color={projectColor} />
             <EventLevelBadge level={event.level as LogLevel} />
             <span className="text-xs text-muted-foreground">
               {formatDateTime(ts)}

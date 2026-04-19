@@ -160,6 +160,7 @@ export interface CreateProjectRequest {
 
 export interface UpdateProjectRequest {
   name?: string;
+  color?: string;
   retention_days_events?: number | null;
   retention_days_metrics?: number | null;
   retention_days_funnels?: number | null;

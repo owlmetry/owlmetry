@@ -119,6 +119,16 @@ export default function EventsPage() {
     for (const a of allApps) map.set(a.id, a.project_id);
     return map;
   }, [allApps]);
+  const projectColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects) map.set(p.id, p.color);
+    return map;
+  }, [projects]);
+  const appColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of allApps) map.set(a.id, projectColorMap.get(a.project_id) ?? "");
+    return map;
+  }, [allApps, projectColorMap]);
 
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
@@ -182,7 +192,7 @@ export default function EventsPage() {
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   <span className="flex items-center gap-2">
-                    <ProjectDot projectId={p.id} />
+                    <ProjectDot color={p.color} />
                     {p.name}
                   </span>
                 </SelectItem>
@@ -205,7 +215,7 @@ export default function EventsPage() {
               {availableApps.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   <span className="flex items-center gap-2">
-                    <ProjectDot projectId={a.project_id} />
+                    <ProjectDot color={projectColorMap.get(a.project_id)} />
                     {a.name}
                   </span>
                 </SelectItem>
@@ -407,7 +417,7 @@ export default function EventsPage() {
                       </TableCell>
                       <TableCell className="text-xs py-1.5 truncate max-w-[140px]">
                         <span className="flex items-center gap-1.5">
-                          <ProjectDot projectId={appProjectMap.get(event.app_id)} size={6} />
+                          <ProjectDot color={appColorMap.get(event.app_id)} size={6} />
                           <span className="truncate">{appNameMap.get(event.app_id) ?? event.app_id}</span>
                         </span>
                       </TableCell>
@@ -448,7 +458,7 @@ export default function EventsPage() {
         onOpenChange={setSheetOpen}
         onEventSelect={handleEventSelect}
         onFilter={handleFilter}
-        projectId={selectedEvent ? appProjectMap.get(selectedEvent.app_id) : undefined}
+        projectColor={selectedEvent ? appColorMap.get(selectedEvent.app_id) : undefined}
       />
     </div>
   );

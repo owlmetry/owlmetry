@@ -49,12 +49,13 @@ Create a new project. Requires `projects:write` permission.
 
 ## update-project
 
-Update a project's name or data retention policies. Requires `projects:write` permission.
+Update a project's name, color, or data retention policies. Requires `projects:write` permission.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
 | `name` | string | No | New project name |
+| `color` | string | No | Project color as `#RRGGBB` hex (e.g. `#22c55e`). Auto-assigned on creation; override to customize. |
 | `retention_days_events` | integer or null | No | Days to retain events (`null` = reset to default 120) |
 | `retention_days_metrics` | integer or null | No | Days to retain metric events (`null` = reset to default 365) |
 | `retention_days_funnels` | integer or null | No | Days to retain funnel events (`null` = reset to default 365) |

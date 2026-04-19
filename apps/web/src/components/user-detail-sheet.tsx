@@ -22,10 +22,11 @@ interface UserDetailSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onFilter?: (key: string, value: string) => void;
-  appProjectMap?: Map<string, string>;
+  projectColorMap?: Map<string, string>;
+  appColorMap?: Map<string, string>;
 }
 
-export function UserDetailSheet({ user, open, onOpenChange, onFilter, appProjectMap }: UserDetailSheetProps) {
+export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectColorMap, appColorMap }: UserDetailSheetProps) {
   if (!user) return null;
 
   return (
@@ -33,7 +34,7 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, appProject
       <SheetContent className="w-full sm:max-w-[500px] p-0 flex flex-col">
         <SheetHeader className="px-6 pt-6 pb-4">
           <div className="flex items-center gap-2">
-            <ProjectDot projectId={user.project_id} />
+            <ProjectDot color={projectColorMap?.get(user.project_id)} />
             {user.is_anonymous ? (
               <Badge variant="secondary" className="text-xs">👻 anon</Badge>
             ) : (
@@ -76,7 +77,7 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, appProject
                       className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5 w-fit"
                       onClick={() => onFilter?.("app_id", app.app_id)}
                     >
-                      <ProjectDot projectId={appProjectMap?.get(app.app_id) ?? user.project_id} size={6} />
+                      <ProjectDot color={appColorMap?.get(app.app_id) ?? projectColorMap?.get(user.project_id)} size={6} />
                       {app.app_name}
                     </Badge>
                     <DetailRow label="First Seen" value={formatDateTime(app.first_seen_at)} />

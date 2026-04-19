@@ -150,7 +150,7 @@ owlmetry setup --endpoint <url> --api-key <key> [--ingest-endpoint <url>]
 owlmetry projects --format json
 owlmetry projects view <id> --format json
 owlmetry projects create --name <name> --slug <slug> [--team-id <id>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>] --format json
-owlmetry projects update <id> [--name <name>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>] --format json
+owlmetry projects update <id> [--name <name>] [--color <#RRGGBB>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>] --format json
 
 # Apps
 owlmetry apps list [--project-id <id>] --format json
@@ -216,7 +216,7 @@ owlmetry jobs cancel <runId>
 
 ### Projects
 
-Projects group apps by product and scope metrics and funnels. Create one project per product (e.g., "Acme" with iOS + backend apps under it). Each project has data retention policies (defaults: events 120 days, metrics 365 days, funnels 365 days).
+Projects group apps by product and scope metrics and funnels. Create one project per product (e.g., "Acme" with iOS + backend apps under it). Each project has data retention policies (defaults: events 120 days, metrics 365 days, funnels 365 days). On creation the server auto-assigns a display color (random, unused within the team); override it later with `--color`.
 
 ```bash
 owlmetry projects --format json                                        # List all
@@ -225,6 +225,7 @@ owlmetry projects create --name <name> --slug <slug> [--team-id <id>] [--retenti
 owlmetry projects update <id> --name <new-name> --format json
 owlmetry projects update <id> --retention-events 90 --retention-metrics 180 --format json
 owlmetry projects update <id> --retention-events null --format json    # Reset to default
+owlmetry projects update <id> --color '#22c55e' --format json          # Override auto-assigned color
 ```
 
 ### Apps

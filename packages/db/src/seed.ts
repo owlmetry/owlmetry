@@ -64,7 +64,7 @@ async function main() {
   // --- Project ---
   const project = await findOrCreate<typeof projects.$inferSelect>(
     db, projects,
-    { team_id: team.id, name: "Demo Project", slug: "demo" },
+    { team_id: team.id, name: "Demo Project", slug: "demo", color: "#0ea5e9" },
     and(eq(projects.team_id, team.id), eq(projects.slug, "demo")),
   );
   console.log(`  Project: ${project.name} (${project.slug})`);

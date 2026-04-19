@@ -143,7 +143,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`get-project\` — Get project by ID with nested apps and retention policies
 - \`create-project\` — Create project (needs \`projects:write\`): \`team_id\`, \`name\`, \`slug\`, optional \`retention_days_events\`, \`retention_days_metrics\`, \`retention_days_funnels\`
   - **Naming (strict)**: project names MUST be the bare product name only — e.g. "Lofi". Never include a platform suffix ("Lofi iOS", "Lofi Backend") on the project itself; suffixes belong on apps within the project.
-- \`update-project\` — Update project name or retention policies (needs \`projects:write\`). Set retention to \`null\` to reset to defaults.
+- \`update-project\` — Update project name, display color, or retention policies (needs \`projects:write\`). Set retention to \`null\` to reset to defaults. \`color\` is \`#RRGGBB\` hex — auto-assigned on create, overridable here.
 
 ### Apps
 - \`list-apps\` — List all apps (optional \`team_id\` filter)

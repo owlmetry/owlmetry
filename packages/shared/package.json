@@ -20,6 +20,10 @@
     "./jobs": {
       "types": "./dist/jobs.d.ts",
       "import": "./dist/jobs.js"
+    },
+    "./project-colors": {
+      "types": "./dist/project-colors.d.ts",
+      "import": "./dist/project-colors.js"
     }
   },
   "scripts": {

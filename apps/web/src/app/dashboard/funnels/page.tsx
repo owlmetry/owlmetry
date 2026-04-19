@@ -145,7 +145,7 @@ export default function FunnelsPage() {
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     <span className="flex items-center gap-2">
-                      <ProjectDot projectId={p.id} />
+                      <ProjectDot color={p.color} />
                       {p.name}
                     </span>
                   </SelectItem>

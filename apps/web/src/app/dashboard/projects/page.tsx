@@ -20,7 +20,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { useTeam } from "@/contexts/team-context";
 import { useUser } from "@/hooks/use-user";
-import { ProjectDot, getProjectColor } from "@/lib/project-color";
+import { ProjectDot } from "@/lib/project-color";
 import type { AppResponse, ProjectResponse } from "@owlmetry/shared";
 
 const PLATFORM_EMOJI: Record<string, string> = {
@@ -129,11 +129,11 @@ export default function ProjectsPage() {
               <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
                 <Card
                   className="border-l-4 transition-colors hover:border-primary/50"
-                  style={{ borderLeftColor: getProjectColor(project.id) }}
+                  style={{ borderLeftColor: project.color }}
                 >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <ProjectDot projectId={project.id} />
+                      <ProjectDot color={project.color} />
                       <span>{project.name}</span>
                     </CardTitle>
                   </CardHeader>

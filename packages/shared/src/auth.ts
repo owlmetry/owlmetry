@@ -150,6 +150,7 @@ export interface Project {
   team_id: string;
   name: string;
   slug: string;
+  color: string;
   retention_days_events: number | null;
   retention_days_metrics: number | null;
   retention_days_funnels: number | null;

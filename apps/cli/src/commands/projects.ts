@@ -67,20 +67,22 @@ projectsCommand
 
 projectsCommand
   .command("update <id>")
-  .description("Update project name or retention policies")
+  .description("Update project name, color, or retention policies")
   .option("--name <name>", "New project name")
+  .option("--color <hex>", "Project color as #RRGGBB hex (e.g. #22c55e)")
   .option("--retention-events <days>", 'Days to retain events ("null" to reset to default)', parseRetentionDays)
   .option("--retention-metrics <days>", 'Days to retain metric events ("null" to reset to default)', parseRetentionDays)
   .option("--retention-funnels <days>", 'Days to retain funnel events ("null" to reset to default)', parseRetentionDays)
-  .action(async (id: string, opts: { name?: string; retentionEvents?: number | null; retentionMetrics?: number | null; retentionFunnels?: number | null }, cmd) => {
+  .action(async (id: string, opts: { name?: string; color?: string; retentionEvents?: number | null; retentionMetrics?: number | null; retentionFunnels?: number | null }, cmd) => {
     const { client, globals } = createClient(cmd);
     const body: Record<string, unknown> = {};
     if (opts.name !== undefined) body.name = opts.name;
+    if (opts.color !== undefined) body.color = opts.color;
     if (opts.retentionEvents !== undefined) body.retention_days_events = opts.retentionEvents;
     if (opts.retentionMetrics !== undefined) body.retention_days_metrics = opts.retentionMetrics;
     if (opts.retentionFunnels !== undefined) body.retention_days_funnels = opts.retentionFunnels;
     if (Object.keys(body).length === 0) {
-      throw new Error("At least one field to update is required (--name, --retention-events, --retention-metrics, --retention-funnels)");
+      throw new Error("At least one field to update is required (--name, --color, --retention-events, --retention-metrics, --retention-funnels)");
     }
     const project = await client.updateProject(id, body);
     output(globals.format, project, () => formatProjectDetail({ ...project, apps: [] }));

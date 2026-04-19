@@ -105,6 +105,7 @@ export const projects = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
     slug: varchar("slug", { length: 255 }).notNull(),
+    color: varchar("color", { length: 7 }).notNull(),
     retention_days_events: integer("retention_days_events"),
     retention_days_metrics: integer("retention_days_metrics"),
     retention_days_funnels: integer("retention_days_funnels"),

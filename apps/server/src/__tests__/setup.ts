@@ -443,8 +443,8 @@ export async function seedTestData() {
   `;
 
   const [project] = await client`
-    INSERT INTO projects (team_id, name, slug)
-    VALUES (${team.id}, 'Test Project', 'test-project')
+    INSERT INTO projects (team_id, name, slug, color)
+    VALUES (${team.id}, 'Test Project', 'test-project', '#0ea5e9')
     RETURNING id
   `;
 
@@ -484,8 +484,8 @@ export async function seedTestData() {
 
   // Separate project for backend app
   const [backendProject] = await client`
-    INSERT INTO projects (team_id, name, slug)
-    VALUES (${team.id}, 'Test Backend Project', 'test-backend-project')
+    INSERT INTO projects (team_id, name, slug, color)
+    VALUES (${team.id}, 'Test Backend Project', 'test-backend-project', '#22c55e')
     RETURNING id
   `;
 
@@ -512,8 +512,8 @@ export async function seedTestData() {
 
   // Separate project for android app
   const [androidProject] = await client`
-    INSERT INTO projects (team_id, name, slug)
-    VALUES (${team.id}, 'Test Android Project', 'test-android-project')
+    INSERT INTO projects (team_id, name, slug, color)
+    VALUES (${team.id}, 'Test Android Project', 'test-android-project', '#a855f7')
     RETURNING id
   `;
 

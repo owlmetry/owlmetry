@@ -11,10 +11,12 @@ import {
   MIN_RETENTION_DAYS,
   MAX_RETENTION_DAYS,
   ISSUE_ALERT_FREQUENCIES,
+  isValidProjectColor,
 } from "@owlmetry/shared";
 import { serializeApp, getClientSecretMap } from "../utils/serialize.js";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
+import { pickUnusedProjectColor } from "../utils/project-color.js";
 
 function serializeProject(p: typeof projects.$inferSelect) {
   return {
@@ -22,6 +24,7 @@ function serializeProject(p: typeof projects.$inferSelect) {
     team_id: p.team_id,
     name: p.name,
     slug: p.slug,
+    color: p.color,
     retention_days_events: p.retention_days_events,
     retention_days_metrics: p.retention_days_metrics,
     retention_days_funnels: p.retention_days_funnels,
@@ -160,12 +163,15 @@ export async function projectsRoutes(app: FastifyInstance) {
             )
           );
 
+        const color = await pickUnusedProjectColor(app.db, team_id);
+
         const [created] = await app.db
           .insert(projects)
           .values({
             team_id,
             name,
             slug,
+            color,
             retention_days_events: retention_days_events ?? null,
             retention_days_metrics: retention_days_metrics ?? null,
             retention_days_funnels: retention_days_funnels ?? null,
@@ -199,11 +205,15 @@ export async function projectsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { name, retention_days_events, retention_days_metrics, retention_days_funnels, issue_alert_frequency } = request.body;
+      const { name, color, retention_days_events, retention_days_metrics, retention_days_funnels, issue_alert_frequency } = request.body;
 
       const hasRetention = retention_days_events !== undefined || retention_days_metrics !== undefined || retention_days_funnels !== undefined;
-      if (!name && !hasRetention && issue_alert_frequency === undefined) {
+      if (!name && color === undefined && !hasRetention && issue_alert_frequency === undefined) {
         return reply.code(400).send({ error: "At least one field to update is required" });
+      }
+
+      if (color !== undefined && !isValidProjectColor(color)) {
+        return reply.code(400).send({ error: "color must be a valid hex code in #RRGGBB format" });
       }
 
       for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
@@ -220,6 +230,7 @@ export async function projectsRoutes(app: FastifyInstance) {
           id: projects.id,
           team_id: projects.team_id,
           name: projects.name,
+          color: projects.color,
           retention_days_events: projects.retention_days_events,
           retention_days_metrics: projects.retention_days_metrics,
           retention_days_funnels: projects.retention_days_funnels,
@@ -250,6 +261,10 @@ export async function projectsRoutes(app: FastifyInstance) {
       if (name !== undefined) {
         setFields.name = name;
         changes.name = { before: project.name, after: name };
+      }
+      if (color !== undefined) {
+        setFields.color = color;
+        changes.color = { before: project.color, after: color };
       }
       if (retention_days_events !== undefined) {
         setFields.retention_days_events = retention_days_events;

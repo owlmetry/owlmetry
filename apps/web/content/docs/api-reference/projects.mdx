@@ -119,13 +119,14 @@ Returns `409` if an active project with the same slug already exists.
 
 ## PATCH /v1/projects/:id
 
-Update a project's name or data retention policies.
+Update a project's name, color, or data retention policies.
 
 **Auth required:** Yes (`projects:write` permission or JWT, admin role required)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | No | New display name. |
+| `color` | string | No | Display color as `#RRGGBB` hex. Auto-assigned on creation; override to customize. |
 | `retention_days_events` | integer or null | No | Days to retain events. `null` resets to default (120). |
 | `retention_days_metrics` | integer or null | No | Days to retain metric events. `null` resets to default (365). |
 | `retention_days_funnels` | integer or null | No | Days to retain funnel events. `null` resets to default (365). |

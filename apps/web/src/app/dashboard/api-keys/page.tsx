@@ -41,6 +41,7 @@ import { ProjectDot } from "@/lib/project-color";
 import type {
   ApiKeyResponse,
   AppResponse,
+  ProjectResponse,
   CreateApiKeyResponse,
   GetApiKeyResponse,
   DeleteApiKeyResponse,
@@ -478,11 +479,16 @@ export default function ApiKeysPage() {
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
     currentTeam ? `/v1/apps?team_id=${currentTeam.id}` : null
   );
-  const appProjectMap = useMemo(() => {
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    currentTeam ? `/v1/projects?team_id=${currentTeam.id}` : null
+  );
+  const appColorMap = useMemo(() => {
+    const projectColors = new Map<string, string>();
+    for (const p of projectsData?.projects ?? []) projectColors.set(p.id, p.color);
     const m = new Map<string, string>();
-    for (const a of appsData?.apps ?? []) m.set(a.id, a.project_id);
+    for (const a of appsData?.apps ?? []) m.set(a.id, projectColors.get(a.project_id) ?? "");
     return m;
-  }, [appsData]);
+  }, [appsData, projectsData]);
 
   if (!currentTeam) {
     return <p className="text-muted-foreground">Loading...</p>;
@@ -536,7 +542,7 @@ export default function ApiKeysPage() {
                   <TableCell className="text-sm py-1.5 text-muted-foreground">
                     {key.app_id ? (
                       <span className="flex items-center gap-1.5">
-                        <ProjectDot projectId={appProjectMap.get(key.app_id)} size={6} />
+                        <ProjectDot color={appColorMap.get(key.app_id)} size={6} />
                         <span>{key.app_name ?? "\u2014"}</span>
                       </span>
                     ) : (

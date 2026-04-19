@@ -11,3 +11,4 @@ export * from "./time.js";
 export * from "./integrations.js";
 export * from "./jobs.js";
 export * from "./issues.js";
+export * from "./project-colors.js";

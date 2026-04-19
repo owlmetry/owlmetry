@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useDeferredValue } from "react";
 import { useParams, usePathname } from "next/navigation";
 import useSWR from "swr";
-import type { FunnelDefinitionResponse, AppResponse } from "@owlmetry/shared";
+import type { FunnelDefinitionResponse, AppResponse, ProjectResponse } from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
@@ -83,6 +83,10 @@ export default function FunnelDetailPage() {
     projectId ? `/v1/apps?project_id=${projectId}` : null,
   );
   const apps = appsData?.apps ?? [];
+  const { data: projectData } = useSWR<ProjectResponse>(
+    projectId ? `/v1/projects/${projectId}` : null,
+  );
+  const projectColor = projectData?.color;
 
   // Query
   const { data: queryData, isLoading } = useFunnelQuery(slug, projectId, {
@@ -147,7 +151,7 @@ export default function FunnelDetailPage() {
                 {apps.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     <span className="flex items-center gap-2">
-                      <ProjectDot projectId={a.project_id} />
+                      <ProjectDot color={projectColor} />
                       {a.name}
                     </span>
                   </SelectItem>

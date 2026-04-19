@@ -68,6 +68,16 @@ export default function UsersPage() {
     for (const a of allApps) m.set(a.id, a.project_id);
     return m;
   }, [allApps]);
+  const projectColorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects) m.set(p.id, p.color);
+    return m;
+  }, [projects]);
+  const appColorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of allApps) m.set(a.id, projectColorMap.get(a.project_id) ?? "");
+    return m;
+  }, [allApps, projectColorMap]);
 
   const projectId = filters.get("project_id");
   const appId = filters.get("app_id");
@@ -147,7 +157,7 @@ export default function UsersPage() {
               {projects.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   <span className="flex items-center gap-2">
-                    <ProjectDot projectId={p.id} />
+                    <ProjectDot color={p.color} />
                     {p.name}
                   </span>
                 </SelectItem>
@@ -170,7 +180,7 @@ export default function UsersPage() {
               {availableApps.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   <span className="flex items-center gap-2">
-                    <ProjectDot projectId={a.project_id} />
+                    <ProjectDot color={projectColorMap.get(a.project_id)} />
                     {a.name}
                   </span>
                 </SelectItem>
@@ -313,7 +323,7 @@ export default function UsersPage() {
                                 filters.set("app_id", a.app_id);
                               }}
                             >
-                              <ProjectDot projectId={appProjectMap.get(a.app_id)} size={6} />
+                              <ProjectDot color={appColorMap.get(a.app_id)} size={6} />
                               {a.app_name}
                             </Badge>
                           ))
@@ -384,7 +394,8 @@ export default function UsersPage() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         onFilter={handleSheetFilter}
-        appProjectMap={appProjectMap}
+        projectColorMap={projectColorMap}
+        appColorMap={appColorMap}
       />
     </div>
   );

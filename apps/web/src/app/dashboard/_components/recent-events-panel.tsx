@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import useSWR from "swr";
 import { ScrollText } from "lucide-react";
-import type { AppResponse, LogLevel } from "@owlmetry/shared";
+import type { AppResponse, LogLevel, ProjectResponse } from "@owlmetry/shared";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectDot } from "@/lib/project-color";
@@ -29,14 +29,19 @@ export function RecentEventsPanel() {
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null
   );
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
 
   const appMeta = useMemo(() => {
-    const map = new Map<string, { name: string; projectId: string }>();
+    const projectColors = new Map<string, string>();
+    for (const p of projectsData?.projects ?? []) projectColors.set(p.id, p.color);
+    const map = new Map<string, { name: string; projectColor: string | undefined }>();
     for (const a of appsData?.apps ?? []) {
-      map.set(a.id, { name: a.name, projectId: a.project_id });
+      map.set(a.id, { name: a.name, projectColor: projectColors.get(a.project_id) });
     }
     return map;
-  }, [appsData]);
+  }, [appsData, projectsData]);
 
   const visible = events.filter((e) => e.level !== "debug").slice(0, 5);
 
@@ -69,7 +74,7 @@ export function RecentEventsPanel() {
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                   {meta && (
                     <span className="flex items-center gap-1 truncate">
-                      <ProjectDot projectId={meta.projectId} size={5} />
+                      <ProjectDot color={meta.projectColor} size={5} />
                       <span className="truncate max-w-[140px]">{meta.name}</span>
                     </span>
                   )}
