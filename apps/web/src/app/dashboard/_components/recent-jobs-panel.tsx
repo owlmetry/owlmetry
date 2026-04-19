@@ -1,14 +1,17 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { Cog } from "lucide-react";
-import type { JobRunsQueryParams, JobType } from "@owlmetry/shared";
+import type { JobRunsQueryParams, JobType, ProjectResponse } from "@owlmetry/shared";
 import { JOB_TYPE_META } from "@owlmetry/shared/jobs";
 import { formatDuration as formatMs } from "@owlmetry/shared/constants";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useJobRuns } from "@/hooks/use-jobs";
 import { useTeam } from "@/contexts/team-context";
+import { ProjectDot } from "@/lib/project-color";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
@@ -45,6 +48,15 @@ export function RecentJobsPanel() {
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   const { jobRuns, isLoading } = useJobRuns(isAdmin ? teamId : undefined, filters);
 
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    isAdmin && teamId ? `/v1/projects?team_id=${teamId}` : null
+  );
+  const projectById = useMemo(() => {
+    const map = new Map<string, ProjectResponse>();
+    for (const p of projectsData?.projects ?? []) map.set(p.id, p);
+    return map;
+  }, [projectsData]);
+
   if (!isAdmin) return null;
 
   return (
@@ -61,6 +73,7 @@ export function RecentJobsPanel() {
         jobRuns.slice(0, 5).map((run) => {
           const label = JOB_TYPE_META[run.job_type as JobType]?.label ?? run.job_type;
           const duration = durationOf(run.started_at, run.completed_at);
+          const project = run.project_id ? projectById.get(run.project_id) : null;
           return (
             <Link
               key={run.id}
@@ -72,11 +85,15 @@ export function RecentJobsPanel() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{label}</p>
-                {duration && (
-                  <div className="mt-0.5 text-[11px] text-muted-foreground font-mono">
-                    {duration}
-                  </div>
-                )}
+                <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  {project && (
+                    <span className="flex items-center gap-1 min-w-0">
+                      <ProjectDot color={project.color} size={6} />
+                      <span className="truncate">{project.name}</span>
+                    </span>
+                  )}
+                  {duration && <span className="font-mono">{duration}</span>}
+                </div>
               </div>
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
                 {timeAgo(run.created_at)}

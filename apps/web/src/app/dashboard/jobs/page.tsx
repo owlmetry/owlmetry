@@ -103,6 +103,11 @@ export default function JobsPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
   const projects = projectsData?.projects ?? [];
+  const projectById = useMemo(() => {
+    const map = new Map<string, ProjectResponse>();
+    for (const p of projects) map.set(p.id, p);
+    return map;
+  }, [projects]);
 
   const filters = useUrlFilters({
     path: "/dashboard/jobs",
@@ -393,6 +398,7 @@ export default function JobsPage() {
                 <TableRow>
                   <TableHead className="w-[100px]">Status</TableHead>
                   <TableHead className="w-[180px]">Type</TableHead>
+                  <TableHead className="w-[160px]">Project</TableHead>
                   <TableHead className="w-[100px]">Triggered</TableHead>
                   <TableHead className="w-[100px]">Duration</TableHead>
                   <TableHead className="w-[140px]">Progress</TableHead>
@@ -404,6 +410,7 @@ export default function JobsPage() {
                   const label = getJobLabel(run.job_type);
                   const ts = new Date(run.created_at);
                   const time = formatCompactDateTime(ts);
+                  const project = run.project_id ? projectById.get(run.project_id) : null;
 
                   const progressPct = run.progress?.total
                     ? Math.round((run.progress.processed / run.progress.total) * 100)
@@ -417,6 +424,18 @@ export default function JobsPage() {
                     >
                       <TableCell className="py-1.5">{statusBadge(run.status)}</TableCell>
                       <TableCell className="text-xs py-1.5">{label}</TableCell>
+                      <TableCell className="text-xs py-1.5">
+                        {project ? (
+                          <span className="flex items-center gap-2 min-w-0">
+                            <ProjectDot color={project.color} />
+                            <span className="truncate">{project.name}</span>
+                          </span>
+                        ) : run.project_id ? (
+                          <span className="font-mono text-muted-foreground">{truncateId(run.project_id)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs py-1.5">{formatTriggeredBy(run.triggered_by)}</TableCell>
                       <TableCell className="text-xs py-1.5 font-mono">
                         {formatDuration(run.started_at, run.completed_at)}
@@ -460,6 +479,25 @@ export default function JobsPage() {
           {selectedRun && (
             <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4 text-sm">
               <div className="grid grid-cols-[100px_1fr] gap-y-2 gap-x-3">
+                <span className="text-muted-foreground">Project</span>
+                <span>
+                  {(() => {
+                    const project = selectedRun.project_id ? projectById.get(selectedRun.project_id) : null;
+                    if (project) {
+                      return (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <ProjectDot color={project.color} />
+                          <span className="truncate">{project.name}</span>
+                        </span>
+                      );
+                    }
+                    if (selectedRun.project_id) {
+                      return <span className="font-mono text-xs text-muted-foreground">{selectedRun.project_id}</span>;
+                    }
+                    return <span className="text-muted-foreground">—</span>;
+                  })()}
+                </span>
+
                 <span className="text-muted-foreground">Type</span>
                 <span>{getJobLabel(selectedRun.job_type)}</span>
 
