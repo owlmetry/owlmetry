@@ -330,7 +330,7 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="py-1.5">
                       {user.properties ? (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap items-center gap-1">
                           {user.properties.rc_subscriber === "true" && (
                             <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>
                           )}
