@@ -49,13 +49,14 @@ owlmetry projects create --name "My App" --slug my-app --retention-events 90
 ## Update a project
 
 ```bash
-owlmetry projects update <id> [--name <name>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>]
+owlmetry projects update <id> [--name <name>] [--color <hex>] [--retention-events <days>] [--retention-metrics <days>] [--retention-funnels <days>]
 ```
 
 | Argument / Flag | Required | Description |
 |-----------------|----------|-------------|
 | `<id>` | Yes | Project UUID |
 | `--name <name>` | No | New project name |
+| `--color <hex>` | No | Project color as `#RRGGBB` hex (e.g. `#22c55e`). A color is auto-assigned on creation; use this to override. |
 | `--retention-events <days>` | No | Days to retain events. Pass `null` to reset to default. |
 | `--retention-metrics <days>` | No | Days to retain metric events. Pass `null` to reset to default. |
 | `--retention-funnels <days>` | No | Days to retain funnel events. Pass `null` to reset to default. |

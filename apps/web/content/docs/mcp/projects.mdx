@@ -13,7 +13,7 @@ List all projects accessible to this agent.
 |-----------|------|----------|-------------|
 | `team_id` | UUID | No | Filter by team ID |
 
-Returns `{ projects: [...] }` with each project's `id`, `name`, `slug`, `team_id`, and timestamps.
+Returns `{ projects: [...] }` with each project's `id`, `name`, `slug`, `color`, `team_id`, and timestamps.
 
 ## get-project
 
@@ -37,6 +37,8 @@ Create a new project. Requires `projects:write` permission.
 | `retention_days_events` | integer | No | Days to retain events (default: 120) |
 | `retention_days_metrics` | integer | No | Days to retain metric events (default: 365) |
 | `retention_days_funnels` | integer | No | Days to retain funnel events (default: 365) |
+
+A display color is auto-assigned on creation; use `update-project` to override it.
 
 ```json
 {

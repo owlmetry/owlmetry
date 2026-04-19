@@ -24,6 +24,7 @@ List all projects the caller has access to.
       "team_id": "uuid",
       "name": "My App",
       "slug": "my-app",
+      "color": "#22c55e",
       "retention_days_events": null,
       "retention_days_metrics": null,
       "retention_days_funnels": null,
@@ -49,6 +50,7 @@ Get a single project with its apps.
   "team_id": "uuid",
   "name": "My App",
   "slug": "my-app",
+  "color": "#22c55e",
   "retention_days_events": null,
   "retention_days_metrics": null,
   "retention_days_funnels": null,
@@ -92,6 +94,7 @@ Create a new project within a team.
   "team_id": "uuid",
   "name": "My App",
   "slug": "my-app",
+  "color": "#22c55e",
   "retention_days_events": 90,
   "retention_days_metrics": null,
   "retention_days_funnels": null,
@@ -101,6 +104,8 @@ Create a new project within a team.
   "created_at": "2024-01-01T00:00:00.000Z"
 }
 ```
+
+A display color is auto-assigned on creation (picked from a palette of unused colors within the team). Use PATCH to override it. The request body does not accept `color`.
 
 ### Field reference
 
@@ -146,6 +151,7 @@ At least one field must be provided.
   "team_id": "uuid",
   "name": "Renamed Project",
   "slug": "my-app",
+  "color": "#22c55e",
   "retention_days_events": 60,
   "retention_days_metrics": null,
   "retention_days_funnels": null,
