@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, FunnelStep } from "@owlmetry/shared";
 import { validateFunnelSlug } from "@owlmetry/shared/constants";
 import { useTeam } from "@/contexts/team-context";
 import { useFunnels } from "@/hooks/use-funnels";
+import { useLastSelectedProject } from "@/hooks/use-last-selected-project";
 import { ProjectDot } from "@/lib/project-color";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -48,17 +49,33 @@ export default function FunnelsPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
   const projects = projectsData?.projects ?? [];
+  const lastProject = useLastSelectedProject(teamId);
 
   const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? "");
 
   function setProjectId(id: string) {
     setProjectIdState(id);
+    lastProject.write(id);
     const params = new URLSearchParams();
     if (id) params.set("project_id", id);
     const qs = params.toString();
     router.replace(`/dashboard/funnels${qs ? `?${qs}` : ""}`, { scroll: false });
   }
-  const selectedProjectId = projectId || projects[0]?.id || "";
+
+  const stored = lastProject.read();
+  const storedValid = stored ? projects.some((p) => p.id === stored) : false;
+  const selectedProjectId =
+    projectId ||
+    (storedValid ? stored! : "") ||
+    projects[0]?.id ||
+    "";
+
+  useEffect(() => {
+    if (selectedProjectId && selectedProjectId !== stored) {
+      lastProject.write(selectedProjectId);
+    }
+  }, [selectedProjectId, stored, lastProject]);
+
   const { funnels, isLoading, mutate } = useFunnels(selectedProjectId || null);
 
   // Create modal state
