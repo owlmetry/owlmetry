@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
@@ -35,13 +35,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/copy-button";
 import { useApiKeys } from "@/hooks/use-api-keys";
+import { useAppColorMap } from "@/hooks/use-project-colors";
 import { useTeam } from "@/contexts/team-context";
 import { api, ApiError } from "@/lib/api";
 import { ProjectDot } from "@/lib/project-color";
 import type {
   ApiKeyResponse,
   AppResponse,
-  ProjectResponse,
   CreateApiKeyResponse,
   GetApiKeyResponse,
   DeleteApiKeyResponse,
@@ -476,19 +476,7 @@ function RevokeKeyDialog({
 export default function ApiKeysPage() {
   const { currentTeam } = useTeam();
   const { apiKeys, isLoading, mutate: mutateKeys } = useApiKeys(currentTeam?.id ?? null);
-  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
-    currentTeam ? `/v1/apps?team_id=${currentTeam.id}` : null
-  );
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
-    currentTeam ? `/v1/projects?team_id=${currentTeam.id}` : null
-  );
-  const appColorMap = useMemo(() => {
-    const projectColors = new Map<string, string>();
-    for (const p of projectsData?.projects ?? []) projectColors.set(p.id, p.color);
-    const m = new Map<string, string>();
-    for (const a of appsData?.apps ?? []) m.set(a.id, projectColors.get(a.project_id) ?? "");
-    return m;
-  }, [appsData, projectsData]);
+  const appColorMap = useAppColorMap(currentTeam?.id);
 
   if (!currentTeam) {
     return <p className="text-muted-foreground">Loading...</p>;

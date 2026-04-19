@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import useSWR from "swr";
 import { Bug, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectDot } from "@/lib/project-color";
 import { useIssues } from "@/hooks/use-issues";
+import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
-import type { IssueStatus, ProjectResponse } from "@owlmetry/shared";
+import type { IssueStatus } from "@owlmetry/shared";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
@@ -36,14 +35,7 @@ export function OpenIssuesPanel() {
     limit: "50",
   });
 
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
-    teamId ? `/v1/projects?team_id=${teamId}` : null,
-  );
-  const projectColorMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const p of projectsData?.projects ?? []) m.set(p.id, p.color);
-    return m;
-  }, [projectsData]);
+  const projectColorMap = useProjectColorMap(teamId);
 
   const unresolved = issues
     .filter((i) => UNRESOLVED.includes(i.status))

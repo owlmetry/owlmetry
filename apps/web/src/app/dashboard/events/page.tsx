@@ -19,6 +19,7 @@ import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
+import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
 import { ProjectDot } from "@/lib/project-color";
@@ -119,16 +120,8 @@ export default function EventsPage() {
     for (const a of allApps) map.set(a.id, a.project_id);
     return map;
   }, [allApps]);
-  const projectColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of projects) map.set(p.id, p.color);
-    return map;
-  }, [projects]);
-  const appColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of allApps) map.set(a.id, projectColorMap.get(a.project_id) ?? "");
-    return map;
-  }, [allApps, projectColorMap]);
+  const projectColorMap = useProjectColorMap(teamId);
+  const appColorMap = useAppColorMap(teamId);
 
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {

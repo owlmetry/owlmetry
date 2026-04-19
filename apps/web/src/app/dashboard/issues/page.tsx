@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, IssueResponse, IssueStatus } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
+import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -354,11 +355,7 @@ export default function IssuesPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
   const projects = projectsData?.projects ?? [];
-  const projectColorMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const p of projects) map.set(p.id, p.color);
-    return map;
-  }, [projects]);
+  const projectColorMap = useProjectColorMap(teamId);
 
   const ALL = "__all__";
   const [projectId, setProjectIdState] = useState(searchParams.get("project_id") ?? ALL);

@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useMemo } from "react";
 import useSWR from "swr";
 import { ScrollText } from "lucide-react";
-import type { AppResponse, LogLevel, ProjectResponse } from "@owlmetry/shared";
+import type { AppResponse, LogLevel } from "@owlmetry/shared";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectDot } from "@/lib/project-color";
 import { useEvents } from "@/hooks/use-events";
+import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { DashboardSection } from "./dashboard-section";
@@ -29,19 +30,15 @@ export function RecentEventsPanel() {
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null
   );
-  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
-    teamId ? `/v1/projects?team_id=${teamId}` : null
-  );
+  const projectColorMap = useProjectColorMap(teamId);
 
   const appMeta = useMemo(() => {
-    const projectColors = new Map<string, string>();
-    for (const p of projectsData?.projects ?? []) projectColors.set(p.id, p.color);
     const map = new Map<string, { name: string; projectColor: string | undefined }>();
     for (const a of appsData?.apps ?? []) {
-      map.set(a.id, { name: a.name, projectColor: projectColors.get(a.project_id) });
+      map.set(a.id, { name: a.name, projectColor: projectColorMap.get(a.project_id) });
     }
     return map;
-  }, [appsData, projectsData]);
+  }, [appsData, projectColorMap]);
 
   const visible = events.filter((e) => e.level !== "debug").slice(0, 5);
 

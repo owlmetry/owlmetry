@@ -16,6 +16,7 @@ import { useTeam } from "@/contexts/team-context";
 import { formatDateTime } from "@/lib/format-date";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
+import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,16 +69,8 @@ export default function UsersPage() {
     for (const a of allApps) m.set(a.id, a.project_id);
     return m;
   }, [allApps]);
-  const projectColorMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const p of projects) m.set(p.id, p.color);
-    return m;
-  }, [projects]);
-  const appColorMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of allApps) m.set(a.id, projectColorMap.get(a.project_id) ?? "");
-    return m;
-  }, [allApps, projectColorMap]);
+  const projectColorMap = useProjectColorMap(teamId);
+  const appColorMap = useAppColorMap(teamId);
 
   const projectId = filters.get("project_id");
   const appId = filters.get("app_id");
