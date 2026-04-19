@@ -29,7 +29,7 @@ owlmetry integrations add revenuecat \
     --api-key <revenuecat-secret-key>
 ```
 
-The `--api-key` is a RevenueCat **V2 Secret API key** (generated in RevenueCat → Project Settings → API Keys → + New secret API key). Required permissions: **Project configuration → Projects → Read only** AND **Customer information → Customers Configuration → Read only**; all other sections → No access.
+The `--api-key` is a RevenueCat **V2 Secret API key** (generated in RevenueCat → Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only** AND **Project configuration → Projects Configuration → Read only**; all other sections → No access.
 
 A webhook secret is auto-generated. After creation, the output includes a **Webhook Setup** section with the exact values to paste into RevenueCat's webhook settings (URL, authorization header, environment, events filter). The authorization header contains the un-redacted secret and is only shown once.
 
