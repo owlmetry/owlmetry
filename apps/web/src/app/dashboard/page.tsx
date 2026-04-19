@@ -82,6 +82,11 @@ export default function DashboardPage() {
   const uniqueSessions = eventsCountData?.unique_sessions;
   const metricsCompleted = metricsCompletedData?.count;
   const funnelsCompleted = funnelsCompletedData?.count;
+  const funnelsStarted = funnelsCompletedData?.started;
+  const funnelsValue =
+    funnelsCompleted === undefined || funnelsStarted === undefined
+      ? undefined
+      : `${funnelsCompleted}/${funnelsStarted}`;
 
   const projectsAppsLoading = projectsLoading || appsLoading;
   const projectsAppsValue =
@@ -147,9 +152,9 @@ export default function DashboardPage() {
           href="/dashboard/metrics"
         />
         <StatCard
-          label="Funnels ✅ · 24h"
+          label="Funnels ✅/🚀 · 24h"
           icon={Filter}
-          value={funnelsCompleted}
+          value={funnelsValue}
           isLoading={funnelsCompletedLoading}
           href="/dashboard/funnels"
         />

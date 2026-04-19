@@ -440,7 +440,7 @@ export async function funnelByIdRoutes(app: FastifyInstance) {
         ? (allTeamIds.includes(team_id) ? [team_id] : [])
         : allTeamIds;
 
-      const empty = { count: 0 };
+      const empty = { count: 0, started: 0 };
       if (teamIds.length === 0) return empty;
 
       // Resolve target apps and group them by project so we can pair each
@@ -494,29 +494,39 @@ export async function funnelByIdRoutes(app: FastifyInstance) {
       const devCondition = dataModeToDrizzle(funnelEvents.is_dev, data_mode);
 
       const counts = await Promise.all(funnels.map(async (funnel) => {
+        const firstStep = funnel.steps[0];
         const lastStep = funnel.steps[funnel.steps.length - 1];
-        if (!lastStep) return 0;
+        if (!firstStep || !lastStep) return { completed: 0, started: 0 };
         const projectAppIds = appsByProject.get(funnel.project_id) ?? [];
-        if (projectAppIds.length === 0) return 0;
+        if (projectAppIds.length === 0) return { completed: 0, started: 0 };
 
-        const conditions: SQL[] = [
-          inArray(funnelEvents.app_id, projectAppIds),
-          buildStepFilterSql(lastStep.event_filter),
-        ];
-        if (sinceDate) conditions.push(gte(funnelEvents.timestamp, sinceDate));
-        if (untilDate) conditions.push(lte(funnelEvents.timestamp, untilDate));
-        if (devCondition) conditions.push(devCondition);
+        const baseConditions: SQL[] = [inArray(funnelEvents.app_id, projectAppIds)];
+        if (sinceDate) baseConditions.push(gte(funnelEvents.timestamp, sinceDate));
+        if (untilDate) baseConditions.push(lte(funnelEvents.timestamp, untilDate));
+        if (devCondition) baseConditions.push(devCondition);
 
-        const [row] = await app.db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(funnelEvents)
-          .where(and(...conditions));
+        const [completedRow, startedRow] = await Promise.all([
+          app.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(funnelEvents)
+            .where(and(...baseConditions, buildStepFilterSql(lastStep.event_filter))),
+          app.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(funnelEvents)
+            .where(and(...baseConditions, buildStepFilterSql(firstStep.event_filter))),
+        ]);
 
-        return row?.count ?? 0;
+        return {
+          completed: completedRow[0]?.count ?? 0,
+          started: startedRow[0]?.count ?? 0,
+        };
       }));
 
-      const total = counts.reduce((sum, n) => sum + n, 0);
-      return { count: total };
+      const total = counts.reduce(
+        (acc, c) => ({ count: acc.count + c.completed, started: acc.started + c.started }),
+        { count: 0, started: 0 },
+      );
+      return total;
     },
   );
 

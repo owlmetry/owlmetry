@@ -255,6 +255,7 @@ export interface CompletionsCountQueryParams {
 
 export interface CompletionsCountResponse {
   count: number;
+  started?: number;
 }
 
 // Funnels
