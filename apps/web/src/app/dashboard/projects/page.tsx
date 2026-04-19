@@ -21,7 +21,14 @@ import { api, ApiError } from "@/lib/api";
 import { useTeam } from "@/contexts/team-context";
 import { useUser } from "@/hooks/use-user";
 import { ProjectDot, getProjectColor } from "@/lib/project-color";
-import type { ProjectResponse } from "@owlmetry/shared";
+import type { AppResponse, ProjectResponse } from "@owlmetry/shared";
+
+const PLATFORM_EMOJI: Record<string, string> = {
+  apple: "🍎",
+  android: "🤖",
+  web: "🌐",
+  backend: "☁️",
+};
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -34,12 +41,21 @@ export default function ProjectsPage() {
   const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>(
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
+  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
+    teamId ? `/v1/apps?team_id=${teamId}` : null
+  );
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const projects = data?.projects ?? [];
+  const appsByProject = new Map<string, AppResponse[]>();
+  for (const app of appsData?.apps ?? []) {
+    const list = appsByProject.get(app.project_id) ?? [];
+    list.push(app);
+    appsByProject.set(app.project_id, list);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -107,24 +123,44 @@ export default function ProjectsPage() {
         <p className="text-muted-foreground">No projects yet. Create one to get started.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
-              <Card
-                className="border-l-4 transition-colors hover:border-primary/50"
-                style={{ borderLeftColor: getProjectColor(project.id) }}
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ProjectDot projectId={project.id} />
-                    <span>{project.name}</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{project.slug}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {projects.map((project) => {
+            const projectApps = appsByProject.get(project.id) ?? [];
+            return (
+              <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
+                <Card
+                  className="border-l-4 transition-colors hover:border-primary/50"
+                  style={{ borderLeftColor: getProjectColor(project.id) }}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ProjectDot projectId={project.id} />
+                      <span>{project.name}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">{project.slug}</p>
+                    {projectApps.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No apps yet.</p>
+                    ) : (
+                      <ul className="space-y-1 text-sm">
+                        {projectApps.map((app) => (
+                          <li key={app.id} className="flex items-center gap-2">
+                            <span>{PLATFORM_EMOJI[app.platform] ?? ""}</span>
+                            <span className="truncate">{app.name}</span>
+                            {app.bundle_id && (
+                              <span className="truncate font-mono text-xs text-muted-foreground">
+                                {app.bundle_id}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
