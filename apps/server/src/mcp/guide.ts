@@ -93,7 +93,7 @@ Third-party service connections (e.g., RevenueCat) that sync data into user prop
 
 **Setting up RevenueCat — the only thing you need from the user is their RevenueCat V2 Secret API key.** Everything else is automatic.
 
-1. Ask the user for their **RevenueCat V2 Secret API key**. They generate it in RevenueCat dashboard → Project Settings → API Keys → + New secret API key. Required permissions: **Customer information → Customers Configuration → Read only**. All other sections → No access.
+1. Ask the user for their **RevenueCat V2 Secret API key**. They generate it in RevenueCat dashboard → Project Settings → API Keys → + New secret API key. Required permissions: **Project configuration → Projects → Read only** AND **Customer information → Customers Configuration → Read only**. All other sections → No access.
 2. Call \`add-integration\` with just \`api_key\`. Do NOT ask the user for a webhook secret — one is auto-generated.
 3. The response includes a \`webhook_setup\` section with every value the user needs to paste into RevenueCat's webhook form (Settings → Webhooks → + New Webhook): webhook URL, authorization header (contains the auto-generated secret), environment, and events filter. Present these to the user.
 4. After the user confirms the webhook is saved, run \`sync-integration\` to backfill existing subscriber data.

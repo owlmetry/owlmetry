@@ -118,42 +118,79 @@ function buildWebhookPayload(eventType: string, overrides: Record<string, unknow
   };
 }
 
-function buildSubscriberResponse(overrides: Record<string, unknown> = {}) {
-  const now = new Date().toISOString();
-  const future = new Date(Date.now() + 86400000 * 30).toISOString();
+// --- V2 API mocks ---
+
+const TEST_RC_PROJECT_ID = "proj_test_abc123";
+
+function buildProjectsResponse(projectId: string = TEST_RC_PROJECT_ID) {
   return {
-    request_date: now,
-    request_date_ms: Date.now(),
-    subscriber: {
-      entitlements: {
-        pro: {
-          expires_date: future,
-          grace_period_expires_date: null,
-          product_identifier: "premium_monthly",
-          purchase_date: now,
-        },
-      },
-      first_seen: now,
-      last_seen: now,
-      management_url: "https://apps.apple.com/account/subscriptions",
-      non_subscriptions: {},
-      original_app_user_id: "rc_user_123",
-      subscriptions: {
-        premium_monthly: {
-          auto_resume_date: null,
-          billing_issues_detected_at: null,
-          expires_date: future,
-          is_sandbox: false,
-          original_purchase_date: now,
-          period_type: "normal",
-          purchase_date: now,
-          store: "app_store",
-          unsubscribe_detected_at: null,
-        },
-      },
-      ...overrides,
-    },
+    object: "list" as const,
+    items: [
+      { object: "project" as const, id: projectId, name: "Test", created_at: Date.now() },
+    ],
+    next_page: null,
+    url: "/v2/projects",
   };
+}
+
+function buildActiveEntitlementsResponse(
+  items: Array<{ lookup_key: string; product_identifier: string; expires_at?: number | null }> = [
+    { lookup_key: "pro", product_identifier: "premium_monthly", expires_at: Date.now() + 86400000 * 30 },
+  ],
+) {
+  return {
+    object: "list" as const,
+    items: items.map((i) => ({
+      object: "customer.active_entitlement" as const,
+      entitlement_id: `ent_${i.lookup_key}`,
+      lookup_key: i.lookup_key,
+      display_name: i.lookup_key,
+      product_identifier: i.product_identifier,
+      expires_at: i.expires_at ?? null,
+    })),
+    next_page: null,
+    url: "/v2/projects/.../active_entitlements",
+  };
+}
+
+/**
+ * Install a fetch mock that handles both the V2 /projects lookup and the
+ * /customers/{id}/active_entitlements call. Returns a cleanup function.
+ */
+function mockRevenueCatV2(options: {
+  entitlementsResponse?: unknown;
+  entitlementsStatus?: number;
+  captureAuthHeader?: (header: string | null) => void;
+  capturedUrl?: (url: string) => void;
+}) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    options.capturedUrl?.(url);
+    if (url.includes("api.revenuecat.com/v2/projects") && !url.includes("/customers/")) {
+      // /v2/projects lookup
+      return new Response(JSON.stringify(buildProjectsResponse()), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("api.revenuecat.com/v2/projects") && url.includes("/active_entitlements")) {
+      if (options.captureAuthHeader) {
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        options.captureAuthHeader(headers["Authorization"] ?? null);
+      }
+      const status = options.entitlementsStatus ?? 200;
+      const body = status === 404
+        ? { code: 7259, message: "Customer not found." }
+        : options.entitlementsResponse ?? buildActiveEntitlementsResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return originalFetch(input, init);
+  }) as typeof fetch;
+  return () => { globalThis.fetch = originalFetch; };
 }
 
 // ==========================================================================
@@ -456,22 +493,7 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     await createRevenueCatIntegration();
     await ingestEvent("rc_user_123");
 
-    const mockResponse = buildSubscriberResponse();
-
-    // Mock global fetch for RevenueCat API calls
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes("api.revenuecat.com/v1/subscribers/")) {
-        return new Response(JSON.stringify(mockResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      // Fall through to real fetch for Fastify inject (which doesn't use global fetch)
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
+    const cleanup = mockRevenueCatV2({});
     try {
       const res = await app.inject({
         method: "POST",
@@ -491,26 +513,15 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       const props = await getUserProperties("rc_user_123");
       expect(props?.rc_subscriber).toBe("true");
     } finally {
-      globalThis.fetch = originalFetch;
+      cleanup();
     }
   });
 
-  it("returns 404 when RC API returns subscriber not found", async () => {
+  it("returns 404 when RC API returns customer not found", async () => {
     await createRevenueCatIntegration();
     await ingestEvent("nonexistent_user");
 
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes("api.revenuecat.com")) {
-        return new Response(JSON.stringify({ code: 7224, message: "Subscriber not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return originalFetch(input);
-    }) as typeof fetch;
-
+    const cleanup = mockRevenueCatV2({ entitlementsStatus: 404 });
     try {
       const res = await app.inject({
         method: "POST",
@@ -521,38 +532,19 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       expect(res.statusCode).toBe(404);
       expect(res.json().error).toMatch(/Subscriber not found/);
     } finally {
-      globalThis.fetch = originalFetch;
+      cleanup();
     }
   });
 
-  it("correctly maps expired subscriber to inactive properties", async () => {
+  it("maps a customer with no active entitlements to inactive properties", async () => {
     await createRevenueCatIntegration();
     await ingestEvent("expired_user");
 
-    const expiredDate = new Date(Date.now() - 86400000).toISOString(); // yesterday
-    const mockResponse = buildSubscriberResponse({
-      entitlements: {
-        pro: {
-          expires_date: expiredDate,
-          grace_period_expires_date: null,
-          product_identifier: "premium_monthly",
-          purchase_date: expiredDate,
-        },
-      },
+    // V2 /active_entitlements returns 200 with empty items for a customer
+    // that exists but has no active subscription.
+    const cleanup = mockRevenueCatV2({
+      entitlementsResponse: buildActiveEntitlementsResponse([]),
     });
-
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes("api.revenuecat.com")) {
-        return new Response(JSON.stringify(mockResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return originalFetch(input);
-    }) as typeof fetch;
-
     try {
       const res = await app.inject({
         method: "POST",
@@ -564,37 +556,19 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       expect(res.json().properties.rc_subscriber).toBe("false");
       expect(res.json().properties.rc_status).toBe("expired");
     } finally {
-      globalThis.fetch = originalFetch;
+      cleanup();
     }
   });
 
-  it("correctly maps subscriber with lifetime (null expires_date) entitlement", async () => {
+  it("maps a lifetime (null expires_at) entitlement as active", async () => {
     await createRevenueCatIntegration();
     await ingestEvent("lifetime_user");
 
-    const mockResponse = buildSubscriberResponse({
-      entitlements: {
-        pro: {
-          expires_date: null, // lifetime
-          grace_period_expires_date: null,
-          product_identifier: "lifetime_pro",
-          purchase_date: new Date().toISOString(),
-        },
-      },
+    const cleanup = mockRevenueCatV2({
+      entitlementsResponse: buildActiveEntitlementsResponse([
+        { lookup_key: "pro", product_identifier: "lifetime_pro", expires_at: null },
+      ]),
     });
-
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes("api.revenuecat.com")) {
-        return new Response(JSON.stringify(mockResponse), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return originalFetch(input);
-    }) as typeof fetch;
-
     try {
       const res = await app.inject({
         method: "POST",
@@ -603,11 +577,11 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       });
 
       expect(res.statusCode).toBe(200);
-      expect(res.json().properties.rc_subscriber).toBe("true"); // null expires = lifetime = active
+      expect(res.json().properties.rc_subscriber).toBe("true");
       expect(res.json().properties.rc_status).toBe("active");
       expect(res.json().properties.rc_product).toBe("lifetime_pro");
     } finally {
-      globalThis.fetch = originalFetch;
+      cleanup();
     }
   });
 
@@ -616,19 +590,9 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     await ingestEvent("rc_user_123");
 
     let capturedAuthHeader: string | null = null;
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url.includes("api.revenuecat.com")) {
-        capturedAuthHeader = (init?.headers as Record<string, string>)?.["Authorization"] ?? null;
-        return new Response(JSON.stringify(buildSubscriberResponse()), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
+    const cleanup = mockRevenueCatV2({
+      captureAuthHeader: (h) => { capturedAuthHeader = h; },
+    });
     try {
       await app.inject({
         method: "POST",
@@ -638,7 +602,7 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
 
       expect(capturedAuthHeader).toBe("Bearer sk_my_special_key");
     } finally {
-      globalThis.fetch = originalFetch;
+      cleanup();
     }
   });
 

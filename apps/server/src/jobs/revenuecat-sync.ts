@@ -6,6 +6,7 @@ import {
   type RevenueCatConfig,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
+  fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
 
 export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
@@ -49,6 +50,33 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   if (users.length === 0) {
     return { synced: 0, total: 0, skipped: 0 };
   }
+
+  // Resolve the RevenueCat project ID for this API key. V2 endpoints are
+  // project-scoped, so every per-user call needs this in the URL.
+  const projectIdResult = await fetchRevenueCatProjectId(rcConfig.api_key);
+  if (projectIdResult.status !== "found") {
+    const statusCode = projectIdResult.status === "error" ? projectIdResult.statusCode : undefined;
+    const message = projectIdResult.status === "error" ? projectIdResult.message : undefined;
+    const reason = projectIdResult.status === "no_projects"
+      ? "RevenueCat API key has no accessible projects. Generate a project-scoped V2 secret key in RevenueCat → Project Settings → API Keys."
+      : `RevenueCat API error while resolving project: HTTP ${statusCode ?? "network"} — ${message ?? "no response body"}`;
+    ctx.log.error(
+      { statusCode, message },
+      "RC sync aborting — could not resolve RevenueCat project",
+    );
+    return {
+      total: users.length,
+      synced: 0,
+      skipped: 0,
+      errors: 0,
+      not_found: 0,
+      active: 0,
+      inactive: 0,
+      aborted: true,
+      abort_reason: reason,
+    };
+  }
+  const rcProjectId = projectIdResult.projectId;
 
   const MAX_USER_IDS = 10;
   const total = users.length;
@@ -103,9 +131,9 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
 
     const user = users[i];
     try {
-      const result = await fetchRevenueCatSubscriber(rcConfig.api_key, user.user_id);
+      const result = await fetchRevenueCatSubscriber(rcConfig.api_key, rcProjectId, user.user_id);
       if (result.status === "found") {
-        const props = mapSubscriberToProperties(result.data.subscriber);
+        const props = mapSubscriberToProperties(result.data);
         await mergeUserProperties(ctx.db, projectId, user.user_id, props);
         synced++;
         if (props.rc_status === "active") {
@@ -129,11 +157,11 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
         if (result.statusCode === 401 || result.statusCode === 403) {
           ctx.log.error(
             { statusCode: result.statusCode, message: result.message },
-            "RC sync aborting — API key rejected (likely wrong key type; REST API requires a secret key starting with sk_)",
+            "RC sync aborting — RevenueCat rejected the API key",
           );
           return buildResult({
             aborted: true,
-            abort_reason: `RevenueCat API key rejected with HTTP ${result.statusCode}. The REST API requires a secret key (sk_*), not a platform SDK key (appl_*/goog_*).`,
+            abort_reason: `RevenueCat API rejected the key with HTTP ${result.statusCode}. Response: ${result.message ?? "(no body)"}`,
           });
         }
       }

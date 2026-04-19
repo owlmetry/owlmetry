@@ -9,6 +9,7 @@ import {
   type RevenueCatConfig,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
+  fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
 
 interface RevenueCatWebhookEvent {
@@ -216,7 +217,22 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       const rcConfig = integration.config as unknown as RevenueCatConfig;
 
-      const subscriberResult = await fetchRevenueCatSubscriber(rcConfig.api_key, userId);
+      const projectIdResult = await fetchRevenueCatProjectId(rcConfig.api_key);
+      if (projectIdResult.status !== "found") {
+        app.log.warn(
+          { projectId, statusCode: projectIdResult.status === "error" ? projectIdResult.statusCode : undefined, message: projectIdResult.status === "error" ? projectIdResult.message : undefined },
+          "RevenueCat API error while resolving project",
+        );
+        return reply.code(502).send({
+          error: "RevenueCat API error",
+          message: projectIdResult.status === "no_projects"
+            ? "API key has no accessible projects"
+            : projectIdResult.message,
+          statusCode: projectIdResult.status === "error" ? projectIdResult.statusCode : undefined,
+        });
+      }
+
+      const subscriberResult = await fetchRevenueCatSubscriber(rcConfig.api_key, projectIdResult.projectId, userId);
       if (subscriberResult.status === "not_found") {
         return reply.code(404).send({ error: "Subscriber not found in RevenueCat" });
       }
@@ -232,7 +248,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         });
       }
 
-      const props = mapSubscriberToProperties(subscriberResult.data.subscriber);
+      const props = mapSubscriberToProperties(subscriberResult.data);
       await mergeUserProperties(app.db, projectId, userId, props);
 
       return { updated: 1, properties: props };
