@@ -204,33 +204,67 @@ export default function FunnelDetailPage() {
       ) : (
         <>
           {/* Summary */}
-          <div className="flex items-center gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-3 px-4">
-                <p className="text-xs text-muted-foreground">Total Users (Step 1)</p>
-                <p className="text-lg font-semibold mt-0.5">{analytics.total_users.toLocaleString()}</p>
-              </CardContent>
-            </Card>
-            {analytics.steps.length >= 2 && (
-              <Card>
-                <CardContent className="pt-4 pb-3 px-4">
-                  <p className="text-xs text-muted-foreground">Conversion Rate</p>
-                  <p className="text-lg font-semibold mt-0.5">
-                    {analytics.steps[analytics.steps.length - 1].percentage}%
+          <TooltipProvider>
+            <div className="flex items-center gap-4">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Card className="cursor-help">
+                    <CardContent className="pt-4 pb-3 px-4">
+                      <p className="text-xs text-muted-foreground">Total Users (Step 1)</p>
+                      <p className="text-lg font-semibold mt-0.5">{analytics.total_users.toLocaleString()}</p>
+                    </CardContent>
+                  </Card>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="max-w-[260px]">
+                    Unique users who entered the funnel by completing the first step during the
+                    selected time range.
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {analytics.steps[analytics.steps.length - 1].unique_users.toLocaleString()} users reached final step
+                </TooltipContent>
+              </Tooltip>
+              {analytics.steps.length >= 2 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Card className="cursor-help">
+                      <CardContent className="pt-4 pb-3 px-4">
+                        <p className="text-xs text-muted-foreground">Conversion Rate</p>
+                        <p className="text-lg font-semibold mt-0.5">
+                          {analytics.steps[analytics.steps.length - 1].percentage}%
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {analytics.steps[analytics.steps.length - 1].unique_users.toLocaleString()} users reached final step
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    <p className="max-w-[260px]">
+                      Percentage of step-1 users who reached the final step. In Open mode a user
+                      counts if they ever completed the final step; in Sequential mode they must
+                      have completed every step in order.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Card className="cursor-help">
+                    <CardContent className="pt-4 pb-3 px-4">
+                      <p className="text-xs text-muted-foreground">Mode</p>
+                      <p className="text-lg font-semibold mt-0.5 capitalize">{analytics.mode}</p>
+                    </CardContent>
+                  </Card>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="max-w-[260px]">
+                    Open: steps can be completed in any order; a user counts at step N as long as
+                    they also did step 1. Sequential: users only count at step N if they completed
+                    steps 1…N-1 first. Toggle via the Sequential checkbox in the filter bar.
                   </p>
-                </CardContent>
-              </Card>
-            )}
-            <Card>
-              <CardContent className="pt-4 pb-3 px-4">
-                <p className="text-xs text-muted-foreground">Mode</p>
-                <p className="text-lg font-semibold mt-0.5 capitalize">{analytics.mode}</p>
-              </CardContent>
-            </Card>
-          </div>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
 
           {/* Funnel chart */}
           <Card>
