@@ -6,6 +6,7 @@ import {
   type RevenueCatConfig,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
+  fetchRevenueCatSubscriptions,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
 
@@ -133,7 +134,16 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
     try {
       const result = await fetchRevenueCatSubscriber(rcConfig.api_key, rcProjectId, user.user_id);
       if (result.status === "found") {
-        const props = mapSubscriberToProperties(result.data);
+        // Fail-soft: if /subscriptions errors, we still sync the entitlements data.
+        const subsResult = await fetchRevenueCatSubscriptions(rcConfig.api_key, rcProjectId, user.user_id);
+        const subsData = subsResult.status === "found" ? subsResult.data : undefined;
+        if (subsResult.status === "error") {
+          ctx.log.warn(
+            { userId: user.user_id, statusCode: subsResult.statusCode, message: subsResult.message },
+            "RC subscriptions fetch failed (continuing with entitlements-only props)",
+          );
+        }
+        const props = mapSubscriberToProperties(result.data, subsData);
         await mergeUserProperties(ctx.db, projectId, user.user_id, props);
         synced++;
         if (props.rc_status === "active") {

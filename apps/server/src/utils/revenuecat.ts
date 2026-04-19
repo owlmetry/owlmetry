@@ -36,6 +36,30 @@ export interface RevenueCatV2ActiveEntitlementsResponse {
   url: string;
 }
 
+// V2 subscription object. Fields below are the ones we consume — the real
+// response has more (entitlements, total_revenue_in_usd, store metadata, etc).
+export interface RevenueCatV2Subscription {
+  object: "subscription";
+  id: string;
+  customer_id: string;
+  product_id: string;
+  starts_at: number;
+  current_period_starts_at: number;
+  current_period_ends_at: number | null;
+  ends_at: number | null;
+  status: string; // "trialing" | "active" | "grace_period" | "cancelled" | "expired" | ...
+  gives_access: boolean;
+  store: string;
+  ownership: string;
+}
+
+export interface RevenueCatV2SubscriptionsResponse {
+  object: "list";
+  items: RevenueCatV2Subscription[];
+  next_page: string | null;
+  url: string;
+}
+
 const RC_V2_BASE = "https://api.revenuecat.com/v2";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -127,13 +151,95 @@ export async function fetchRevenueCatSubscriber(
   }
 }
 
+export type FetchSubscriptionsResult =
+  | { status: "found"; data: RevenueCatV2SubscriptionsResponse }
+  | { status: "not_found" }
+  | { status: "error"; statusCode?: number; message?: string };
+
 /**
- * Map a V2 active-entitlements response to the user-property set we store.
- * Output shape is unchanged from the V1 mapper so downstream consumers
- * (dashboards, segment filters) keep working.
+ * Fetch a customer's subscriptions from the V2 API. Used to enrich sync results
+ * with trial status and billing-period data (the entitlements endpoint doesn't
+ * expose either).
+ */
+export async function fetchRevenueCatSubscriptions(
+  apiKey: string,
+  rcProjectId: string,
+  userId: string,
+): Promise<FetchSubscriptionsResult> {
+  try {
+    const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/customers/${encodeURIComponent(userId)}/subscriptions`;
+    const res = await fetch(url, {
+      headers: rcHeaders(apiKey),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      return { status: "found", data: (await res.json()) as RevenueCatV2SubscriptionsResponse };
+    }
+    if (res.status === 404) return { status: "not_found" };
+    return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Bucket a duration (or null for lifetime) into a human-readable billing-period
+ * label. Matches the common App Store / Play Store subscription cadences and
+ * falls back to `lifetime` for anything open-ended or wildly over a year.
+ *
+ * Caveat: during a free trial, the subscription's current_period reflects the
+ * trial length (e.g. 3 days) rather than the contracted cadence. Callers that
+ * can detect trial state should consider that — for the Users list UI we
+ * already render the Trial badge separately, so this minor imprecision is fine.
+ */
+export function computeBillingPeriod(startMs: number, endMs: number | null): string | undefined {
+  if (endMs === null) return "lifetime";
+  const diffDays = (endMs - startMs) / DAY_MS;
+  if (!Number.isFinite(diffDays) || diffDays <= 0) return undefined;
+  if (diffDays < 10) return "weekly";
+  if (diffDays < 20) return "two_weeks";
+  if (diffDays < 40) return "monthly";
+  if (diffDays < 70) return "two_months";
+  if (diffDays < 100) return "three_months";
+  if (diffDays < 200) return "six_months";
+  if (diffDays < 400) return "yearly";
+  return "lifetime";
+}
+
+/**
+ * Pick the subscription we should derive rc_period_type / rc_billing_period from.
+ * Prefer one that currently grants access (gives_access: true or a trialing/active/grace status);
+ * otherwise fall back to the latest by current_period_starts_at.
+ */
+function pickPrimarySubscription(
+  subs: RevenueCatV2Subscription[],
+): RevenueCatV2Subscription | undefined {
+  if (subs.length === 0) return undefined;
+  const live = subs.filter(
+    (s) => s.gives_access || s.status === "trialing" || s.status === "active" || s.status === "grace_period",
+  );
+  const pool = live.length > 0 ? live : subs;
+  return [...pool].sort((a, b) => b.current_period_starts_at - a.current_period_starts_at)[0];
+}
+
+/** Map a V2 subscription status to the period-type bucket we store. */
+function periodTypeFromStatus(status: string): string | undefined {
+  if (status === "trialing") return "trial";
+  if (status === "active" || status === "grace_period") return "normal";
+  return undefined;
+}
+
+/**
+ * Map a V2 active-entitlements response (and, optionally, a subscriptions
+ * response) to the user-property set we store. Output keys are stable across
+ * webhook/sync so downstream consumers (dashboards, segment filters) keep
+ * working.
  */
 export function mapSubscriberToProperties(
   response: RevenueCatV2ActiveEntitlementsResponse,
+  subscriptions?: RevenueCatV2SubscriptionsResponse,
 ): Record<string, string> {
   const props: Record<string, string> = {};
   const items = response.items ?? [];
@@ -146,6 +252,23 @@ export function mapSubscriberToProperties(
     props.rc_entitlements = items.map((e) => e.lookup_key).filter(Boolean).join(",");
     const firstProduct = items.find((e) => e.product_identifier)?.product_identifier;
     if (firstProduct) props.rc_product = firstProduct;
+  }
+
+  if (subscriptions) {
+    const primary = pickPrimarySubscription(subscriptions.items ?? []);
+    if (primary) {
+      const periodType = periodTypeFromStatus(primary.status);
+      if (periodType) props.rc_period_type = periodType;
+      const billingPeriod = computeBillingPeriod(
+        primary.current_period_starts_at,
+        primary.current_period_ends_at,
+      );
+      if (billingPeriod) props.rc_billing_period = billingPeriod;
+    } else if (hasActive) {
+      // Entitlement active but no subscription → lifetime grant or promotional entitlement.
+      props.rc_billing_period = "lifetime";
+      props.rc_period_type = "promotional";
+    }
   }
 
   return props;

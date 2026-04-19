@@ -9,7 +9,9 @@ import {
   type RevenueCatConfig,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
+  fetchRevenueCatSubscriptions,
   fetchRevenueCatProjectId,
+  computeBillingPeriod,
 } from "../utils/revenuecat.js";
 
 interface RevenueCatWebhookEvent {
@@ -62,8 +64,19 @@ async function findActiveRevenueCatIntegration(db: Db, projectId: string) {
 }
 
 
+const SUBSCRIPTION_EVENT_TYPES = new Set([
+  "INITIAL_PURCHASE",
+  "RENEWAL",
+  "PRODUCT_CHANGE",
+  "UNCANCELLATION",
+  "CANCELLATION",
+  "BILLING_ISSUE",
+  "EXPIRATION",
+]);
+
 function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<string, string> {
   const props: Record<string, string> = {};
+  const isSubscriptionEvent = SUBSCRIPTION_EVENT_TYPES.has(event.type);
 
   switch (event.type) {
     case "INITIAL_PURCHASE":
@@ -94,6 +107,24 @@ function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<stri
   }
   if (event.entitlement_ids && event.entitlement_ids.length > 0) {
     props.rc_entitlements = event.entitlement_ids.join(",");
+  }
+
+  // Period type and billing period only come from real subscription events.
+  // TEST / other unknown event types shouldn't overwrite a user's prior state.
+  if (isSubscriptionEvent) {
+    if (event.period_type) {
+      const periodType = event.period_type.toLowerCase();
+      if (["trial", "intro", "normal", "promotional"].includes(periodType)) {
+        props.rc_period_type = periodType;
+      }
+    }
+    if (event.purchased_at_ms !== undefined) {
+      const billingPeriod = computeBillingPeriod(
+        event.purchased_at_ms,
+        event.expiration_at_ms ?? null,
+      );
+      if (billingPeriod) props.rc_billing_period = billingPeriod;
+    }
   }
 
   return props;
@@ -248,7 +279,17 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         });
       }
 
-      const props = mapSubscriberToProperties(subscriberResult.data);
+      // Fail-soft: if /subscriptions errors, still return entitlements-only props.
+      const subsResult = await fetchRevenueCatSubscriptions(rcConfig.api_key, projectIdResult.projectId, userId);
+      const subsData = subsResult.status === "found" ? subsResult.data : undefined;
+      if (subsResult.status === "error") {
+        app.log.warn(
+          { projectId, userId, statusCode: subsResult.statusCode, message: subsResult.message },
+          "RC subscriptions fetch failed (continuing with entitlements-only props)",
+        );
+      }
+
+      const props = mapSubscriberToProperties(subscriberResult.data, subsData);
       await mergeUserProperties(app.db, projectId, userId, props);
 
       return { updated: 1, properties: props };

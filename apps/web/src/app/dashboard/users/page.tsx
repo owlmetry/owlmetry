@@ -331,15 +331,20 @@ export default function UsersPage() {
                     <TableCell className="py-1.5">
                       {user.properties ? (
                         <div className="flex flex-wrap items-center gap-1">
-                          {user.properties.rc_subscriber === "true" && (
+                          {user.properties.rc_period_type === "trial" ? (
+                            <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>
+                          ) : user.properties.rc_subscriber === "true" ? (
                             <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>
-                          )}
+                          ) : null}
                           {user.properties.rc_status === "cancelled" && (
                             <Badge variant="secondary" className="text-xs">Cancelled</Badge>
                           )}
                           {user.properties.rc_last_purchase && (
                             <span className="text-xs text-muted-foreground">
                               {user.properties.rc_last_purchase}
+                              {user.properties.rc_billing_period && (
+                                <> · {user.properties.rc_billing_period.replace(/_/g, " ")}</>
+                              )}
                             </span>
                           )}
                           {Object.entries(user.properties)

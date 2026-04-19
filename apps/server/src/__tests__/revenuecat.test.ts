@@ -153,13 +153,47 @@ function buildActiveEntitlementsResponse(
   };
 }
 
+function buildSubscriptionsResponse(
+  items: Array<{
+    id?: string;
+    status?: string;
+    current_period_starts_at?: number;
+    current_period_ends_at?: number | null;
+    gives_access?: boolean;
+  }> = [],
+) {
+  const now = Date.now();
+  return {
+    object: "list" as const,
+    items: items.map((i, idx) => ({
+      object: "subscription" as const,
+      id: i.id ?? `sub_test_${idx}`,
+      customer_id: "test",
+      product_id: "prod_test",
+      starts_at: i.current_period_starts_at ?? now,
+      current_period_starts_at: i.current_period_starts_at ?? now,
+      current_period_ends_at: i.current_period_ends_at ?? now + 86400000 * 30,
+      ends_at: i.current_period_ends_at ?? now + 86400000 * 30,
+      status: i.status ?? "active",
+      gives_access: i.gives_access ?? true,
+      store: "app_store",
+      ownership: "purchased",
+    })),
+    next_page: null,
+    url: "/v2/projects/.../subscriptions",
+  };
+}
+
 /**
- * Install a fetch mock that handles both the V2 /projects lookup and the
- * /customers/{id}/active_entitlements call. Returns a cleanup function.
+ * Install a fetch mock that handles the V2 /projects lookup, the
+ * /customers/{id}/active_entitlements call, and the /customers/{id}/subscriptions
+ * call. Returns a cleanup function.
  */
 function mockRevenueCatV2(options: {
   entitlementsResponse?: unknown;
   entitlementsStatus?: number;
+  subscriptionsResponse?: unknown;
+  subscriptionsStatus?: number;
   captureAuthHeader?: (header: string | null) => void;
   capturedUrl?: (url: string) => void;
 }) {
@@ -183,6 +217,14 @@ function mockRevenueCatV2(options: {
       const body = status === 404
         ? { code: 7259, message: "Customer not found." }
         : options.entitlementsResponse ?? buildActiveEntitlementsResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("api.revenuecat.com/v2/projects") && url.includes("/subscriptions")) {
+      const status = options.subscriptionsStatus ?? 200;
+      const body = options.subscriptionsResponse ?? buildSubscriptionsResponse();
       return new Response(JSON.stringify(body), {
         status,
         headers: { "Content-Type": "application/json" },
@@ -219,7 +261,38 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
       rc_product: "premium_monthly",
       rc_entitlements: "pro",
       rc_last_purchase: "9.99 USD",
+      rc_period_type: "normal",
+      rc_billing_period: "monthly",
     });
+  });
+
+  it("records rc_period_type=trial for a TRIAL INITIAL_PURCHASE event", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_trial_user");
+
+    const now = Date.now();
+    const threeDaysLater = now + 86400000 * 3;
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("INITIAL_PURCHASE", {
+        app_user_id: "rc_trial_user",
+        original_app_user_id: "rc_trial_user",
+        aliases: ["rc_trial_user"],
+        period_type: "TRIAL",
+        price: 0,
+        price_in_purchased_currency: 0,
+        purchased_at_ms: now,
+        expiration_at_ms: threeDaysLater,
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const props = await getUserProperties("rc_trial_user");
+    expect(props?.rc_period_type).toBe("trial");
+    expect(props?.rc_billing_period).toBe("weekly");
+    expect(props?.rc_subscriber).toBe("true");
   });
 
   it("processes RENEWAL event", async () => {
@@ -512,6 +585,97 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       // Verify DB was updated
       const props = await getUserProperties("rc_user_123");
       expect(props?.rc_subscriber).toBe("true");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("sets rc_period_type=trial and rc_billing_period=weekly for a trialing subscription", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("trial_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: buildSubscriptionsResponse([
+        {
+          status: "trialing",
+          current_period_starts_at: now,
+          current_period_ends_at: now + 86400000 * 3, // 3-day trial
+        },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/trial_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true");
+      expect(props.rc_period_type).toBe("trial");
+      expect(props.rc_billing_period).toBe("weekly"); // 3 days falls in weekly bucket
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("sets rc_period_type=normal and rc_billing_period=yearly for an active yearly subscription", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("yearly_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: buildSubscriptionsResponse([
+        {
+          status: "active",
+          current_period_starts_at: now,
+          current_period_ends_at: now + 86400000 * 365,
+        },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/yearly_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true");
+      expect(props.rc_period_type).toBe("normal");
+      expect(props.rc_billing_period).toBe("yearly");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("marks lifetime entitlement (no subscription) as rc_billing_period=lifetime", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("lifetime_user");
+
+    // Active entitlement with null expires_at (lifetime) + empty subscriptions list
+    // → promotional/lifetime grant.
+    const cleanup = mockRevenueCatV2({
+      entitlementsResponse: buildActiveEntitlementsResponse([
+        { lookup_key: "pro", product_identifier: "lifetime_pro", expires_at: null },
+      ]),
+      subscriptionsResponse: buildSubscriptionsResponse([]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/lifetime_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true");
+      expect(props.rc_billing_period).toBe("lifetime");
+      expect(props.rc_period_type).toBe("promotional");
     } finally {
       cleanup();
     }
