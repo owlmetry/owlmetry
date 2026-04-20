@@ -130,7 +130,7 @@ To fully investigate an issue, follow this workflow:
 ### Event Attachments (limited resource)
 SDKs can optionally upload a file alongside an error event (e.g. the input image that failed to convert, a 3D model file that failed to parse). These show up as \`attachments\` on \`get-event\` and \`get-issue\` responses and can be downloaded via \`get-attachment\` which returns a short-lived signed URL.
 
-**Attachments are a limited, finite resource.** Each project has a storage quota (default 5 GB) and a per-file limit (default 250 MB). Uploads above the quota are rejected with \`413 quota_exhausted\` — the event itself still posts, but the attachment does not. Before asking a user to re-run a scenario with a file attached, check \`get-project-attachment-usage\` so you know whether there's headroom.
+**Attachments are a limited, finite resource.** Each project has a storage quota (default 5 GB) and each end-user has their own bucket within that project (default 250 MB per user). Uploads that would exceed the per-user bucket are rejected with \`413 user_quota_exhausted\`; ones that would exceed the project ceiling return \`413 quota_exhausted\`. Either way the event still posts, but the attachment does not. Before asking a user to re-run a scenario with a file attached, call \`get-project-attachment-usage\` (optionally with that user's \`user_id\`) so you know whether there's headroom.
 
 **When attachments help investigations**:
 - A media-conversion error where the input bytes are needed to reproduce the bug.

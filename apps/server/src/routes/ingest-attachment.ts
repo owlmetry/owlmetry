@@ -6,7 +6,7 @@ import {
   ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS,
   ATTACHMENT_MAX_FILENAME_LENGTH,
   ATTACHMENT_UPLOAD_URL_TTL_SECONDS,
-  MAX_ATTACHMENT_MAX_FILE_BYTES,
+  MAX_ATTACHMENT_USER_QUOTA_BYTES,
   isDisallowedAttachmentContentType,
 } from "@owlmetry/shared";
 import type {
@@ -22,10 +22,11 @@ import { buildSignedDownloadUrl } from "../utils/attachment-signing.js";
 import {
   getProjectAttachmentUsage,
   getProjectWithAttachmentLimits,
+  getUserAttachmentUsage,
   resolveAttachmentLimits,
 } from "../utils/attachment-quota.js";
 
-const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_MAX_FILE_BYTES + 1024;
+const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_USER_QUOTA_BYTES + 1024;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
 function rejection(code: AttachmentRejection["code"], message: string, extras: Partial<AttachmentRejection> = {}): AttachmentRejection {
@@ -50,6 +51,7 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
       const body = request.body ?? ({} as Partial<AttachmentUploadRequest>);
       const {
         client_event_id,
+        user_id,
         original_filename,
         content_type,
         size_bytes,
@@ -59,6 +61,11 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
 
       if (!client_event_id || typeof client_event_id !== "string") {
         return reply.code(400).send(rejection("invalid_request", "client_event_id is required"));
+      }
+      if (user_id !== undefined && user_id !== null) {
+        if (typeof user_id !== "string" || user_id.length === 0 || user_id.length > 255) {
+          return reply.code(400).send(rejection("invalid_request", "user_id must be a non-empty string of at most 255 chars"));
+        }
       }
       if (
         !original_filename ||
@@ -93,9 +100,10 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "App associated with this API key no longer exists" });
       }
 
-      const [project, usage, existingEvent] = await Promise.all([
+      const [project, usage, userUsage, existingEvent] = await Promise.all([
         getProjectWithAttachmentLimits(app.db, appRow.project_id),
         getProjectAttachmentUsage(app.db, appRow.project_id),
+        user_id ? getUserAttachmentUsage(app.db, appRow.project_id, user_id) : Promise.resolve(null),
         app.db
           .select({ id: events.id, user_id: events.user_id })
           .from(events)
@@ -114,12 +122,16 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
       }
 
       const limits = resolveAttachmentLimits(project);
-      if (size_bytes > limits.maxFileBytes) {
+
+      if (userUsage && userUsage.usedBytes + size_bytes > limits.userQuotaBytes) {
         return reply.code(413).send(
           rejection(
-            "file_too_large",
-            `File exceeds per-file limit (${size_bytes} > ${limits.maxFileBytes} bytes)`,
-            { max_file_bytes: limits.maxFileBytes }
+            "user_quota_exhausted",
+            `User attachment quota would be exceeded (${userUsage.usedBytes} + ${size_bytes} > ${limits.userQuotaBytes} bytes)`,
+            {
+              user_quota_bytes: limits.userQuotaBytes,
+              user_used_bytes: userUsage.usedBytes,
+            }
           )
         );
       }
@@ -132,14 +144,13 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
             {
               quota_bytes: limits.projectQuotaBytes,
               used_bytes: usage.usedBytes,
-              max_file_bytes: limits.maxFileBytes,
             }
           )
         );
       }
 
       const resolvedEventId = existingEvent?.id ?? null;
-      const resolvedUserId = existingEvent?.user_id ?? null;
+      const resolvedUserId = user_id ?? existingEvent?.user_id ?? null;
 
       const [row] = await app.db
         .insert(eventAttachments)

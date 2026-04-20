@@ -73,15 +73,19 @@ export function registerAttachmentsTools(
     "get-project-attachment-usage",
     {
       description:
-        "Return a project's attachment storage usage, quota, and per-file limit. Check before asking a user to re-run a scenario — near-quota uploads fail with `quota_exhausted`.",
+        "Return a project's attachment storage usage and quotas. Pass `user_id` to also get that end-user's usage against their per-user quota (default 250 MB). Uploads that would exceed either the user quota (`user_quota_exhausted`) or the project quota (`quota_exhausted`) are rejected at reserve time.",
       inputSchema: {
         project_id: z.string().uuid().describe("The project id"),
+        user_id: z
+          .string()
+          .optional()
+          .describe("Optional end-user id — if provided, the response includes that user's usage against the per-user quota"),
       },
     },
-    async ({ project_id }) => {
+    async ({ project_id, user_id }) => {
       return callApi(app, agentKey, {
         method: "GET",
-        url: `/v1/projects/${project_id}/attachment-usage`,
+        url: `/v1/projects/${project_id}/attachment-usage${buildQuery({ user_id })}`,
       });
     }
   );

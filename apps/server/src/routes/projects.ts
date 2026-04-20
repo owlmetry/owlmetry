@@ -8,8 +8,14 @@ import {
   DEFAULT_RETENTION_DAYS_EVENTS,
   DEFAULT_RETENTION_DAYS_METRICS,
   DEFAULT_RETENTION_DAYS_FUNNELS,
+  DEFAULT_ATTACHMENT_USER_QUOTA_BYTES,
+  DEFAULT_ATTACHMENT_PROJECT_QUOTA_BYTES,
   MIN_RETENTION_DAYS,
   MAX_RETENTION_DAYS,
+  MIN_ATTACHMENT_USER_QUOTA_BYTES,
+  MAX_ATTACHMENT_USER_QUOTA_BYTES,
+  MIN_ATTACHMENT_PROJECT_QUOTA_BYTES,
+  MAX_ATTACHMENT_PROJECT_QUOTA_BYTES,
   ISSUE_ALERT_FREQUENCIES,
   isValidProjectColor,
 } from "@owlmetry/shared";
@@ -31,6 +37,10 @@ function serializeProject(p: typeof projects.$inferSelect) {
     effective_retention_days_events: p.retention_days_events ?? DEFAULT_RETENTION_DAYS_EVENTS,
     effective_retention_days_metrics: p.retention_days_metrics ?? DEFAULT_RETENTION_DAYS_METRICS,
     effective_retention_days_funnels: p.retention_days_funnels ?? DEFAULT_RETENTION_DAYS_FUNNELS,
+    attachment_user_quota_bytes: p.attachment_user_quota_bytes,
+    attachment_project_quota_bytes: p.attachment_project_quota_bytes,
+    effective_attachment_user_quota_bytes: p.attachment_user_quota_bytes ?? DEFAULT_ATTACHMENT_USER_QUOTA_BYTES,
+    effective_attachment_project_quota_bytes: p.attachment_project_quota_bytes ?? DEFAULT_ATTACHMENT_PROJECT_QUOTA_BYTES,
     issue_alert_frequency: p.issue_alert_frequency,
     effective_issue_alert_frequency: p.issue_alert_frequency ?? "daily",
     created_at: p.created_at.toISOString(),
@@ -44,6 +54,17 @@ function validateRetentionDays(value: unknown, field: string): string | null {
   }
   if (value < MIN_RETENTION_DAYS || value > MAX_RETENTION_DAYS) {
     return `${field} must be between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS}`;
+  }
+  return null;
+}
+
+function validateAttachmentQuota(value: unknown, field: string, min: number, max: number): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    return `${field} must be an integer or null`;
+  }
+  if (value < min || value > max) {
+    return `${field} must be between ${min} and ${max}`;
   }
   return null;
 }
@@ -205,10 +226,20 @@ export async function projectsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { name, color, retention_days_events, retention_days_metrics, retention_days_funnels, issue_alert_frequency } = request.body;
+      const {
+        name,
+        color,
+        retention_days_events,
+        retention_days_metrics,
+        retention_days_funnels,
+        attachment_user_quota_bytes,
+        attachment_project_quota_bytes,
+        issue_alert_frequency,
+      } = request.body;
 
       const hasRetention = retention_days_events !== undefined || retention_days_metrics !== undefined || retention_days_funnels !== undefined;
-      if (!name && color === undefined && !hasRetention && issue_alert_frequency === undefined) {
+      const hasAttachmentQuota = attachment_user_quota_bytes !== undefined || attachment_project_quota_bytes !== undefined;
+      if (!name && color === undefined && !hasRetention && !hasAttachmentQuota && issue_alert_frequency === undefined) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
@@ -218,6 +249,25 @@ export async function projectsRoutes(app: FastifyInstance) {
 
       for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
         const err = validateRetentionDays(value, field);
+        if (err) return reply.code(400).send({ error: err });
+      }
+
+      {
+        const err = validateAttachmentQuota(
+          attachment_user_quota_bytes,
+          "attachment_user_quota_bytes",
+          MIN_ATTACHMENT_USER_QUOTA_BYTES,
+          MAX_ATTACHMENT_USER_QUOTA_BYTES
+        );
+        if (err) return reply.code(400).send({ error: err });
+      }
+      {
+        const err = validateAttachmentQuota(
+          attachment_project_quota_bytes,
+          "attachment_project_quota_bytes",
+          MIN_ATTACHMENT_PROJECT_QUOTA_BYTES,
+          MAX_ATTACHMENT_PROJECT_QUOTA_BYTES
+        );
         if (err) return reply.code(400).send({ error: err });
       }
 
@@ -234,6 +284,8 @@ export async function projectsRoutes(app: FastifyInstance) {
           retention_days_events: projects.retention_days_events,
           retention_days_metrics: projects.retention_days_metrics,
           retention_days_funnels: projects.retention_days_funnels,
+          attachment_user_quota_bytes: projects.attachment_user_quota_bytes,
+          attachment_project_quota_bytes: projects.attachment_project_quota_bytes,
           issue_alert_frequency: projects.issue_alert_frequency,
         })
         .from(projects)
@@ -277,6 +329,14 @@ export async function projectsRoutes(app: FastifyInstance) {
       if (retention_days_funnels !== undefined) {
         setFields.retention_days_funnels = retention_days_funnels;
         changes.retention_days_funnels = { before: project.retention_days_funnels, after: retention_days_funnels };
+      }
+      if (attachment_user_quota_bytes !== undefined) {
+        setFields.attachment_user_quota_bytes = attachment_user_quota_bytes;
+        changes.attachment_user_quota_bytes = { before: project.attachment_user_quota_bytes, after: attachment_user_quota_bytes };
+      }
+      if (attachment_project_quota_bytes !== undefined) {
+        setFields.attachment_project_quota_bytes = attachment_project_quota_bytes;
+        changes.attachment_project_quota_bytes = { before: project.attachment_project_quota_bytes, after: attachment_project_quota_bytes };
       }
       if (issue_alert_frequency !== undefined) {
         setFields.issue_alert_frequency = issue_alert_frequency;

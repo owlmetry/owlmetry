@@ -24,6 +24,7 @@ import {
 import {
   getProjectAttachmentUsage,
   getProjectWithAttachmentLimits,
+  getUserAttachmentUsage,
   resolveAttachmentLimits,
 } from "../utils/attachment-quota.js";
 import { normalizeLimit } from "../utils/pagination.js";
@@ -247,12 +248,13 @@ export async function attachmentsRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get<{ Params: { projectId: string } }>(
+  app.get<{ Params: { projectId: string }; Querystring: { user_id?: string } }>(
     "/projects/:projectId/attachment-usage",
     { preHandler: [requirePermission("events:read")] },
     async (request, reply) => {
       const auth = request.auth;
       const { projectId } = request.params;
+      const { user_id } = request.query;
       const project = await getProjectWithAttachmentLimits(app.db, projectId);
       if (!project || project.deleted_at) {
         return reply.code(404).send({ error: "Project not found" });
@@ -266,9 +268,15 @@ export async function attachmentsRoutes(app: FastifyInstance) {
         project_id: projectId,
         used_bytes: usage.usedBytes,
         quota_bytes: limits.projectQuotaBytes,
-        max_file_bytes: limits.maxFileBytes,
+        user_quota_bytes: limits.userQuotaBytes,
         file_count: usage.fileCount,
       };
+      if (user_id) {
+        const userUsage = await getUserAttachmentUsage(app.db, projectId, user_id);
+        response.user_id = user_id;
+        response.user_used_bytes = userUsage.usedBytes;
+        response.user_file_count = userUsage.fileCount;
+      }
       return response;
     }
   );

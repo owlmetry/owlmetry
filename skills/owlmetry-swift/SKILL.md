@@ -251,7 +251,7 @@ do {
 }
 ```
 
-**Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and a per-file size limit (default **250 MB**). Before adding `attachments:` anywhere, make sure the file's bytes are *essential* to reproduce the bug. Good candidates:
+**Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and each end-user has their own bucket within that project (default **250 MB per user** — the SDK automatically tags uploads with the currently identified `Owl.userId`). Before adding `attachments:` anywhere, make sure the file's bytes are *essential* to reproduce the bug. Good candidates:
 
 - ✅ A failed media conversion where only the input bytes can reproduce the decoder bug.
 - ✅ A 3D model / document parse failure where the file format itself is the suspect.
@@ -264,7 +264,7 @@ Bad candidates — do not attach:
 - ❌ Large asset files that are *downloaded* rather than user-supplied — include the source URL instead.
 - ❌ Screens or UI state. Use `screenName` and `attributes` for that.
 
-Upload behaviour is strictly non-fatal: if the device is offline, the project quota is full, or the server rejects the file, the event itself still posts — the attachment is dropped silently and a warning is logged via `OSLog`. Uploads run on a separate serial queue so a 200 MB file never blocks event batching. There is no offline queue for attachments in v1: if the device is offline when the error fires, the attachment is discarded but the event queues normally.
+Upload behaviour is strictly non-fatal: if the device is offline, the user's per-user bucket or the project quota is exhausted, or the server otherwise rejects the file, the event itself still posts — the attachment is dropped silently and a warning is logged via `OSLog`. Uploads run on a separate serial queue so a 200 MB file never blocks event batching. There is no offline queue for attachments in v1: if the device is offline when the error fires, the attachment is discarded but the event queues normally.
 
 ## User Identity
 

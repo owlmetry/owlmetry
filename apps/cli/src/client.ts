@@ -383,10 +383,11 @@ export class OwlMetryClient {
     return this.request<{ ok: boolean }>("DELETE", `/v1/attachments/${id}`);
   }
 
-  async getAttachmentUsage(projectId: string): Promise<AttachmentQuotaUsage> {
+  async getAttachmentUsage(projectId: string, userId?: string): Promise<AttachmentQuotaUsage> {
+    const qs = userId ? `?user_id=${encodeURIComponent(userId)}` : "";
     return this.request<AttachmentQuotaUsage>(
       "GET",
-      `/v1/projects/${projectId}/attachment-usage`
+      `/v1/projects/${projectId}/attachment-usage${qs}`
     );
   }
 

@@ -164,6 +164,8 @@ export interface UpdateProjectRequest {
   retention_days_events?: number | null;
   retention_days_metrics?: number | null;
   retention_days_funnels?: number | null;
+  attachment_user_quota_bytes?: number | null;
+  attachment_project_quota_bytes?: number | null;
   issue_alert_frequency?: IssueAlertFrequency;
 }
 
@@ -190,6 +192,8 @@ export type ProjectResponse = Omit<Project, "created_at" | "deleted_at"> & {
   effective_retention_days_events: number;
   effective_retention_days_metrics: number;
   effective_retention_days_funnels: number;
+  effective_attachment_user_quota_bytes: number;
+  effective_attachment_project_quota_bytes: number;
   effective_issue_alert_frequency: IssueAlertFrequency;
 };
 export type ProjectDetailResponse = ProjectResponse & { apps: AppResponse[] };

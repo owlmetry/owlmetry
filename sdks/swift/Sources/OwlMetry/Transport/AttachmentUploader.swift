@@ -7,12 +7,13 @@ actor AttachmentUploader {
     private let ingestAttachmentURL: URL
     private let apiKey: String
     private let session: URLSession
-    private let maxFileBytes: Int
+    private let sdkHardCapBytes: Int
     private var queue: Task<Void, Never>?
     private var pending: [PendingUpload] = []
 
     private struct PendingUpload {
         let clientEventId: String
+        let userId: String?
         let isDev: Bool
         let attachment: OwlAttachment
     }
@@ -23,23 +24,25 @@ actor AttachmentUploader {
     }
 
     private static let logger = Logger(subsystem: Owl.logSubsystem, category: "attachments")
-    private static let defaultMaxFileBytes = 250 * 1024 * 1024
+    // Absolute SDK safety net (2 GB). Real enforcement is server-side against the
+    // project's per-user and project quotas.
+    private static let defaultSdkHardCapBytes = 2 * 1024 * 1024 * 1024
 
     init(
         endpoint: URL,
         apiKey: String,
-        maxFileBytes: Int = AttachmentUploader.defaultMaxFileBytes,
+        sdkHardCapBytes: Int = AttachmentUploader.defaultSdkHardCapBytes,
         session: URLSession = .shared
     ) {
         self.ingestAttachmentURL = endpoint.appendingPathComponent("v1/ingest/attachment")
         self.apiKey = apiKey
-        self.maxFileBytes = maxFileBytes
+        self.sdkHardCapBytes = sdkHardCapBytes
         self.session = session
     }
 
-    func enqueue(clientEventId: String, isDev: Bool, attachments: [OwlAttachment]) {
+    func enqueue(clientEventId: String, userId: String?, isDev: Bool, attachments: [OwlAttachment]) {
         for attachment in attachments {
-            pending.append(PendingUpload(clientEventId: clientEventId, isDev: isDev, attachment: attachment))
+            pending.append(PendingUpload(clientEventId: clientEventId, userId: userId, isDev: isDev, attachment: attachment))
         }
         if queue == nil {
             queue = Task { [weak self] in
@@ -69,14 +72,15 @@ actor AttachmentUploader {
             Self.logger.warning("Skipping empty attachment \"\(item.attachment.name)\"")
             return
         }
-        if bytes.count > maxFileBytes {
-            Self.logger.warning("Attachment \"\(item.attachment.name)\" is \(bytes.count) bytes, exceeds SDK limit \(self.maxFileBytes). Skipping upload.")
+        if bytes.count > sdkHardCapBytes {
+            Self.logger.warning("Attachment \"\(item.attachment.name)\" is \(bytes.count) bytes, exceeds SDK hard cap \(self.sdkHardCapBytes). Skipping upload.")
             return
         }
 
         let sha = sha256Hex(bytes)
         guard let reserve = await reserve(
             clientEventId: item.clientEventId,
+            userId: item.userId,
             filename: item.attachment.name,
             contentType: contentType,
             sizeBytes: bytes.count,
@@ -96,13 +100,14 @@ actor AttachmentUploader {
 
     private func reserve(
         clientEventId: String,
+        userId: String?,
         filename: String,
         contentType: String,
         sizeBytes: Int,
         sha256: String,
         isDev: Bool
     ) async -> ReserveResponse? {
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "client_event_id": clientEventId,
             "original_filename": filename,
             "content_type": contentType,
@@ -110,6 +115,9 @@ actor AttachmentUploader {
             "sha256": sha256,
             "is_dev": isDev,
         ]
+        if let userId = userId {
+            body["user_id"] = userId
+        }
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
             return nil
         }

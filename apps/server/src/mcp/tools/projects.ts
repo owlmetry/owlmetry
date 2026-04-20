@@ -1,7 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { MIN_RETENTION_DAYS, MAX_RETENTION_DAYS } from "@owlmetry/shared";
+import {
+  MIN_RETENTION_DAYS,
+  MAX_RETENTION_DAYS,
+  MIN_ATTACHMENT_USER_QUOTA_BYTES,
+  MAX_ATTACHMENT_USER_QUOTA_BYTES,
+  MIN_ATTACHMENT_PROJECT_QUOTA_BYTES,
+  MAX_ATTACHMENT_PROJECT_QUOTA_BYTES,
+} from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
 export function registerProjectsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
@@ -49,7 +56,7 @@ export function registerProjectsTools(server: McpServer, app: FastifyInstance, a
   });
 
   server.registerTool("update-project", {
-    description: "Update a project's name, color, or data retention policies. Requires projects:write permission.",
+    description: "Update a project's name, color, data retention policies, or attachment quotas. Requires projects:write permission.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       name: z.string().optional().describe("New project name"),
@@ -61,14 +68,29 @@ export function registerProjectsTools(server: McpServer, app: FastifyInstance, a
         .describe("Days to retain metric events (null = use default 365)"),
       retention_days_funnels: z.number().int().min(MIN_RETENTION_DAYS).max(MAX_RETENTION_DAYS).nullable().optional()
         .describe("Days to retain funnel events (null = use default 365)"),
+      attachment_user_quota_bytes: z.number().int().min(MIN_ATTACHMENT_USER_QUOTA_BYTES).max(MAX_ATTACHMENT_USER_QUOTA_BYTES).nullable().optional()
+        .describe("Per-user attachment storage quota in bytes (null = use default 250MB)"),
+      attachment_project_quota_bytes: z.number().int().min(MIN_ATTACHMENT_PROJECT_QUOTA_BYTES).max(MAX_ATTACHMENT_PROJECT_QUOTA_BYTES).nullable().optional()
+        .describe("Project-wide attachment storage quota in bytes (null = use default 5GB)"),
     },
-  }, async ({ project_id, name, color, retention_days_events, retention_days_metrics, retention_days_funnels }) => {
+  }, async ({
+    project_id,
+    name,
+    color,
+    retention_days_events,
+    retention_days_metrics,
+    retention_days_funnels,
+    attachment_user_quota_bytes,
+    attachment_project_quota_bytes,
+  }) => {
     const payload: Record<string, unknown> = {};
     if (name !== undefined) payload.name = name;
     if (color !== undefined) payload.color = color;
     if (retention_days_events !== undefined) payload.retention_days_events = retention_days_events;
     if (retention_days_metrics !== undefined) payload.retention_days_metrics = retention_days_metrics;
     if (retention_days_funnels !== undefined) payload.retention_days_funnels = retention_days_funnels;
+    if (attachment_user_quota_bytes !== undefined) payload.attachment_user_quota_bytes = attachment_user_quota_bytes;
+    if (attachment_project_quota_bytes !== undefined) payload.attachment_project_quota_bytes = attachment_project_quota_bytes;
     return callApi(app, agentKey, {
       method: "PATCH",
       url: `/v1/projects/${project_id}`,

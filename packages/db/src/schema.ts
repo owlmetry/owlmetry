@@ -110,7 +110,7 @@ export const projects = pgTable(
     retention_days_events: integer("retention_days_events"),
     retention_days_metrics: integer("retention_days_metrics"),
     retention_days_funnels: integer("retention_days_funnels"),
-    attachment_max_file_bytes: bigint("attachment_max_file_bytes", { mode: "number" }),
+    attachment_user_quota_bytes: bigint("attachment_user_quota_bytes", { mode: "number" }),
     attachment_project_quota_bytes: bigint("attachment_project_quota_bytes", { mode: "number" }),
     issue_alert_frequency: issueAlertFrequencyEnum("issue_alert_frequency").default("daily"),
     created_at: timestamp("created_at", { withTimezone: true })
@@ -673,6 +673,7 @@ export const eventAttachments = pgTable(
     index("event_attachments_event_id_idx").on(table.event_id),
     index("event_attachments_issue_id_idx").on(table.issue_id),
     index("event_attachments_project_deleted_at_idx").on(table.project_id, table.deleted_at),
+    index("event_attachments_project_user_idx").on(table.project_id, table.user_id),
   ]
 );
 

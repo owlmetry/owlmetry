@@ -162,7 +162,7 @@ try {
 }
 ```
 
-**Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and a per-file size limit (default **250 MB**). Before adding `attachments:` anywhere, make sure the file's bytes are *essential* to reproduce the bug. Good candidates:
+**Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and each end-user has their own bucket within that project (default **250 MB per user**; reservations without a user_id are bounded only by the project ceiling). Before adding `attachments:` anywhere, make sure the file's bytes are *essential* to reproduce the bug. Good candidates:
 
 - ✅ A parse failure on a user-uploaded document whose bytes you cannot reconstruct.
 - ✅ A ML model file that fails to load — the bytes themselves are the suspect.
@@ -175,7 +175,7 @@ Bad candidates — do not attach:
 - ❌ Large files that are downloaded rather than user-supplied — include the source URL.
 - ❌ Logs or stack traces. Put them in `attrs` or stream them separately.
 
-Uploads are strictly non-fatal: network errors, quota rejections, and size-limit rejections are logged (when `debug: true`) but the event still posts normally. Uploads use `fetch` and run on a serial queue so a 200 MB file never blocks event batching. Attachments are not queued offline — if the host process exits before the upload completes, the attachment is lost but the event is not.
+Uploads are strictly non-fatal: network errors and quota rejections (`user_quota_exhausted`, `quota_exhausted`) are logged (when `debug: true`) but the event still posts normally. Uploads use `fetch` and run on a serial queue so a 200 MB file never blocks event batching. Attachments are not queued offline — if the host process exits before the upload completes, the attachment is lost but the event is not.
 
 ## Per-Request User Scoping
 

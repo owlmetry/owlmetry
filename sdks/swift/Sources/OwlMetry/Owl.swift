@@ -492,7 +492,7 @@ public enum Owl {
 
         if let attachments, !attachments.isEmpty, let uploader = attachmentUploader {
             Task {
-                await uploader.enqueue(clientEventId: clientEventId, isDev: isDev, attachments: attachments)
+                await uploader.enqueue(clientEventId: clientEventId, userId: defaultUser, isDev: isDev, attachments: attachments)
             }
         }
     }

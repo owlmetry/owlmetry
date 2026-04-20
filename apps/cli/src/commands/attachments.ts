@@ -126,22 +126,35 @@ attachmentsCommand
 
 attachmentsCommand
   .command("usage")
-  .description("Show a project's attachment storage usage against its quota.")
+  .description("Show a project's attachment storage usage against its quota. Pass --user to also see that end-user's usage against the per-user quota.")
   .requiredOption("--project <id>", "Project id")
+  .option("--user <id>", "End-user id to include per-user usage for")
   .action(async function (this: Command) {
     const { client, globals } = createClient(this);
-    const opts = this.opts<{ project: string }>();
-    const usage = await client.getAttachmentUsage(opts.project);
+    const opts = this.opts<{ project: string; user?: string }>();
+    const usage = await client.getAttachmentUsage(opts.project, opts.user);
     output(globals.format, usage, () => {
-      const pct = usage.quota_bytes === 0 ? 0 : (usage.used_bytes / usage.quota_bytes) * 100;
-      return [
+      const projectPct = usage.quota_bytes === 0 ? 0 : (usage.used_bytes / usage.quota_bytes) * 100;
+      const lines = [
         chalk.bold(`Attachment usage for project ${usage.project_id}`),
         "",
         `  Files:            ${usage.file_count}`,
         `  Used:             ${formatBytes(usage.used_bytes)}`,
-        `  Quota:            ${formatBytes(usage.quota_bytes)}  (${pct.toFixed(1)}%)`,
-        `  Max file size:    ${formatBytes(usage.max_file_bytes)}`,
-      ].join("\n");
+        `  Project quota:    ${formatBytes(usage.quota_bytes)}  (${projectPct.toFixed(1)}%)`,
+        `  Per-user quota:   ${formatBytes(usage.user_quota_bytes)}`,
+      ];
+      if (usage.user_id !== undefined && usage.user_used_bytes !== undefined) {
+        const userPct = usage.user_quota_bytes === 0
+          ? 0
+          : (usage.user_used_bytes / usage.user_quota_bytes) * 100;
+        lines.push(
+          "",
+          chalk.bold(`  User ${usage.user_id}`),
+          `    Files:          ${usage.user_file_count ?? 0}`,
+          `    Used:           ${formatBytes(usage.user_used_bytes)}  (${userPct.toFixed(1)}% of per-user quota)`
+        );
+      }
+      return lines.join("\n");
     });
   });
 

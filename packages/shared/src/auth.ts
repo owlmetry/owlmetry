@@ -154,6 +154,8 @@ export interface Project {
   retention_days_events: number | null;
   retention_days_metrics: number | null;
   retention_days_funnels: number | null;
+  attachment_user_quota_bytes: number | null;
+  attachment_project_quota_bytes: number | null;
   issue_alert_frequency: import("./issues.js").IssueAlertFrequency | null;
   created_at: Date;
   deleted_at: Date | null;

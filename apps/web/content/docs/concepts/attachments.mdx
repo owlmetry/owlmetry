@@ -5,7 +5,7 @@ description: Upload files alongside error events so engineers can reproduce bugs
 
 When an error cannot be reproduced without the original input file — a failed media conversion, a 3D model that won't parse, a PDF that fails to decode — SDKs can upload the file alongside the error event. The attachment is stored on the server, linked to the event, and automatically linked to the resulting issue. Engineers download it from the dashboard, CLI, or MCP to reproduce locally.
 
-> **Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and a per-file size limit (default **250 MB**). Only attach files when the raw bytes are *essential* to reproduce the bug.
+> **Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and each end-user has their own bucket within that project (default **250 MB per user**). Only attach files when the raw bytes are *essential* to reproduce the bug.
 
 ## When to attach files
 
@@ -23,7 +23,7 @@ When an error cannot be reproduced without the original input file — a failed 
 
 ## How it works
 
-1. SDK calls `POST /v1/ingest/attachment` with metadata (filename, size, sha256, content-type, `client_event_id`). Server validates quota + per-file size and reserves a row, returning an `upload_url` + `attachment_id`.
+1. SDK calls `POST /v1/ingest/attachment` with metadata (filename, size, sha256, content-type, `client_event_id`, and optionally `user_id`). Server validates the declared `size_bytes` against the per-user and project quotas, then reserves a row and returns an `upload_url` + `attachment_id`.
 2. SDK `PUT`s bytes to `upload_url` with `Content-Type: application/octet-stream`. Server streams them to disk, verifies size + SHA-256, and finalises the row.
 3. The SDK links attachments to events via `client_event_id`. If the attachment arrives before the event (SDK batches events), the server backfills `event_id` when the event lands. If the event arrives first, the server fills `event_id` at reservation time.
 4. The issue-scan job later links attachments to issues so they survive event retention pruning.
@@ -34,12 +34,14 @@ Per project:
 
 | Setting | Default | Override |
 |---|---|---|
-| Max file size | 250 MB | `projects.attachment_max_file_bytes` |
-| Total storage | 5 GB | `projects.attachment_project_quota_bytes` |
+| Per-user quota | 250 MB | `projects.attachment_user_quota_bytes` |
+| Project quota | 5 GB | `projects.attachment_project_quota_bytes` |
 
-Edit via **Project Settings → Attachments** in the dashboard, `owlmetry project update` in the CLI, or the `update-project` MCP tool.
+Edit via the `update-project` MCP tool or `PATCH /v1/projects/:id`. The per-user quota caps how much any single end-user (`user_id` on the event) can store; the project quota is the hard ceiling for the whole project.
 
-When a project's quota is exhausted, new reservations are rejected with `413 quota_exhausted`. The event itself still posts — only the attachment is dropped. SDKs silently swallow rejection so the host app/process is never affected.
+Checks happen at reserve time against the client-declared `size_bytes`, before bytes stream over the wire. Reservations that would exceed the per-user bucket return `413 user_quota_exhausted`; ones that would exceed the project ceiling return `413 quota_exhausted`. The event itself still posts — only the attachment is dropped. SDKs silently swallow the rejection so the host app/process is never affected.
+
+Reservations without a `user_id` (common on backends that don't track end-users) skip the per-user check and are bounded only by the project quota.
 
 ## SDK usage
 

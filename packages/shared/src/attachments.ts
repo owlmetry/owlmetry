@@ -1,5 +1,6 @@
 export interface AttachmentUploadRequest {
   client_event_id: string;
+  user_id?: string;
   original_filename: string;
   content_type: string;
   size_bytes: number;
@@ -15,7 +16,7 @@ export interface AttachmentUploadResponse {
 
 export type AttachmentRejectionCode =
   | "quota_exhausted"
-  | "file_too_large"
+  | "user_quota_exhausted"
   | "disallowed_content_type"
   | "invalid_request"
   | "size_mismatch"
@@ -27,7 +28,8 @@ export interface AttachmentRejection {
   message: string;
   quota_bytes?: number;
   used_bytes?: number;
-  max_file_bytes?: number;
+  user_quota_bytes?: number;
+  user_used_bytes?: number;
 }
 
 export interface AttachmentSummary {
@@ -57,8 +59,11 @@ export interface AttachmentQuotaUsage {
   project_id: string;
   used_bytes: number;
   quota_bytes: number;
-  max_file_bytes: number;
+  user_quota_bytes: number;
   file_count: number;
+  user_id?: string;
+  user_used_bytes?: number;
+  user_file_count?: number;
 }
 
 export interface AttachmentDownloadUrlResponse {

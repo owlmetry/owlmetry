@@ -15,6 +15,7 @@ export interface OwlAttachment {
 
 interface PendingUpload {
   clientEventId: string;
+  userId?: string;
   isDev: boolean;
   attachment: OwlAttachment;
 }
@@ -24,7 +25,9 @@ interface ReserveResponse {
   upload_url: string;
 }
 
-const DEFAULT_MAX_FILE_BYTES = 250 * 1024 * 1024;
+// Absolute SDK safety net (2 GB). Real enforcement is server-side against the project's
+// per-user and project quotas.
+const SDK_HARD_CAP_BYTES = 2 * 1024 * 1024 * 1024;
 const EXT_CONTENT_TYPE: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -54,13 +57,12 @@ function sha256Hex(bytes: Uint8Array): string {
 export class AttachmentUploader {
   private pending: PendingUpload[] = [];
   private draining = false;
-  private maxFileBytes = DEFAULT_MAX_FILE_BYTES;
 
   constructor(private readonly cfg: ValidatedConfig) {}
 
-  enqueue(clientEventId: string, isDev: boolean, attachments: OwlAttachment[]): void {
+  enqueue(clientEventId: string, userId: string | undefined, isDev: boolean, attachments: OwlAttachment[]): void {
     for (const attachment of attachments) {
-      this.pending.push({ clientEventId, isDev, attachment });
+      this.pending.push({ clientEventId, userId, isDev, attachment });
     }
     if (!this.draining) {
       void this.drain();
@@ -112,10 +114,10 @@ export class AttachmentUploader {
       if (this.cfg.debug) console.error(`OwlMetry: skipping empty attachment "${name}"`);
       return;
     }
-    if (bytes.length > this.maxFileBytes) {
+    if (bytes.length > SDK_HARD_CAP_BYTES) {
       if (this.cfg.debug) {
         console.error(
-          `OwlMetry: attachment "${name}" is ${bytes.length} bytes, exceeds SDK limit ${this.maxFileBytes}. Skipping.`
+          `OwlMetry: attachment "${name}" is ${bytes.length} bytes, exceeds SDK hard cap ${SDK_HARD_CAP_BYTES}. Skipping.`
         );
       }
       return;
@@ -124,6 +126,7 @@ export class AttachmentUploader {
     const sha = sha256Hex(bytes);
     const reserve = await this.reserve({
       clientEventId: item.clientEventId,
+      userId: item.userId,
       name,
       contentType,
       sizeBytes: bytes.length,
@@ -137,6 +140,7 @@ export class AttachmentUploader {
 
   private async reserve(args: {
     clientEventId: string;
+    userId?: string;
     name: string;
     contentType: string;
     sizeBytes: number;
@@ -154,6 +158,7 @@ export class AttachmentUploader {
         },
         body: JSON.stringify({
           client_event_id: args.clientEventId,
+          ...(args.userId ? { user_id: args.userId } : {}),
           original_filename: args.name,
           content_type: args.contentType,
           size_bytes: args.sizeBytes,

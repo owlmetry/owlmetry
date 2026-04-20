@@ -199,7 +199,7 @@ function log(
     const event = createEvent(ctx, level, message, attrs, userId);
     ctx.transport.enqueue(event);
     if (attachments && attachments.length > 0 && attachmentUploader) {
-      attachmentUploader.enqueue(event.client_event_id, ctx.config.isDev, attachments);
+      attachmentUploader.enqueue(event.client_event_id, event.user_id, ctx.config.isDev, attachments);
     }
   } catch (err) {
     if (config?.debug) {

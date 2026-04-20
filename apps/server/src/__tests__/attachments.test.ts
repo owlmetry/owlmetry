@@ -55,6 +55,7 @@ function sha256(buf: Buffer): string {
 async function reserveAttachment(
   opts: Partial<{
     client_event_id: string;
+    user_id: string;
     original_filename: string;
     content_type: string;
     size_bytes: number;
@@ -64,20 +65,22 @@ async function reserveAttachment(
   }> = {}
 ) {
   const buf = bodyFor(opts.size_bytes ?? 64);
+  const payload: Record<string, unknown> = {
+    client_event_id: opts.client_event_id ?? randomUUID(),
+    original_filename: opts.original_filename ?? "input.bin",
+    content_type: opts.content_type ?? "application/octet-stream",
+    size_bytes: opts.size_bytes ?? 64,
+    sha256: opts.sha256 ?? sha256(buf),
+    is_dev: opts.is_dev ?? false,
+  };
+  if (opts.user_id !== undefined) payload.user_id = opts.user_id;
   return {
     buf,
     response: await app.inject({
       method: "POST",
       url: "/v1/ingest/attachment",
       headers: { authorization: `Bearer ${opts.key ?? TEST_CLIENT_KEY}` },
-      payload: {
-        client_event_id: opts.client_event_id ?? randomUUID(),
-        original_filename: opts.original_filename ?? "input.bin",
-        content_type: opts.content_type ?? "application/octet-stream",
-        size_bytes: opts.size_bytes ?? 64,
-        sha256: opts.sha256 ?? sha256(buf),
-        is_dev: opts.is_dev ?? false,
-      },
+      payload,
     }),
   };
 }
@@ -122,23 +125,48 @@ describe("POST /v1/ingest/attachment — reserve", () => {
     expect(body.upload_url).toContain(body.attachment_id);
   });
 
-  it("rejects oversized files with 413 file_too_large", async () => {
-    const clientEventId = randomUUID();
-    const huge = 300 * 1024 * 1024;
-    const res = await app.inject({
-      method: "POST",
-      url: "/v1/ingest/attachment",
-      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-      payload: {
-        client_event_id: clientEventId,
-        original_filename: "huge.bin",
-        content_type: "application/octet-stream",
-        size_bytes: huge,
-        sha256: "0".repeat(64),
-      },
-    });
-    expect(res.statusCode).toBe(413);
-    expect(res.json().code).toBe("file_too_large");
+  it("enforces per-user quota with 413 user_quota_exhausted", async () => {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      await client`UPDATE projects SET attachment_user_quota_bytes = 256`;
+    } finally {
+      await client.end();
+    }
+
+    const first = await reserveAttachment({ user_id: "user-a", size_bytes: 200 });
+    expect(first.response.statusCode).toBe(201);
+
+    const second = await reserveAttachment({ user_id: "user-a", size_bytes: 100 });
+    expect(second.response.statusCode).toBe(413);
+    expect(second.response.json().code).toBe("user_quota_exhausted");
+  });
+
+  it("per-user quota is isolated between users", async () => {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      await client`UPDATE projects SET attachment_user_quota_bytes = 256`;
+    } finally {
+      await client.end();
+    }
+
+    const a = await reserveAttachment({ user_id: "user-a", size_bytes: 200 });
+    expect(a.response.statusCode).toBe(201);
+
+    // A different user has their own bucket.
+    const b = await reserveAttachment({ user_id: "user-b", size_bytes: 200 });
+    expect(b.response.statusCode).toBe(201);
+  });
+
+  it("uploads without user_id skip the per-user quota check", async () => {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      await client`UPDATE projects SET attachment_user_quota_bytes = 64`;
+    } finally {
+      await client.end();
+    }
+
+    const res = await reserveAttachment({ size_bytes: 256 });
+    expect(res.response.statusCode).toBe(201);
   });
 
   it("rejects disallowed content types with 415", async () => {
