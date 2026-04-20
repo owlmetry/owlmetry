@@ -230,7 +230,7 @@ Owl.info('Webhook received', { provider: 'stripe' }, { sessionId: clientSessionI
 
 Precedence: per-call `options.sessionId` > scope `withSession(...)` > default process session ID.
 
-Session IDs must be UUID strings — `withSession()` and `options.sessionId` both validate and throw on non-UUID values. The Swift SDK's `Owl.sessionId` is already a UUID, so forwarding it from a header works directly.
+Session IDs should be UUID strings (the Swift SDK's `Owl.sessionId` already is). Non-UUID values passed to `withSession()` or `options.sessionId` are silently ignored — the event falls back to the SDK's default session ID. This means a malformed or missing client header will never crash a request handler. Invalid values are logged via `console.error` only when `debug: true` is set on configure.
 
 ## Funnel Tracking
 

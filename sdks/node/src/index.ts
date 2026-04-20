@@ -16,11 +16,14 @@ const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 const SLUG_REGEX = /^[a-z0-9-]+$/;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function validateSessionId(sessionId: string): string {
+function validateSessionId(sessionId: string): string | undefined {
   if (!UUID_REGEX.test(sessionId)) {
-    throw new Error(
-      `OwlMetry: sessionId must be a UUID string (got "${sessionId}"). The server stores session_id as a UUID column — non-UUID values cause ingestion to fail. The Swift SDK's Owl.sessionId is already a UUID, so forward it verbatim.`,
-    );
+    if (config?.debug) {
+      console.error(
+        `OwlMetry: sessionId "${sessionId}" is not a valid UUID and was ignored. Falling back to the default session ID. The server stores session_id as a UUID column — non-UUID values cannot be ingested. The Swift SDK's Owl.sessionId is already a UUID, so forward it verbatim.`,
+      );
+    }
+    return undefined;
   }
   return sessionId;
 }
@@ -206,7 +209,7 @@ function log(
   sessionIdOverride?: string,
 ): void {
   if (sessionIdOverride !== undefined) {
-    validateSessionId(sessionIdOverride);
+    sessionIdOverride = validateSessionId(sessionIdOverride);
   }
   try {
     const ctx = ensureConfigured();
@@ -248,8 +251,11 @@ export class ScopedOwl {
 
   /**
    * Return a new scope with the given sessionId, preserving any existing user scope.
-   * `sessionId` must be a UUID string (as produced by `randomUUID()` or the Swift
-   * SDK's `Owl.sessionId`) — non-UUID values throw synchronously.
+   * `sessionId` should be a UUID string (as produced by `randomUUID()` or the Swift
+   * SDK's `Owl.sessionId`). Non-UUID values are silently ignored — the returned
+   * scope falls back to the SDK's default session ID — so untrusted client input
+   * cannot crash a request handler. Enable `debug: true` on configure to see
+   * warnings when invalid values are received.
    */
   withSession(sessionId: string): ScopedOwl {
     return new ScopedOwl(this.userId, validateSessionId(sessionId));
@@ -475,8 +481,10 @@ export const Owl = {
    * backend events to a client's session — typically by propagating the client's
    * session ID (e.g. Swift SDK `Owl.sessionId`) through a request header.
    *
-   * `sessionId` must be a UUID string; non-UUID values throw synchronously. Chainable
-   * with `.withUser()`.
+   * `sessionId` should be a UUID string. Non-UUID values are silently ignored
+   * (the returned scope falls back to the SDK's default session ID) so untrusted
+   * client input cannot crash a request handler. Enable `debug: true` on configure
+   * to see warnings when invalid values are received. Chainable with `.withUser()`.
    */
   withSession(sessionId: string): ScopedOwl {
     return new ScopedOwl(undefined, validateSessionId(sessionId));

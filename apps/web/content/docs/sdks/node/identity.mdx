@@ -100,7 +100,7 @@ owl.info("Order created", { orderId });
 
 The scopes chain in either order — `Owl.withUser(uid).withSession(sid)` produces the same result.
 
-`sessionId` must be a UUID string; passing a non-UUID throws synchronously. The Swift SDK's `Owl.sessionId` is already a UUID, so forwarding it verbatim from the client Just Works.
+`sessionId` should be a UUID string (the Swift SDK's `Owl.sessionId` already is). Non-UUID values are silently ignored and the scope falls back to the SDK's default session ID — so a malformed or missing header from a client will never crash the request handler. Enable `debug: true` on `Owl.configure()` to see warnings when invalid values are received.
 
 ### Cross-SDK Session Correlation
 

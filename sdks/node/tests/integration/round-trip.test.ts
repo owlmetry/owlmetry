@@ -159,6 +159,46 @@ describe("Node SDK integration", () => {
     assert.equal(found.session_id, clientSessionId);
   });
 
+  it("silently falls back to default session when withSession() gets an invalid UUID", async () => {
+    const uniqueMsg = `invalid-session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    // Non-UUID input must not throw — the scope still works, just with the default session
+    const owl = Owl.withSession("not-a-uuid").withUser("invalid-session-user");
+    owl.info(uniqueMsg);
+    await Owl.flush();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const res = await fetch(`${ENDPOINT}/v1/events?user_id=invalid-session-user&limit=20&data_mode=all`, {
+      headers: { Authorization: `Bearer ${AGENT_KEY}` },
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json() as { events: Array<{ message: string; session_id: string }> };
+    const found = body.events.find((e) => e.message === uniqueMsg);
+    assert.ok(found, `Expected to find event with message "${uniqueMsg}"`);
+    // session_id is a UUID (the default one), not the garbage input
+    assert.match(found.session_id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+
+  it("silently ignores invalid options.sessionId and uses default session", async () => {
+    const uniqueMsg = `invalid-option-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    // Must not throw — the event still gets sent with the default session ID
+    Owl.info(uniqueMsg, { path: "/api/thing" }, { sessionId: "also-not-a-uuid" });
+    await Owl.flush();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const res = await fetch(`${ENDPOINT}/v1/events?limit=50&data_mode=all`, {
+      headers: { Authorization: `Bearer ${AGENT_KEY}` },
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json() as { events: Array<{ message: string; session_id: string }> };
+    const found = body.events.find((e) => e.message === uniqueMsg);
+    assert.ok(found, `Expected to find event with message "${uniqueMsg}"`);
+    assert.match(found.session_id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+
   it("deduplicates events by client_event_id", async () => {
     const uniqueMsg = `dedup-test-${Date.now()}`;
 
