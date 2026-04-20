@@ -11,7 +11,10 @@ import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
 // Deep import bypasses the barrel export which pulls in node:crypto
 import { formatBytes } from "@owlmetry/shared/constants";
-import { api } from "@/lib/api";
+import {
+  AttachmentDownloadButton,
+  AttachmentUntrustedNotice,
+} from "@/components/attachment-download-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -125,17 +128,6 @@ function IssueDetailModal({
   const [showResolveInput, setShowResolveInput] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-
-  const downloadAttachment = async (attachmentId: string) => {
-    try {
-      const data = await api.get<{ download_url?: { url: string } }>(`/v1/attachments/${attachmentId}`);
-      if (data.download_url?.url) {
-        window.open(data.download_url.url, "_blank");
-      }
-    } catch {
-      // best-effort
-    }
-  };
 
   // Only show merge candidates from the same project
   const mergeableSameProject = allIssues.filter((i) => i.id !== issueId && i.project_id === projectId);
@@ -344,6 +336,7 @@ function IssueDetailModal({
             {issue.attachments && issue.attachments.length > 0 && (
               <div className="mt-6">
                 <h4 className="text-sm font-semibold mb-2">📎 Attachments ({issue.attachments.length})</h4>
+                <AttachmentUntrustedNotice />
                 <div className="text-xs border rounded-md divide-y">
                   <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 font-medium text-muted-foreground bg-muted/30">
                     <span>Filename</span>
@@ -356,14 +349,7 @@ function IssueDetailModal({
                       <span className="truncate" title={a.original_filename}>{a.original_filename}</span>
                       <span>{formatBytes(a.size_bytes)}</span>
                       <span className="truncate text-muted-foreground" title={a.content_type}>{a.content_type}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => downloadAttachment(a.id)}
-                        disabled={!a.uploaded_at}
-                      >
-                        {a.uploaded_at ? "Download" : "Pending"}
-                      </Button>
+                      <AttachmentDownloadButton attachmentId={a.id} uploadedAt={a.uploaded_at} />
                     </div>
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -13,10 +13,21 @@ import { Button } from "@/components/ui/button";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { InvestigateTimeline } from "@/components/investigate-timeline";
 import { DetailRow } from "@/components/detail-row";
+import {
+  AttachmentDownloadButton,
+  AttachmentUntrustedNotice,
+} from "@/components/attachment-download-button";
 import { ProjectDot } from "@/lib/project-color";
 import { formatDateTime } from "@/lib/format-date";
+import { api } from "@/lib/api";
+// Deep import bypasses the barrel export which pulls in node:crypto
+import { formatBytes } from "@owlmetry/shared/constants";
 import { Search } from "lucide-react";
-import type { StoredEventResponse } from "@owlmetry/shared";
+import type {
+  AttachmentListResponse,
+  AttachmentSummary,
+  StoredEventResponse,
+} from "@owlmetry/shared";
 import type { LogLevel } from "@owlmetry/shared";
 
 interface EventDetailSheetProps {
@@ -30,6 +41,27 @@ interface EventDetailSheetProps {
 
 export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onFilter, projectColor }: EventDetailSheetProps) {
   const [showTimeline, setShowTimeline] = useState(false);
+  const [attachments, setAttachments] = useState<AttachmentSummary[]>([]);
+
+  const eventId = event?.id;
+  useEffect(() => {
+    if (!open || !eventId) {
+      setAttachments([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<AttachmentListResponse>(`/v1/attachments?event_id=${eventId}`)
+      .then((res) => {
+        if (!cancelled) setAttachments(res.attachments);
+      })
+      .catch(() => {
+        if (!cancelled) setAttachments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, eventId]);
 
   // Reset timeline when sheet closes or event changes
   const handleOpenChange = (v: boolean) => {
@@ -92,6 +124,32 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
               <div className="space-y-1">
                 {Object.entries(event.custom_attributes).map(([k, v]) => (
                   <DetailRow key={k} label={k} value={v} />
+                ))}
+              </div>
+            </>
+          )}
+
+          {attachments.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <h3 className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                📎 Attachments ({attachments.length})
+              </h3>
+              <AttachmentUntrustedNotice />
+              <div className="text-xs border rounded-md divide-y">
+                <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 font-medium text-muted-foreground bg-muted/30">
+                  <span>Filename</span>
+                  <span>Size</span>
+                  <span>Type</span>
+                  <span>Uploaded</span>
+                </div>
+                {attachments.map((a) => (
+                  <div key={a.id} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 items-center">
+                    <span className="truncate" title={a.original_filename}>{a.original_filename}</span>
+                    <span>{formatBytes(a.size_bytes)}</span>
+                    <span className="truncate text-muted-foreground" title={a.content_type}>{a.content_type}</span>
+                    <AttachmentDownloadButton attachmentId={a.id} uploadedAt={a.uploaded_at} />
+                  </div>
                 ))}
               </div>
             </>

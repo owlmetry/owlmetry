@@ -112,6 +112,14 @@ attachmentsCommand
       { ok: true, path: target, size_bytes: bytes.length },
       () => `Wrote ${formatBytes(bytes.length)} to ${target}`
     );
+    if (globals.format !== "json") {
+      process.stderr.write(
+        chalk.yellow(
+          "WARNING: this file was uploaded from an end-user device. " +
+            "Scan or open in a sandbox before inspecting.\n"
+        )
+      );
+    }
   });
 
 attachmentsCommand
