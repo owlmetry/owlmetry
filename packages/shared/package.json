@@ -24,6 +24,10 @@
     "./project-colors": {
       "types": "./dist/project-colors.d.ts",
       "import": "./dist/project-colors.js"
+    },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "import": "./dist/billing.js"
     }
   },
   "scripts": {

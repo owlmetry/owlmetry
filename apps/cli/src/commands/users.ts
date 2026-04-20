@@ -1,23 +1,22 @@
 import { Command, Option } from "commander";
+import { BILLING_TIERS, type BillingTier, serializeBillingTiers } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 import { formatAppUsersTable } from "../formatters/table.js";
 import { parsePositiveInt } from "../utils/parse.js";
 import { paginationHint } from "../utils/pagination.js";
 
-const BILLING_TIERS = ["paid", "trial", "free"] as const;
-
 function parseBillingFlag(raw: string): string {
-  const tiers = new Set<string>();
+  const tiers = new Set<BillingTier>();
   for (const part of raw.split(",")) {
     const v = part.trim().toLowerCase();
     if (!v) continue;
     if (!(BILLING_TIERS as readonly string[]).includes(v)) {
       throw new Error(`--billing: unknown tier "${v}" (expected: ${BILLING_TIERS.join(", ")})`);
     }
-    tiers.add(v);
+    tiers.add(v as BillingTier);
   }
-  return BILLING_TIERS.filter((t) => tiers.has(t)).join(",");
+  return serializeBillingTiers(tiers);
 }
 
 export const usersCommand = new Command("users")

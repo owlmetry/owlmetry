@@ -2,29 +2,16 @@ import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, desc, inArray, isNull, ilike, or, sql, type SQL } from "drizzle-orm";
 import { apps, projects, appUsers, appUserApps } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
-import { parseTimeParam } from "@owlmetry/shared";
+import {
+  parseTimeParam,
+  parseBillingTiers,
+  isBillingFilterActive,
+  type BillingTier,
+} from "@owlmetry/shared";
 import type { AppUsersQueryParams, TeamAppUsersQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { serializeAppUser } from "../utils/serialize.js";
 import { normalizeLimit } from "../utils/pagination.js";
-
-type BillingTier = "paid" | "trial" | "free";
-const ALL_BILLING_TIERS: BillingTier[] = ["paid", "trial", "free"];
-
-/**
- * Parse a comma-separated `billing_status` value into a validated tier set.
- * Returns null when the filter should be a no-op (empty, all three, or all values invalid).
- */
-function parseBillingStatus(value: string | undefined): Set<BillingTier> | null {
-  if (!value) return null;
-  const set = new Set<BillingTier>();
-  for (const raw of value.split(",")) {
-    const v = raw.trim().toLowerCase();
-    if (v === "paid" || v === "trial" || v === "free") set.add(v);
-  }
-  if (set.size === 0 || set.size === ALL_BILLING_TIERS.length) return null;
-  return set;
-}
 
 /**
  * Build a SQL predicate that matches users in any of the requested billing tiers.
@@ -116,8 +103,8 @@ export async function appUsersRoutes(app: FastifyInstance) {
         conditions.push(ilike(appUsers.user_id, `%${search}%`));
       }
 
-      const billingTiers = parseBillingStatus(billing_status);
-      if (billingTiers) {
+      const billingTiers = parseBillingTiers(billing_status);
+      if (isBillingFilterActive(billingTiers)) {
         const billingCondition = buildBillingStatusCondition(billingTiers);
         if (billingCondition) conditions.push(billingCondition);
       }
@@ -245,8 +232,8 @@ export async function appUsersRoutes(app: FastifyInstance) {
         conditions.push(ilike(appUsers.user_id, `%${search}%`));
       }
 
-      const billingTiers = parseBillingStatus(billing_status);
-      if (billingTiers) {
+      const billingTiers = parseBillingTiers(billing_status);
+      if (isBillingFilterActive(billingTiers)) {
         const billingCondition = buildBillingStatusCondition(billingTiers);
         if (billingCondition) conditions.push(billingCondition);
       }

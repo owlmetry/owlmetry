@@ -8,6 +8,13 @@ import type {
   AppResponse,
   AppUserResponse,
 } from "@owlmetry/shared";
+import {
+  BILLING_TIERS,
+  isBillingFilterActive,
+  parseBillingTiers,
+  serializeBillingTiers,
+  type BillingTier,
+} from "@owlmetry/shared/billing";
 import { UserDetailSheet } from "@/components/user-detail-sheet";
 import { TIME_RANGES } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
@@ -38,23 +45,11 @@ import {
 } from "@/components/ui/table";
 import { ProjectDot } from "@/lib/project-color";
 
-const BILLING_TIERS = ["paid", "trial", "free"] as const;
-type BillingTier = (typeof BILLING_TIERS)[number];
-
 const BILLING_TIER_LABELS: Record<BillingTier, string> = {
   paid: "💰 Paid",
   trial: "🎁 Trial",
   free: "🆓 Free",
 };
-
-function parseBillingTiers(value: string): Set<BillingTier> {
-  const set = new Set<BillingTier>();
-  for (const raw of value.split(",")) {
-    const v = raw.trim().toLowerCase();
-    if ((BILLING_TIERS as readonly string[]).includes(v)) set.add(v as BillingTier);
-  }
-  return set;
-}
 
 export default function UsersPage() {
   const { currentTeam } = useTeam();
@@ -110,9 +105,8 @@ export default function UsersPage() {
   if (isAnonymous) filterParams.is_anonymous = isAnonymous;
   const billingStatusRaw = filters.get("billing_status");
   const billingTiers = useMemo(() => parseBillingTiers(billingStatusRaw), [billingStatusRaw]);
-  // Only apply the filter when a strict subset of tiers is selected — empty or all 3 = no-op.
-  if (billingTiers.size > 0 && billingTiers.size < BILLING_TIERS.length) {
-    filterParams.billing_status = BILLING_TIERS.filter((t) => billingTiers.has(t)).join(",");
+  if (isBillingFilterActive(billingTiers)) {
+    filterParams.billing_status = serializeBillingTiers(billingTiers);
   }
   if (filters.computedSince) filterParams.since = filters.computedSince;
   if (filters.computedUntil) filterParams.until = filters.computedUntil;
@@ -136,10 +130,7 @@ export default function UsersPage() {
     const next = new Set(billingTiers);
     if (checked) next.add(tier);
     else next.delete(tier);
-    filters.set(
-      "billing_status",
-      next.size === 0 ? "" : BILLING_TIERS.filter((t) => next.has(t)).join(","),
-    );
+    filters.set("billing_status", serializeBillingTiers(next));
   }
 
   // Clear app filter if it doesn't belong to selected project
@@ -160,7 +151,7 @@ export default function UsersPage() {
     if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId), onDismiss: () => filters.set("app_id", "") });
     if (timeRange) c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "", since: "", until: "" }) });
     if (isAnonymous) c.push({ label: "Type", value: isAnonymous === "true" ? "Anonymous" : "Real", onDismiss: () => filters.set("is_anonymous", "") });
-    if (billingTiers.size > 0 && billingTiers.size < BILLING_TIERS.length) {
+    if (isBillingFilterActive(billingTiers)) {
       c.push({
         label: "Billing",
         value: BILLING_TIERS.filter((t) => billingTiers.has(t)).map((t) => BILLING_TIER_LABELS[t]).join(", "),
