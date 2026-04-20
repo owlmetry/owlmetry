@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { Owl } from "../../sdks/node/dist/src/index.js";
+import { Owl } from "../../sdks/node/dist/index.js";
 
 const PORT = 4007;
 const API_KEY = "owl_client_svr_0000000000000000000000000000000000000000";
