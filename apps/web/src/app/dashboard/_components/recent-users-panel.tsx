@@ -27,7 +27,7 @@ export function RecentUsersPanel() {
   const appColorMap = useAppColorMap(teamId);
 
   return (
-    <DashboardSection eyebrow="People" title="Recent Users" viewAllHref="/dashboard/users">
+    <DashboardSection eyebrow="People" title="Recently Active Users" viewAllHref="/dashboard/users">
       {isLoading ? (
         <SkeletonRows />
       ) : users.length === 0 ? (
