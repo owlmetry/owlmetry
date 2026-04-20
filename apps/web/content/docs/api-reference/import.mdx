@@ -74,7 +74,7 @@ The import endpoint automatically creates monthly table partitions for any histo
 
 ### Dual-write behavior
 
-Same as `/v1/ingest` — events matching `metric:<slug>:<phase>` are written to `metric_events`, and events matching `track:<step_name>` are written to `funnel_events`.
+Same as `/v1/ingest` — events matching `metric:<slug>:<phase>` are written to `metric_events`, and events matching `step:<step_name>` are written to `funnel_events`.
 
 ### Response
 

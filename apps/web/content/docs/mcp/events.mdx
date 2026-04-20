@@ -24,6 +24,7 @@ Query analytics events with flexible filters. Defaults to the last 24 hours.
 | `limit` | number | No | Max results (default 50, max 1000) |
 | `data_mode` | string | No | `production` (default), `development`, or `all` |
 | `order` | string | No | Sort direction by timestamp: `desc` (default, newest first) or `asc` (oldest first — preferred for session timelines and breadcrumb walks) |
+| `compact` | boolean | No | Drop verbose fields (`custom_attributes`, `experiments`, device metadata) to stay under MCP token limits |
 
 Returns `{ events: [...], cursor, has_more }`. Pass `cursor` to the next call for pagination.
 

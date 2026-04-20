@@ -115,7 +115,7 @@ Each project has a configurable **issue alert frequency**:
 
 The **issue notify** job runs hourly and checks each project's frequency. When a notification is due, it sends a digest email to all team members listing new and regressed issues with activity since the last notification. Only production issues (non-dev) are included.
 
-Configure the frequency via the project settings in the dashboard, CLI (`owlmetry projects update <id> --issue-alert-frequency daily`), or API (`PATCH /v1/projects/:id`).
+Configure the frequency via the project settings in the dashboard or the API (`PATCH /v1/projects/:id` with `issue_alert_frequency`).
 
 ## Permissions
 

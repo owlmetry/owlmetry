@@ -54,7 +54,7 @@ While an app has a single platform, the events it sends carry a more specific `e
 |---|---|
 | `ios` | iPhone |
 | `ipados` | iPad |
-| `macos` | Mac (Catalyst, Mac Catalyst, or native macOS) |
+| `macos` | Mac (native macOS or Mac Catalyst) |
 | `android` | Android device |
 | `web` | Web browser |
 | `backend` | Server process |
@@ -82,9 +82,7 @@ Bundle IDs are **immutable after creation**. The update endpoint only accepts a 
 
 ## Auto-Created Client Key
 
-When you create an app, OwlMetry automatically generates a client API key (`owl_client_` prefix) and stores it on the app record. This key is returned in the creation response so you can configure your SDK immediately.
-
-The key is also stored hashed in the `api_keys` table following the standard [API key security model](/docs/concepts/authentication). The plaintext version on the app record enables easy retrieval for SDK configuration.
+When you create an app, OwlMetry automatically generates a client API key (`owl_client_` prefix) as a row in the `api_keys` table, scoped to that app. The key is returned in the app creation response so you can configure your SDK immediately, and remains viewable at any time from the **API Keys** page in the dashboard.
 
 ## Typical Setup
 

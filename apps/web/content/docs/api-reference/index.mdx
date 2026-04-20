@@ -27,7 +27,7 @@ OwlMetry supports two authentication methods:
 
 ### JWT Cookie (Dashboard)
 
-Used by the web dashboard. Obtained by verifying an email code via `POST /v1/auth/verify-code`. The server sets an `httpOnly` cookie named `token` with a 7-day expiry.
+Used by the web dashboard. Obtained by verifying an email code via `POST /v1/auth/verify-code`. The server sets an `httpOnly` cookie named `token` with a 10-year `maxAge` — web sessions do not expire.
 
 ```
 Cookie: token=eyJhbGciOiJIUzI1NiIs...
@@ -41,14 +41,13 @@ Used by SDKs, the CLI, and programmatic access. Pass the API key in the `Authori
 Authorization: Bearer owl_agent_abc123...
 ```
 
-There are two key types:
+There are three key types:
 
 | Type | Prefix | Purpose |
 |------|--------|---------|
-| Client | `owl_client_` | SDK event ingestion (`events:write` only) |
-| Agent | `owl_agent_` | CLI and programmatic read/write access |
-
-Client keys are scoped to a single app. Agent keys are scoped to a team.
+| Client | `owl_client_` | SDK event ingestion (scoped to an app) |
+| Agent | `owl_agent_` | CLI and programmatic read/write access (scoped to a team) |
+| Import | `owl_import_` | Bulk historical data import via [`POST /v1/import`](/docs/api-reference/import) (scoped to an app) |
 
 ## Error Responses
 

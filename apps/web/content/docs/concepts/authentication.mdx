@@ -18,12 +18,13 @@ The JWT is identity-only (contains `sub` and `email`) and is set as an HTTP cook
 
 ## API Keys
 
-API keys are used by SDKs, the CLI, and automated systems to interact with the OwlMetry API. There are two types:
+API keys are used by SDKs, the CLI, and automated systems to interact with the OwlMetry API. There are three types:
 
 | Type | Prefix | Used By | Purpose |
 |---|---|---|---|
 | Client | `owl_client_` | SDKs | Event ingestion from apps |
 | Agent | `owl_agent_` | CLI, automation | Querying data and managing resources |
+| Import | `owl_import_` | Bulk import scripts | Historical data import via `POST /v1/import` (project-scoped) |
 
 ### Security
 
@@ -41,21 +42,28 @@ Each key records who created it via the `created_by` field (linked to a user). K
 
 Each API key has a `permissions` array that controls what it can do. Permissions are scoped by key type -- client keys and agent keys have different allowed permissions.
 
-| Permission | Client | Agent | Description |
-|---|---|---|---|
-| `events:write` | Yes | -- | Ingest events and identity claims |
-| `events:read` | -- | Yes | Query events |
-| `funnels:read` | -- | Yes | Read funnel definitions and analytics |
-| `funnels:write` | -- | Yes | Create and update funnel definitions |
-| `apps:read` | -- | Yes | List and get apps |
-| `apps:write` | -- | Yes | Create and update apps |
-| `projects:read` | -- | Yes | List and get projects |
-| `projects:write` | -- | Yes | Create and update projects |
-| `metrics:read` | -- | Yes | Read metric definitions and query metrics |
-| `metrics:write` | -- | Yes | Create and update metric definitions |
-| `audit_logs:read` | -- | Yes | View audit log entries |
+| Permission | Client | Agent | Import | Description |
+|---|---|---|---|---|
+| `events:write` | Yes | -- | Yes | Ingest events and identity claims |
+| `users:write` | Yes | Yes | Yes | Claim anonymous users and set user properties |
+| `events:read` | -- | Yes | -- | Query events |
+| `funnels:read` | -- | Yes | -- | Read funnel definitions and analytics |
+| `funnels:write` | -- | Yes | -- | Create and update funnel definitions |
+| `apps:read` | -- | Yes | -- | List and get apps |
+| `apps:write` | -- | Yes | -- | Create and update apps |
+| `projects:read` | -- | Yes | -- | List and get projects |
+| `projects:write` | -- | Yes | -- | Create and update projects |
+| `metrics:read` | -- | Yes | -- | Read metric definitions and query metrics |
+| `metrics:write` | -- | Yes | -- | Create and update metric definitions |
+| `audit_logs:read` | -- | Yes | -- | View audit log entries |
+| `integrations:read` | -- | Yes | -- | List and get third-party integrations |
+| `integrations:write` | -- | Yes | -- | Create, update, and sync integrations |
+| `jobs:read` | -- | Yes | -- | List and get background job runs |
+| `jobs:write` | -- | Yes | -- | Trigger and cancel background jobs |
+| `issues:read` | -- | Yes | -- | List and get issues and comments |
+| `issues:write` | -- | Yes | -- | Update, merge, comment on, and resolve issues |
 
-**Default permissions**: Client keys get `events:write`. Agent keys get all allowed agent permissions. Custom permissions can be specified at creation time.
+**Default permissions**: Keys are created with all permissions allowed for their type. Custom permissions can be specified at creation time.
 
 Routes enforce permissions via the `requirePermission()` middleware. Users authenticated with a JWT bypass permission checks -- their access is governed by team role instead.
 
@@ -100,5 +108,6 @@ When a member is removed from a team, their agent API keys for that team are aut
 | Dashboard user | JWT (email verification) | Team role (owner > admin > member) |
 | SDK (client) | `owl_client_` API key | `permissions` array on the key |
 | CLI / automation (agent) | `owl_agent_` API key | `permissions` array on the key |
+| Bulk import script | `owl_import_` API key | `permissions` array on the key (project-scoped) |
 
 For CLI authentication details, see the [CLI authentication guide](/docs/cli/authentication). For API details, see the [authentication API reference](/docs/api-reference/authentication).

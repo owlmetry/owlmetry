@@ -330,7 +330,7 @@ If `permissions` is omitted, defaults are applied:
 | Key type | Default permissions |
 |----------|-------------------|
 | Client | `["events:write", "users:write"]` |
-| Agent | All agent permissions: `events:read`, `funnels:read`, `funnels:write`, `apps:read`, `apps:write`, `projects:read`, `projects:write`, `metrics:read`, `metrics:write`, `audit_logs:read`, `users:write`, `integrations:read`, `integrations:write`, `jobs:read`, `jobs:write` |
+| Agent | All agent permissions: `events:read`, `funnels:read`, `funnels:write`, `apps:read`, `apps:write`, `projects:read`, `projects:write`, `metrics:read`, `metrics:write`, `audit_logs:read`, `users:write`, `integrations:read`, `integrations:write`, `jobs:read`, `jobs:write`, `issues:read`, `issues:write` |
 | Import | `["events:write", "users:write"]` |
 
 Client and import keys share the same permissions (`events:write`, `users:write`). Import keys require an `app_id` and are used with the [bulk import endpoint](/docs/api-reference/import). Agent keys with `apps:write` permission can create import keys.
