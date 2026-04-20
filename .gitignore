@@ -37,6 +37,10 @@ out/
 .build/
 sdks/swift/.build/
 
+# Attachments storage (dev/test)
+data/
+apps/server/data/
+
 # project notes
 CLAUDE.md
 *PLAN.md

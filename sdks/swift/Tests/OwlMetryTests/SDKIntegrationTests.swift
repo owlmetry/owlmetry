@@ -1,4 +1,5 @@
 import XCTest
+import CryptoKit
 @testable import OwlMetry
 
 /// End-to-end tests that run against a real OwlMetry server with a real database.
@@ -808,7 +809,164 @@ final class SDKIntegrationTests: XCTestCase {
         XCTAssertEqual(properties?["role"], "admin", "role should be added")
     }
 
+    // MARK: - Attachments
+
+    func testErrorAttachmentFromData() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        let payload = Data("hello bytes".utf8)
+        let screenName = "attach_data_\(UUID().uuidString.prefix(8))"
+        Owl.error(
+            "attach-from-data",
+            screenName: screenName,
+            attachments: [OwlAttachment(data: payload, name: "hello.txt", contentType: "text/plain")]
+        )
+        await Owl.shutdown()
+
+        let events = try await queryEvents(screenName: screenName)
+        XCTAssertGreaterThanOrEqual(events.count, 1, "Expected the error event to be ingested")
+        guard let clientEventId = events.first?["client_event_id"] as? String else {
+            XCTFail("Event missing client_event_id")
+            return
+        }
+
+        let attachments = try await waitForAttachments(eventClientId: clientEventId, expectedCount: 1)
+        XCTAssertEqual(attachments.count, 1)
+        let a = attachments[0]
+        XCTAssertEqual(a["original_filename"] as? String, "hello.txt")
+        XCTAssertEqual(a["content_type"] as? String, "text/plain")
+        XCTAssertEqual(a["size_bytes"] as? Int, payload.count)
+        XCTAssertNotNil(a["uploaded_at"] as? String, "Attachment should be uploaded (uploaded_at set)")
+        XCTAssertEqual(a["sha256"] as? String, sha256Hex(payload))
+    }
+
+    func testErrorAttachmentFromFileURL() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "owl-test-\(UUID().uuidString).txt"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        let payload = Data("file-based attachment".utf8)
+        try payload.write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let screenName = "attach_file_\(UUID().uuidString.prefix(8))"
+        Owl.error(
+            "attach-from-file",
+            screenName: screenName,
+            attachments: [OwlAttachment(fileURL: fileURL)]
+        )
+        await Owl.shutdown()
+
+        let events = try await queryEvents(screenName: screenName)
+        XCTAssertGreaterThanOrEqual(events.count, 1)
+        guard let clientEventId = events.first?["client_event_id"] as? String else {
+            XCTFail("Event missing client_event_id")
+            return
+        }
+
+        let attachments = try await waitForAttachments(eventClientId: clientEventId, expectedCount: 1)
+        XCTAssertEqual(attachments.count, 1)
+        let a = attachments[0]
+        XCTAssertEqual(a["original_filename"] as? String, fileName,
+                       "Filename should default to the URL's lastPathComponent")
+        XCTAssertEqual(a["content_type"] as? String, "text/plain",
+                       "Content type should be inferred from .txt extension")
+        XCTAssertEqual(a["size_bytes"] as? Int, payload.count)
+    }
+
+    func testMultipleAttachmentsOnOneEvent() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        let first = OwlAttachment(data: Data("first".utf8), name: "a.txt", contentType: "text/plain")
+        let second = OwlAttachment(data: Data("second".utf8), name: "b.txt", contentType: "text/plain")
+        let screenName = "attach_multi_\(UUID().uuidString.prefix(8))"
+        Owl.error(
+            "attach-multi",
+            screenName: screenName,
+            attachments: [first, second]
+        )
+        await Owl.shutdown()
+
+        let events = try await queryEvents(screenName: screenName)
+        guard let clientEventId = events.first?["client_event_id"] as? String else {
+            XCTFail("Event missing client_event_id")
+            return
+        }
+
+        let attachments = try await waitForAttachments(eventClientId: clientEventId, expectedCount: 2)
+        XCTAssertEqual(attachments.count, 2)
+        let names = Set(attachments.compactMap { $0["original_filename"] as? String })
+        XCTAssertEqual(names, Set(["a.txt", "b.txt"]))
+    }
+
+    func testOversizedAttachmentSkippedClientSide() async throws {
+        // Construct an uploader with a tiny cap, feed it a 1 KB attachment, assert no row is created.
+        // This exercises the SDK-side size guard without allocating 250 MB.
+        guard let endpoint = URL(string: Self.testEndpoint) else {
+            XCTFail("Invalid endpoint")
+            return
+        }
+        let uploader = AttachmentUploader(
+            endpoint: endpoint,
+            apiKey: Self.testClientKey,
+            sdkHardCapBytes: 16
+        )
+
+        let clientEventId = UUID().uuidString
+        let bigPayload = Data(count: 1024)
+        let attachment = OwlAttachment(data: bigPayload, name: "big.bin", contentType: "application/octet-stream")
+
+        await uploader.enqueue(clientEventId: clientEventId, userId: nil, isDev: true, attachments: [attachment])
+
+        // Give the uploader a beat to drain (it won't send anything, but we don't want to race the skip).
+        try await Task.sleep(nanoseconds: 1_500_000_000)
+
+        let attachments = try await queryAttachments(eventClientId: clientEventId)
+        XCTAssertEqual(attachments.count, 0, "Oversized attachment should be skipped client-side")
+    }
+
     // MARK: - Helpers
+
+    private func queryAttachments(eventClientId: String) async throws -> [[String: Any]] {
+        var components = URLComponents(string: "\(Self.testEndpoint)/v1/attachments")!
+        components.queryItems = [URLQueryItem(name: "event_client_id", value: eventClientId)]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(Self.testAgentKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            XCTFail("Attachments query failed with status \(status)")
+            return []
+        }
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return json?["attachments"] as? [[String: Any]] ?? []
+    }
+
+    private func waitForAttachments(
+        eventClientId: String,
+        expectedCount: Int,
+        timeout: TimeInterval = 10
+    ) async throws -> [[String: Any]] {
+        let deadline = Date().addingTimeInterval(timeout)
+        var attachments: [[String: Any]] = []
+        while Date() < deadline {
+            attachments = try await queryAttachments(eventClientId: eventClientId)
+            let uploaded = attachments.filter { $0["uploaded_at"] is String }
+            if uploaded.count >= expectedCount {
+                return attachments
+            }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        return attachments
+    }
+
+    private func sha256Hex(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
 
     private func queryAppUsers() async throws -> [[String: Any]] {
         let url = URL(string: "\(Self.testEndpoint)/v1/app-users?data_mode=all")!

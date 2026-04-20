@@ -30,6 +30,7 @@ DATABASE_URL="$TEST_DB" \
 PORT="$TEST_PORT" \
 JWT_SECRET="test-secret" \
 HOST="127.0.0.1" \
+API_PUBLIC_URL="http://127.0.0.1:$TEST_PORT" \
     ./node_modules/.bin/tsx "$ROOT_DIR/apps/server/src/index.ts" &
 SERVER_PID=$!
 
