@@ -24,8 +24,9 @@ RevenueCat is the first supported integration. It syncs subscription lifecycle e
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `rc_subscriber` | Whether the user has an active subscription | `"true"` or `"false"` |
-| `rc_status` | Subscription status | `"active"`, `"cancelled"`, `"expired"`, `"billing_issue"` |
+| `rc_subscriber` | Whether the user has a live, renewing subscription. False for cancelled trials and cancelled paid subs even if they're still within the paid period. | `"true"` or `"false"` |
+| `rc_will_renew` | Whether the subscription will auto-renew at the end of the current period. Used alongside `rc_period_type` to distinguish active trials (sky badge) from cancelled trials (red badge). | `"true"` or `"false"` |
+| `rc_status` | Subscription status | `"active"`, `"trialing"`, `"cancelled"`, `"expired"`, `"billing_issue"` |
 | `rc_product` | Product identifier (the RevenueCat `product_id`) | `"premium_monthly"` |
 | `rc_entitlements` | Active entitlement names (comma-separated) | `"pro,premium"` |
 | `rc_last_purchase` | Last purchase amount and currency | `"9.99 USD"` |

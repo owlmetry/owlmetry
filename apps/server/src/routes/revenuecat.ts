@@ -85,10 +85,16 @@ function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<stri
     case "UNCANCELLATION":
       props.rc_subscriber = "true";
       props.rc_status = "active";
+      props.rc_will_renew = "true";
       break;
     case "CANCELLATION":
+      // User cancelled but may still be entitled until period end. `rc_subscriber`
+      // gates the "💰 Paid" badge; we flip it off so cancelled trials don't render
+      // as paid. `rc_will_renew` lets the UI distinguish cancelled-trial (red)
+      // from active-trial (sky).
       props.rc_subscriber = "false";
       props.rc_status = "cancelled";
+      props.rc_will_renew = "false";
       break;
     case "BILLING_ISSUE":
       props.rc_status = "billing_issue";
@@ -96,6 +102,7 @@ function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<stri
     case "EXPIRATION":
       props.rc_subscriber = "false";
       props.rc_status = "expired";
+      props.rc_will_renew = "false";
       break;
   }
 

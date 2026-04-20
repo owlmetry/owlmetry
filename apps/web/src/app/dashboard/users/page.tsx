@@ -380,12 +380,21 @@ export default function UsersPage() {
                     <TableCell className="py-1.5">
                       {user.properties ? (
                         <div className="flex flex-wrap items-center gap-1">
-                          {user.properties.rc_period_type === "trial" ? (
-                            <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>
-                          ) : user.properties.rc_subscriber === "true" ? (
-                            <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>
-                          ) : null}
-                          {user.properties.rc_status === "cancelled" && (
+                          {(() => {
+                            const isTrial = user.properties.rc_period_type === "trial";
+                            const willRenew = user.properties.rc_will_renew !== "false";
+                            if (isTrial && !willRenew) {
+                              return <Badge variant="default" className="text-xs bg-red-600">🎁 Trial</Badge>;
+                            }
+                            if (isTrial) {
+                              return <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>;
+                            }
+                            if (user.properties.rc_subscriber === "true") {
+                              return <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>;
+                            }
+                            return null;
+                          })()}
+                          {user.properties.rc_status === "cancelled" && user.properties.rc_period_type !== "trial" && (
                             <Badge variant="secondary" className="text-xs">Cancelled</Badge>
                           )}
                           {user.properties.rc_last_purchase && (

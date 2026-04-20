@@ -47,7 +47,8 @@ export interface RevenueCatV2Subscription {
   current_period_starts_at: number;
   current_period_ends_at: number | null;
   ends_at: number | null;
-  status: string; // "trialing" | "active" | "grace_period" | "cancelled" | "expired" | ...
+  status: string; // "trialing" | "active" | "in_grace_period" | "cancelled" | "expired" | ...
+  auto_renewal_status?: string; // "will_renew" | "will_not_renew" | "requires_price_increase_consent" | ...
   gives_access: boolean;
   store: string;
   ownership: string;
@@ -224,11 +225,42 @@ function pickPrimarySubscription(
   return [...pool].sort((a, b) => b.current_period_starts_at - a.current_period_starts_at)[0];
 }
 
-/** Map a V2 subscription status to the period-type bucket we store. */
-function periodTypeFromStatus(status: string): string | undefined {
-  if (status === "trialing") return "trial";
-  if (status === "active" || status === "grace_period") return "normal";
+const TRIAL_PERIOD_LENGTH_CUTOFF_DAYS = 16;
+
+/**
+ * Derive the period-type bucket (`trial` / `normal`) from a V2 subscription.
+ * For live statuses we trust the status directly; for terminal/cancelled
+ * statuses we fall back to the current period's length as a heuristic — a
+ * cancelled-but-still-entitled subscription keeps the original period length,
+ * so a < ~16 day period almost certainly reflects a trial.
+ */
+function derivePeriodType(sub: RevenueCatV2Subscription): string | undefined {
+  if (sub.status === "trialing") return "trial";
+  if (sub.status === "active" || sub.status === "grace_period" || sub.status === "in_grace_period") {
+    return "normal";
+  }
+  if (sub.current_period_ends_at !== null) {
+    const diffDays = (sub.current_period_ends_at - sub.current_period_starts_at) / DAY_MS;
+    if (Number.isFinite(diffDays) && diffDays > 0) {
+      return diffDays < TRIAL_PERIOD_LENGTH_CUTOFF_DAYS ? "trial" : "normal";
+    }
+  }
   return undefined;
+}
+
+/** Map V2 subscription `status` into our stored `rc_status` vocabulary. */
+function normalizeSubscriptionStatus(status: string): string {
+  if (status === "trialing") return "trialing";
+  if (status === "cancelled") return "cancelled";
+  if (status === "active") return "active";
+  if (status === "grace_period" || status === "in_grace_period") return "active";
+  return "expired";
+}
+
+/** Did RevenueCat tell us this subscription will auto-renew? Defaults to true (fail-open). */
+function computeWillRenew(sub: RevenueCatV2Subscription): boolean {
+  if (sub.auto_renewal_status === "will_not_renew") return false;
+  return true;
 }
 
 /**
@@ -245,8 +277,6 @@ export function mapSubscriberToProperties(
   const items = response.items ?? [];
 
   const hasActive = items.length > 0;
-  props.rc_subscriber = hasActive ? "true" : "false";
-  props.rc_status = hasActive ? "active" : "expired";
 
   if (items.length > 0) {
     props.rc_entitlements = items.map((e) => e.lookup_key).filter(Boolean).join(",");
@@ -254,10 +284,15 @@ export function mapSubscriberToProperties(
     if (firstProduct) props.rc_product = firstProduct;
   }
 
+  let willRenew = true;
+  let rcStatus: string = hasActive ? "active" : "expired";
+
   if (subscriptions) {
     const primary = pickPrimarySubscription(subscriptions.items ?? []);
     if (primary) {
-      const periodType = periodTypeFromStatus(primary.status);
+      willRenew = computeWillRenew(primary);
+      rcStatus = normalizeSubscriptionStatus(primary.status);
+      const periodType = derivePeriodType(primary);
       if (periodType) props.rc_period_type = periodType;
       const billingPeriod = computeBillingPeriod(
         primary.current_period_starts_at,
@@ -270,6 +305,13 @@ export function mapSubscriberToProperties(
       props.rc_period_type = "promotional";
     }
   }
+
+  // `rc_subscriber` means "user has a live, renewing subscription". A cancelled
+  // trial still has live entitlements but will not renew, so it must report
+  // false here — otherwise the dashboard shows them as "💰 Paid".
+  props.rc_subscriber = hasActive && willRenew ? "true" : "false";
+  props.rc_status = rcStatus;
+  props.rc_will_renew = willRenew ? "true" : "false";
 
   return props;
 }

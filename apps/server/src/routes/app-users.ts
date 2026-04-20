@@ -17,6 +17,10 @@ import { normalizeLimit } from "../utils/pagination.js";
  * Build a SQL predicate that matches users in any of the requested billing tiers.
  * Tiers are derived from the JSONB `properties` column (rc_period_type, rc_subscriber),
  * matching the dashboard's badge logic. `IS DISTINCT FROM` so NULL values behave as "not equal".
+ *
+ * Note: `rc_subscriber` is only `"true"` for users on a renewing subscription.
+ * A cancelled trial has `rc_subscriber="false"` + `rc_period_type="trial"`, so it
+ * correctly matches the `trial` tier and NOT the `paid` tier.
  */
 function buildBillingStatusCondition(tiers: Set<BillingTier>): SQL | undefined {
   const exprs: SQL[] = [];

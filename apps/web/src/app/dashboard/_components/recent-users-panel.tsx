@@ -40,8 +40,10 @@ export function RecentUsersPanel() {
           const extraApps = Math.max(0, (user.apps?.length ?? 0) - 1);
           const props = user.properties ?? {};
           const isTrial = props.rc_period_type === "trial";
+          const willRenew = props.rc_will_renew !== "false";
+          const isCancelledTrial = isTrial && !willRenew;
           const isPaid = !isTrial && props.rc_subscriber === "true";
-          const isCancelled = props.rc_status === "cancelled";
+          const isCancelled = props.rc_status === "cancelled" && !isTrial;
           return (
             <Link
               key={user.id}
@@ -68,9 +70,11 @@ export function RecentUsersPanel() {
                 )}
               </div>
               <div className="shrink-0 flex items-center gap-1">
-                {isTrial && (
+                {isCancelledTrial ? (
+                  <Badge variant="default" className="text-[10px] h-5 bg-red-600">🎁 Trial</Badge>
+                ) : isTrial ? (
                   <Badge variant="default" className="text-[10px] h-5 bg-sky-600">🎁 Trial</Badge>
-                )}
+                ) : null}
                 {isPaid && (
                   <Badge variant="default" className="text-[10px] h-5 bg-green-600">💰 Paid</Badge>
                 )}

@@ -157,6 +157,7 @@ function buildSubscriptionsResponse(
   items: Array<{
     id?: string;
     status?: string;
+    auto_renewal_status?: string;
     current_period_starts_at?: number;
     current_period_ends_at?: number | null;
     gives_access?: boolean;
@@ -175,6 +176,7 @@ function buildSubscriptionsResponse(
       current_period_ends_at: i.current_period_ends_at ?? now + 86400000 * 30,
       ends_at: i.current_period_ends_at ?? now + 86400000 * 30,
       status: i.status ?? "active",
+      auto_renewal_status: i.auto_renewal_status,
       gives_access: i.gives_access ?? true,
       store: "app_store",
       ownership: "purchased",
@@ -329,6 +331,32 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
     const props = await getUserProperties("rc_user_123");
     expect(props?.rc_subscriber).toBe("false");
     expect(props?.rc_status).toBe("cancelled");
+    expect(props?.rc_will_renew).toBe("false");
+  });
+
+  it("preserves rc_period_type=trial on CANCELLATION during trial (for red Trial badge)", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_trial_cancel_user");
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("CANCELLATION", {
+        app_user_id: "rc_trial_cancel_user",
+        original_app_user_id: "rc_trial_cancel_user",
+        aliases: ["rc_trial_cancel_user"],
+        period_type: "TRIAL",
+        cancel_reason: "UNSUBSCRIBE",
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const props = await getUserProperties("rc_trial_cancel_user");
+    expect(props?.rc_period_type).toBe("trial");
+    expect(props?.rc_subscriber).toBe("false");
+    expect(props?.rc_status).toBe("cancelled");
+    expect(props?.rc_will_renew).toBe("false");
   });
 
   it("processes BILLING_ISSUE event", async () => {
@@ -381,6 +409,7 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
     const props = await getUserProperties("rc_user_123");
     expect(props?.rc_subscriber).toBe("true");
     expect(props?.rc_status).toBe("active");
+    expect(props?.rc_will_renew).toBe("true");
   });
 
   it("processes PRODUCT_CHANGE event", async () => {
@@ -650,6 +679,159 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     } finally {
       cleanup();
     }
+  });
+
+  it("marks a cancelled trial (status=cancelled + short period) as rc_subscriber=false, rc_period_type=trial", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("cancelled_trial_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      // Trial still entitled so entitlements endpoint returns an active entitlement.
+      subscriptionsResponse: buildSubscriptionsResponse([
+        {
+          status: "cancelled",
+          auto_renewal_status: "will_not_renew",
+          current_period_starts_at: now - 86400000,
+          current_period_ends_at: now + 86400000 * 2, // 3-day trial, mid-period
+          gives_access: true,
+        },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/cancelled_trial_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("false");
+      expect(props.rc_period_type).toBe("trial");
+      expect(props.rc_will_renew).toBe("false");
+      expect(props.rc_status).toBe("cancelled");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("marks a cancelled paid subscription (yearly) as rc_subscriber=false, rc_period_type=normal", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("cancelled_paid_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: buildSubscriptionsResponse([
+        {
+          status: "cancelled",
+          auto_renewal_status: "will_not_renew",
+          current_period_starts_at: now - 86400000 * 30,
+          current_period_ends_at: now + 86400000 * 335, // still inside a yearly period
+          gives_access: true,
+        },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/cancelled_paid_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("false");
+      expect(props.rc_period_type).toBe("normal");
+      expect(props.rc_will_renew).toBe("false");
+      expect(props.rc_status).toBe("cancelled");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("defaults rc_will_renew=true when auto_renewal_status is missing (back-compat for existing paid users)", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("legacy_paid_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: buildSubscriptionsResponse([
+        {
+          status: "active",
+          // auto_renewal_status intentionally omitted
+          current_period_starts_at: now,
+          current_period_ends_at: now + 86400000 * 30,
+        },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/legacy_paid_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true");
+      expect(props.rc_will_renew).toBe("true");
+      expect(props.rc_period_type).toBe("normal");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("sync does not regress rc_status/rc_subscriber set by a prior CANCELLATION webhook (trial still entitled)", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("webhook_then_sync_user");
+
+    // 1. Webhook fires first, marking the user as cancelled during trial.
+    const webhookRes = await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("CANCELLATION", {
+        app_user_id: "webhook_then_sync_user",
+        original_app_user_id: "webhook_then_sync_user",
+        aliases: ["webhook_then_sync_user"],
+        period_type: "TRIAL",
+        cancel_reason: "UNSUBSCRIBE",
+      }),
+    });
+    expect(webhookRes.statusCode).toBe(200);
+
+    // 2. Sync runs — user still has live entitlements (trial not yet expired)
+    //    and RC reports the subscription as cancelled + will_not_renew.
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: buildSubscriptionsResponse([
+        {
+          status: "cancelled",
+          auto_renewal_status: "will_not_renew",
+          current_period_starts_at: now - 86400000,
+          current_period_ends_at: now + 86400000 * 2,
+          gives_access: true,
+        },
+      ]),
+    });
+    try {
+      const syncRes = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/webhook_then_sync_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(syncRes.statusCode).toBe(200);
+    } finally {
+      cleanup();
+    }
+
+    // Final DB state should still reflect the cancellation — no Paid badge regression.
+    const props = await getUserProperties("webhook_then_sync_user");
+    expect(props?.rc_subscriber).toBe("false");
+    expect(props?.rc_status).toBe("cancelled");
+    expect(props?.rc_will_renew).toBe("false");
+    expect(props?.rc_period_type).toBe("trial");
   });
 
   it("marks lifetime entitlement (no subscription) as rc_billing_period=lifetime", async () => {
