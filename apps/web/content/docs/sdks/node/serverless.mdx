@@ -43,6 +43,8 @@ export const handler = Owl.wrapHandler(async (event, context) => {
 
 The wrapper preserves the return value and re-throws any exceptions after flushing. It works with any async function signature -- Lambda handlers, Vercel serverless functions, or custom wrappers.
 
+`Owl.flush()` also awaits any pending [file attachments](/docs/concepts/attachments), so `wrapHandler()` delivers attached files before the runtime freezes.
+
 ## beforeExit Handler
 
 When you call `Owl.configure()`, the SDK registers a `process.on("beforeExit")` handler that flushes any remaining buffered events. This is a safety net for graceful process shutdown but should not be relied on in serverless -- use `wrapHandler()` instead.

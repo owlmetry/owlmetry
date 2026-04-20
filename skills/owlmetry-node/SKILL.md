@@ -175,7 +175,7 @@ Bad candidates — do not attach:
 - ❌ Large files that are downloaded rather than user-supplied — include the source URL.
 - ❌ Logs or stack traces. Put them in `attrs` or stream them separately.
 
-Uploads are strictly non-fatal: network errors and quota rejections (`user_quota_exhausted`, `quota_exhausted`) are logged (when `debug: true`) but the event still posts normally. Uploads use `fetch` and run on a serial queue so a 200 MB file never blocks event batching. Attachments are not queued offline — if the host process exits before the upload completes, the attachment is lost but the event is not.
+Uploads are strictly non-fatal: network errors and quota rejections (`user_quota_exhausted`, `quota_exhausted`) are logged (when `debug: true`) but the event still posts normally. Uploads use `fetch` and run on a serial queue so a 200 MB file never blocks event batching. `Owl.flush()` and `Owl.shutdown()` await pending uploads, so `wrapHandler()` and explicit flushes in serverless handlers deliver attachments before the runtime freezes. Attachments are not queued offline — if the process is killed without reaching `flush()`/`shutdown()`/`beforeExit`, the attachment is lost but the event is not.
 
 ## Per-Request User Scoping
 

@@ -56,7 +56,7 @@ function sha256Hex(bytes: Uint8Array): string {
 
 export class AttachmentUploader {
   private pending: PendingUpload[] = [];
-  private draining = false;
+  private drainPromise: Promise<void> | null = null;
 
   constructor(private readonly cfg: ValidatedConfig) {}
 
@@ -64,13 +64,20 @@ export class AttachmentUploader {
     for (const attachment of attachments) {
       this.pending.push({ clientEventId, userId, isDev, attachment });
     }
-    if (!this.draining) {
-      void this.drain();
+    if (!this.drainPromise) {
+      this.drainPromise = this.drain();
     }
   }
 
+  /**
+   * Resolves once all currently-pending uploads have finished (or failed silently).
+   * Safe to call when the queue is idle — resolves immediately in that case.
+   */
+  async flush(): Promise<void> {
+    if (this.drainPromise) await this.drainPromise;
+  }
+
   private async drain(): Promise<void> {
-    this.draining = true;
     try {
       while (this.pending.length > 0) {
         const next = this.pending.shift()!;
@@ -83,7 +90,7 @@ export class AttachmentUploader {
         }
       }
     } finally {
-      this.draining = false;
+      this.drainPromise = null;
     }
   }
 

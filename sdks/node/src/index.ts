@@ -358,6 +358,9 @@ export const Owl = {
           if (transport && transport.bufferSize > 0) {
             await transport.flush();
           }
+          if (attachmentUploader) {
+            await attachmentUploader.flush();
+          }
         } catch {
           // Best-effort flush on exit — never crash the host process
         }
@@ -492,6 +495,7 @@ export const Owl = {
 
   async flush(): Promise<void> {
     if (transport) await transport.flush();
+    if (attachmentUploader) await attachmentUploader.flush();
   },
 
   wrapHandler<TArgs extends unknown[], TReturn>(
@@ -511,6 +515,10 @@ export const Owl = {
       log("info", "sdk:session_ended");
       await transport.shutdown();
       transport = null;
+    }
+    if (attachmentUploader) {
+      await attachmentUploader.flush();
+      attachmentUploader = null;
     }
     config = null;
     sessionId = null;

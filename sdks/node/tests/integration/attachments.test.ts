@@ -153,6 +153,22 @@ describe("Node SDK attachments", () => {
     assert.deepEqual(names, new Set(["a.txt", "b.txt"]));
   });
 
+  it("Owl.flush() awaits pending attachment uploads", async () => {
+    // After flush() resolves, the PUT must already have completed — no polling.
+    const payload = Buffer.from("flush-proves-await");
+    const message = `attach-flush-${randomUUID()}`;
+
+    Owl.error(message, {}, {
+      attachments: [{ buffer: payload, name: "flush.bin", contentType: "application/octet-stream" }],
+    });
+    await Owl.flush();
+
+    const clientEventId = await findEventClientId(message);
+    const attachments = await queryAttachments(clientEventId);
+    assert.equal(attachments.length, 1);
+    assert.ok(attachments[0].uploaded_at, "attachment should already be uploaded after flush() returns");
+  });
+
   it("skips empty attachments client-side", async () => {
     // Drive the uploader directly with a known client_event_id so we can assert absence
     // without racing the event-ingest pipeline. Covers the size-0 guard in
@@ -169,8 +185,7 @@ describe("Node SDK attachments", () => {
     uploader.enqueue(clientEventId, undefined, true, [
       { buffer: Buffer.alloc(0), name: "empty.bin", contentType: "application/octet-stream" },
     ]);
-
-    await new Promise((r) => setTimeout(r, 1_500));
+    await uploader.flush();
 
     const attachments = await queryAttachments(clientEventId);
     assert.equal(attachments.length, 0, "empty attachment should be skipped client-side");
