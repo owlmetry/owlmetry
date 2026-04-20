@@ -12,29 +12,39 @@ npm install @owlmetry/node
 
 ## Quick Start
 
-```js
-import OwlMetry from "@owlmetry/node";
+ESM:
 
-OwlMetry.configure({
+```js
+import { Owl } from "@owlmetry/node";
+```
+
+CommonJS:
+
+```js
+const { Owl } = require("@owlmetry/node");
+```
+
+```js
+Owl.configure({
   clientKey: "owl_client_...",
   endpoint: "https://ingest.owlmetry.com",
 });
 
 // Log events
-OwlMetry.info("User signed up", { screen: "onboarding" });
-OwlMetry.error("Payment failed", { orderId: "abc123" });
+Owl.info("User signed up", { screen: "onboarding" });
+Owl.error("Payment failed", { orderId: "abc123" });
 
 // Track metrics
-const op = OwlMetry.startOperation("api-request");
+const op = Owl.startOperation("api-request");
 // ... do work ...
 op.complete({ route: "/users" });
 
 // Record funnel steps
-OwlMetry.step("signup-started");
+Owl.step("signup-started");
 
 // Serverless support
-export default OwlMetry.wrapHandler(async (req, res) => {
-  OwlMetry.info("Request received");
+export default Owl.wrapHandler(async (req, res) => {
+  Owl.info("Request received");
   res.json({ ok: true });
 });
 ```

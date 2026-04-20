@@ -77,14 +77,14 @@ for i in $(seq 1 20); do
     sleep 0.5
 done
 
-echo "=== Building Node SDK ==="
+echo "=== Building Node SDK tests ==="
 cd "$ROOT_DIR/sdks/node"
-npx tsc
+pnpm run build:tests
 
 echo "=== Running Node SDK integration tests ==="
 OWLMETRY_TEST_ENDPOINT="http://127.0.0.1:$TEST_PORT" \
 OWLMETRY_TEST_SERVER_KEY="$TEST_SERVER_KEY" \
 OWLMETRY_TEST_AGENT_KEY="$TEST_AGENT_KEY" \
-    node --test dist/tests/integration/*.test.js 2>&1
+    node --test dist-tests/tests/integration/*.test.js 2>&1
 
 echo "=== Node SDK integration tests passed ==="
