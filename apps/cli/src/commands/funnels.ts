@@ -1,6 +1,6 @@
 import { Command, Option } from "commander";
 import chalk from "chalk";
-import type { FunnelDefinitionResponse, FunnelQueryResponse, FunnelStepAnalytics } from "@owlmetry/shared";
+import type { FunnelDefinitionResponse, FunnelQueryResponse, FunnelStep, FunnelStepAnalytics } from "@owlmetry/shared";
 import { validateFunnelSlug } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
@@ -155,7 +155,7 @@ funnelsCommand
       name: opts.name,
       slug: opts.slug,
       description: opts.description,
-      steps: stepsResult,
+      steps: stepsResult as FunnelStep[],
     });
     output(globals.format, funnel, () => formatFunnelDetail(funnel));
   });

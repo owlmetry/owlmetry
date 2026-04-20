@@ -144,7 +144,7 @@ jobsCommand
     output(
       globals.format as OutputFormat,
       result,
-      () => formatJobRunsTable(result.job_runs) + paginationHint(result.cursor),
+      () => formatJobRunsTable(result.job_runs) + paginationHint(result),
     );
   });
 
