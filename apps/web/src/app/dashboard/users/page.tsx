@@ -21,6 +21,7 @@ import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/c
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
 import { formatDateTime } from "@/lib/format-date";
+import { getBillingBadgeState } from "@/lib/billing-badge";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
@@ -378,23 +379,14 @@ export default function UsersPage() {
                       {user.claimed_from?.length ?? 0}
                     </TableCell>
                     <TableCell className="py-1.5">
-                      {user.properties ? (
+                      {user.properties ? (() => {
+                        const badge = getBillingBadgeState(user.properties);
+                        return (
                         <div className="flex flex-wrap items-center gap-1">
-                          {(() => {
-                            const isTrial = user.properties.rc_period_type === "trial";
-                            const willRenew = user.properties.rc_will_renew !== "false";
-                            if (isTrial && !willRenew) {
-                              return <Badge variant="default" className="text-xs bg-red-600">🎁 Trial</Badge>;
-                            }
-                            if (isTrial) {
-                              return <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>;
-                            }
-                            if (user.properties.rc_subscriber === "true") {
-                              return <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>;
-                            }
-                            return null;
-                          })()}
-                          {user.properties.rc_status === "cancelled" && user.properties.rc_period_type !== "trial" && (
+                          {badge.isCancelledTrial && <Badge variant="default" className="text-xs bg-red-600">🎁 Trial</Badge>}
+                          {badge.isTrial && <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>}
+                          {badge.isPaid && <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>}
+                          {badge.showCancelledBadge && (
                             <Badge variant="secondary" className="text-xs">Cancelled</Badge>
                           )}
                           {user.properties.rc_last_purchase && (
@@ -414,7 +406,8 @@ export default function UsersPage() {
                               </Badge>
                             ))}
                         </div>
-                      ) : (
+                        );
+                      })() : (
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>

@@ -9,6 +9,7 @@ import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
 import { useAppColorMap } from "@/hooks/use-project-colors";
 import { ProjectDot } from "@/lib/project-color";
+import { getBillingBadgeState } from "@/lib/billing-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
@@ -38,12 +39,7 @@ export function RecentUsersPanel() {
         users.slice(0, 5).map((user) => {
           const firstApp = user.apps?.[0];
           const extraApps = Math.max(0, (user.apps?.length ?? 0) - 1);
-          const props = user.properties ?? {};
-          const isTrial = props.rc_period_type === "trial";
-          const willRenew = props.rc_will_renew !== "false";
-          const isCancelledTrial = isTrial && !willRenew;
-          const isPaid = !isTrial && props.rc_subscriber === "true";
-          const isCancelled = props.rc_status === "cancelled" && !isTrial;
+          const badge = getBillingBadgeState(user.properties);
           return (
             <Link
               key={user.id}
@@ -70,15 +66,16 @@ export function RecentUsersPanel() {
                 )}
               </div>
               <div className="shrink-0 flex items-center gap-1">
-                {isCancelledTrial ? (
+                {badge.isCancelledTrial && (
                   <Badge variant="default" className="text-[10px] h-5 bg-red-600">🎁 Trial</Badge>
-                ) : isTrial ? (
+                )}
+                {badge.isTrial && (
                   <Badge variant="default" className="text-[10px] h-5 bg-sky-600">🎁 Trial</Badge>
-                ) : null}
-                {isPaid && (
+                )}
+                {badge.isPaid && (
                   <Badge variant="default" className="text-[10px] h-5 bg-green-600">💰 Paid</Badge>
                 )}
-                {isCancelled && (
+                {badge.showCancelledBadge && (
                   <Badge variant="secondary" className="text-[10px] h-5">Cancelled</Badge>
                 )}
               </div>
