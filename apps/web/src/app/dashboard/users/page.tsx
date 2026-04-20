@@ -21,6 +21,7 @@ import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/c
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
 import { formatDateTime } from "@/lib/format-date";
+import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
 import { getBillingBadgeState } from "@/lib/billing-badge";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
@@ -426,11 +427,11 @@ export default function UsersPage() {
                         <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs py-1.5" title={user.first_seen_at}>
-                      {formatDateTime(user.first_seen_at)}
+                    <TableCell className="text-xs py-1.5" title={formatDateTime(user.first_seen_at)}>
+                      {timeAgoOrDate(user.first_seen_at, formatDateTime)}
                     </TableCell>
-                    <TableCell className="text-xs py-1.5" title={user.last_seen_at}>
-                      {formatDateTime(user.last_seen_at)}
+                    <TableCell className="text-xs py-1.5" title={formatDateTime(user.last_seen_at)}>
+                      {timeAgoOrDate(user.last_seen_at, formatDateTime)}
                     </TableCell>
                   </TableRow>
                 ))}
