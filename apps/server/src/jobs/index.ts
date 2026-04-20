@@ -6,6 +6,7 @@ import { revenuecatSyncHandler } from "./revenuecat-sync.js";
 import { retentionCleanupHandler } from "./retention-cleanup.js";
 import { issueScanHandler } from "./issue-scan.js";
 import { issueNotifyHandler } from "./issue-notify.js";
+import { attachmentCleanupHandler } from "./attachment-cleanup.js";
 
 export function registerAllJobs(runner: JobRunner): void {
   runner.register("db_pruning", dbPruningHandler);
@@ -15,4 +16,5 @@ export function registerAllJobs(runner: JobRunner): void {
   runner.register("retention_cleanup", retentionCleanupHandler);
   runner.register("issue_scan", issueScanHandler);
   runner.register("issue_notify", issueNotifyHandler);
+  runner.register("attachment_cleanup", attachmentCleanupHandler);
 }

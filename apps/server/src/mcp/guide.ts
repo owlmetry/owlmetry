@@ -127,6 +127,23 @@ To fully investigate an issue, follow this workflow:
 7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, affected versions, reproduction steps, or a fix plan. This is visible to the team.
 8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
 
+### Event Attachments (limited resource)
+SDKs can optionally upload a file alongside an error event (e.g. the input image that failed to convert, a 3D model file that failed to parse). These show up as \`attachments\` on \`get-event\` and \`get-issue\` responses and can be downloaded via \`get-attachment\` which returns a short-lived signed URL.
+
+**Attachments are a limited, finite resource.** Each project has a storage quota (default 5 GB) and a per-file limit (default 250 MB). Uploads above the quota are rejected with \`413 quota_exhausted\` — the event itself still posts, but the attachment does not. Before asking a user to re-run a scenario with a file attached, check \`get-project-attachment-usage\` so you know whether there's headroom.
+
+**When attachments help investigations**:
+- A media-conversion error where the input bytes are needed to reproduce the bug.
+- A model-load failure where the file format itself is the suspect.
+- A parse error on a file whose bytes you cannot reconstruct from event attributes alone.
+
+**When they don't**:
+- Routine errors whose root cause is obvious from the message or stack trace.
+- Data you can already reconstruct from \`custom_attributes\` or breadcrumbs.
+- Frequent/high-volume errors — the quota will fill almost immediately.
+
+Attachments linked to an event are automatically linked to its issue by the issue-scan job. They survive event retention pruning as long as the issue is still open, and are hard-deleted 7 days after the issue (or the attachment itself) is soft-deleted. Use \`delete-attachment\` once an issue is confirmed resolved and the file is no longer useful.
+
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.
 
@@ -180,7 +197,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 
 ### Issues
 - \`list-issues\` — List issues for a project (filter by status, app, dev/prod)
-- \`get-issue\` — Get issue detail with occurrences, comments, and fingerprints
+- \`get-issue\` — Get issue detail with occurrences, comments, fingerprints, and linked attachments
 - \`resolve-issue\` — Mark resolved, optionally with the fix version
 - \`silence-issue\` — Silence notifications (still tracks occurrences)
 - \`reopen-issue\` — Reopen a resolved or silenced issue
@@ -188,6 +205,12 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`merge-issues\` — Merge source issue into target (moves all data, deletes source)
 - \`list-issue-comments\` — List investigation comments on an issue
 - \`add-issue-comment\` — Add a comment to document findings or fixes
+
+### Attachments
+- \`list-attachments\` — filter by event, issue, or project
+- \`get-attachment\` — metadata + 60-second signed download URL
+- \`delete-attachment\` — soft-delete once no longer useful (frees quota)
+- \`get-project-attachment-usage\` — check quota headroom before recommending re-runs
 
 ### Integrations
 - \`list-providers\` — Supported providers and config fields

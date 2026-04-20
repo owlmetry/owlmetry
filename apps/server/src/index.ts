@@ -6,6 +6,8 @@ import { createDatabaseConnection } from "@owlmetry/db";
 import { config } from "./config.js";
 import { authRoutes } from "./routes/auth.js";
 import { ingestRoutes } from "./routes/ingest.js";
+import { ingestAttachmentRoutes } from "./routes/ingest-attachment.js";
+import { attachmentsRoutes } from "./routes/attachments.js";
 import { importRoutes } from "./routes/import.js";
 import { eventsRoutes } from "./routes/events.js";
 import { appsRoutes } from "./routes/apps.js";
@@ -85,6 +87,12 @@ jobRunner.schedule({
   enabled: () => true,
   params: () => ({}),
 });
+jobRunner.schedule({
+  jobType: "attachment_cleanup",
+  cron: isDev ? "*/5 * * * *" : "0 5 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
 
 // Decorators
 app.decorate("db", db);
@@ -108,6 +116,8 @@ app.get("/health", async () => ({ status: "ok" }));
 // Routes
 await app.register(authRoutes, { prefix: "/v1/auth" });
 await app.register(ingestRoutes, { prefix: "/v1" });
+await app.register(ingestAttachmentRoutes, { prefix: "/v1" });
+await app.register(attachmentsRoutes, { prefix: "/v1" });
 await app.register(importRoutes, { prefix: "/v1" });
 await app.register(eventsRoutes, { prefix: "/v1" });
 await app.register(appsRoutes, { prefix: "/v1" });

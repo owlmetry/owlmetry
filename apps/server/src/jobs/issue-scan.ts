@@ -6,6 +6,7 @@ import type { JobHandler } from "../services/job-runner.js";
 interface ErrorEvent {
   id: string;
   app_id: string;
+  client_event_id: string | null;
   session_id: string;
   user_id: string | null;
   message: string;
@@ -59,7 +60,7 @@ export const issueScanHandler: JobHandler = async (ctx) => {
       // 3. Query error events since last scan
       const scanSinceIso = scanSince.toISOString();
       const errorEvents = await client<ErrorEvent[]>`
-        SELECT id, app_id, session_id, user_id, message, source_module,
+        SELECT id, app_id, client_event_id, session_id, user_id, message, source_module,
                app_version, environment, is_dev, "timestamp"
         FROM events
         WHERE app_id = ${appRow.id}
@@ -162,6 +163,28 @@ export const issueScanHandler: JobHandler = async (ctx) => {
           if (result.count > 0) {
             occurrencesCreated++;
           }
+        }
+
+        // 7. Link any attachments uploaded alongside these events to this issue so they
+        // survive event retention pruning. Matches on both event_id (populated via the
+        // ingest backfill) and event_client_id (covers pre-event uploads that never got
+        // backfilled because the event was dropped).
+        const eventIds = group.map((g) => g.event.id).filter(Boolean);
+        const clientEventIds = group
+          .map((g) => g.event.client_event_id)
+          .filter((id): id is string => !!id);
+        if (eventIds.length > 0 || clientEventIds.length > 0) {
+          await client`
+            UPDATE event_attachments
+            SET issue_id = ${issueId}
+            WHERE app_id = ${appRow.id}
+              AND issue_id IS NULL
+              AND deleted_at IS NULL
+              AND (
+                event_id = ANY(${eventIds}::uuid[])
+                OR event_client_id = ANY(${clientEventIds}::uuid[])
+              )
+          `;
         }
       }
 

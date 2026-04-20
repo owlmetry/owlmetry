@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, inArray, isNull } from "drizzle-orm";
-import { apps, events } from "@owlmetry/db";
+import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { apps, events, eventAttachments } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
   ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
@@ -127,9 +127,43 @@ export async function ingestRoutes(app: FastifyInstance) {
       }
 
       if (valid.length > 0) {
-        await app.db.insert(events).values(valid);
+        // Need the generated event ids + their client_event_ids so we can backfill any
+        // attachments that were uploaded before the event arrived. Returning() is cheap
+        // here since the insert is already happening.
+        const inserted = await app.db
+          .insert(events)
+          .values(valid)
+          .returning({ id: events.id, client_event_id: events.client_event_id, user_id: events.user_id });
         dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
         upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+
+        const insertedWithClient = inserted.filter(
+          (v): v is { id: string; client_event_id: string; user_id: string | null } =>
+            !!v.client_event_id && !!v.id
+        );
+        if (insertedWithClient.length > 0) {
+          try {
+            await Promise.all(
+              insertedWithClient.map((v) =>
+                app.db
+                  .update(eventAttachments)
+                  .set({
+                    event_id: v.id,
+                    user_id: sql`COALESCE(${eventAttachments.user_id}, ${v.user_id})`,
+                  })
+                  .where(
+                    and(
+                      eq(eventAttachments.app_id, app_id),
+                      eq(eventAttachments.event_client_id, v.client_event_id),
+                      isNull(eventAttachments.event_id)
+                    )
+                  )
+              )
+            );
+          } catch (err) {
+            request.log.error({ err }, "attachment event_id backfill failed");
+          }
+        }
       }
 
       return {

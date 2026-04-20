@@ -9,6 +9,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -100,6 +101,13 @@ function IssueCard({ issue, projectColor, onClick }: { issue: IssueResponse; pro
   );
 }
 
+function formatAttachmentBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 function IssueDetailModal({
   projectId,
   projectColor,
@@ -122,6 +130,17 @@ function IssueDetailModal({
   const [showResolveInput, setShowResolveInput] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  const downloadAttachment = async (attachmentId: string) => {
+    try {
+      const data = await api.get<{ download_url?: { url: string } }>(`/v1/attachments/${attachmentId}`);
+      if (data.download_url?.url) {
+        window.open(data.download_url.url, "_blank");
+      }
+    } catch {
+      // best-effort
+    }
+  };
 
   // Only show merge candidates from the same project
   const mergeableSameProject = allIssues.filter((i) => i.id !== issueId && i.project_id === projectId);
@@ -325,6 +344,36 @@ function IssueDetailModal({
                 </div>
               )}
             </div>
+
+            {/* Attachments */}
+            {issue.attachments && issue.attachments.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-sm font-semibold mb-2">📎 Attachments ({issue.attachments.length})</h4>
+                <div className="text-xs border rounded-md divide-y">
+                  <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 font-medium text-muted-foreground bg-muted/30">
+                    <span>Filename</span>
+                    <span>Size</span>
+                    <span>Type</span>
+                    <span>Uploaded</span>
+                  </div>
+                  {issue.attachments.map((a) => (
+                    <div key={a.id} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 items-center">
+                      <span className="truncate" title={a.original_filename}>{a.original_filename}</span>
+                      <span>{formatAttachmentBytes(a.size_bytes)}</span>
+                      <span className="truncate text-muted-foreground" title={a.content_type}>{a.content_type}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => downloadAttachment(a.id)}
+                        disabled={!a.uploaded_at}
+                      >
+                        {a.uploaded_at ? "Download" : "Pending"}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Fingerprints */}
             {issue.fingerprints.length > 0 && (

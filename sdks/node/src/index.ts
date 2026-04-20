@@ -6,8 +6,10 @@ import { validateConfiguration, type ValidatedConfig } from "./configuration.js"
 import { Transport } from "./transport.js";
 import type { OwlConfiguration, OwlLogLevel, LogEvent } from "./types.js";
 import { OwlOperation } from "./operation.js";
+import { AttachmentUploader, type OwlAttachment } from "./attachment-uploader.js";
 
 export type { OwlConfiguration, OwlLogLevel, LogEvent } from "./types.js";
+export type { OwlAttachment } from "./attachment-uploader.js";
 export { OwlOperation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
@@ -103,6 +105,7 @@ function normalizeAttributes(attrs?: Record<string, unknown>): Record<string, st
 
 let config: ValidatedConfig | null = null;
 let transport: Transport | null = null;
+let attachmentUploader: AttachmentUploader | null = null;
 let sessionId: string | null = null;
 let beforeExitRegistered = false;
 
@@ -183,12 +186,21 @@ function printToConsole(level: OwlLogLevel, message: string, attrs?: Record<stri
   }
 }
 
-function log(level: OwlLogLevel, message: string, attrs?: Record<string, unknown>, userId?: string): void {
+function log(
+  level: OwlLogLevel,
+  message: string,
+  attrs?: Record<string, unknown>,
+  userId?: string,
+  attachments?: OwlAttachment[]
+): void {
   try {
     const ctx = ensureConfigured();
     printToConsole(level, message, attrs);
     const event = createEvent(ctx, level, message, attrs, userId);
     ctx.transport.enqueue(event);
+    if (attachments && attachments.length > 0 && attachmentUploader) {
+      attachmentUploader.enqueue(event.client_event_id, ctx.config.isDev, attachments);
+    }
   } catch (err) {
     if (config?.debug) {
       console.error("OwlMetry:", err);
@@ -206,20 +218,20 @@ export class ScopedOwl {
     this.userId = userId;
   }
 
-  info(message: string, attrs?: Record<string, unknown>): void {
-    log("info", message, attrs, this.userId);
+  info(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("info", message, attrs, this.userId, options?.attachments);
   }
 
-  debug(message: string, attrs?: Record<string, unknown>): void {
-    log("debug", message, attrs, this.userId);
+  debug(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("debug", message, attrs, this.userId, options?.attachments);
   }
 
-  warn(message: string, attrs?: Record<string, unknown>): void {
-    log("warn", message, attrs, this.userId);
+  warn(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("warn", message, attrs, this.userId, options?.attachments);
   }
 
-  error(message: string, attrs?: Record<string, unknown>): void {
-    log("error", message, attrs, this.userId);
+  error(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("error", message, attrs, this.userId, options?.attachments);
   }
 
   /**
@@ -286,6 +298,7 @@ export const Owl = {
     }
     config = validateConfiguration(options);
     transport = new Transport(config);
+    attachmentUploader = new AttachmentUploader(config);
     sessionId = randomUUID();
 
     loadExperiments();
@@ -307,20 +320,20 @@ export const Owl = {
     log("info", "sdk:session_started");
   },
 
-  info(message: string, attrs?: Record<string, unknown>): void {
-    log("info", message, attrs);
+  info(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("info", message, attrs, undefined, options?.attachments);
   },
 
-  debug(message: string, attrs?: Record<string, unknown>): void {
-    log("debug", message, attrs);
+  debug(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("debug", message, attrs, undefined, options?.attachments);
   },
 
-  warn(message: string, attrs?: Record<string, unknown>): void {
-    log("warn", message, attrs);
+  warn(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("warn", message, attrs, undefined, options?.attachments);
   },
 
-  error(message: string, attrs?: Record<string, unknown>): void {
-    log("error", message, attrs);
+  error(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
+    log("error", message, attrs, undefined, options?.attachments);
   },
 
   /**

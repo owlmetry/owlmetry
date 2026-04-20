@@ -81,3 +81,42 @@ export const DEFAULT_RETENTION_DAYS_METRICS = 365;
 export const DEFAULT_RETENTION_DAYS_FUNNELS = 365;
 export const MIN_RETENTION_DAYS = 1;
 export const MAX_RETENTION_DAYS = 3650;
+
+// Event attachment defaults — used when projects.attachment_* columns are null.
+export const DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 250 * 1024 * 1024; // 250 MB
+export const DEFAULT_ATTACHMENT_PROJECT_QUOTA_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
+export const MIN_ATTACHMENT_MAX_FILE_BYTES = 1024; // 1 KB
+export const MAX_ATTACHMENT_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB hard ceiling
+export const MIN_ATTACHMENT_PROJECT_QUOTA_BYTES = 1024 * 1024; // 1 MB
+export const MAX_ATTACHMENT_PROJECT_QUOTA_BYTES = 1024 * 1024 * 1024 * 1024; // 1 TB hard ceiling
+export const ATTACHMENT_ORPHAN_GRACE_HOURS = 24;
+export const ATTACHMENT_SOFT_DELETE_GRACE_DAYS = 7;
+export const ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS = 60;
+export const ATTACHMENT_MAX_FILENAME_LENGTH = 255;
+
+// Content types we refuse to accept as attachments — executables, scripts, installers.
+// Debug files are often weird formats (.usdz, .heic, loader.log) so we prefer a denylist
+// over an allowlist. Attachments are always served with Content-Disposition: attachment
+// regardless of type, so browsers will never auto-run them — this is defence in depth.
+export const ATTACHMENT_CONTENT_TYPE_DENYLIST: readonly string[] = [
+  "application/x-msdownload",
+  "application/x-msdos-program",
+  "application/x-msi",
+  "application/x-executable",
+  "application/x-mach-binary",
+  "application/x-sharedlib",
+  "application/vnd.microsoft.portable-executable",
+  "application/x-dosexec",
+  "application/x-shellscript",
+  "application/x-sh",
+  "text/x-shellscript",
+  "application/x-python-code",
+  "application/java-archive",
+  "application/x-java-archive",
+  "application/vnd.apple.installer+xml",
+];
+
+export function isDisallowedAttachmentContentType(contentType: string): boolean {
+  const normalized = contentType.toLowerCase().split(";")[0]?.trim() ?? "";
+  return ATTACHMENT_CONTENT_TYPE_DENYLIST.includes(normalized);
+}

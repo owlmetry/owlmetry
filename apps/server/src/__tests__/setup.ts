@@ -11,6 +11,8 @@ import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions
 import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
+import { ingestAttachmentRoutes } from "../routes/ingest-attachment.js";
+import { attachmentsRoutes } from "../routes/attachments.js";
 import { importRoutes } from "../routes/import.js";
 import { eventsRoutes } from "../routes/events.js";
 import { appsRoutes } from "../routes/apps.js";
@@ -368,6 +370,8 @@ export async function buildApp() {
   app.get("/health", async () => ({ status: "ok" }));
   await app.register(authRoutes, { prefix: "/v1/auth" });
   await app.register(ingestRoutes, { prefix: "/v1" });
+  await app.register(ingestAttachmentRoutes, { prefix: "/v1" });
+  await app.register(attachmentsRoutes, { prefix: "/v1" });
   await app.register(importRoutes, { prefix: "/v1" });
   await app.register(eventsRoutes, { prefix: "/v1" });
   await app.register(appsRoutes, { prefix: "/v1" });
@@ -396,6 +400,7 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM event_attachments`.catch(() => {});
   await client`DELETE FROM issue_comments`.catch(() => {});
   await client`DELETE FROM issue_occurrences`.catch(() => {});
   await client`DELETE FROM issue_fingerprints`.catch(() => {});

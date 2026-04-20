@@ -221,7 +221,7 @@ Owl.error("Keychain write failed", attributes: ["error": "\(error)"])
 
 All logging methods share the same signature:
 ```swift
-Owl.info(_ message: String, screenName: String? = nil, attributes: [String: String]? = nil)
+Owl.info(_ message: String, screenName: String? = nil, attributes: [String: String]? = nil, attachments: [OwlAttachment]? = nil)
 ```
 
 **`screenName` is optional.** Only pass it when the event originates from a specific screen in the UI (e.g., a button tap handler inside a view). **Do NOT pass `screenName`** when logging from utility functions, services, managers, network layers, background tasks, or anywhere that isn't directly tied to a visible screen. Passing a fabricated or guessed screen name is worse than omitting it — it pollutes screen-level analytics.
@@ -229,6 +229,42 @@ Owl.info(_ message: String, screenName: String? = nil, attributes: [String: Stri
 Source file, function, and line are auto-captured.
 
 **Avoid logging PII** (emails, phone numbers, passwords) or high-frequency events (every frame, every scroll position). Focus on actions and outcomes.
+
+## File Attachments (use sparingly)
+
+When an error cannot be reproduced without the original input bytes — a media conversion that failed on a specific image, a 3D model that failed to parse, a document that failed to decode — you can attach the file to the error event. The attachment appears on the resulting issue in the dashboard, CLI, and MCP so an engineer can download and reproduce.
+
+```swift
+do {
+    try await PhotoConverter.convert(inputURL: url)
+} catch {
+    Owl.error(
+        "image conversion failed",
+        screenName: "PhotoConverterView",
+        attributes: ["stage": "decode", "error": "\(error)"],
+        attachments: [
+            OwlAttachment(fileURL: url),                                      // from disk
+            OwlAttachment(data: debugJSON, name: "debug.json",
+                          contentType: "application/json"),                  // in memory
+        ]
+    )
+}
+```
+
+**Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and a per-file size limit (default **250 MB**). Before adding `attachments:` anywhere, make sure the file's bytes are *essential* to reproduce the bug. Good candidates:
+
+- ✅ A failed media conversion where only the input bytes can reproduce the decoder bug.
+- ✅ A 3D model / document parse failure where the file format itself is the suspect.
+- ✅ A CoreML or similar blob that fails to load at runtime.
+
+Bad candidates — do not attach:
+
+- ❌ Every error. Routine failures (network timeouts, validation) already have enough detail in `attributes`.
+- ❌ Files you can reconstruct from event attributes alone (URLs, IDs, small config).
+- ❌ Large asset files that are *downloaded* rather than user-supplied — include the source URL instead.
+- ❌ Screens or UI state. Use `screenName` and `attributes` for that.
+
+Upload behaviour is strictly non-fatal: if the device is offline, the project quota is full, or the server rejects the file, the event itself still posts — the attachment is dropped silently and a warning is logged via `OSLog`. Uploads run on a separate serial queue so a 200 MB file never blocks event batching. There is no offline queue for attachments in v1: if the device is offline when the error fires, the attachment is discarded but the event queues normally.
 
 ## User Identity
 

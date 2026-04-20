@@ -95,6 +95,25 @@ struct ContentView: View {
                 appendLog("[METRIC] photo-conversion:fail")
             }
             .tint(.red)
+
+            Button("Simulate Failure with Attachment") {
+                // Demonstrates the attachments: parameter. The "input" is synthesised
+                // bytes so the demo does not need a real file — in real code you would
+                // pass the actual file that failed to parse/convert.
+                let bytes: [UInt8] = Array("fake broken image bytes — demo only".utf8)
+                let fakeInput = Data(bytes)
+                Owl.error(
+                    "photo conversion failed",
+                    screenName: "ContentView",
+                    attributes: ["input_format": "heic", "stage": "decode"],
+                    attachments: [
+                        OwlAttachment(data: fakeInput, name: "broken-input.heic",
+                                      contentType: "image/heic"),
+                    ]
+                )
+                appendLog("[ERROR+ATTACHMENT] photo conversion failed")
+            }
+            .tint(.red)
         }
     }
 

@@ -232,6 +232,13 @@
       "when": 1776600583851,
       "tag": "0032_solid_marvel_apes",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1776681334127,
+      "tag": "0033_mixed_shooting_star",
+      "breakpoints": true
     }
   ]
 }

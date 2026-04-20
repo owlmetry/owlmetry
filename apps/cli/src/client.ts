@@ -2,6 +2,9 @@ import type {
   AppResponse,
   AppUsersResponse,
   AppUsersQueryParams,
+  AttachmentListResponse,
+  AttachmentQuotaUsage,
+  AttachmentSummary,
   AuditLogsQueryParams,
   AuditLogsResponse,
   CreateAppRequest,
@@ -345,6 +348,54 @@ export class OwlMetryClient {
 
   async addIssueComment(projectId: string, issueId: string, body: CreateIssueCommentRequest): Promise<IssueCommentResponse> {
     return this.request<IssueCommentResponse>("POST", `/v1/projects/${projectId}/issues/${issueId}/comments`, { body });
+  }
+
+  // Attachments
+  async listAttachments(params: {
+    project_id?: string;
+    event_id?: string;
+    event_client_id?: string;
+    issue_id?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<AttachmentListResponse> {
+    const stringParams: Record<string, string | undefined> = {
+      project_id: params.project_id,
+      event_id: params.event_id,
+      event_client_id: params.event_client_id,
+      issue_id: params.issue_id,
+      cursor: params.cursor,
+      limit: params.limit?.toString(),
+    };
+    return this.request<AttachmentListResponse>("GET", "/v1/attachments", { params: stringParams });
+  }
+
+  async getAttachment(
+    id: string,
+  ): Promise<AttachmentSummary & { download_url?: { url: string; expires_at: string; original_filename: string; content_type: string; size_bytes: number } }> {
+    return this.request<AttachmentSummary & { download_url?: { url: string; expires_at: string; original_filename: string; content_type: string; size_bytes: number } }>(
+      "GET",
+      `/v1/attachments/${id}`
+    );
+  }
+
+  async deleteAttachment(id: string): Promise<{ ok: boolean }> {
+    return this.request<{ ok: boolean }>("DELETE", `/v1/attachments/${id}`);
+  }
+
+  async getAttachmentUsage(projectId: string): Promise<AttachmentQuotaUsage> {
+    return this.request<AttachmentQuotaUsage>(
+      "GET",
+      `/v1/projects/${projectId}/attachment-usage`
+    );
+  }
+
+  async downloadAttachmentBytes(downloadUrl: string): Promise<Uint8Array> {
+    const response = await fetch(downloadUrl);
+    if (!response.ok) {
+      throw new ApiError(response.status, `Download failed: ${response.statusText}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
   }
 
   // Audit Logs

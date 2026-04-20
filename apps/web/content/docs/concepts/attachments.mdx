@@ -1,0 +1,118 @@
+---
+title: Attachments
+description: Upload files alongside error events so engineers can reproduce bugs from the original bytes. A limited resource — use sparingly.
+---
+
+When an error cannot be reproduced without the original input file — a failed media conversion, a 3D model that won't parse, a PDF that fails to decode — SDKs can upload the file alongside the error event. The attachment is stored on the server, linked to the event, and automatically linked to the resulting issue. Engineers download it from the dashboard, CLI, or MCP to reproduce locally.
+
+> **Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and a per-file size limit (default **250 MB**). Only attach files when the raw bytes are *essential* to reproduce the bug.
+
+## When to attach files
+
+✅ **Good candidates:**
+- A failed media conversion where only the input bytes can reproduce the decoder bug.
+- A 3D model, PDF, or document parse failure — the file format itself is the suspect.
+- A CoreML / ONNX / other ML blob that fails to load at runtime.
+
+❌ **Do not attach:**
+- Every error. Most failures are fully explained by the message and attributes.
+- Files you can reconstruct from event attributes alone (URLs, IDs, small config).
+- Large asset files that are downloaded rather than user-supplied — include the source URL instead.
+- Logs or stack traces. Those belong in `custom_attributes`.
+- Screenshots — the issue detail page already shows `screenName` and you can query events to reconstruct session state.
+
+## How it works
+
+1. SDK calls `POST /v1/ingest/attachment` with metadata (filename, size, sha256, content-type, `client_event_id`). Server validates quota + per-file size and reserves a row, returning an `upload_url` + `attachment_id`.
+2. SDK `PUT`s bytes to `upload_url` with `Content-Type: application/octet-stream`. Server streams them to disk, verifies size + SHA-256, and finalises the row.
+3. The SDK links attachments to events via `client_event_id`. If the attachment arrives before the event (SDK batches events), the server backfills `event_id` when the event lands. If the event arrives first, the server fills `event_id` at reservation time.
+4. The issue-scan job later links attachments to issues so they survive event retention pruning.
+
+## Quotas and limits
+
+Per project:
+
+| Setting | Default | Override |
+|---|---|---|
+| Max file size | 250 MB | `projects.attachment_max_file_bytes` |
+| Total storage | 5 GB | `projects.attachment_project_quota_bytes` |
+
+Edit via **Project Settings → Attachments** in the dashboard, `owlmetry project update` in the CLI, or the `update-project` MCP tool.
+
+When a project's quota is exhausted, new reservations are rejected with `413 quota_exhausted`. The event itself still posts — only the attachment is dropped. SDKs silently swallow rejection so the host app/process is never affected.
+
+## SDK usage
+
+**Swift:**
+
+```swift
+do {
+    try await PhotoConverter.convert(inputURL: url)
+} catch {
+    Owl.error(
+        "image conversion failed",
+        screenName: "PhotoConverterView",
+        attributes: ["stage": "decode"],
+        attachments: [
+            OwlAttachment(fileURL: url),
+            OwlAttachment(data: debugJSON, name: "debug.json",
+                          contentType: "application/json"),
+        ]
+    )
+}
+```
+
+**Node.js:**
+
+```typescript
+try {
+  await PdfParser.parse(path);
+} catch (err) {
+  Owl.error('pdf parse failed', { error: String(err) }, {
+    attachments: [
+      { path, name: 'input.pdf' },
+      { buffer: diagnostics, name: 'debug.json', contentType: 'application/json' },
+    ],
+  });
+}
+```
+
+## Downloading attachments
+
+**Dashboard:** The **Issue** detail page shows an "📎 Attachments" card listing every file attached to any occurrence of that issue, with a Download button per file.
+
+**CLI:**
+
+```bash
+owlmetry attachments list --issue <issue-id>
+owlmetry attachments download <attachment-id> --out ./debug-input.heic
+owlmetry attachments usage --project <project-id>
+```
+
+**MCP (agents):**
+
+- `list-attachments` — filter by event, issue, or project.
+- `get-attachment` — metadata plus a 60-second signed download URL.
+- `delete-attachment` — soft-delete to free quota.
+- `get-project-attachment-usage` — check quota headroom before recommending re-runs.
+
+Downloads use short-lived (60s) HMAC-signed URLs. In production the server uses nginx `X-Accel-Redirect` to stream the bytes directly from disk — the Node process never holds the file in memory.
+
+## Lifecycle and cleanup
+
+- **Linked to events**: attachments point at the event via `client_event_id` (dedup key) and `event_id` (resolved once the event lands).
+- **Linked to issues**: the issue-scan job sets `issue_id` on attachments whose events are in an issue. This way attachments survive event retention pruning as long as the issue is still open.
+- **Soft delete + grace**: `DELETE /v1/attachments/:id` (or the dashboard / CLI) sets `deleted_at`. The `attachment_cleanup` daily job hard-deletes rows after 7 days.
+- **Orphan sweeps**: reservations that never receive bytes within 24 hours are removed. Files on disk with no matching row (interrupted uploads, manual deletions) are swept daily.
+
+## Self-hosting notes
+
+- Attachment bytes live on disk at `OWLMETRY_ATTACHMENTS_PATH` (default `/opt/owlmetry-attachments` in production, `./data/attachments` in dev). **Do not include this path in your `pg_dump` backups.**
+- For high-throughput deployments, mount a dedicated volume at this path so disk-full on attachments cannot starve Postgres.
+- When `OWLMETRY_ATTACHMENTS_INTERNAL_URI` is set, the server replies with `X-Accel-Redirect` headers so nginx can serve downloads without streaming through Node. Without it, the server streams bytes directly — fine in dev, avoid in production for any file above a few megabytes.
+
+## Security
+
+- Content types are denylisted (executables, scripts, installers) — everything else is accepted because debugging often needs unusual formats (`.usdz`, `.heic`, custom binary).
+- Downloads are always served with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff` — browsers will never auto-execute an uploaded file.
+- The signed download URL expires after 60 seconds and is HMAC-authenticated. Do not paste them into long-lived documents.

@@ -5,6 +5,7 @@ import {
   varchar,
   timestamp,
   integer,
+  bigint,
   boolean,
   jsonb,
   index,
@@ -109,6 +110,8 @@ export const projects = pgTable(
     retention_days_events: integer("retention_days_events"),
     retention_days_metrics: integer("retention_days_metrics"),
     retention_days_funnels: integer("retention_days_funnels"),
+    attachment_max_file_bytes: bigint("attachment_max_file_bytes", { mode: "number" }),
+    attachment_project_quota_bytes: bigint("attachment_project_quota_bytes", { mode: "number" }),
     issue_alert_frequency: issueAlertFrequencyEnum("issue_alert_frequency").default("daily"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -630,6 +633,46 @@ export const issueComments = pgTable(
   (table) => [
     index("issue_comments_issue_created_at_idx").on(table.issue_id, table.created_at),
     index("issue_comments_author_id_idx").on(table.author_id),
+  ]
+);
+
+// Event Attachments — files uploaded by SDKs to accompany error events for debugging.
+// Bytes live on disk (see FileStorage); only metadata is stored here. Not partitioned —
+// row count stays small relative to events. Linked to an event via event_client_id at
+// upload time, with event_id backfilled when the event lands (race-safe either direction).
+// Linked to an issue by the issue-scan job so attachments survive event retention pruning.
+export const eventAttachments = pgTable(
+  "event_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    event_client_id: uuid("event_client_id"),
+    event_id: uuid("event_id"),
+    issue_id: uuid("issue_id").references(() => issues.id, { onDelete: "set null" }),
+    user_id: varchar("user_id", { length: 255 }),
+    original_filename: varchar("original_filename", { length: 512 }).notNull(),
+    content_type: varchar("content_type", { length: 128 }).notNull(),
+    size_bytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    storage_path: text("storage_path").notNull(),
+    is_dev: boolean("is_dev").notNull().default(false),
+    uploaded_at: timestamp("uploaded_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("event_attachments_project_created_at_idx").on(table.project_id, table.created_at),
+    index("event_attachments_app_event_client_id_idx").on(table.app_id, table.event_client_id),
+    index("event_attachments_event_id_idx").on(table.event_id),
+    index("event_attachments_issue_id_idx").on(table.issue_id),
+    index("event_attachments_project_deleted_at_idx").on(table.project_id, table.deleted_at),
   ]
 );
 

@@ -10,6 +10,7 @@ public enum Owl {
         var configuration: OwlConfiguration?
         var deviceInfo: DeviceInfo?
         var transport: EventTransport?
+        var attachmentUploader: AttachmentUploader?
         var duplicateFilter: DuplicateFilter?
         var networkMonitor: NetworkMonitor?
         var offlineQueue: OfflineQueue?
@@ -62,6 +63,10 @@ public enum Owl {
             offlineQueue: queue,
             networkMonitor: monitor
         )
+        let attachmentUploader = AttachmentUploader(
+            endpoint: config.endpoint,
+            apiKey: config.apiKey
+        )
         let filter = DuplicateFilter()
 
         // Resolve identity: saved real user ID > anonymous ID
@@ -82,6 +87,7 @@ public enum Owl {
             s.networkMonitor = monitor
             s.offlineQueue = queue
             s.transport = transport
+            s.attachmentUploader = attachmentUploader
             s.duplicateFilter = filter
             s.lifecycleObserver = lifecycleObserver
             s.anonymousId = anonId
@@ -192,11 +198,12 @@ public enum Owl {
         _ message: String,
         screenName: String? = nil,
         attributes: [String: String]? = nil,
+        attachments: [OwlAttachment]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .info, screenName: screenName, attributes: attributes,
+        log(message, level: .info, screenName: screenName, attributes: attributes, attachments: attachments,
             file: file, function: function, line: line)
     }
 
@@ -204,11 +211,12 @@ public enum Owl {
         _ message: String,
         screenName: String? = nil,
         attributes: [String: String]? = nil,
+        attachments: [OwlAttachment]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .debug, screenName: screenName, attributes: attributes,
+        log(message, level: .debug, screenName: screenName, attributes: attributes, attachments: attachments,
             file: file, function: function, line: line)
     }
 
@@ -216,11 +224,12 @@ public enum Owl {
         _ message: String,
         screenName: String? = nil,
         attributes: [String: String]? = nil,
+        attachments: [OwlAttachment]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .warn, screenName: screenName, attributes: attributes,
+        log(message, level: .warn, screenName: screenName, attributes: attributes, attachments: attachments,
             file: file, function: function, line: line)
     }
 
@@ -228,11 +237,12 @@ public enum Owl {
         _ message: String,
         screenName: String? = nil,
         attributes: [String: String]? = nil,
+        attachments: [OwlAttachment]? = nil,
         file: String = #file,
         function: String = #function,
         line: Int = #line
     ) {
-        log(message, level: .error, screenName: screenName, attributes: attributes,
+        log(message, level: .error, screenName: screenName, attributes: attributes, attachments: attachments,
             file: file, function: function, line: line)
     }
 
@@ -426,11 +436,12 @@ public enum Owl {
         level: OwlLogLevel,
         screenName: String?,
         attributes: [String: String]?,
+        attachments: [OwlAttachment]? = nil,
         file: String,
         function: String,
         line: Int
     ) {
-        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, DuplicateFilter, String?, String?, String, Bool)? in
+        let snapshot = state.withLock { s -> (DeviceInfo, EventTransport, AttachmentUploader?, DuplicateFilter, String?, String?, String, Bool)? in
             guard let deviceInfo = s.deviceInfo,
                   let transport = s.transport,
                   let filter = s.duplicateFilter,
@@ -442,10 +453,10 @@ public enum Owl {
                 return nil
             }
             let networkStatus = s.networkMonitor?.status.rawValue ?? "unknown"
-            return (deviceInfo, transport, filter, s.defaultUserId, s.sessionId, networkStatus, config.consoleLogging)
+            return (deviceInfo, transport, s.attachmentUploader, filter, s.defaultUserId, s.sessionId, networkStatus, config.consoleLogging)
         }
 
-        guard let (deviceInfo, transport, duplicateFilter, defaultUser, sessionId, networkStatus, consoleLogging) = snapshot else { return }
+        guard let (deviceInfo, transport, attachmentUploader, duplicateFilter, defaultUser, sessionId, networkStatus, consoleLogging) = snapshot else { return }
 
         if consoleLogging {
             printToConsole(message, level: level, attributes: attributes)
@@ -472,9 +483,17 @@ public enum Owl {
             line: line
         )
 
+        let clientEventId = event.clientEventId
+
         Task {
             guard await duplicateFilter.shouldAllow(event) else { return }
             await transport.enqueue(event)
+        }
+
+        if let attachments, !attachments.isEmpty, let uploader = attachmentUploader {
+            Task {
+                await uploader.enqueue(clientEventId: clientEventId, isDev: isDev, attachments: attachments)
+            }
         }
     }
 

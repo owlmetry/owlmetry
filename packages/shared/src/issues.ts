@@ -54,11 +54,22 @@ export interface IssueCommentResponse {
   updated_at: string;
 }
 
+export interface IssueAttachmentSummary {
+  id: string;
+  event_id: string | null;
+  original_filename: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_at: string | null;
+  created_at: string;
+}
+
 export interface IssueDetailResponse extends IssueResponse {
   occurrences: IssueOccurrenceResponse[];
   occurrence_cursor: string | null;
   occurrence_has_more: boolean;
   comments: IssueCommentResponse[];
+  attachments: IssueAttachmentSummary[];
 }
 
 // --- API Request Types ---

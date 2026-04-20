@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, gt, desc, asc, inArray, isNull, sql } from "drizzle-orm";
-import { events, apps } from "@owlmetry/db";
+import { events, apps, eventAttachments } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
 import type { EventsQueryParams, EventsCountQueryParams } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
@@ -253,11 +253,34 @@ export async function eventsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Event not found" });
       }
 
+      const attachmentRows = await app.db
+        .select({
+          id: eventAttachments.id,
+          original_filename: eventAttachments.original_filename,
+          content_type: eventAttachments.content_type,
+          size_bytes: eventAttachments.size_bytes,
+          uploaded_at: eventAttachments.uploaded_at,
+        })
+        .from(eventAttachments)
+        .where(
+          and(
+            eq(eventAttachments.event_id, event.id ?? ""),
+            isNull(eventAttachments.deleted_at)
+          )
+        );
+
       return {
         ...event,
         project_id: eventApp.project_id,
         timestamp: event.timestamp.toISOString(),
         received_at: event.received_at.toISOString(),
+        attachments: attachmentRows.map((a) => ({
+          id: a.id,
+          original_filename: a.original_filename,
+          content_type: a.content_type,
+          size_bytes: a.size_bytes,
+          uploaded_at: a.uploaded_at ? a.uploaded_at.toISOString() : null,
+        })),
       };
     }
   );

@@ -6,6 +6,7 @@ export const JOB_TYPES = [
   "retention_cleanup",
   "issue_scan",
   "issue_notify",
+  "attachment_cleanup",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -85,6 +86,14 @@ export const JOB_TYPE_META: Record<
     description: "Sends issue digest emails per project alert settings",
     scope: "system",
     default_schedule: "5 * * * *",
+    params: [],
+  },
+  attachment_cleanup: {
+    label: "Attachment Cleanup",
+    description:
+      "Removes soft-deleted event attachments, sweeps orphans, and deletes files whose events have been retention-pruned",
+    scope: "system",
+    default_schedule: "0 5 * * *",
     params: [],
   },
 };

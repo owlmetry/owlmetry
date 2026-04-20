@@ -128,7 +128,7 @@ try {
 }
 ```
 
-All methods: `Owl.info/debug/warn/error(message: string, attrs?: Record<string, unknown>)`.
+All methods: `Owl.info/debug/warn/error(message, attrs?, options?)`. The third `options` argument supports `{ attachments }` for uploading files alongside the event — see *File Attachments* below.
 
 Source module (file:line) is auto-captured from the call stack.
 
@@ -144,6 +144,38 @@ try {
   Owl.error('Stripe charge failed', { endpoint: '/charges', error: String(err) });
 }
 ```
+
+## File Attachments (use sparingly)
+
+When an error's root cause is bound up in a file the server received — a PDF that failed to parse, an upload that failed to decode, a model file that failed to load — you can attach the file to the error event so an engineer can download it from the dashboard, CLI, or MCP and reproduce locally.
+
+```typescript
+try {
+  await PdfParser.parse(inputPath);
+} catch (err) {
+  Owl.error('pdf parse failed', { error: String(err) }, {
+    attachments: [
+      { path: inputPath, name: 'input.pdf' },                               // from disk
+      { buffer: diagnosticsJson, name: 'debug.json', contentType: 'application/json' }, // in memory
+    ],
+  });
+}
+```
+
+**Attachments are a limited resource.** Each project has a storage quota (default **5 GB**) and a per-file size limit (default **250 MB**). Before adding `attachments:` anywhere, make sure the file's bytes are *essential* to reproduce the bug. Good candidates:
+
+- ✅ A parse failure on a user-uploaded document whose bytes you cannot reconstruct.
+- ✅ A ML model file that fails to load — the bytes themselves are the suspect.
+- ✅ A fixture-like artefact that reveals the bug when inspected.
+
+Bad candidates — do not attach:
+
+- ❌ Every error. Most backend failures are well-described by `attrs`.
+- ❌ Data you can reconstruct from the request (URLs, IDs, small config).
+- ❌ Large files that are downloaded rather than user-supplied — include the source URL.
+- ❌ Logs or stack traces. Put them in `attrs` or stream them separately.
+
+Uploads are strictly non-fatal: network errors, quota rejections, and size-limit rejections are logged (when `debug: true`) but the event still posts normally. Uploads use `fetch` and run on a serial queue so a 200 MB file never blocks event batching. Attachments are not queued offline — if the host process exits before the upload completes, the attachment is lost but the event is not.
 
 ## Per-Request User Scoping
 

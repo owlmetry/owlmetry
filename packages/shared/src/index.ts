@@ -13,3 +13,4 @@ export * from "./jobs.js";
 export * from "./issues.js";
 export * from "./project-colors.js";
 export * from "./billing.js";
+export * from "./attachments.js";

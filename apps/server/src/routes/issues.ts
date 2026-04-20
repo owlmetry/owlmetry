@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
-import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys, projects } from "@owlmetry/db";
+import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys, projects, eventAttachments } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES } from "@owlmetry/shared";
 import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
@@ -200,7 +200,7 @@ export async function issuesRoutes(app: FastifyInstance) {
       }
 
       // Run independent queries in parallel
-      const [fps, [appRow], occRows, commentRows] = await Promise.all([
+      const [fps, [appRow], occRows, commentRows, attachmentRows] = await Promise.all([
         app.db
           .select({ fingerprint: issueFingerprints.fingerprint })
           .from(issueFingerprints)
@@ -217,6 +217,25 @@ export async function issuesRoutes(app: FastifyInstance) {
           .from(issueComments)
           .where(and(eq(issueComments.issue_id, issueId), isNull(issueComments.deleted_at)))
           .orderBy(issueComments.created_at),
+        app.db
+          .select({
+            id: eventAttachments.id,
+            event_id: eventAttachments.event_id,
+            original_filename: eventAttachments.original_filename,
+            content_type: eventAttachments.content_type,
+            size_bytes: eventAttachments.size_bytes,
+            uploaded_at: eventAttachments.uploaded_at,
+            created_at: eventAttachments.created_at,
+          })
+          .from(eventAttachments)
+          .where(
+            and(
+              eq(eventAttachments.issue_id, issueId),
+              isNull(eventAttachments.deleted_at)
+            )
+          )
+          .orderBy(desc(eventAttachments.created_at))
+          .limit(100),
       ]);
 
       const occHasMore = occRows.length > occLimit;
@@ -228,6 +247,15 @@ export async function issuesRoutes(app: FastifyInstance) {
         occurrence_cursor: occHasMore ? occPage[occPage.length - 1].id : null,
         occurrence_has_more: occHasMore,
         comments: commentRows.map(serializeComment),
+        attachments: attachmentRows.map((a) => ({
+          id: a.id,
+          event_id: a.event_id,
+          original_filename: a.original_filename,
+          content_type: a.content_type,
+          size_bytes: a.size_bytes,
+          uploaded_at: a.uploaded_at ? a.uploaded_at.toISOString() : null,
+          created_at: a.created_at.toISOString(),
+        })),
       };
     }
   );
