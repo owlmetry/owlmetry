@@ -392,10 +392,20 @@ export default function IssuesPage() {
 
   const selectedIssue = selectedIssueId ? issues.find((i) => i.id === selectedIssueId) : null;
 
-  // Group issues by status for kanban columns
+  // Group issues by status for kanban columns.
+  // "New" is sorted by severity (unique users affected) so the most impactful issues surface first.
   const issuesByStatus: Record<string, IssueResponse[]> = {};
   for (const status of KANBAN_COLUMNS) {
-    issuesByStatus[status] = issues.filter((i) => i.status === status);
+    const col = issues.filter((i) => i.status === status);
+    if (status === "new") {
+      col.sort((a, b) => {
+        if (b.unique_user_count !== a.unique_user_count) {
+          return b.unique_user_count - a.unique_user_count;
+        }
+        return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime();
+      });
+    }
+    issuesByStatus[status] = col;
   }
 
   return (
