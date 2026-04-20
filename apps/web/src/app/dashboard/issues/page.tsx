@@ -9,7 +9,8 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
-import { formatBytes } from "@owlmetry/shared";
+// Deep import bypasses the barrel export which pulls in node:crypto
+import { formatBytes } from "@owlmetry/shared/constants";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
