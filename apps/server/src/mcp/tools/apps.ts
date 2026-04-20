@@ -58,18 +58,22 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
   });
 
   server.registerTool("list-app-users", {
-    description: "List users for a specific app. Supports search, anonymous/real filtering, and pagination.",
+    description: "List users for a specific app. Supports search, anonymous/real filtering, billing-tier filtering, and pagination.",
     inputSchema: {
       app_id: z.string().uuid().describe("The app ID"),
       search: z.string().optional().describe("Search by user ID"),
       is_anonymous: z.enum(["true", "false"]).optional().describe("Filter by anonymous status"),
+      billing_status: z.string().optional().describe(
+        "Comma-separated billing tiers to include: paid, trial, free. " +
+        "Derived from RevenueCat-synced user properties; omit or pass all three for no filter.",
+      ),
       cursor: z.string().optional().describe("Pagination cursor"),
       limit: z.number().optional().describe("Max results (default 50, max 1000)"),
     },
-  }, async ({ app_id, search, is_anonymous, cursor, limit }) => {
+  }, async ({ app_id, search, is_anonymous, billing_status, cursor, limit }) => {
     return callApi(app, agentKey, {
       method: "GET",
-      url: `/v1/apps/${app_id}/users${buildQuery({ search, is_anonymous, cursor, limit })}`,
+      url: `/v1/apps/${app_id}/users${buildQuery({ search, is_anonymous, billing_status, cursor, limit })}`,
     });
   });
 }

@@ -154,7 +154,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
   - Returns \`client_secret\` for SDK configuration
   - **Naming (strict)**: app names MUST always be \`<project name> <platform>\` — e.g. "Lofi iOS", "Lofi Android", "Lofi Web", "Lofi Backend". Never omit the platform suffix, even if the project name seems to imply a platform.
 - \`update-app\` — Update app name (needs \`apps:write\`)
-- \`list-app-users\` — List users for an app (search, anonymous filter, pagination)
+- \`list-app-users\` — List users for an app (search, anonymous filter, billing tier filter, pagination)
 
 ### Events
 - \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`order: "asc"\` to walk events chronologically (default \`desc\`/newest-first) — use ascending for session timelines and breadcrumb investigations. Pass \`compact: true\` to drop verbose fields.

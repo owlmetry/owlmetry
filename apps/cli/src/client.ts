@@ -150,6 +150,7 @@ export class OwlMetryClient {
     const stringParams: Record<string, string | undefined> = {
       search: params.search,
       is_anonymous: params.is_anonymous,
+      billing_status: params.billing_status,
       cursor: params.cursor,
       limit: params.limit?.toString(),
     };

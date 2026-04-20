@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, lt, desc, inArray, isNull, ilike } from "drizzle-orm";
+import { and, eq, gte, lte, lt, desc, inArray, isNull, ilike, or, sql, type SQL } from "drizzle-orm";
 import { apps, projects, appUsers, appUserApps } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
@@ -7,6 +7,47 @@ import type { AppUsersQueryParams, TeamAppUsersQueryParams } from "@owlmetry/sha
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { serializeAppUser } from "../utils/serialize.js";
 import { normalizeLimit } from "../utils/pagination.js";
+
+type BillingTier = "paid" | "trial" | "free";
+const ALL_BILLING_TIERS: BillingTier[] = ["paid", "trial", "free"];
+
+/**
+ * Parse a comma-separated `billing_status` value into a validated tier set.
+ * Returns null when the filter should be a no-op (empty, all three, or all values invalid).
+ */
+function parseBillingStatus(value: string | undefined): Set<BillingTier> | null {
+  if (!value) return null;
+  const set = new Set<BillingTier>();
+  for (const raw of value.split(",")) {
+    const v = raw.trim().toLowerCase();
+    if (v === "paid" || v === "trial" || v === "free") set.add(v);
+  }
+  if (set.size === 0 || set.size === ALL_BILLING_TIERS.length) return null;
+  return set;
+}
+
+/**
+ * Build a SQL predicate that matches users in any of the requested billing tiers.
+ * Tiers are derived from the JSONB `properties` column (rc_period_type, rc_subscriber),
+ * matching the dashboard's badge logic. `IS DISTINCT FROM` so NULL values behave as "not equal".
+ */
+function buildBillingStatusCondition(tiers: Set<BillingTier>): SQL | undefined {
+  const exprs: SQL[] = [];
+  if (tiers.has("trial")) {
+    exprs.push(sql`${appUsers.properties}->>'rc_period_type' = 'trial'`);
+  }
+  if (tiers.has("paid")) {
+    exprs.push(
+      sql`${appUsers.properties}->>'rc_subscriber' = 'true' AND (${appUsers.properties}->>'rc_period_type') IS DISTINCT FROM 'trial'`,
+    );
+  }
+  if (tiers.has("free")) {
+    exprs.push(
+      sql`(${appUsers.properties}->>'rc_subscriber') IS DISTINCT FROM 'true' AND (${appUsers.properties}->>'rc_period_type') IS DISTINCT FROM 'trial'`,
+    );
+  }
+  return or(...exprs);
+}
 
 /** Fetch junction app info for a set of app_user IDs and build a lookup map. */
 async function loadAppInfoForUsers(
@@ -44,7 +85,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { search, is_anonymous, cursor, limit: rawLimit } = request.query;
+      const { search, is_anonymous, billing_status, cursor, limit: rawLimit } = request.query;
 
       const limit = normalizeLimit(rawLimit);
 
@@ -73,6 +114,12 @@ export async function appUsersRoutes(app: FastifyInstance) {
 
       if (search) {
         conditions.push(ilike(appUsers.user_id, `%${search}%`));
+      }
+
+      const billingTiers = parseBillingStatus(billing_status);
+      if (billingTiers) {
+        const billingCondition = buildBillingStatusCondition(billingTiers);
+        if (billingCondition) conditions.push(billingCondition);
       }
 
       if (cursor) {
@@ -128,6 +175,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
         app_id,
         search,
         is_anonymous,
+        billing_status,
         since,
         until,
         cursor,
@@ -195,6 +243,12 @@ export async function appUsersRoutes(app: FastifyInstance) {
 
       if (search) {
         conditions.push(ilike(appUsers.user_id, `%${search}%`));
+      }
+
+      const billingTiers = parseBillingStatus(billing_status);
+      if (billingTiers) {
+        const billingCondition = buildBillingStatusCondition(billingTiers);
+        if (billingCondition) conditions.push(billingCondition);
       }
 
       if (since) {

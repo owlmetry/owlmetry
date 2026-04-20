@@ -19,6 +19,7 @@ import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -37,6 +38,24 @@ import {
 } from "@/components/ui/table";
 import { ProjectDot } from "@/lib/project-color";
 
+const BILLING_TIERS = ["paid", "trial", "free"] as const;
+type BillingTier = (typeof BILLING_TIERS)[number];
+
+const BILLING_TIER_LABELS: Record<BillingTier, string> = {
+  paid: "💰 Paid",
+  trial: "🎁 Trial",
+  free: "🆓 Free",
+};
+
+function parseBillingTiers(value: string): Set<BillingTier> {
+  const set = new Set<BillingTier>();
+  for (const raw of value.split(",")) {
+    const v = raw.trim().toLowerCase();
+    if ((BILLING_TIERS as readonly string[]).includes(v)) set.add(v as BillingTier);
+  }
+  return set;
+}
+
 export default function UsersPage() {
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
@@ -48,6 +67,7 @@ export default function UsersPage() {
       app_id: "",
       search: "",
       is_anonymous: "",
+      billing_status: "",
       time_range: "",
       since: "",
       until: "",
@@ -88,6 +108,12 @@ export default function UsersPage() {
   if (search) filterParams.search = search;
   const isAnonymous = filters.get("is_anonymous");
   if (isAnonymous) filterParams.is_anonymous = isAnonymous;
+  const billingStatusRaw = filters.get("billing_status");
+  const billingTiers = useMemo(() => parseBillingTiers(billingStatusRaw), [billingStatusRaw]);
+  // Only apply the filter when a strict subset of tiers is selected — empty or all 3 = no-op.
+  if (billingTiers.size > 0 && billingTiers.size < BILLING_TIERS.length) {
+    filterParams.billing_status = BILLING_TIERS.filter((t) => billingTiers.has(t)).join(",");
+  }
   if (filters.computedSince) filterParams.since = filters.computedSince;
   if (filters.computedUntil) filterParams.until = filters.computedUntil;
 
@@ -104,6 +130,16 @@ export default function UsersPage() {
   function handleSheetFilter(key: string, value: string) {
     filters.set(key, value);
     setSheetOpen(false);
+  }
+
+  function toggleBillingTier(tier: BillingTier, checked: boolean) {
+    const next = new Set(billingTiers);
+    if (checked) next.add(tier);
+    else next.delete(tier);
+    filters.set(
+      "billing_status",
+      next.size === 0 ? "" : BILLING_TIERS.filter((t) => next.has(t)).join(","),
+    );
   }
 
   // Clear app filter if it doesn't belong to selected project
@@ -124,9 +160,16 @@ export default function UsersPage() {
     if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId), onDismiss: () => filters.set("app_id", "") });
     if (timeRange) c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "", since: "", until: "" }) });
     if (isAnonymous) c.push({ label: "Type", value: isAnonymous === "true" ? "Anonymous" : "Real", onDismiss: () => filters.set("is_anonymous", "") });
+    if (billingTiers.size > 0 && billingTiers.size < BILLING_TIERS.length) {
+      c.push({
+        label: "Billing",
+        value: BILLING_TIERS.filter((t) => billingTiers.has(t)).map((t) => BILLING_TIER_LABELS[t]).join(", "),
+        onDismiss: () => filters.set("billing_status", ""),
+      });
+    }
     if (search) c.push({ label: "Search", value: truncateId(search), onDismiss: () => filters.set("search", "") });
     return c;
-  }, [projectId, appId, timeRange, sinceInput, untilInput, isAnonymous, search, projects, allApps, filters]);
+  }, [projectId, appId, timeRange, sinceInput, untilInput, isAnonymous, billingTiers, search, projects, allApps, filters]);
 
   return (
     <div className="space-y-4">
@@ -241,6 +284,21 @@ export default function UsersPage() {
               <SelectItem value="true">👻 Anonymous</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Billing</label>
+          <div className="flex flex-col gap-2 pt-1">
+            {BILLING_TIERS.map((tier) => (
+              <label key={tier} className="flex items-center gap-2 text-xs cursor-pointer">
+                <Checkbox
+                  checked={billingTiers.has(tier)}
+                  onCheckedChange={(c) => toggleBillingTier(tier, c === true)}
+                />
+                <span>{BILLING_TIER_LABELS[tier]}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-1">

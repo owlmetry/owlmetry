@@ -71,5 +71,6 @@ List users for a specific app. Supports search, filtering, and pagination.
 | `app_id` | UUID | Yes | The app ID |
 | `search` | string | No | Search by user ID |
 | `is_anonymous` | string | No | `"true"` or `"false"` to filter by anonymous status |
+| `billing_status` | string | No | Comma-separated billing tiers to include: `paid`, `trial`, `free`. Derived from RevenueCat-synced user properties. Omit or pass all three for no filter. |
 | `cursor` | string | No | Pagination cursor |
 | `limit` | number | No | Max results (default 50, max 1000) |

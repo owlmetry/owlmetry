@@ -200,7 +200,7 @@ owlmetry events view <id> --format json
 owlmetry investigate <eventId> [--window <minutes>] --format json
 
 # Users
-owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--limit <n>] --format json
+owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--billing <tiers>] [--limit <n>] --format json
 
 # Audit Logs
 owlmetry audit-log list --team-id <id> [--resource-type <type>] [--actor-id <id>] [--action <action>] [--since <time>] --format json
@@ -391,10 +391,10 @@ Output is a single chronological `events` array with `target_event_id` flagging 
 ### Users
 
 ```bash
-owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--limit <n>] --format json
+owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--billing <tiers>] [--limit <n>] --format json
 ```
 
-`--anonymous` and `--real` are mutually exclusive.
+`--anonymous` and `--real` are mutually exclusive. `--billing` takes a comma-separated list of tiers (`paid`, `trial`, `free`) derived from RevenueCat-synced user properties — e.g. `--billing paid,trial` returns subscribers and trialists, omitting free users. Omitting the flag (or listing all three tiers) returns every tier.
 
 ### Metric Events & Aggregation
 

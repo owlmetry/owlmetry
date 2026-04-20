@@ -394,6 +394,8 @@ export interface AppUsersResponse {
 export interface AppUsersQueryParams {
   search?: string;
   is_anonymous?: string;
+  /** Comma-separated list of billing tiers to include: "paid", "trial", "free". */
+  billing_status?: string;
   cursor?: string;
   limit?: number;
 }

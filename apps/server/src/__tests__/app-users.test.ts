@@ -128,6 +128,85 @@ describe("GET /v1/apps/:id/users", () => {
     expect(body2.has_more).toBe(false);
   });
 
+  describe("billing_status filter", () => {
+    async function setProps(user_id: string, properties: Record<string, string>) {
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/identity/properties",
+        headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+        payload: { user_id, properties },
+      });
+      expect(res.statusCode).toBe(200);
+    }
+
+    async function seedBillingUsers() {
+      await ingest([
+        { level: "info", message: "test", user_id: "paid-user", session_id: TEST_SESSION_ID },
+        { level: "info", message: "test", user_id: "trial-user", session_id: TEST_SESSION_ID },
+        { level: "info", message: "test", user_id: "free-user", session_id: TEST_SESSION_ID },
+      ]);
+      await new Promise((r) => setTimeout(r, 100));
+
+      await setProps("paid-user", { rc_subscriber: "true", rc_period_type: "normal" });
+      await setProps("trial-user", { rc_subscriber: "true", rc_period_type: "trial" });
+      // free-user has no rc_* properties
+    }
+
+    function userIds(body: any): string[] {
+      return body.users.map((u: any) => u.user_id).sort();
+    }
+
+    it("filters to only paid users", async () => {
+      await seedBillingUsers();
+      const res = await getUsers(appId, { billing_status: "paid" });
+      expect(res.statusCode).toBe(200);
+      expect(userIds(res.json())).toEqual(["paid-user"]);
+    });
+
+    it("filters to only trial users", async () => {
+      await seedBillingUsers();
+      const res = await getUsers(appId, { billing_status: "trial" });
+      expect(userIds(res.json())).toEqual(["trial-user"]);
+    });
+
+    it("filters to only free users (no rc_subscriber, no rc_period_type=trial)", async () => {
+      await seedBillingUsers();
+      const res = await getUsers(appId, { billing_status: "free" });
+      expect(userIds(res.json())).toEqual(["free-user"]);
+    });
+
+    it("combines tiers with OR semantics", async () => {
+      await seedBillingUsers();
+      const res = await getUsers(appId, { billing_status: "paid,trial" });
+      expect(userIds(res.json())).toEqual(["paid-user", "trial-user"]);
+    });
+
+    it("treats all three tiers as no-op", async () => {
+      await seedBillingUsers();
+      const res = await getUsers(appId, { billing_status: "paid,trial,free" });
+      expect(userIds(res.json())).toEqual(["free-user", "paid-user", "trial-user"]);
+    });
+
+    it("ignores unknown tiers and empty values", async () => {
+      await seedBillingUsers();
+      const res = await getUsers(appId, { billing_status: "  ,foo" });
+      // all invalid → no filter
+      expect(res.json().users).toHaveLength(3);
+    });
+
+    it("applies to team-scoped endpoint too", async () => {
+      await seedBillingUsers();
+      const token = await getToken(app);
+      const res = await app.inject({
+        method: "GET",
+        url: "/v1/app-users?billing_status=paid",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(userIds(res.json())).toEqual(["paid-user"]);
+    });
+  });
+
   it("returns 404 for non-existent app", async () => {
     const res = await getUsers("00000000-0000-0000-0000-000000000000");
     expect(res.statusCode).toBe(404);
