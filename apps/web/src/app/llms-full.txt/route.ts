@@ -23,6 +23,7 @@ export function GET() {
     "",
     "Key capabilities:",
     "- **Events**: Structured events with log levels, session tracking, and screen context",
+    "- **Attachments**: Upload files alongside error events for reproducible debugging",
     "- **Metrics**: Time any operation end-to-end — track p50, p95, failure rates",
     "- **Funnels**: Multi-step conversion funnels with A/B experiment segmentation",
     "- **Experiments**: Client-side A/B experiment assignment, persisted across sessions",
