@@ -22,9 +22,8 @@ import {
   verifyAttachmentToken,
 } from "../utils/attachment-signing.js";
 import {
-  getProjectAttachmentUsage,
+  getAttachmentUsage,
   getProjectWithAttachmentLimits,
-  getUserAttachmentUsage,
   resolveAttachmentLimits,
 } from "../utils/attachment-quota.js";
 import { normalizeLimit } from "../utils/pagination.js";
@@ -263,19 +262,18 @@ export async function attachmentsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Project not found" });
       }
       const limits = resolveAttachmentLimits(project);
-      const usage = await getProjectAttachmentUsage(app.db, projectId);
+      const usage = await getAttachmentUsage(app.db, projectId, user_id);
       const response: AttachmentQuotaUsage = {
         project_id: projectId,
-        used_bytes: usage.usedBytes,
+        used_bytes: usage.project.usedBytes,
         quota_bytes: limits.projectQuotaBytes,
         user_quota_bytes: limits.userQuotaBytes,
-        file_count: usage.fileCount,
+        file_count: usage.project.fileCount,
       };
-      if (user_id) {
-        const userUsage = await getUserAttachmentUsage(app.db, projectId, user_id);
+      if (usage.user) {
         response.user_id = user_id;
-        response.user_used_bytes = userUsage.usedBytes;
-        response.user_file_count = userUsage.fileCount;
+        response.user_used_bytes = usage.user.usedBytes;
+        response.user_file_count = usage.user.fileCount;
       }
       return response;
     }

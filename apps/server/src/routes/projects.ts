@@ -47,18 +47,7 @@ function serializeProject(p: typeof projects.$inferSelect) {
   };
 }
 
-function validateRetentionDays(value: unknown, field: string): string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== "number" || !Number.isInteger(value)) {
-    return `${field} must be an integer or null`;
-  }
-  if (value < MIN_RETENTION_DAYS || value > MAX_RETENTION_DAYS) {
-    return `${field} must be between ${MIN_RETENTION_DAYS} and ${MAX_RETENTION_DAYS}`;
-  }
-  return null;
-}
-
-function validateAttachmentQuota(value: unknown, field: string, min: number, max: number): string | null {
+function validateIntegerInRange(value: unknown, field: string, min: number, max: number): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "number" || !Number.isInteger(value)) {
     return `${field} must be an integer or null`;
@@ -159,7 +148,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       }
 
       for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
-        const err = validateRetentionDays(value, field);
+        const err = validateIntegerInRange(value, field, MIN_RETENTION_DAYS, MAX_RETENTION_DAYS);
         if (err) return reply.code(400).send({ error: err });
       }
 
@@ -248,26 +237,15 @@ export async function projectsRoutes(app: FastifyInstance) {
       }
 
       for (const [field, value] of Object.entries({ retention_days_events, retention_days_metrics, retention_days_funnels })) {
-        const err = validateRetentionDays(value, field);
+        const err = validateIntegerInRange(value, field, MIN_RETENTION_DAYS, MAX_RETENTION_DAYS);
         if (err) return reply.code(400).send({ error: err });
       }
 
-      {
-        const err = validateAttachmentQuota(
-          attachment_user_quota_bytes,
-          "attachment_user_quota_bytes",
-          MIN_ATTACHMENT_USER_QUOTA_BYTES,
-          MAX_ATTACHMENT_USER_QUOTA_BYTES
-        );
-        if (err) return reply.code(400).send({ error: err });
-      }
-      {
-        const err = validateAttachmentQuota(
-          attachment_project_quota_bytes,
-          "attachment_project_quota_bytes",
-          MIN_ATTACHMENT_PROJECT_QUOTA_BYTES,
-          MAX_ATTACHMENT_PROJECT_QUOTA_BYTES
-        );
+      for (const [field, value, min, max] of [
+        ["attachment_user_quota_bytes", attachment_user_quota_bytes, MIN_ATTACHMENT_USER_QUOTA_BYTES, MAX_ATTACHMENT_USER_QUOTA_BYTES],
+        ["attachment_project_quota_bytes", attachment_project_quota_bytes, MIN_ATTACHMENT_PROJECT_QUOTA_BYTES, MAX_ATTACHMENT_PROJECT_QUOTA_BYTES],
+      ] as const) {
+        const err = validateIntegerInRange(value, field, min, max);
         if (err) return reply.code(400).send({ error: err });
       }
 

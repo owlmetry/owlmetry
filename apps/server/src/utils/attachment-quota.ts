@@ -25,50 +25,48 @@ export function resolveAttachmentLimits(project: {
   };
 }
 
-// Reserved-but-unuploaded rows count against the quota — prevents reserve-loop abuse.
-export async function getProjectAttachmentUsage(
-  db: Db,
-  projectId: string
-): Promise<{ usedBytes: number; fileCount: number }> {
-  const [row] = await db
-    .select({
-      used_bytes: sql<string>`coalesce(sum(${eventAttachments.size_bytes}), 0)`,
-      file_count: sql<number>`count(*)::int`,
-    })
-    .from(eventAttachments)
-    .where(
-      and(
-        eq(eventAttachments.project_id, projectId),
-        isNull(eventAttachments.deleted_at)
-      )
-    );
-  return {
-    usedBytes: Number(row?.used_bytes ?? 0),
-    fileCount: row?.file_count ?? 0,
-  };
+export interface AttachmentUsageRow {
+  usedBytes: number;
+  fileCount: number;
 }
 
-export async function getUserAttachmentUsage(
+// Reserved-but-unuploaded rows count against the quota — prevents reserve-loop abuse.
+// When userId is provided, returns both project-wide and user-scoped usage in a single
+// scan (via FILTER clause) so the ingest hot path doesn't need two round-trips.
+export async function getAttachmentUsage(
   db: Db,
   projectId: string,
-  userId: string
-): Promise<{ usedBytes: number; fileCount: number }> {
+  userId?: string
+): Promise<{ project: AttachmentUsageRow; user: AttachmentUsageRow | null }> {
   const [row] = await db
     .select({
-      used_bytes: sql<string>`coalesce(sum(${eventAttachments.size_bytes}), 0)`,
-      file_count: sql<number>`count(*)::int`,
+      project_bytes: sql<string>`coalesce(sum(${eventAttachments.size_bytes}), 0)`,
+      project_count: sql<number>`count(*)::int`,
+      user_bytes: userId
+        ? sql<string>`coalesce(sum(${eventAttachments.size_bytes}) filter (where ${eventAttachments.user_id} = ${userId}), 0)`
+        : sql<string>`'0'`,
+      user_count: userId
+        ? sql<number>`count(*) filter (where ${eventAttachments.user_id} = ${userId})::int`
+        : sql<number>`0`,
     })
     .from(eventAttachments)
     .where(
       and(
         eq(eventAttachments.project_id, projectId),
-        eq(eventAttachments.user_id, userId),
         isNull(eventAttachments.deleted_at)
       )
     );
   return {
-    usedBytes: Number(row?.used_bytes ?? 0),
-    fileCount: row?.file_count ?? 0,
+    project: {
+      usedBytes: Number(row?.project_bytes ?? 0),
+      fileCount: row?.project_count ?? 0,
+    },
+    user: userId
+      ? {
+          usedBytes: Number(row?.user_bytes ?? 0),
+          fileCount: row?.user_count ?? 0,
+        }
+      : null,
   };
 }
 

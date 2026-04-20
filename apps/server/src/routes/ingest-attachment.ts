@@ -20,9 +20,8 @@ import { attachmentStorage } from "../storage/index.js";
 import { config } from "../config.js";
 import { buildSignedDownloadUrl } from "../utils/attachment-signing.js";
 import {
-  getProjectAttachmentUsage,
+  getAttachmentUsage,
   getProjectWithAttachmentLimits,
-  getUserAttachmentUsage,
   resolveAttachmentLimits,
 } from "../utils/attachment-quota.js";
 
@@ -100,10 +99,9 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "App associated with this API key no longer exists" });
       }
 
-      const [project, usage, userUsage, existingEvent] = await Promise.all([
+      const [project, usage, existingEvent] = await Promise.all([
         getProjectWithAttachmentLimits(app.db, appRow.project_id),
-        getProjectAttachmentUsage(app.db, appRow.project_id),
-        user_id ? getUserAttachmentUsage(app.db, appRow.project_id, user_id) : Promise.resolve(null),
+        getAttachmentUsage(app.db, appRow.project_id, user_id),
         app.db
           .select({ id: events.id, user_id: events.user_id })
           .from(events)
@@ -123,27 +121,27 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
 
       const limits = resolveAttachmentLimits(project);
 
-      if (userUsage && userUsage.usedBytes + size_bytes > limits.userQuotaBytes) {
+      if (usage.user && usage.user.usedBytes + size_bytes > limits.userQuotaBytes) {
         return reply.code(413).send(
           rejection(
             "user_quota_exhausted",
-            `User attachment quota would be exceeded (${userUsage.usedBytes} + ${size_bytes} > ${limits.userQuotaBytes} bytes)`,
+            `User attachment quota would be exceeded (${usage.user.usedBytes} + ${size_bytes} > ${limits.userQuotaBytes} bytes)`,
             {
               user_quota_bytes: limits.userQuotaBytes,
-              user_used_bytes: userUsage.usedBytes,
+              user_used_bytes: usage.user.usedBytes,
             }
           )
         );
       }
 
-      if (usage.usedBytes + size_bytes > limits.projectQuotaBytes) {
+      if (usage.project.usedBytes + size_bytes > limits.projectQuotaBytes) {
         return reply.code(413).send(
           rejection(
             "quota_exhausted",
-            `Project attachment quota would be exceeded (${usage.usedBytes} + ${size_bytes} > ${limits.projectQuotaBytes} bytes)`,
+            `Project attachment quota would be exceeded (${usage.project.usedBytes} + ${size_bytes} > ${limits.projectQuotaBytes} bytes)`,
             {
               quota_bytes: limits.projectQuotaBytes,
-              used_bytes: usage.usedBytes,
+              used_bytes: usage.project.usedBytes,
             }
           )
         );
