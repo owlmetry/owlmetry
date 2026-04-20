@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
-import { apps, eventAttachments, issues, projects } from "@owlmetry/db";
+import { and, desc, eq, inArray, isNull, lt } from "drizzle-orm";
+import { eventAttachments, projects } from "@owlmetry/db";
 import { ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS } from "@owlmetry/shared";
 import type {
   AttachmentDownloadUrlResponse,
@@ -16,7 +16,7 @@ import {
 } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { config } from "../config.js";
-import { DiskFileStorage } from "../storage/file-storage.js";
+import { attachmentStorage } from "../storage/index.js";
 import {
   buildSignedDownloadUrl,
   verifyAttachmentToken,
@@ -48,7 +48,6 @@ function toSummary(row: typeof eventAttachments.$inferSelect): AttachmentSummary
 }
 
 export async function attachmentsRoutes(app: FastifyInstance) {
-  // Signed download — no auth, signature encodes authorization.
   app.get<{ Querystring: { t?: string } }>(
     "/attachments/download",
     async (request, reply) => {
@@ -77,32 +76,19 @@ export async function attachmentsRoutes(app: FastifyInstance) {
       reply.header("Content-Length", String(row.size_bytes));
       reply.header(
         "Content-Disposition",
-        `attachment; filename="${row.original_filename.replace(/"/g, "")}"`
+        `attachment; filename="${row.original_filename.replace(/[\\"\r\n]/g, "")}"`
       );
       reply.header("X-Content-Type-Options", "nosniff");
+      reply.header("Cache-Control", "private, no-store");
 
-      // Prefer nginx X-Accel-Redirect when configured so Node never holds the bytes.
-      if (config.attachmentsInternalUri) {
-        const storage = new DiskFileStorage(config.attachmentsPath);
-        try {
-          const internalUri = storage.toInternalUri(
-            row.storage_path,
-            config.attachmentsInternalUri,
-            config.attachmentsPath
-          );
-          reply.header("X-Accel-Redirect", internalUri);
-          return reply.send();
-        } catch (err) {
-          request.log.error(
-            { err, attachmentId: row.id },
-            "failed to compute X-Accel-Redirect URI, falling back to stream"
-          );
-        }
+      const internalUri = attachmentStorage.toInternalUri(row.storage_path);
+      if (internalUri) {
+        reply.header("X-Accel-Redirect", internalUri);
+        return reply.send();
       }
 
-      const storage = new DiskFileStorage(config.attachmentsPath);
       try {
-        const { stream } = await storage.get(row.storage_path);
+        const { stream } = await attachmentStorage.get(row.storage_path);
         return reply.send(stream);
       } catch (err) {
         request.log.error({ err, attachmentId: row.id }, "attachment read failed");
@@ -111,7 +97,6 @@ export async function attachmentsRoutes(app: FastifyInstance) {
     }
   );
 
-  // List attachments — agent keys or users. Filter by event, issue, or project.
   app.get<{
     Querystring: {
       event_id?: string;
@@ -183,7 +168,6 @@ export async function attachmentsRoutes(app: FastifyInstance) {
     }
   );
 
-  // Get one attachment — metadata + short-lived download URL.
   app.get<{ Params: { id: string } }>(
     "/attachments/:id",
     { preHandler: [requirePermission("events:read")] },
@@ -231,7 +215,6 @@ export async function attachmentsRoutes(app: FastifyInstance) {
     }
   );
 
-  // Delete an attachment — soft delete. Hard delete + file removal happens in cleanup job.
   app.delete<{ Params: { id: string } }>(
     "/attachments/:id",
     { preHandler: [requirePermission("events:write")] },
@@ -264,7 +247,6 @@ export async function attachmentsRoutes(app: FastifyInstance) {
     }
   );
 
-  // Per-project usage.
   app.get<{ Params: { projectId: string } }>(
     "/projects/:projectId/attachment-usage",
     { preHandler: [requirePermission("events:read")] },

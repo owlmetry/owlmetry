@@ -3,13 +3,6 @@ import CommonCrypto
 import UniformTypeIdentifiers
 import os
 
-// Serial queue for uploading attachments without blocking the event buffer.
-// Upload flow (per attachment):
-//   1. POST /v1/ingest/attachment with metadata — server validates quota + per-file
-//      size, reserves a row, returns upload_url + attachment_id.
-//   2. PUT upload_url with raw bytes (application/octet-stream).
-// Silent failure is the rule: any 4xx response, 5xx after one retry, or network error
-// results in a log line and nothing else — the event itself has already been queued.
 actor AttachmentUploader {
     private let ingestAttachmentURL: URL
     private let apiKey: String

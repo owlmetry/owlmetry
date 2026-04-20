@@ -7,16 +7,10 @@ import {
 } from "node:fs";
 import { dirname, join, normalize, resolve, sep } from "node:path";
 import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
 import type { Readable } from "node:stream";
 
-// FileStorage abstracts where attachment bytes live. The server reads/writes through
-// this interface so a future S3/R2 adapter is a drop-in replacement without touching
-// route code. The v1 implementation stores files on the local filesystem.
 export interface FileStorage {
-  // Persist the contents of `source` for the given project at the given object key.
-  // Computes SHA-256 and byte count as it streams. Returns the on-disk path and hash.
-  // If `expectedSizeBytes` is provided and the stream exceeds it, the partial file is
-  // deleted and an error is thrown — so quota-exhausted uploads never linger on disk.
   put(args: {
     projectId: string;
     objectKey: string;
@@ -24,28 +18,24 @@ export interface FileStorage {
     expectedSizeBytes: number;
   }): Promise<{ storagePath: string; sizeBytes: number; sha256: string }>;
 
-  // Return a readable stream for the given path plus its size.
   get(storagePath: string): Promise<{ stream: Readable; sizeBytes: number }>;
 
-  // For nginx X-Accel-Redirect: resolve an internal URI for the given storage path,
-  // given the configured internalUri prefix and base attachments directory.
-  toInternalUri(storagePath: string, internalUri: string, baseDir: string): string;
+  toInternalUri(storagePath: string): string | null;
 
-  // Delete a file. Missing files are not an error (idempotent).
   delete(storagePath: string): Promise<void>;
 
-  // Walk the storage root for files whose paths are not in `knownPaths`. Used by the
-  // attachment_cleanup job to sweep disk-only orphans.
   listOrphans(knownPaths: Set<string>): AsyncGenerator<string>;
 }
 
 export class DiskFileStorage implements FileStorage {
-  constructor(private readonly baseDir: string) {}
+  constructor(
+    private readonly baseDir: string,
+    private readonly internalUri: string = ""
+  ) {}
 
   private pathFor(projectId: string, objectKey: string): string {
-    const yyyy = new Date().getUTCFullYear();
-    const mm = String(new Date().getUTCMonth() + 1).padStart(2, "0");
-    const shard = `${yyyy}-${mm}`;
+    const now = new Date();
+    const shard = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
     const resolvedBase = resolve(this.baseDir);
     const resolvedFile = resolve(resolvedBase, projectId, shard, objectKey);
     if (!resolvedFile.startsWith(resolvedBase + sep) && resolvedFile !== resolvedBase) {
@@ -70,21 +60,21 @@ export class DiskFileStorage implements FileStorage {
 
     const hash = createHash("sha256");
     let sizeBytes = 0;
+    const meter = new Transform({
+      transform(chunk: Buffer, _enc, cb) {
+        sizeBytes += chunk.length;
+        if (sizeBytes > expectedSizeBytes) {
+          cb(new Error("declared_size_exceeded"));
+          return;
+        }
+        hash.update(chunk);
+        cb(null, chunk);
+      },
+    });
     const writeStream = createWriteStream(storagePath);
 
-    const abortIfOverflow = new Promise<never>((_, reject) => {
-      source.on("data", (chunk: Buffer) => {
-        sizeBytes += chunk.length;
-        hash.update(chunk);
-        if (sizeBytes > expectedSizeBytes) {
-          source.destroy(new Error("declared_size_exceeded"));
-          reject(new Error("declared_size_exceeded"));
-        }
-      });
-    });
-
     try {
-      await Promise.race([pipeline(source, writeStream), abortIfOverflow]);
+      await pipeline(source, meter, writeStream);
     } catch (err) {
       await this.delete(storagePath).catch(() => {});
       throw err;
@@ -98,14 +88,13 @@ export class DiskFileStorage implements FileStorage {
     return { stream: createReadStream(storagePath), sizeBytes: stat.size };
   }
 
-  toInternalUri(storagePath: string, internalUri: string, baseDir: string): string {
-    const resolvedBase = resolve(baseDir);
+  toInternalUri(storagePath: string): string | null {
+    if (!this.internalUri) return null;
+    const resolvedBase = resolve(this.baseDir);
     const resolvedFile = resolve(storagePath);
-    if (!resolvedFile.startsWith(resolvedBase + sep)) {
-      throw new Error("storage path is not under base dir");
-    }
+    if (!resolvedFile.startsWith(resolvedBase + sep)) return null;
     const relative = resolvedFile.slice(resolvedBase.length + 1).split(sep).join("/");
-    const prefix = internalUri.endsWith("/") ? internalUri : internalUri + "/";
+    const prefix = this.internalUri.endsWith("/") ? this.internalUri : this.internalUri + "/";
     return prefix + relative;
   }
 

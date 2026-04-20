@@ -9,6 +9,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
+import { formatBytes } from "@owlmetry/shared";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,13 +100,6 @@ function IssueCard({ issue, projectColor, onClick }: { issue: IssueResponse; pro
       </CardContent>
     </Card>
   );
-}
-
-function formatAttachmentBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function IssueDetailModal({
@@ -359,7 +353,7 @@ function IssueDetailModal({
                   {issue.attachments.map((a) => (
                     <div key={a.id} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 items-center">
                       <span className="truncate" title={a.original_filename}>{a.original_filename}</span>
-                      <span>{formatAttachmentBytes(a.size_bytes)}</span>
+                      <span>{formatBytes(a.size_bytes)}</span>
                       <span className="truncate text-muted-foreground" title={a.content_type}>{a.content_type}</span>
                       <Button
                         variant="ghost"

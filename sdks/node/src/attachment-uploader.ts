@@ -1,11 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import type { ValidatedConfig } from "./configuration.js";
 
-// Attachments are files uploaded alongside an error event so engineers can reproduce
-// bugs from the original bytes. They are a **limited resource**: each project has a
-// storage quota (default 5 GB) and per-file size limit (default 250 MB). Use sparingly.
-// Upload failures never affect the host process — errors are logged when debug=true.
 export interface OwlAttachment {
   /** Absolute path to a file on disk. Mutually exclusive with `buffer`. */
   path?: string;
@@ -102,7 +98,7 @@ export class AttachmentUploader {
       name = item.attachment.name ?? "attachment.bin";
       contentType = item.attachment.contentType ?? inferContentType(name);
     } else if (item.attachment.path) {
-      bytes = readFileSync(item.attachment.path);
+      bytes = await readFile(item.attachment.path);
       const slash = item.attachment.path.lastIndexOf("/");
       const inferredName = slash === -1 ? item.attachment.path : item.attachment.path.slice(slash + 1);
       name = item.attachment.name ?? inferredName;

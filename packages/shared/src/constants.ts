@@ -56,6 +56,13 @@ export function validateFunnelSlug(slug: string): string | null {
 /**
  * Format a duration in milliseconds to a human-readable string.
  */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 export function formatDuration(ms: number): string {
   if (ms < 1) return `${ms.toFixed(2)}ms`;
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -82,22 +89,24 @@ export const DEFAULT_RETENTION_DAYS_FUNNELS = 365;
 export const MIN_RETENTION_DAYS = 1;
 export const MAX_RETENTION_DAYS = 3650;
 
-// Event attachment defaults — used when projects.attachment_* columns are null.
-export const DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 250 * 1024 * 1024; // 250 MB
-export const DEFAULT_ATTACHMENT_PROJECT_QUOTA_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
-export const MIN_ATTACHMENT_MAX_FILE_BYTES = 1024; // 1 KB
-export const MAX_ATTACHMENT_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB hard ceiling
-export const MIN_ATTACHMENT_PROJECT_QUOTA_BYTES = 1024 * 1024; // 1 MB
-export const MAX_ATTACHMENT_PROJECT_QUOTA_BYTES = 1024 * 1024 * 1024 * 1024; // 1 TB hard ceiling
+export const DEFAULT_ATTACHMENT_MAX_FILE_BYTES = 250 * 1024 * 1024;
+export const DEFAULT_ATTACHMENT_PROJECT_QUOTA_BYTES = 5 * 1024 * 1024 * 1024;
+export const MIN_ATTACHMENT_MAX_FILE_BYTES = 1024;
+export const MAX_ATTACHMENT_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024;
+export const MIN_ATTACHMENT_PROJECT_QUOTA_BYTES = 1024 * 1024;
+export const MAX_ATTACHMENT_PROJECT_QUOTA_BYTES = 1024 * 1024 * 1024 * 1024;
 export const ATTACHMENT_ORPHAN_GRACE_HOURS = 24;
 export const ATTACHMENT_SOFT_DELETE_GRACE_DAYS = 7;
 export const ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS = 60;
+export const ATTACHMENT_UPLOAD_URL_TTL_SECONDS = 15 * 60;
 export const ATTACHMENT_MAX_FILENAME_LENGTH = 255;
+export const ATTACHMENT_ORPHAN_SWEEP_BATCH_SIZE = 5000;
+export const ATTACHMENT_ISSUE_DETAIL_PAGE_SIZE = 100;
+export const DEFAULT_BINARY_CONTENT_TYPE = "application/octet-stream";
 
-// Content types we refuse to accept as attachments — executables, scripts, installers.
-// Debug files are often weird formats (.usdz, .heic, loader.log) so we prefer a denylist
-// over an allowlist. Attachments are always served with Content-Disposition: attachment
-// regardless of type, so browsers will never auto-run them — this is defence in depth.
+// Denylist rather than allowlist: debug files are often weird formats (.usdz, .heic,
+// custom binary) and an allowlist would block legitimate attachments. Downloads always
+// set Content-Disposition: attachment so browsers never auto-execute.
 export const ATTACHMENT_CONTENT_TYPE_DENYLIST: readonly string[] = [
   "application/x-msdownload",
   "application/x-msdos-program",

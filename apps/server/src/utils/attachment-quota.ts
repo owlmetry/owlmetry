@@ -11,8 +11,6 @@ export interface ResolvedAttachmentLimits {
   projectQuotaBytes: number;
 }
 
-// Projects store per-project overrides as nullable columns; when null we fall back
-// to the shared defaults. Mirrors how retention_days_* works.
 export function resolveAttachmentLimits(project: {
   attachment_max_file_bytes: number | null;
   attachment_project_quota_bytes: number | null;
@@ -26,9 +24,7 @@ export function resolveAttachmentLimits(project: {
   };
 }
 
-// Total bytes currently attributable to a project, counting rows that have not been
-// soft-deleted. Reserved-but-unuploaded rows (uploaded_at IS NULL) still count against
-// the quota — this prevents a caller from reserving 1000 slots in a loop.
+// Reserved-but-unuploaded rows count against the quota — prevents reserve-loop abuse.
 export async function getProjectAttachmentUsage(
   db: Db,
   projectId: string

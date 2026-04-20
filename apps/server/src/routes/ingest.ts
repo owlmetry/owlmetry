@@ -127,39 +127,36 @@ export async function ingestRoutes(app: FastifyInstance) {
       }
 
       if (valid.length > 0) {
-        // Need the generated event ids + their client_event_ids so we can backfill any
-        // attachments that were uploaded before the event arrived. Returning() is cheap
-        // here since the insert is already happening.
-        const inserted = await app.db
-          .insert(events)
-          .values(valid)
-          .returning({ id: events.id, client_event_id: events.client_event_id, user_id: events.user_id });
+        await app.db.insert(events).values(valid);
         dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
         upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
 
-        const insertedWithClient = inserted.filter(
-          (v): v is { id: string; client_event_id: string; user_id: string | null } =>
-            !!v.client_event_id && !!v.id
-        );
-        if (insertedWithClient.length > 0) {
+        const insertedClientIds = valid
+          .map((v) => v.client_event_id)
+          .filter((id): id is string => !!id);
+        if (insertedClientIds.length > 0) {
           try {
-            await Promise.all(
-              insertedWithClient.map((v) =>
-                app.db
-                  .update(eventAttachments)
-                  .set({
-                    event_id: v.id,
-                    user_id: sql`COALESCE(${eventAttachments.user_id}, ${v.user_id})`,
-                  })
-                  .where(
-                    and(
-                      eq(eventAttachments.app_id, app_id),
-                      eq(eventAttachments.event_client_id, v.client_event_id),
-                      isNull(eventAttachments.event_id)
-                    )
-                  )
-              )
-            );
+            const [{ exists }] = await app.db.execute<{ exists: boolean }>(sql`
+              SELECT EXISTS (
+                SELECT 1 FROM event_attachments
+                WHERE app_id = ${app_id}
+                  AND event_id IS NULL
+                  AND event_client_id IN ${insertedClientIds}
+              ) AS exists
+            `);
+            if (exists) {
+              await app.db.execute(sql`
+                UPDATE event_attachments ea
+                SET event_id = e.id,
+                    user_id = COALESCE(ea.user_id, e.user_id)
+                FROM events e
+                WHERE ea.app_id = ${app_id}
+                  AND ea.event_id IS NULL
+                  AND ea.event_client_id = e.client_event_id
+                  AND e.app_id = ${app_id}
+                  AND e.client_event_id IN ${insertedClientIds}
+              `);
+            }
           } catch (err) {
             request.log.error({ err }, "attachment event_id backfill failed");
           }

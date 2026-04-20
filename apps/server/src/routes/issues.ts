@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
 import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys, projects, eventAttachments } from "@owlmetry/db";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES } from "@owlmetry/shared";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES, ATTACHMENT_ISSUE_DETAIL_PAGE_SIZE } from "@owlmetry/shared";
 import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
@@ -235,7 +235,7 @@ export async function issuesRoutes(app: FastifyInstance) {
             )
           )
           .orderBy(desc(eventAttachments.created_at))
-          .limit(100),
+          .limit(ATTACHMENT_ISSUE_DETAIL_PAGE_SIZE),
       ]);
 
       const occHasMore = occRows.length > occLimit;

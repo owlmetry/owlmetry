@@ -253,21 +253,23 @@ export async function eventsRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Event not found" });
       }
 
-      const attachmentRows = await app.db
-        .select({
-          id: eventAttachments.id,
-          original_filename: eventAttachments.original_filename,
-          content_type: eventAttachments.content_type,
-          size_bytes: eventAttachments.size_bytes,
-          uploaded_at: eventAttachments.uploaded_at,
-        })
-        .from(eventAttachments)
-        .where(
-          and(
-            eq(eventAttachments.event_id, event.id ?? ""),
-            isNull(eventAttachments.deleted_at)
-          )
-        );
+      const attachmentRows = event.id
+        ? await app.db
+            .select({
+              id: eventAttachments.id,
+              original_filename: eventAttachments.original_filename,
+              content_type: eventAttachments.content_type,
+              size_bytes: eventAttachments.size_bytes,
+              uploaded_at: eventAttachments.uploaded_at,
+            })
+            .from(eventAttachments)
+            .where(
+              and(
+                eq(eventAttachments.event_id, event.id),
+                isNull(eventAttachments.deleted_at)
+              )
+            )
+        : [];
 
       return {
         ...event,

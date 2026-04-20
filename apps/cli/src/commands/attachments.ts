@@ -2,16 +2,10 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { writeFileSync } from "node:fs";
 import type { AttachmentSummary } from "@owlmetry/shared";
+import { formatBytes, ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
 
 function formatAttachmentsTable(rows: AttachmentSummary[]): string {
   if (rows.length === 0) return chalk.dim("No attachments found");
@@ -91,7 +85,7 @@ attachmentsCommand
         `  Uploaded at:   ${result.uploaded_at ?? chalk.dim("pending")}`,
       ];
       if (result.download_url) {
-        lines.push("", chalk.bold("  Download URL (expires in 60s):"));
+        lines.push("", chalk.bold(`  Download URL (expires in ${ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS}s):`));
         lines.push(`    ${result.download_url.url}`);
       }
       return lines.join("\n");

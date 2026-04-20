@@ -1,23 +1,16 @@
 import { resolve } from "node:path";
-import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { eventAttachments, events } from "@owlmetry/db";
 import {
   ATTACHMENT_ORPHAN_GRACE_HOURS,
+  ATTACHMENT_ORPHAN_SWEEP_BATCH_SIZE,
   ATTACHMENT_SOFT_DELETE_GRACE_DAYS,
 } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
-import { DiskFileStorage } from "../storage/file-storage.js";
-import { config } from "../config.js";
+import { attachmentStorage } from "../storage/index.js";
 
-// Attachment cleanup runs daily. It has four jobs, in order:
-//   1. Hard-delete rows soft-deleted more than 7 days ago (+ remove files from disk)
-//   2. Sweep unfinished uploads older than 24 h (client started but never PUT bytes)
-//   3. Remove attachments whose linked event has been retention-pruned AND which are not
-//      linked to an issue — these are safe to drop because nobody can reference them.
-//   4. Walk the attachments directory looking for files not referenced in the table
-//      (disk-first orphans from aborted uploads or manual deletions).
 export const attachmentCleanupHandler: JobHandler = async (ctx) => {
-  const storage = new DiskFileStorage(config.attachmentsPath);
+  const storage = attachmentStorage;
   const now = new Date();
   const softDeleteCutoff = new Date(
     now.getTime() - ATTACHMENT_SOFT_DELETE_GRACE_DAYS * 24 * 60 * 60 * 1000
@@ -26,7 +19,6 @@ export const attachmentCleanupHandler: JobHandler = async (ctx) => {
     now.getTime() - ATTACHMENT_ORPHAN_GRACE_HOURS * 60 * 60 * 1000
   );
 
-  // Step 1: hard-delete soft-deleted rows past their grace period.
   const softDeleted = await ctx.db
     .select({ id: eventAttachments.id, storage_path: eventAttachments.storage_path })
     .from(eventAttachments)
@@ -49,7 +41,6 @@ export const attachmentCleanupHandler: JobHandler = async (ctx) => {
     softDeletedRemoved++;
   }
 
-  // Step 2: incomplete uploads past grace period (reserved but never PUT).
   const incompleteOrphans = await ctx.db
     .select({ id: eventAttachments.id, storage_path: eventAttachments.storage_path })
     .from(eventAttachments)
@@ -71,12 +62,8 @@ export const attachmentCleanupHandler: JobHandler = async (ctx) => {
     incompleteRemoved++;
   }
 
-  // Step 3: attachments whose event has been pruned AND which are not linked to an issue.
-  // We detect pruned events as: event_id IS NOT NULL, event_client_id IS NOT NULL, but the
-  // row cannot be found in the events table. (Since events is partitioned, the retention
-  // cleanup job drops old partitions, so rows just disappear.) We only touch rows with a
-  // populated event_id so we don't accidentally sweep attachments still waiting on a
-  // not-yet-arrived event — those are handled by step 2.
+  // Pruned event ⇒ attachment.event_id is set but the row is gone from the partitioned
+  // events table. Only sweep those without an issue link (issue_id preserves them).
   const candidateOrphans = await ctx.db
     .select({
       id: eventAttachments.id,
@@ -93,7 +80,7 @@ export const attachmentCleanupHandler: JobHandler = async (ctx) => {
         lt(eventAttachments.created_at, orphanCutoff)
       )
     )
-    .limit(5000);
+    .limit(ATTACHMENT_ORPHAN_SWEEP_BATCH_SIZE);
 
   const orphanEventIds = candidateOrphans
     .map((c) => c.event_id)
@@ -120,7 +107,6 @@ export const attachmentCleanupHandler: JobHandler = async (ctx) => {
     prunedEventAttachmentsRemoved++;
   }
 
-  // Step 4: walk disk for files not referenced by any surviving row.
   const knownPathRows = await ctx.db
     .select({ storage_path: eventAttachments.storage_path })
     .from(eventAttachments)

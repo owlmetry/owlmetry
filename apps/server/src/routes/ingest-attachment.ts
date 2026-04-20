@@ -5,6 +5,8 @@ import { apps, eventAttachments, events } from "@owlmetry/db";
 import {
   ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS,
   ATTACHMENT_MAX_FILENAME_LENGTH,
+  ATTACHMENT_UPLOAD_URL_TTL_SECONDS,
+  MAX_ATTACHMENT_MAX_FILE_BYTES,
   isDisallowedAttachmentContentType,
 } from "@owlmetry/shared";
 import type {
@@ -14,18 +16,16 @@ import type {
 } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { DiskFileStorage } from "../storage/file-storage.js";
+import { attachmentStorage } from "../storage/index.js";
 import { config } from "../config.js";
-import {
-  buildSignedDownloadUrl,
-} from "../utils/attachment-signing.js";
+import { buildSignedDownloadUrl } from "../utils/attachment-signing.js";
 import {
   getProjectAttachmentUsage,
   getProjectWithAttachmentLimits,
   resolveAttachmentLimits,
 } from "../utils/attachment-quota.js";
 
-const MAX_UPLOAD_BODY_BYTES = 2 * 1024 * 1024 * 1024 + 1024; // matches MAX_ATTACHMENT_MAX_FILE_BYTES + headroom
+const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_MAX_FILE_BYTES + 1024;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
 function rejection(code: AttachmentRejection["code"], message: string, extras: Partial<AttachmentRejection> = {}): AttachmentRejection {
@@ -33,14 +33,11 @@ function rejection(code: AttachmentRejection["code"], message: string, extras: P
 }
 
 export async function ingestAttachmentRoutes(app: FastifyInstance) {
-  // Raw body streaming for the PUT — default Fastify parsers only handle JSON.
-  // Scoped to this plugin's encapsulation so other routes are unaffected.
   app.addContentTypeParser(
     "application/octet-stream",
     (_req, payload, done) => done(null, payload)
   );
 
-  // POST /ingest/attachment — reserve a slot. JSON body with metadata.
   app.post<{ Body: AttachmentUploadRequest }>(
     "/ingest/attachment",
     { preHandler: [requirePermission("events:write"), rateLimit] },
@@ -96,7 +93,22 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "App associated with this API key no longer exists" });
       }
 
-      const project = await getProjectWithAttachmentLimits(app.db, appRow.project_id);
+      const [project, usage, existingEvent] = await Promise.all([
+        getProjectWithAttachmentLimits(app.db, appRow.project_id),
+        getProjectAttachmentUsage(app.db, appRow.project_id),
+        app.db
+          .select({ id: events.id, user_id: events.user_id })
+          .from(events)
+          .where(
+            and(
+              eq(events.app_id, appRow.id),
+              eq(events.client_event_id, client_event_id)
+            )
+          )
+          .limit(1)
+          .then((rows) => rows[0] ?? null),
+      ]);
+
       if (!project || project.deleted_at) {
         return reply.code(400).send({ error: "Project associated with this API key no longer exists" });
       }
@@ -112,7 +124,6 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         );
       }
 
-      const usage = await getProjectAttachmentUsage(app.db, appRow.project_id);
       if (usage.usedBytes + size_bytes > limits.projectQuotaBytes) {
         return reply.code(413).send(
           rejection(
@@ -127,23 +138,8 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         );
       }
 
-      // Look up an existing event with this client_event_id so we can link immediately.
-      let resolvedEventId: string | null = null;
-      let resolvedUserId: string | null = null;
-      const [existingEvent] = await app.db
-        .select({ id: events.id, user_id: events.user_id })
-        .from(events)
-        .where(
-          and(
-            eq(events.app_id, appRow.id),
-            eq(events.client_event_id, client_event_id)
-          )
-        )
-        .limit(1);
-      if (existingEvent) {
-        resolvedEventId = existingEvent.id;
-        resolvedUserId = existingEvent.user_id;
-      }
+      const resolvedEventId = existingEvent?.id ?? null;
+      const resolvedUserId = existingEvent?.user_id ?? null;
 
       const [row] = await app.db
         .insert(eventAttachments)
@@ -157,14 +153,14 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
           content_type,
           size_bytes,
           sha256: sha256.toLowerCase(),
-          storage_path: "", // placeholder until bytes arrive
+          storage_path: "",
           is_dev: is_dev === true,
         })
         .returning({ id: eventAttachments.id });
 
       const base = (config.publicUrl || "").replace(/\/$/, "");
       const uploadUrl = `${base}/v1/ingest/attachment/${row.id}`;
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      const expiresAt = new Date(Date.now() + ATTACHMENT_UPLOAD_URL_TTL_SECONDS * 1000).toISOString();
       const response: AttachmentUploadResponse = {
         attachment_id: row.id,
         upload_url: uploadUrl,
@@ -174,7 +170,6 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
     }
   );
 
-  // PUT /ingest/attachment/:id — stream bytes to disk. Body is application/octet-stream.
   app.put<{ Params: { id: string } }>(
     "/ingest/attachment/:id",
     {
@@ -216,11 +211,9 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
           .send({ error: "Request body must be sent with Content-Type: application/octet-stream" });
       }
 
-      const storage = new DiskFileStorage(config.attachmentsPath);
-
       let result: { storagePath: string; sizeBytes: number; sha256: string };
       try {
-        result = await storage.put({
+        result = await attachmentStorage.put({
           projectId: row.project_id,
           objectKey: row.id,
           source: stream,
@@ -236,22 +229,20 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         return reply.code(500).send({ error: "Upload failed" });
       }
 
-      if (result.sizeBytes !== row.size_bytes) {
-        await storage.delete(result.storagePath).catch(() => {});
+      const cleanup = async (code: AttachmentRejection["code"], message: string) => {
+        await attachmentStorage.delete(result.storagePath).catch(() => {});
         await app.db.delete(eventAttachments).where(eq(eventAttachments.id, row.id));
-        return reply.code(400).send(
-          rejection(
-            "size_mismatch",
-            `Uploaded size ${result.sizeBytes} does not match declared ${row.size_bytes}`
-          )
+        return reply.code(400).send(rejection(code, message));
+      };
+
+      if (result.sizeBytes !== row.size_bytes) {
+        return cleanup(
+          "size_mismatch",
+          `Uploaded size ${result.sizeBytes} does not match declared ${row.size_bytes}`
         );
       }
       if (result.sha256 !== row.sha256) {
-        await storage.delete(result.storagePath).catch(() => {});
-        await app.db.delete(eventAttachments).where(eq(eventAttachments.id, row.id));
-        return reply.code(400).send(
-          rejection("hash_mismatch", "Uploaded bytes do not match declared sha256")
-        );
+        return cleanup("hash_mismatch", "Uploaded bytes do not match declared sha256");
       }
 
       await app.db
@@ -262,7 +253,6 @@ export async function ingestAttachmentRoutes(app: FastifyInstance) {
         })
         .where(eq(eventAttachments.id, row.id));
 
-      // Return a short-lived signed download URL so the caller can verify.
       const { url, expiresUnix } = buildSignedDownloadUrl(
         config.publicUrl,
         row.id,
