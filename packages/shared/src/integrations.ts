@@ -28,7 +28,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
         required: true,
         sensitive: true,
         placeholder: "sk_...",
-        description: "RevenueCat V2 Secret API key. Generate in RevenueCat dashboard → Project Settings → API Keys → + New secret API key. Required permissions: Customer information → Customers Configuration → Read only AND Project configuration → Projects Configuration → Read only. All other sections → No access.",
+        description: "RevenueCat V2 Secret API key. Generate in RevenueCat dashboard → Project Settings → API Keys → + New secret API key. Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: Customer information → Read only AND Project configuration → Read only. All other sections → No access.",
       },
     ],
   },

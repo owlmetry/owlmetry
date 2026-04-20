@@ -320,7 +320,7 @@ owlmetry integrations sync revenuecat --project-id <id>                      # B
 owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user (synchronous)
 ```
 
-The `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions: **Customer information → Customers Configuration → Read only** AND **Project configuration → Projects Configuration → Read only**; all other sections → No access.
+The `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access.
 
 A webhook secret is auto-generated. The output includes a **Webhook Setup** section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook): webhook URL, authorization header, environment, and events filter. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
 

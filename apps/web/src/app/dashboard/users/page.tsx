@@ -26,6 +26,7 @@ import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -383,11 +384,25 @@ export default function UsersPage() {
                         const badge = getBillingBadgeState(user.properties);
                         return (
                         <div className="flex flex-wrap items-center gap-1">
-                          {badge.isCancelledTrial && <Badge variant="default" className="text-xs bg-red-600">🎁 Trial</Badge>}
-                          {badge.isTrial && <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>}
-                          {badge.isPaid && <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>}
-                          {badge.showCancelledBadge && (
-                            <Badge variant="secondary" className="text-xs">Cancelled</Badge>
+                          {badge.primaryTooltip && (badge.isCancelledTrial || badge.isTrial || badge.isPaid) && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span>
+                                  {badge.isCancelledTrial && <Badge variant="default" className="text-xs bg-red-600">🎁 Trial</Badge>}
+                                  {badge.isTrial && <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>}
+                                  {badge.isPaid && <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">{badge.primaryTooltip}</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {badge.cancelledTooltip && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="secondary" className="text-xs">Cancelled</Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">{badge.cancelledTooltip}</TooltipContent>
+                            </Tooltip>
                           )}
                           {user.properties.rc_last_purchase && (
                             <span className="text-xs text-muted-foreground">

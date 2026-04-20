@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import type { TeamAppUsersQueryParams } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
@@ -66,17 +67,31 @@ export function RecentUsersPanel() {
                 )}
               </div>
               <div className="shrink-0 flex items-center gap-1">
-                {badge.isCancelledTrial && (
-                  <Badge variant="default" className="text-[10px] h-5 bg-red-600">🎁 Trial</Badge>
+                {badge.primaryTooltip && (badge.isCancelledTrial || badge.isTrial || badge.isPaid) && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        {badge.isCancelledTrial && (
+                          <Badge variant="default" className="text-[10px] h-5 bg-red-600">🎁 Trial</Badge>
+                        )}
+                        {badge.isTrial && (
+                          <Badge variant="default" className="text-[10px] h-5 bg-sky-600">🎁 Trial</Badge>
+                        )}
+                        {badge.isPaid && (
+                          <Badge variant="default" className="text-[10px] h-5 bg-green-600">💰 Paid</Badge>
+                        )}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{badge.primaryTooltip}</TooltipContent>
+                  </Tooltip>
                 )}
-                {badge.isTrial && (
-                  <Badge variant="default" className="text-[10px] h-5 bg-sky-600">🎁 Trial</Badge>
-                )}
-                {badge.isPaid && (
-                  <Badge variant="default" className="text-[10px] h-5 bg-green-600">💰 Paid</Badge>
-                )}
-                {badge.showCancelledBadge && (
-                  <Badge variant="secondary" className="text-[10px] h-5">Cancelled</Badge>
+                {badge.cancelledTooltip && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="secondary" className="text-[10px] h-5">Cancelled</Badge>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{badge.cancelledTooltip}</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
