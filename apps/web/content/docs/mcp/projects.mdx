@@ -61,5 +61,7 @@ Update a project's name, color, or data retention policies. Requires `projects:w
 | `retention_days_events` | integer or null | No | Days to retain events (`null` = reset to default 120) |
 | `retention_days_metrics` | integer or null | No | Days to retain metric events (`null` = reset to default 365) |
 | `retention_days_funnels` | integer or null | No | Days to retain funnel events (`null` = reset to default 365) |
+| `attachment_user_quota_bytes` | integer or null | No | Per-user attachment storage quota in bytes (`null` = reset to default 250 MB) |
+| `attachment_project_quota_bytes` | integer or null | No | Project-wide attachment storage quota in bytes (`null` = reset to default 5 GB) |
 
 At least one parameter (besides `project_id`) must be provided.

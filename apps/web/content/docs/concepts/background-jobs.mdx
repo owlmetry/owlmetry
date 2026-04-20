@@ -16,6 +16,9 @@ Each job has a **type** that determines what it does and a **scope** that contro
 | `db_pruning` | Database Pruning | System | Hourly | Drops oldest event partitions when database exceeds size limit |
 | `soft_delete_cleanup` | Soft-Delete Cleanup | System | Daily 3am UTC | Hard-deletes resources soft-deleted more than 7 days ago |
 | `partition_creation` | Partition Creation | System | Daily 4am UTC | Creates monthly partitions for event tables |
+| `attachment_cleanup` | Attachment Cleanup | System | Daily 5am UTC | Hard-deletes soft-deleted event attachments after a 7-day grace, sweeps orphaned uploads and files whose events were retention-pruned |
+| `issue_scan` | Issue Scan | System | Hourly | Clusters new error events into issues via fingerprinting |
+| `issue_notify` | Issue Notify | System | Hourly @ :05 | Sends per-project issue digest emails; silent when nothing new or regressed |
 
 **Project-scoped jobs** are triggered by team admins via the dashboard, CLI, or API. They operate on a specific project and are visible to all team members with `jobs:read` permission.
 

@@ -25,7 +25,7 @@ Send a 6-digit verification code to an email address. Rate limited to 5 codes pe
 
 ## POST /v1/auth/verify-code
 
-Verify the code and authenticate. Sets a JWT cookie (`token`, httpOnly, 7-day expiry). If the email has no account, one is created automatically along with a default team.
+Verify the code and authenticate. Sets a JWT cookie (`token`, httpOnly, 10-year `maxAge` — sessions don't expire). If the email has no account, one is created automatically along with a default team.
 
 **Auth required:** No
 
@@ -91,6 +91,31 @@ If the user belongs to multiple teams and `team_id` is not specified, returns 40
     { "id": "uuid1", "name": "Team A", "slug": "team-a", "role": "owner" },
     { "id": "uuid2", "name": "Team B", "slug": "team-b", "role": "member" }
   ]
+}
+```
+
+## POST /v1/auth/default-agent-key
+
+Lazy-create a default agent key for the team. If an agent key already exists for the team, returns that key's secret. Used by the MCP setup flow so agents can bootstrap access without manually creating a key.
+
+**Auth required:** Yes (JWT only)
+
+```json
+// Request
+{
+  "team_id": "uuid"
+}
+
+// Response — existing key returned (200)
+{
+  "secret": "owl_agent_abc123...",
+  "created": false
+}
+
+// Response — new key created (201)
+{
+  "secret": "owl_agent_xyz789...",
+  "created": true
 }
 ```
 

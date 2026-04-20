@@ -10,7 +10,7 @@ OwlMetry is a self-hosted observability platform designed for the agentic develo
 
 ### Option A — MCP (recommended for AI agents)
 
-Add the OwlMetry MCP server to your agent's config. It exposes 47 tools and SDK integration guides as resources — no CLI install needed. See the [MCP setup docs](https://owlmetry.com/docs/mcp) for editor-specific instructions.
+Add the OwlMetry MCP server to your agent's config. It exposes 51 tools and SDK integration guides as resources — no CLI install needed. See the [MCP setup docs](https://owlmetry.com/docs/mcp) for editor-specific instructions.
 
 ### Option B — CLI
 
@@ -43,7 +43,7 @@ And self-hosted doesn't have to mean complex. OwlMetry runs on a single Postgres
 
 - **Agent-native API** — every operation available through `owl_agent_` keys: query events, list apps, read projects, analyze funnels. Agents are first-class citizens, not an afterthought
 - **CLI for agents and humans** — `--format json` for machine consumption, `--format table` for humans. Same tool, both audiences
-- **MCP server** — Streamable HTTP endpoint exposing 47 tools and SDK integration guides as resources; agents connect directly with an `owl_agent_` key — no CLI install needed
+- **MCP server** — Streamable HTTP endpoint exposing 51 tools and SDK integration guides as resources; agents connect directly with an `owl_agent_` key — no CLI install needed
 - **AI skill files** — bundled with the CLI, teach any coding agent (Claude Code, Codex, etc.) how to set up, instrument, and query OwlMetry
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; supports gzip-compressed payloads
 - **Projects & apps** — organize apps by product across platforms (`apple`, `android`, `web`, `backend`); Apple platform covers iOS, iPadOS, and macOS with a single app

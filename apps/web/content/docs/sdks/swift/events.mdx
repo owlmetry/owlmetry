@@ -48,6 +48,7 @@ Owl.info(
     _ message: String,
     screenName: String? = nil,
     attributes: [String: String]? = nil,
+    attachments: [OwlAttachment]? = nil,
     file: String = #file,
     function: String = #function,
     line: Int = #line
@@ -59,6 +60,7 @@ Owl.info(
 | `message` | A descriptive string for the event. Choose messages that are specific and searchable. |
 | `screenName` | The screen where the event occurred. Ties the event to a location in the UI. |
 | `attributes` | Key-value pairs of additional structured data. Values must be strings. |
+| `attachments` | Optional file attachments (logs, screenshots, etc.). Most useful on `Owl.error()`. See [Attachments](/docs/concepts/attachments). |
 | `file`, `function`, `line` | Automatically captured from the call site. Do not pass these manually. |
 
 ## Auto-Captured Source Info

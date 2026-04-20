@@ -15,6 +15,7 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `JWT_SECRET` | Random string used to sign JWT tokens. Generate with `openssl rand -base64 48`. Must be kept secret. Changing this value invalidates all existing sessions. |
 | `CORS_ORIGINS` | Allowed origin for cross-origin requests from the web dashboard. Set to your dashboard URL (e.g., `https://yourdomain.com`). |
 | `COOKIE_DOMAIN` | Cookie domain for cross-subdomain authentication. Set to `.yourdomain.com` (note the leading dot) so the auth cookie is shared between `yourdomain.com` and `api.yourdomain.com`. Required when the API and dashboard are on different subdomains. |
+| `OWLMETRY_ATTACHMENTS_SIGNING_SECRET` | **Required in production.** Random string used to sign attachment download URLs. Generate with `openssl rand -hex 32`. Must differ from `JWT_SECRET`. Outside production, falls back to `JWT_SECRET` so local dev just works. |
 
 ## Optional variables
 
@@ -27,6 +28,10 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `EMAIL_FROM` | `noreply@owlmetry.com` | The "from" address used when sending verification and invitation emails via Resend. |
 | `NODE_ENV` | `development` | Set to `production` for production deployments. Affects cookie security (`secure` flag) and Next.js behavior. |
 | `WEB_APP_URL` | `http://localhost:3000` | Base URL of the web dashboard. Used for links in invitation emails and redirects. Set to your dashboard URL in production (e.g., `https://yourdomain.com`). |
+| `API_PUBLIC_URL` | `https://api.owlmetry.com` | Public base URL of the API server. Included in attachment upload/download URLs returned to SDKs and the dashboard. Set to your API subdomain when self-hosting. |
+| `SYSTEM_JOBS_ALERT_EMAIL` | (empty) | If set, system job runs send a completion/failure email to this address. Leave empty to disable system-job alerts. |
+| `OWLMETRY_ATTACHMENTS_PATH` | `./data/attachments` (dev) / `/opt/owlmetry-attachments` (prod) | Directory on disk where event attachment bytes are stored. Must be writable by the API server process. Exclude from `pg_dump` backups — attachments live on disk, not in Postgres. |
+| `OWLMETRY_ATTACHMENTS_INTERNAL_URI` | (empty) | Optional internal URI prefix used by nginx `X-Accel-Redirect` when serving attachment downloads. See `deploy/attachments-nginx-snippet.conf`. |
 
 ## Example `.env` file
 
@@ -59,7 +64,7 @@ The `COOKIE_DOMAIN` variable controls the `domain` attribute of the `token` cook
 - **Set to `.yourdomain.com`** when the dashboard (`yourdomain.com`) and API (`api.yourdomain.com`) are on different subdomains. The leading dot allows the cookie to be shared across subdomains.
 - **Leave empty** for local development where everything runs on `localhost`.
 
-The auth cookie is always `httpOnly`, `sameSite: lax`, and `secure` in production (`NODE_ENV=production`). It expires after 7 days, matching the JWT expiry.
+The auth cookie is always `httpOnly`, `sameSite: lax`, and `secure` in production (`NODE_ENV=production`). Its `maxAge` is set to 10 years so dashboard sessions don't expire — the JWT itself has no expiry claim.
 
 ## Database size management
 

@@ -6,12 +6,12 @@ description: Connect AI agents directly to OwlMetry via the Model Context Protoc
 The OwlMetry MCP endpoint lets AI agents connect directly to your OwlMetry server over HTTP. Instead of installing the CLI and keeping it up to date, agents configure a URL once and always get the latest tools — every deploy is instantly live.
 
 <Callout>
-**Recommended for AI agents.** If your coding agent supports MCP (Claude Code, Cursor, VS Code Copilot, Windsurf, Zed, JetBrains, Cline, Roo Code), use the MCP endpoint instead of the CLI. No installation, no updates, 37 tools available instantly.
+**Recommended for AI agents.** If your coding agent supports MCP (Claude Code, Cursor, VS Code Copilot, Windsurf, Zed, JetBrains, Cline, Roo Code), use the MCP endpoint instead of the CLI. No installation, no updates, 51 tools available instantly.
 </Callout>
 
 Ready to connect? Jump to [Setup](/docs/mcp/setup) for editor-specific configuration.
 
-The endpoint exposes 37 tools covering the same capabilities as the [CLI](/docs/cli): managing projects, apps, metrics, and funnels; querying events and analytics; running integrations and background jobs; and viewing audit logs.
+The endpoint exposes 51 tools covering the same capabilities as the [CLI](/docs/cli): managing projects, apps, metrics, and funnels; querying events and analytics; triaging issues and attachments; running integrations and background jobs; and viewing audit logs.
 
 ## How it works
 
@@ -25,12 +25,14 @@ Unlike the CLI (which requires `npm install`, periodic updates, and an interacti
 
 | Domain | Tools | Count |
 |--------|-------|-------|
-| Auth | `whoami` | 1 |
+| Auth | `whoami`, `create-import-key` | 2 |
 | Projects | `list-projects`, `get-project`, `create-project`, `update-project` | 4 |
 | Apps | `list-apps`, `get-app`, `create-app`, `update-app`, `list-app-users` | 5 |
 | Events | `query-events`, `get-event`, `investigate-event` | 3 |
 | Metrics | `list-metrics`, `get-metric`, `create-metric`, `update-metric`, `delete-metric`, `query-metric`, `list-metric-events` | 7 |
 | Funnels | `list-funnels`, `get-funnel`, `create-funnel`, `update-funnel`, `delete-funnel`, `query-funnel` | 6 |
+| Issues | `list-issues`, `get-issue`, `resolve-issue`, `silence-issue`, `reopen-issue`, `claim-issue`, `merge-issues`, `list-issue-comments`, `add-issue-comment` | 9 |
+| Attachments | `list-attachments`, `get-attachment`, `delete-attachment`, `get-project-attachment-usage` | 4 |
 | Integrations | `list-providers`, `list-integrations`, `add-integration`, `update-integration`, `remove-integration`, `sync-integration` | 6 |
 | Jobs | `list-jobs`, `get-job`, `trigger-job`, `cancel-job` | 4 |
 | Audit Logs | `list-audit-logs` | 1 |

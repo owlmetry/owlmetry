@@ -129,6 +129,10 @@ systemctl reload nginx
 
 The ingest server block sets `client_max_body_size 2m` to allow compressed event batches. The API and web server blocks include WebSocket upgrade headers for potential future use.
 
+### Attachments (optional)
+
+If you use [event attachments](/docs/concepts/attachments), add the `internal` location from `deploy/attachments-nginx-snippet.conf` inside the API server block. Downloads are served via `X-Accel-Redirect`, so nginx must map an internal URI prefix (`OWLMETRY_ATTACHMENTS_INTERNAL_URI`) to the on-disk directory (`OWLMETRY_ATTACHMENTS_PATH`, default `/opt/owlmetry-attachments`).
+
 ## Cloudflare setup (recommended)
 
 Using Cloudflare provides SSL termination, DDoS protection, and CDN caching.

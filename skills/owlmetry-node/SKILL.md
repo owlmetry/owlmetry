@@ -190,7 +190,7 @@ owl.warn('Rate limit approaching', { requests: 95 });
 owl.error('Payment failed', { reason: 'insufficient_funds' });
 ```
 
-`ScopedOwl` has the same logging methods as `Owl` (`info`, `debug`, `warn`, `error`, `track`, `startOperation`, `recordMetric`).
+`ScopedOwl` has the same logging methods as `Owl` (`info`, `debug`, `warn`, `error`, `step`, `startOperation`, `recordMetric`, `setUserProperties`).
 
 ## Per-Request Session Scoping (Cross-SDK Correlation)
 
