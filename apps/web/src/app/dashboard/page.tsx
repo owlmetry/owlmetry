@@ -19,6 +19,7 @@ import { OpenIssuesPanel } from "./_components/open-issues-panel";
 import { RecentEventsPanel } from "./_components/recent-events-panel";
 import { RecentJobsPanel } from "./_components/recent-jobs-panel";
 import { RecentAuditPanel } from "./_components/recent-audit-panel";
+import { RecentUsersPanel } from "./_components/recent-users-panel";
 import { QuickLinks } from "./_components/quick-links";
 
 const UNRESOLVED_STATUSES = new Set(["new", "in_progress", "regressed"]);
@@ -170,6 +171,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <OpenIssuesPanel />
         <RecentEventsPanel />
+        <RecentUsersPanel />
         {isAdmin && <RecentJobsPanel />}
         {isAdmin && <RecentAuditPanel />}
       </div>
