@@ -59,7 +59,7 @@ Owl.configure({
 
 - `apiKey` must start with `owl_client_`
 - `isDev` defaults to `true` when `NODE_ENV !== "production"`
-- Generates a fresh `sessionId` (UUID) on each `configure()` call
+- Generates a fresh `sessionId` (UUID) on each `configure()` call. This is the process-wide default; per-request overrides are available via `Owl.withSession(sessionId)` (returns a `ScopedOwl`) or the `options.sessionId` parameter on `info/debug/warn/error`. Use them to link backend events to the session of the client that triggered them
 - Registers a `beforeExit` handler to auto-flush on graceful shutdown
 
 **Serverless (Firebase Cloud Functions, AWS Lambda, Vercel):** After adding `Owl.configure()`, also wrap your exported handler functions with `Owl.wrapHandler()` to guarantee events are flushed before the runtime freezes. This is essential boilerplate for serverless — without it, buffered events are lost:
@@ -191,6 +191,46 @@ owl.error('Payment failed', { reason: 'insufficient_funds' });
 ```
 
 `ScopedOwl` has the same logging methods as `Owl` (`info`, `debug`, `warn`, `error`, `track`, `startOperation`, `recordMetric`).
+
+## Per-Request Session Scoping (Cross-SDK Correlation)
+
+By default, the Node SDK stamps every event with one session ID generated at `configure()`. For a server handling many clients, that default is almost never what you want — you'd like backend events to share the client's session ID so you can see client + server activity together in one session view.
+
+`Owl.withSession(sessionId)` returns a `ScopedOwl` that overrides the session ID on every event it emits. It's chainable with `withUser()` in either order:
+
+```typescript
+const owl = Owl.withSession(clientSessionId).withUser(userId);
+owl.info('Request received', { path: req.url });
+```
+
+The typical pattern: have the client propagate its session ID via an HTTP header, then scope the request. Swift clients expose `Owl.sessionId` publicly for exactly this purpose.
+
+```typescript
+// Fastify
+app.addHook('onRequest', async (request) => {
+  const clientSessionId = request.headers['x-owl-session-id'] as string | undefined;
+  const base = request.user?.id ? Owl.withUser(request.user.id) : Owl;
+  request.owl = clientSessionId ? base.withSession(clientSessionId) : base;
+});
+```
+
+```swift
+// Swift client
+var request = URLRequest(url: apiURL)
+if let sessionId = Owl.sessionId {
+    request.setValue(sessionId, forHTTPHeaderField: "X-Owl-Session-Id")
+}
+```
+
+For callers that can't scope, `info/debug/warn/error` also accept a per-call `sessionId` in their options object:
+
+```typescript
+Owl.info('Webhook received', { provider: 'stripe' }, { sessionId: clientSessionId });
+```
+
+Precedence: per-call `options.sessionId` > scope `withSession(...)` > default process session ID.
+
+Session IDs must be UUID strings — `withSession()` and `options.sessionId` both validate and throw on non-UUID values. The Swift SDK's `Owl.sessionId` is already a UUID, so forwarding it from a header works directly.
 
 ## Funnel Tracking
 

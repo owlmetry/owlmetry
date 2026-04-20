@@ -470,7 +470,7 @@ Do not re-implement any of these — they are built into the SDK and emitted wit
 - **`sdk:configured`** — emitted on `Owl.configure()`
 - **`sdk:backgrounded`** / **`sdk:foregrounded`** — app state transitions
 - **`sdk:shutdown`** — on `Owl.shutdown()`
-- **`session_id`** — fresh UUID per `configure()` call, included on every event
+- **`session_id`** — fresh UUID per `configure()` call, included on every event. Readable at runtime via `Owl.sessionId` (String?). Forward it to a Node.js backend in an `X-Owl-Session-Id` request header and scope the backend handler with `Owl.withSession(...)` (Node SDK) to link client and backend events under the same session
 - **`_launch_time_ms`** — app launch time, included in the `session_started` event
 - **`_connection`** — network type (wifi, cellular, etc.), included on every event
 - **Device model, OS version, locale** — included on every event

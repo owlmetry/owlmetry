@@ -15,8 +15,17 @@ function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Owl-Session-Id",
   };
+}
+
+function scopedOwl(req, userId) {
+  const headerSessionId = req.headers["x-owl-session-id"];
+  let owl = userId ? Owl.withUser(userId) : null;
+  if (headerSessionId) {
+    owl = owl ? owl.withSession(headerSessionId) : Owl.withSession(headerSessionId);
+  }
+  return owl ?? Owl;
 }
 
 function json(res, status, body) {
@@ -43,7 +52,7 @@ const handleGreet = Owl.wrapHandler(async (req, res) => {
   const body = await parseBody(req);
   const { name = "World", userId } = body;
 
-  const owl = userId ? Owl.withUser(userId) : Owl;
+  const owl = scopedOwl(req, userId);
   const op = owl.startOperation("greet", { name });
 
   const message = `Hello, ${name}!`;
@@ -56,7 +65,7 @@ const handleCheckout = Owl.wrapHandler(async (req, res) => {
   const body = await parseBody(req);
   const { item = "unknown", userId } = body;
 
-  const owl = userId ? Owl.withUser(userId) : Owl;
+  const owl = scopedOwl(req, userId);
   const op = owl.startOperation("checkout", { item });
   owl.warn("Payment gateway timeout", { item });
   op.fail("payment_provider_unreachable", { item });
@@ -73,7 +82,7 @@ const handleProfile = Owl.wrapHandler(async (req, res) => {
     return;
   }
 
-  const owl = Owl.withUser(userId);
+  const owl = scopedOwl(req, userId);
   const properties = {};
   if (plan) properties.plan = plan;
   if (company) properties.company = company;

@@ -80,6 +80,63 @@ app.get("/api/orders", async (request, reply) => {
 });
 ```
 
+## withSession
+
+By default, a Node SDK process generates one session ID in `Owl.configure()` and stamps every event with it. That works for a single long-running worker, but it isn't useful for a web server that handles many clients — all backend events end up in one giant session that doesn't line up with any client session.
+
+`Owl.withSession(sessionId)` returns a `ScopedOwl` that overrides the session ID for every event it emits:
+
+```typescript
+const owl = Owl.withSession("client-session-abc123");
+owl.info("Processed request");
+```
+
+This is most commonly paired with `withUser` to scope a full request handler:
+
+```typescript
+const owl = Owl.withSession(clientSessionId).withUser(userId);
+owl.info("Order created", { orderId });
+```
+
+The scopes chain in either order — `Owl.withUser(uid).withSession(sid)` produces the same result.
+
+`sessionId` must be a UUID string; passing a non-UUID throws synchronously. The Swift SDK's `Owl.sessionId` is already a UUID, so forwarding it verbatim from the client Just Works.
+
+### Cross-SDK Session Correlation
+
+The typical use case is linking backend events to the session of the client that triggered them. Swift clients expose their current session ID via `Owl.sessionId`; have the client send it as a request header, then scope the handler on the server:
+
+Swift client:
+
+```swift
+var request = URLRequest(url: apiURL)
+if let sessionId = Owl.sessionId {
+    request.setValue(sessionId, forHTTPHeaderField: "X-Owl-Session-Id")
+}
+```
+
+Node server (Fastify):
+
+```typescript
+app.addHook("onRequest", async (request) => {
+  const clientSessionId = request.headers["x-owl-session-id"] as string | undefined;
+  const base = request.user?.id ? Owl.withUser(request.user.id) : Owl;
+  request.owl = clientSessionId ? base.withSession(clientSessionId) : base;
+});
+```
+
+Every event emitted through `request.owl` — plus any operations or funnel steps started from it — now shares the client's session ID, so the dashboard's session view shows both sides of the transaction together.
+
+### Per-call override
+
+For callers that can't scope (e.g. a utility that's handed a sessionId but not a ScopedOwl), `info/debug/warn/error` accept a `sessionId` in their options:
+
+```typescript
+Owl.info("Webhook received", { provider: "stripe" }, { sessionId: clientSessionId });
+```
+
+When both a scope and a per-call `options.sessionId` are present, the per-call value wins.
+
 ## Anonymous vs Known Users
 
 When no user ID is set (i.e., you use `Owl` directly instead of `Owl.withUser()`), events are emitted without a `user_id` field. They are still grouped by `session_id`, but cannot be attributed to a specific user.

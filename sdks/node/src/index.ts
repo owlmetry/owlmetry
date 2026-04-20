@@ -14,6 +14,16 @@ export { OwlOperation } from "./operation.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 const SLUG_REGEX = /^[a-z0-9-]+$/;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateSessionId(sessionId: string): string {
+  if (!UUID_REGEX.test(sessionId)) {
+    throw new Error(
+      `OwlMetry: sessionId must be a UUID string (got "${sessionId}"). The server stores session_id as a UUID column — non-UUID values cause ingestion to fail. The Swift SDK's Owl.sessionId is already a UUID, so forward it verbatim.`,
+    );
+  }
+  return sessionId;
+}
 const STEP_MESSAGE_PREFIX = "step:";
 /** @deprecated Legacy prefix — kept for console display of old events */
 const TRACK_MESSAGE_PREFIX = "track:";
@@ -122,10 +132,11 @@ function createEvent(
   message: string,
   attrs?: Record<string, unknown>,
   userId?: string,
+  sessionIdOverride?: string,
 ): LogEvent {
   return {
     client_event_id: randomUUID(),
-    session_id: ctx.sessionId,
+    session_id: sessionIdOverride ?? ctx.sessionId,
     ...(userId ? { user_id: userId } : {}),
     level,
     source_module: getSourceModule(),
@@ -191,12 +202,16 @@ function log(
   message: string,
   attrs?: Record<string, unknown>,
   userId?: string,
-  attachments?: OwlAttachment[]
+  attachments?: OwlAttachment[],
+  sessionIdOverride?: string,
 ): void {
+  if (sessionIdOverride !== undefined) {
+    validateSessionId(sessionIdOverride);
+  }
   try {
     const ctx = ensureConfigured();
     printToConsole(level, message, attrs);
-    const event = createEvent(ctx, level, message, attrs, userId);
+    const event = createEvent(ctx, level, message, attrs, userId, sessionIdOverride);
     ctx.transport.enqueue(event);
     if (attachments && attachments.length > 0 && attachmentUploader) {
       attachmentUploader.enqueue(event.client_event_id, event.user_id, ctx.config.isDev, attachments);
@@ -209,36 +224,58 @@ function log(
 }
 
 /**
- * A scoped logger instance that automatically sets a user ID on all events.
+ * A scoped logger instance that automatically tags a user ID and/or a session ID
+ * on every event. Create via `Owl.withUser(userId)` or `Owl.withSession(sessionId)`.
+ * Scopes chain: `Owl.withSession(sid).withUser(uid)` and vice versa both work.
+ *
+ * The session scope is typically used in a server handler to link backend events
+ * to a client's session — e.g. read an `X-Owl-Session-Id` header sent by the
+ * Swift SDK (`Owl.sessionId`) and scope every event in the handler to that value.
  */
 export class ScopedOwl {
-  private userId: string;
+  private userId?: string;
+  private sessionId?: string;
 
-  constructor(userId: string) {
+  constructor(userId?: string, sessionId?: string) {
     this.userId = userId;
+    this.sessionId = sessionId;
   }
 
-  info(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("info", message, attrs, this.userId, options?.attachments);
+  /** Return a new scope with the given userId, preserving any existing session scope. */
+  withUser(userId: string): ScopedOwl {
+    return new ScopedOwl(userId, this.sessionId);
   }
 
-  debug(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("debug", message, attrs, this.userId, options?.attachments);
+  /**
+   * Return a new scope with the given sessionId, preserving any existing user scope.
+   * `sessionId` must be a UUID string (as produced by `randomUUID()` or the Swift
+   * SDK's `Owl.sessionId`) — non-UUID values throw synchronously.
+   */
+  withSession(sessionId: string): ScopedOwl {
+    return new ScopedOwl(this.userId, validateSessionId(sessionId));
   }
 
-  warn(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("warn", message, attrs, this.userId, options?.attachments);
+  info(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("info", message, attrs, this.userId, options?.attachments, options?.sessionId ?? this.sessionId);
   }
 
-  error(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("error", message, attrs, this.userId, options?.attachments);
+  debug(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("debug", message, attrs, this.userId, options?.attachments, options?.sessionId ?? this.sessionId);
+  }
+
+  warn(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("warn", message, attrs, this.userId, options?.attachments, options?.sessionId ?? this.sessionId);
+  }
+
+  error(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("error", message, attrs, this.userId, options?.attachments, options?.sessionId ?? this.sessionId);
   }
 
   /**
    * Record a named funnel step. Sends an info-level event with message `step:<stepName>`.
    */
   step(stepName: string, attributes?: Record<string, string>): void {
-    log("info", `${STEP_MESSAGE_PREFIX}${stepName}`, attributes, this.userId);
+    log("info", `${STEP_MESSAGE_PREFIX}${stepName}`, attributes, this.userId, undefined, this.sessionId);
   }
 
   /** @deprecated Use `step()` instead. Will be removed in a future version. */
@@ -250,8 +287,13 @@ export class ScopedOwl {
    * Set custom properties on this user. Properties are merged server-side —
    * existing keys not in this call are preserved. Pass an empty string value
    * to remove a property.
+   *
+   * Requires a user-scoped instance — throws if the scope has no userId.
    */
   setUserProperties(properties: Record<string, string>): void {
+    if (!this.userId) {
+      throw new Error("OwlMetry: setUserProperties requires a user-scoped instance. Call .withUser() first.");
+    }
     Owl.setUserProperties(this.userId, properties);
   }
 
@@ -261,7 +303,7 @@ export class ScopedOwl {
    * are auto-corrected with a warning logged in debug mode.
    */
   startOperation(metric: string, attrs?: Record<string, unknown>): OwlOperation {
-    return new OwlOperation(log, normalizeSlug(metric), attrs, this.userId);
+    return new OwlOperation(log, normalizeSlug(metric), attrs, this.userId, this.sessionId);
   }
 
   /**
@@ -270,7 +312,7 @@ export class ScopedOwl {
    * auto-corrected with a warning logged in debug mode.
    */
   recordMetric(metric: string, attrs?: Record<string, unknown>): void {
-    log("info", `metric:${normalizeSlug(metric)}:record`, attrs, this.userId);
+    log("info", `metric:${normalizeSlug(metric)}:record`, attrs, this.userId, undefined, this.sessionId);
   }
 }
 
@@ -320,20 +362,20 @@ export const Owl = {
     log("info", "sdk:session_started");
   },
 
-  info(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("info", message, attrs, undefined, options?.attachments);
+  info(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("info", message, attrs, undefined, options?.attachments, options?.sessionId);
   },
 
-  debug(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("debug", message, attrs, undefined, options?.attachments);
+  debug(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("debug", message, attrs, undefined, options?.attachments, options?.sessionId);
   },
 
-  warn(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("warn", message, attrs, undefined, options?.attachments);
+  warn(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("warn", message, attrs, undefined, options?.attachments, options?.sessionId);
   },
 
-  error(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[] }): void {
-    log("error", message, attrs, undefined, options?.attachments);
+  error(message: string, attrs?: Record<string, unknown>, options?: { attachments?: OwlAttachment[]; sessionId?: string }): void {
+    log("error", message, attrs, undefined, options?.attachments, options?.sessionId);
   },
 
   /**
@@ -419,8 +461,25 @@ export const Owl = {
     log("info", `metric:${normalizeSlug(metric)}:record`, attrs);
   },
 
+  /**
+   * Return a scoped logger that tags every event with the given userId. The scope
+   * can be further narrowed with `.withSession(sessionId)` if needed.
+   */
   withUser(userId: string): ScopedOwl {
     return new ScopedOwl(userId);
+  },
+
+  /**
+   * Return a scoped logger that tags every event with the given sessionId, overriding
+   * the SDK's default per-process session ID. Use this in a request handler to link
+   * backend events to a client's session — typically by propagating the client's
+   * session ID (e.g. Swift SDK `Owl.sessionId`) through a request header.
+   *
+   * `sessionId` must be a UUID string; non-UUID values throw synchronously. Chainable
+   * with `.withUser()`.
+   */
+  withSession(sessionId: string): ScopedOwl {
+    return new ScopedOwl(undefined, validateSessionId(sessionId));
   },
 
   async flush(): Promise<void> {

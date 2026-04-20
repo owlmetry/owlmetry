@@ -105,6 +105,19 @@ try Owl.configure(
 )
 ```
 
+## Linking Client and Backend Events
+
+Every event the Swift SDK emits is stamped with a session ID that's generated on `Owl.configure()` and accessible via `Owl.sessionId`. When the app calls your backend, forward this value as a request header so that events logged by the backend can be tagged with the same session ID:
+
+```swift
+var request = URLRequest(url: apiURL)
+if let sessionId = Owl.sessionId {
+    request.setValue(sessionId, forHTTPHeaderField: "X-Owl-Session-Id")
+}
+```
+
+On a Node.js backend using `@owlmetry/node`, read the header and scope the handler with [`Owl.withSession()`](/docs/sdks/node/identity#withsession). Events from both sides of the request then share the same `session_id` and line up in the dashboard's session view.
+
 ## Best Practices
 
 - **Be specific with messages.** Prefer `"Failed to load profile image"` over `"error"`. Specific messages are easier to search and filter.

@@ -20,6 +20,7 @@ Each method accepts:
 |---|---|---|
 | `message` | `string` | What happened -- a human-readable description |
 | `attrs` | `Record<string, unknown>` | Optional custom attributes. Values are converted to strings and truncated to 200 characters. |
+| `options` | `{ attachments?, sessionId? }` | Optional. `attachments` attaches files to the event. `sessionId` overrides the SDK's default session ID for just this event -- useful for linking backend events to a client's session. See [Identity › withSession](/docs/sdks/node/identity#withsession). |
 
 ## Automatic Source Module
 

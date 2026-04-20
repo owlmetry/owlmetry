@@ -1,5 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { Owl } from "../../src/index.js";
 
 const ENDPOINT = process.env.OWLMETRY_TEST_ENDPOINT || "http://127.0.0.1:4112";
@@ -116,6 +117,46 @@ describe("Node SDK integration", () => {
     assert.equal(user.properties?.plan, "premium", "plan should be updated");
     assert.equal(user.properties?.org, "acme", "org should be preserved");
     assert.equal(user.properties?.role, "admin", "role should be added");
+  });
+
+  it("stamps events with session_id from withSession() scope", async () => {
+    const clientSessionId = randomUUID();
+    const uniqueMsg = `session-scope-${clientSessionId}`;
+
+    const owl = Owl.withSession(clientSessionId).withUser("session-scope-user");
+    owl.info(uniqueMsg, { scoped: "true" });
+    await Owl.flush();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const res = await fetch(`${ENDPOINT}/v1/events?session_id=${clientSessionId}&limit=10&data_mode=all`, {
+      headers: { Authorization: `Bearer ${AGENT_KEY}` },
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json() as { events: Array<{ message: string; session_id: string; user_id: string }> };
+    const found = body.events.find((e) => e.message === uniqueMsg);
+    assert.ok(found, `Expected to find event with message "${uniqueMsg}"`);
+    assert.equal(found.session_id, clientSessionId);
+    assert.equal(found.user_id, "session-scope-user");
+  });
+
+  it("stamps events with session_id from options.sessionId override", async () => {
+    const clientSessionId = randomUUID();
+    const uniqueMsg = `session-override-${clientSessionId}`;
+
+    Owl.info(uniqueMsg, { overridden: "true" }, { sessionId: clientSessionId });
+    await Owl.flush();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const res = await fetch(`${ENDPOINT}/v1/events?session_id=${clientSessionId}&limit=10&data_mode=all`, {
+      headers: { Authorization: `Bearer ${AGENT_KEY}` },
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json() as { events: Array<{ message: string; session_id: string }> };
+    const found = body.events.find((e) => e.message === uniqueMsg);
+    assert.ok(found, `Expected to find event with message "${uniqueMsg}"`);
+    assert.equal(found.session_id, clientSessionId);
   });
 
   it("deduplicates events by client_event_id", async () => {

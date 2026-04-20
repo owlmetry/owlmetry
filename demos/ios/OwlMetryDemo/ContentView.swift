@@ -361,6 +361,9 @@ struct ContentView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let sessionId = Owl.sessionId {
+            request.setValue(sessionId, forHTTPHeaderField: "X-Owl-Session-Id")
+        }
 
         let filtered = body.compactMapValues { $0 }
         request.httpBody = try? JSONSerialization.data(withJSONObject: filtered)

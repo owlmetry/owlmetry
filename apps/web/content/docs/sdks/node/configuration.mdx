@@ -38,7 +38,7 @@ Owl.configure({
 When `Owl.configure()` is called:
 
 1. **Validates** the endpoint URL and API key format
-2. **Generates a session ID** -- a fresh UUID that groups all events until the next `configure()` call or `shutdown()`
+2. **Generates a session ID** -- a fresh UUID that groups all events until the next `configure()` call or `shutdown()`. This is the *default* session ID; for servers that handle many clients, per-request overrides are available via [`Owl.withSession()`](/docs/sdks/node/identity#withsession) and the `options.sessionId` parameter on event methods
 3. **Starts the flush timer** -- the buffer is flushed every `flushIntervalMs` milliseconds
 4. **Registers a `beforeExit` handler** -- automatically flushes remaining events when the Node.js process exits gracefully
 5. **Loads experiment assignments** from `~/.owlmetry/experiments.json` (see [Experiments](/docs/sdks/node/experiments))

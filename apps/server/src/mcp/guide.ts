@@ -31,7 +31,7 @@ All list tools support an optional \`team_id\` parameter to scope results.
 Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error()\`, \`Owl.step()\`, etc. Each event has:
 - **level**: \`info\`, \`debug\`, \`warn\`, \`error\`
 - **message**: the log message or event name
-- **session_id**: unique per SDK \`configure()\` call, groups events in a session
+- **session_id**: unique per SDK \`configure()\` call, groups events in a session. The Node SDK also supports a per-request override (\`Owl.withSession(sessionId)\` or \`options.sessionId\`) — a common pattern is for a Swift client to read its \`Owl.sessionId\` and forward it to the backend in an \`X-Owl-Session-Id\` header so backend events are linked to the client session
 - **user_id**: optional, set via identity claim
 - **screen_name**: optional, from SDK screen tracking
 - **environment**: the runtime — \`ios\`, \`ipados\`, \`macos\`, \`android\`, \`web\`, \`backend\`
