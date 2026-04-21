@@ -352,13 +352,6 @@ describe("POST /v1/identity/claim", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// Regression coverage for the race where offline-queued anon events land at
-// /v1/ingest after /v1/identity/claim has already committed. The ingest path
-// must resolve those anon ids through app_users.claimed_from so late events
-// attribute to the real user instead of re-creating a stale anon row.
-// ─────────────────────────────────────────────────────────────────────────
-
 async function getProjectIdForBundle(bundle: string): Promise<string> {
   const res = await app.inject({
     method: "GET",
@@ -375,13 +368,6 @@ async function getAppIdForBundle(bundle: string): Promise<string> {
     headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
   });
   return res.json().apps.find((a: any) => a.bundle_id === bundle).id;
-}
-
-async function getFunnelEvents(appId: string) {
-  const client = postgres(TEST_DB_URL, { max: 1 });
-  const rows = await client`SELECT * FROM funnel_events WHERE app_id = ${appId}`;
-  await client.end();
-  return rows;
 }
 
 describe("claim + late-arriving ingest race", () => {
@@ -450,7 +436,9 @@ describe("claim + late-arriving ingest race", () => {
     expect(metrics.length).toBe(1);
     expect(metrics[0].user_id).toBe(realId);
 
-    const funnels = await getFunnelEvents(appId);
+    const funnelClient = postgres(TEST_DB_URL, { max: 1 });
+    const funnels = await funnelClient`SELECT * FROM funnel_events WHERE app_id = ${appId}`;
+    await funnelClient.end();
     expect(funnels.length).toBe(1);
     expect(funnels[0].user_id).toBe(realId);
   });

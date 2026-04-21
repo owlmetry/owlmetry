@@ -1,23 +1,17 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { Db } from "@owlmetry/db";
 import { appUsers } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 
 /**
- * For each incoming user_id that starts with the anonymous prefix, look up
- * any app_users row (scoped to project_id) whose claimed_from array contains it.
- * Returns a map from anon_id → real user_id for those that have been claimed.
+ * Resolve incoming anon user_ids to their real user_id via
+ * `app_users.claimed_from` (project-scoped).
  *
- * Closes the race where offline-queued events tagged with an anon id arrive at
- * /v1/ingest after the claim transaction has already committed, which would
- * otherwise re-create an anon app_users row.
- *
- * Implementation: fetches every row in the project that has a non-null
- * claimed_from and filters in JS. That set is bounded — each real signed-in
- * user contributes at most one row and only if they've absorbed an anon id —
- * so it stays small even in large projects. We avoid the jsonb `?|` / text[]
- * parameter-binding path with postgres-js, which mis-encodes small/mixed
- * arrays and triggers "malformed array literal" errors at runtime.
+ * The filter is pushed to Postgres via `jsonb_array_elements_text` + `ANY`
+ * so only matching rows are returned — avoids pulling every claimed user in
+ * the project on every ingest. The top-level `?|` operator would also work
+ * but the postgres-js driver mis-encodes its text[] argument for small
+ * arrays, triggering "malformed array literal" errors at runtime.
  */
 export async function resolveClaimedUserIds(
   db: Db,
@@ -32,11 +26,24 @@ export async function resolveClaimedUserIds(
   }
   if (anonIds.size === 0) return new Map();
 
+  // Build an explicit ARRAY[…] literal — the postgres-js driver mis-encodes
+  // a parameterized JS array in this position, triggering "malformed array
+  // literal" at runtime.
+  const anonArraySql = sql.join(
+    [...anonIds].map((id) => sql`${id}`),
+    sql`, `
+  );
   const rows = await db
     .select({ user_id: appUsers.user_id, claimed_from: appUsers.claimed_from })
     .from(appUsers)
     .where(
-      and(eq(appUsers.project_id, projectId), isNotNull(appUsers.claimed_from))
+      sql`${appUsers.project_id} = ${projectId}
+        AND ${appUsers.claimed_from} IS NOT NULL
+        AND jsonb_typeof(${appUsers.claimed_from}) = 'array'
+        AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(${appUsers.claimed_from}) elt
+          WHERE elt = ANY(ARRAY[${anonArraySql}]::text[])
+        )`
     );
 
   const map = new Map<string, string>();

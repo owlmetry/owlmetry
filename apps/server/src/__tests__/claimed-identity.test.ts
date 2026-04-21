@@ -37,8 +37,8 @@ async function insertAppUser(
   await client`
     INSERT INTO app_users (project_id, user_id, is_anonymous, claimed_from)
     VALUES (${project}, ${user_id}, ${is_anonymous}, ${
-      claimed_from === null ? null : JSON.stringify(claimed_from)
-    }::jsonb)
+      claimed_from === null ? null : client.json(claimed_from)
+    })
   `;
   await client.end();
 }

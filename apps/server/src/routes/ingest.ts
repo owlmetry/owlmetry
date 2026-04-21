@@ -120,9 +120,6 @@ export async function ingestRoutes(app: FastifyInstance) {
 
       const api_key_id = auth.type === "api_key" ? auth.key_id : null;
 
-      // Rewrite anon user_ids that have already been claimed so late-arriving
-      // offline-queued events land under the real user instead of re-creating
-      // a stale anon app_users row.
       const claimedMap = await resolveClaimedUserIds(
         app.db,
         appRow.project_id,

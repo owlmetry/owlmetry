@@ -119,11 +119,8 @@ public enum Owl {
             await filter.start()
         }
 
-        // If a real user id was persisted but the /v1/identity/claim call on
-        // the previous session never succeeded (e.g. the device was offline),
-        // late-arriving anon events could end up stranded under the anon id.
-        // Fire an idempotent claim on startup; the server short-circuits via
-        // claimed_from if the mapping is already recorded.
+        // Idempotent startup reclaim — covers the case where a previous
+        // session saved a user id but the claim POST never succeeded.
         if let savedUserId = IdentityManager.savedUserId(), savedUserId != anonId {
             Task {
                 await transport.claimIdentity(anonymousId: anonId, userId: savedUserId)
