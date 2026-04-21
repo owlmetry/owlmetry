@@ -13,6 +13,19 @@ export function useProjectColorMap(teamId: string | null | undefined): Map<strin
   }, [data]);
 }
 
+export function useProjectInfoMap(
+  teamId: string | null | undefined,
+): Map<string, { name: string; color: string }> {
+  const { data } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null,
+  );
+  return useMemo(() => {
+    const m = new Map<string, { name: string; color: string }>();
+    for (const p of data?.projects ?? []) m.set(p.id, { name: p.name, color: p.color });
+    return m;
+  }, [data]);
+}
+
 export function useAppColorMap(teamId: string | null | undefined): Map<string, string> {
   const projectColorMap = useProjectColorMap(teamId);
   const { data } = useSWR<{ apps: AppResponse[] }>(

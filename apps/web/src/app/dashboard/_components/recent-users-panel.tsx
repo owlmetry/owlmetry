@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
-import { useAppColorMap } from "@/hooks/use-project-colors";
+import { useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { ProjectDot } from "@/lib/project-color";
 import { getBillingBadgeState } from "@/lib/billing-badge";
 import { DashboardSection } from "./dashboard-section";
@@ -28,6 +28,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
 
   const { users, isLoading } = useTeamAppUsers(filters);
   const appColorMap = useAppColorMap(teamId);
+  const projectInfoMap = useProjectInfoMap(teamId);
 
   const title = mode === "new" ? "Recently Added Users" : "Recently Active Users";
   const emptyTitle = mode === "new" ? "No new users" : "No recent users";
@@ -46,6 +47,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
         users.slice(0, 5).map((user) => {
           const firstApp = user.apps?.[0];
           const extraApps = Math.max(0, (user.apps?.length ?? 0) - 1);
+          const project = !firstApp ? projectInfoMap.get(user.project_id) : null;
           const badge = getBillingBadgeState(user.properties);
           return (
             <Link
@@ -62,7 +64,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-mono text-xs truncate">{user.user_id}</p>
-                {firstApp && (
+                {firstApp ? (
                   <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground min-w-0">
                     <span className="flex items-center gap-1 min-w-0">
                       <ProjectDot color={appColorMap.get(firstApp.app_id)} size={6} />
@@ -70,7 +72,14 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
                     </span>
                     {extraApps > 0 && <span>· +{extraApps} more</span>}
                   </div>
-                )}
+                ) : project ? (
+                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground min-w-0">
+                    <span className="flex items-center gap-1 min-w-0">
+                      <ProjectDot color={project.color} size={6} />
+                      <span className="truncate">{project.name}</span>
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <div className="shrink-0 flex items-center gap-1">
                 {badge.primaryTooltip && (badge.isCancelledTrial || badge.isTrial || badge.isPaid) && (

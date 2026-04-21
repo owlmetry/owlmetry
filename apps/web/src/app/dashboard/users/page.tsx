@@ -25,7 +25,7 @@ import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
 import { getBillingBadgeState } from "@/lib/billing-badge";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
-import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
+import { useProjectColorMap, useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,7 @@ export default function UsersPage() {
   }, [allApps]);
   const projectColorMap = useProjectColorMap(teamId);
   const appColorMap = useAppColorMap(teamId);
+  const projectInfoMap = useProjectInfoMap(teamId);
 
   const projectId = filters.get("project_id");
   const appId = filters.get("app_id");
@@ -394,9 +395,24 @@ export default function UsersPage() {
                               {a.app_name}
                             </Badge>
                           ))
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
+                        ) : (() => {
+                          const project = projectInfoMap.get(user.project_id);
+                          return project ? (
+                            <Badge
+                              variant="outline"
+                              className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                filters.set("project_id", user.project_id);
+                              }}
+                            >
+                              <ProjectDot color={project.color} size={6} />
+                              {project.name}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          );
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs py-1.5">
