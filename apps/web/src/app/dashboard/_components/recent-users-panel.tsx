@@ -15,25 +15,31 @@ import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
 
-export function RecentUsersPanel() {
+type Mode = "active" | "new";
+
+export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
 
   const filters: TeamAppUsersQueryParams = {};
   if (teamId) filters.team_id = teamId;
   filters.limit = 5;
+  if (mode === "new") filters.sort = "first_seen";
 
   const { users, isLoading } = useTeamAppUsers(filters);
   const appColorMap = useAppColorMap(teamId);
 
+  const title = mode === "new" ? "Recently Added Users" : "Recently Active Users";
+  const emptyTitle = mode === "new" ? "No new users" : "No recent users";
+
   return (
-    <DashboardSection eyebrow="People" title="Recently Active Users" viewAllHref="/dashboard/users">
+    <DashboardSection eyebrow="People" title={title} viewAllHref="/dashboard/users">
       {isLoading ? (
         <SkeletonRows />
       ) : users.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="No recent users"
+          title={emptyTitle}
           subtitle="Users will appear here after events are ingested."
         />
       ) : (
@@ -95,7 +101,7 @@ export function RecentUsersPanel() {
                 )}
               </div>
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
-                {timeAgo(user.last_seen_at)}
+                {timeAgo(mode === "new" ? user.first_seen_at : user.last_seen_at)}
               </span>
             </Link>
           );

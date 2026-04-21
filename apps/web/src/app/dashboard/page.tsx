@@ -171,7 +171,8 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <OpenIssuesPanel />
         <RecentEventsPanel />
-        <RecentUsersPanel />
+        <RecentUsersPanel mode="active" />
+        <RecentUsersPanel mode="new" />
         {isAdmin && <RecentJobsPanel />}
         {isAdmin && <RecentAuditPanel />}
       </div>

@@ -76,9 +76,10 @@ export async function appUsersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { search, is_anonymous, billing_status, cursor, limit: rawLimit } = request.query;
+      const { search, is_anonymous, billing_status, sort, cursor, limit: rawLimit } = request.query;
 
       const limit = normalizeLimit(rawLimit);
+      const sortColumn = sort === "first_seen" ? appUsers.first_seen_at : appUsers.last_seen_at;
 
       // Verify app exists and belongs to caller's team
       const teamIds = getAuthTeamIds(auth);
@@ -114,7 +115,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
       }
 
       if (cursor) {
-        conditions.push(lt(appUsers.last_seen_at, new Date(cursor)));
+        conditions.push(lt(sortColumn, new Date(cursor)));
       }
 
       const rows = await app.db
@@ -131,7 +132,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
         .from(appUsers)
         .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))
         .where(and(eq(appUserApps.app_id, id), ...conditions))
-        .orderBy(desc(appUsers.last_seen_at))
+        .orderBy(desc(sortColumn))
         .limit(limit + 1);
 
       const has_more = rows.length > limit;
@@ -145,7 +146,9 @@ export async function appUsersRoutes(app: FastifyInstance) {
           serializeAppUser({ ...u, apps: appInfoMap.get(u.id) ?? [] })
         ),
         cursor: has_more
-          ? page[page.length - 1].last_seen_at.toISOString()
+          ? (sort === "first_seen"
+              ? page[page.length - 1].first_seen_at.toISOString()
+              : page[page.length - 1].last_seen_at.toISOString())
           : null,
         has_more,
       };
@@ -169,11 +172,13 @@ export async function appUsersRoutes(app: FastifyInstance) {
         billing_status,
         since,
         until,
+        sort,
         cursor,
         limit: rawLimit,
       } = request.query;
 
       const limit = normalizeLimit(rawLimit);
+      const sortColumn = sort === "first_seen" ? appUsers.first_seen_at : appUsers.last_seen_at;
 
       const teamIds = team_id
         ? (allTeamIds.includes(team_id) ? [team_id] : [])
@@ -250,7 +255,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
       }
 
       if (cursor) {
-        conditions.push(lt(appUsers.last_seen_at, new Date(cursor)));
+        conditions.push(lt(sortColumn, new Date(cursor)));
       }
 
       // When filtering by app_id, JOIN through junction table instead of unbounded IN
@@ -275,7 +280,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
             .where(and(...conditions));
 
       const rows = await query
-        .orderBy(desc(appUsers.last_seen_at))
+        .orderBy(desc(sortColumn))
         .limit(limit + 1);
 
       const has_more = rows.length > limit;
@@ -289,7 +294,9 @@ export async function appUsersRoutes(app: FastifyInstance) {
           serializeAppUser({ ...u, apps: appInfoMap.get(u.id) ?? [] })
         ),
         cursor: has_more
-          ? page[page.length - 1].last_seen_at.toISOString()
+          ? (sort === "first_seen"
+              ? page[page.length - 1].first_seen_at.toISOString()
+              : page[page.length - 1].last_seen_at.toISOString())
           : null,
         has_more,
       };

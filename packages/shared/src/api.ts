@@ -400,6 +400,8 @@ export interface AppUsersQueryParams {
   is_anonymous?: string;
   /** Comma-separated list of billing tiers to include: "paid", "trial", "free". */
   billing_status?: string;
+  /** Sort order. "last_seen" (default) sorts by last_seen_at desc; "first_seen" sorts by first_seen_at desc. */
+  sort?: "last_seen" | "first_seen";
   cursor?: string;
   limit?: number;
 }
