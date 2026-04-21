@@ -214,29 +214,28 @@ export function upsertAppUsers(
   project_id: string,
   app_id: string,
   log: FastifyBaseLogger,
-  country_code: string | null = null,
 ) {
   const uniqueUserIds = [...new Set(
     validEvents.map((e) => e.user_id).filter((id): id is string => !!id)
   )];
   if (uniqueUserIds.length === 0) return;
 
+  const countryCode = validEvents.find((e) => e.country_code)?.country_code ?? null;
+
   const userRows = uniqueUserIds.map((uid) => ({
     project_id,
     user_id: uid,
     is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
-    last_country_code: country_code,
+    last_country_code: countryCode,
   }));
-  // Only overwrite last_country_code when the request carried one; a missing
-  // CF-IPCountry header (e.g., dev, direct origin) must not wipe a previously
-  // resolved country.
+  // Don't wipe a previously-resolved country when this batch came without a header.
   db.insert(appUsers)
     .values(userRows)
     .onConflictDoUpdate({
       target: [appUsers.project_id, appUsers.user_id],
       set: {
         last_seen_at: sql`NOW()`,
-        ...(country_code ? { last_country_code: country_code } : {}),
+        ...(countryCode ? { last_country_code: countryCode } : {}),
       },
     })
     .returning({ id: appUsers.id, user_id: appUsers.user_id })

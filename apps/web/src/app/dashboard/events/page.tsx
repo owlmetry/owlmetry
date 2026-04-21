@@ -23,7 +23,7 @@ import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
 import { ProjectDot } from "@/lib/project-color";
-import { countryFlag } from "@/lib/country-flag";
+import { CountryCell } from "@/components/country-flag";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -446,18 +446,8 @@ export default function EventsPage() {
                       <TableCell className="text-xs py-1.5">
                         {event.environment ?? "—"}
                       </TableCell>
-                      <TableCell className="text-xs py-1.5" title={countryFlag(event.country_code).name}>
-                        {(() => {
-                          const f = countryFlag(event.country_code);
-                          return f.emoji ? (
-                            <span className="inline-flex items-center gap-1">
-                              <span>{f.emoji}</span>
-                              <span className="font-mono">{f.code}</span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          );
-                        })()}
+                      <TableCell className="text-xs py-1.5">
+                        <CountryCell code={event.country_code} />
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5 truncate max-w-[140px]">
                         {event.user_id ?? "—"}

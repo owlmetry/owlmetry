@@ -92,7 +92,7 @@ describe("CF-IPCountry ingest round-trip", () => {
     expect(event?.country_code).toBe("DE");
   });
 
-  it("lowercases header is normalized to uppercase", async () => {
+  it("normalizes lowercase header to uppercase", async () => {
     const res = await ingestWithCountry("fr", "country-test-fr");
     expect(res.statusCode).toBe(200);
     const event = await queryEvents("country-test-fr");

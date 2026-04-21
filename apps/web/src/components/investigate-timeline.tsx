@@ -7,7 +7,7 @@ import { levelColors } from "@/lib/level-colors";
 import { cn } from "@/lib/utils";
 import type { EventsResponse, StoredEventResponse, LogLevel } from "@owlmetry/shared";
 import { formatShortDate, formatTime } from "@/lib/format-date";
-import { countryFlag } from "@/lib/country-flag";
+import { CountryEmoji } from "@/components/country-flag";
 
 interface InvestigateTimelineProps {
   event: StoredEventResponse;
@@ -124,7 +124,6 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
           const date = formatShortDate(ts);
           const time = `${formatTime(ts)} ${date}`;
           const colors = levelColors[e.level as LogLevel];
-          const flag = countryFlag(e.country_code);
 
           return (
             <div
@@ -137,13 +136,7 @@ export function InvestigateTimeline({ event, onEventSelect }: InvestigateTimelin
               )}
             >
               <span className="shrink-0 text-muted-foreground">{time}</span>
-              {flag.emoji ? (
-                <span className="shrink-0" title={`${flag.name} (${flag.code})`}>
-                  {flag.emoji}
-                </span>
-              ) : (
-                <span className="shrink-0 w-4" />
-              )}
+              <CountryEmoji code={e.country_code} />
               <span className={cn("shrink-0 uppercase w-12", colors.text)}>
                 {e.level.slice(0, 5).padEnd(5)}
               </span>

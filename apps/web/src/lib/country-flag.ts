@@ -14,17 +14,19 @@ export interface CountryFlag {
 
 const PLACEHOLDER: CountryFlag = { emoji: "", code: "—", name: "Unknown" };
 
+const cache = new Map<string, CountryFlag>();
+
 export function countryFlag(code: string | null | undefined): CountryFlag {
   if (!code || !/^[A-Za-z]{2}$/.test(code)) return PLACEHOLDER;
   const upper = code.toUpperCase();
+  const cached = cache.get(upper);
+  if (cached) return cached;
+
   const emoji = String.fromCodePoint(
     ...[...upper].map((c) => REGIONAL_INDICATOR_BASE + c.charCodeAt(0) - ASCII_A),
   );
-  let name = upper;
-  try {
-    name = regionNames?.of(upper) ?? upper;
-  } catch {
-    name = upper;
-  }
-  return { emoji, code: upper, name };
+  const name = regionNames?.of(upper) ?? upper;
+  const result: CountryFlag = { emoji, code: upper, name };
+  cache.set(upper, result);
+  return result;
 }
