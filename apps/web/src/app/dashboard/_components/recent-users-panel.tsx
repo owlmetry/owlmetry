@@ -32,9 +32,11 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
 
   const title = mode === "new" ? "Recently Added Users" : "Recently Active Users";
   const emptyTitle = mode === "new" ? "No new users" : "No recent users";
+  const sortParam = mode === "new" ? "first_seen" : "last_seen";
+  const viewAllHref = `/dashboard/users?sort=${sortParam}`;
 
   return (
-    <DashboardSection eyebrow="People" title={title} viewAllHref="/dashboard/users">
+    <DashboardSection eyebrow="People" title={title} viewAllHref={viewAllHref}>
       {isLoading ? (
         <SkeletonRows />
       ) : users.length === 0 ? (
@@ -52,7 +54,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
           return (
             <Link
               key={user.id}
-              href={`/dashboard/users?app_user_id=${user.id}`}
+              href={`/dashboard/users?app_user_id=${user.id}&sort=${sortParam}`}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-[68px] flex justify-start">
