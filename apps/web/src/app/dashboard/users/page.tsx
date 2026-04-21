@@ -366,7 +366,9 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {users.map((user) => {
+                  const userProject = !user.apps?.length ? projectInfoMap.get(user.project_id) : null;
+                  return (
                   <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleRowClick(user)}>
                     <TableCell className="font-mono text-xs py-1.5">
                       {user.user_id}
@@ -395,24 +397,21 @@ export default function UsersPage() {
                               {a.app_name}
                             </Badge>
                           ))
-                        ) : (() => {
-                          const project = projectInfoMap.get(user.project_id);
-                          return project ? (
-                            <Badge
-                              variant="outline"
-                              className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                filters.set("project_id", user.project_id);
-                              }}
-                            >
-                              <ProjectDot color={project.color} size={6} />
-                              {project.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          );
-                        })()}
+                        ) : userProject ? (
+                          <Badge
+                            variant="outline"
+                            className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              filters.set("project_id", user.project_id);
+                            }}
+                          >
+                            <ProjectDot color={userProject.color} size={6} />
+                            {userProject.name}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs py-1.5">
@@ -472,7 +471,8 @@ export default function UsersPage() {
                       {timeAgoOrDate(user.last_seen_at, formatDateTime)}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
