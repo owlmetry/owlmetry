@@ -4,8 +4,6 @@ import {
   feedback,
   feedbackComments,
   apps,
-  users,
-  apiKeys,
   projects,
 } from "@owlmetry/db";
 import {
@@ -24,24 +22,8 @@ import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { resolveProject } from "../utils/project.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
-import { normalizeLimit } from "../utils/pagination.js";
-
-/** Encode a keyset cursor from (created_at, id). */
-function encodeFeedbackCursor(createdAt: Date, id: string): string {
-  return Buffer.from(JSON.stringify([createdAt.toISOString(), id])).toString("base64url");
-}
-
-function decodeFeedbackCursor(cursor: string): { createdAt: string; id: string } | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString());
-    if (Array.isArray(parsed) && parsed.length === 2) {
-      return { createdAt: parsed[0], id: parsed[1] };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { normalizeLimit, encodeKeysetCursor, decodeKeysetCursor } from "../utils/pagination.js";
+import { resolveCommentAuthor } from "../utils/comment-author.js";
 
 function serializeFeedback(
   row: typeof feedback.$inferSelect,
@@ -84,9 +66,7 @@ function serializeFeedbackComment(row: typeof feedbackComments.$inferSelect) {
   };
 }
 
-/** Routes nested under /v1/projects/:projectId */
 export async function feedbackRoutes(app: FastifyInstance) {
-  // List feedback for a project
   app.get<{ Params: { projectId: string }; Querystring: FeedbackQueryParams }>(
     "/feedback",
     { preHandler: requirePermission("feedback:read") },
@@ -116,10 +96,10 @@ export async function feedbackRoutes(app: FastifyInstance) {
       }
 
       if (cursor) {
-        const decoded = decodeFeedbackCursor(cursor);
+        const decoded = decodeKeysetCursor(cursor);
         if (decoded) {
           conditions.push(
-            sql`(${feedback.created_at} < ${decoded.createdAt}::timestamptz OR (${feedback.created_at} = ${decoded.createdAt}::timestamptz AND ${feedback.id} < ${decoded.id}))`
+            sql`(${feedback.created_at} < ${decoded.timestamp}::timestamptz OR (${feedback.created_at} = ${decoded.timestamp}::timestamptz AND ${feedback.id} < ${decoded.id}))`
           );
         }
       }
@@ -143,13 +123,12 @@ export async function feedbackRoutes(app: FastifyInstance) {
       const lastItem = page[page.length - 1];
       return {
         feedback: page.map((r) => serializeFeedback(r, appNameMap.get(r.app_id))),
-        cursor: hasMore && lastItem ? encodeFeedbackCursor(lastItem.created_at, lastItem.id) : null,
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }
   );
 
-  // Get feedback detail
   app.get<{ Params: { projectId: string; feedbackId: string } }>(
     "/feedback/:feedbackId",
     { preHandler: requirePermission("feedback:read") },
@@ -195,7 +174,6 @@ export async function feedbackRoutes(app: FastifyInstance) {
     }
   );
 
-  // Update feedback status
   app.patch<{ Params: { projectId: string; feedbackId: string }; Body: UpdateFeedbackRequest }>(
     "/feedback/:feedbackId",
     { preHandler: requirePermission("feedback:write") },
@@ -214,9 +192,11 @@ export async function feedbackRoutes(app: FastifyInstance) {
         });
       }
 
-      const [row] = await app.db
-        .select()
-        .from(feedback)
+      // Single UPDATE … RETURNING closes a TOCTOU vs. a concurrent delete and
+      // matches `isNull(deleted_at)` so we can't resurrect a deleted row.
+      const [updated] = await app.db
+        .update(feedback)
+        .set({ status })
         .where(
           and(
             eq(feedback.id, feedbackId),
@@ -224,31 +204,25 @@ export async function feedbackRoutes(app: FastifyInstance) {
             isNull(feedback.deleted_at)
           )
         )
-        .limit(1);
+        .returning();
 
-      if (!row) {
+      if (!updated) {
         return reply.code(404).send({ error: "Feedback not found" });
       }
-
-      const [updated] = await app.db
-        .update(feedback)
-        .set({ status })
-        .where(eq(feedback.id, feedbackId))
-        .returning();
 
       logAuditEvent(app.db, request.auth, {
         team_id: project.team_id,
         action: "update",
         resource_type: "feedback",
         resource_id: feedbackId,
-        changes: { status: { before: row.status, after: status } },
+        changes: { status: { after: status } },
       });
 
       return serializeFeedback(updated);
     }
   );
 
-  // Soft-delete feedback (user-only — agent keys get 403)
+  // Soft-delete feedback — user-only (agent keys get 403 by design).
   app.delete<{ Params: { projectId: string; feedbackId: string } }>(
     "/feedback/:feedbackId",
     { preHandler: requirePermission("feedback:write") },
@@ -261,9 +235,9 @@ export async function feedbackRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const [row] = await app.db
-        .select()
-        .from(feedback)
+      const deleted = await app.db
+        .update(feedback)
+        .set({ deleted_at: new Date() })
         .where(
           and(
             eq(feedback.id, feedbackId),
@@ -271,16 +245,11 @@ export async function feedbackRoutes(app: FastifyInstance) {
             isNull(feedback.deleted_at)
           )
         )
-        .limit(1);
+        .returning({ id: feedback.id });
 
-      if (!row) {
+      if (deleted.length === 0) {
         return reply.code(404).send({ error: "Feedback not found" });
       }
-
-      await app.db
-        .update(feedback)
-        .set({ deleted_at: new Date() })
-        .where(eq(feedback.id, feedbackId));
 
       logAuditEvent(app.db, request.auth, {
         team_id: project.team_id,
@@ -293,7 +262,6 @@ export async function feedbackRoutes(app: FastifyInstance) {
     }
   );
 
-  // Add comment
   app.post<{
     Params: { projectId: string; feedbackId: string };
     Body: CreateFeedbackCommentRequest;
@@ -310,52 +278,31 @@ export async function feedbackRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "body is required" });
       }
 
-      const [row] = await app.db
-        .select({ id: feedback.id })
-        .from(feedback)
-        .where(
-          and(
-            eq(feedback.id, feedbackId),
-            eq(feedback.project_id, projectId),
-            isNull(feedback.deleted_at)
+      // Existence check and author-name lookup are independent.
+      const [[row], author] = await Promise.all([
+        app.db
+          .select({ id: feedback.id })
+          .from(feedback)
+          .where(
+            and(
+              eq(feedback.id, feedbackId),
+              eq(feedback.project_id, projectId),
+              isNull(feedback.deleted_at)
+            )
           )
-        )
-        .limit(1);
+          .limit(1),
+        resolveCommentAuthor(app.db, request.auth),
+      ]);
 
       if (!row) return reply.code(404).send({ error: "Feedback not found" });
-
-      const auth = request.auth;
-      let authorType: string;
-      let authorId: string;
-      let authorName: string;
-
-      if (auth.type === "user") {
-        authorType = "user";
-        authorId = auth.user_id;
-        const [user] = await app.db
-          .select({ name: users.name })
-          .from(users)
-          .where(eq(users.id, auth.user_id))
-          .limit(1);
-        authorName = user?.name ?? auth.email;
-      } else {
-        authorType = "agent";
-        authorId = auth.key_id;
-        const [key] = await app.db
-          .select({ name: apiKeys.name })
-          .from(apiKeys)
-          .where(eq(apiKeys.id, auth.key_id))
-          .limit(1);
-        authorName = key?.name ?? "Agent";
-      }
 
       const [created] = await app.db
         .insert(feedbackComments)
         .values({
           feedback_id: feedbackId,
-          author_type: authorType,
-          author_id: authorId,
-          author_name: authorName,
+          author_type: author.authorType,
+          author_id: author.authorId,
+          author_name: author.authorName,
           body: body.trim(),
         })
         .returning();
@@ -364,7 +311,6 @@ export async function feedbackRoutes(app: FastifyInstance) {
     }
   );
 
-  // Edit comment
   app.patch<{
     Params: { projectId: string; feedbackId: string; commentId: string };
     Body: UpdateFeedbackCommentRequest;
@@ -413,7 +359,6 @@ export async function feedbackRoutes(app: FastifyInstance) {
     }
   );
 
-  // Delete comment (author, or team admin/owner)
   app.delete<{
     Params: { projectId: string; feedbackId: string; commentId: string };
   }>(
@@ -464,7 +409,6 @@ export async function feedbackRoutes(app: FastifyInstance) {
   );
 }
 
-/** Team-level listing at /v1/feedback */
 export async function teamFeedbackRoutes(app: FastifyInstance) {
   app.get<{ Querystring: FeedbackQueryParams }>(
     "/feedback",
@@ -526,10 +470,10 @@ export async function teamFeedbackRoutes(app: FastifyInstance) {
       }
 
       if (cursor) {
-        const decoded = decodeFeedbackCursor(cursor);
+        const decoded = decodeKeysetCursor(cursor);
         if (decoded) {
           conditions.push(
-            sql`(${feedback.created_at} < ${decoded.createdAt}::timestamptz OR (${feedback.created_at} = ${decoded.createdAt}::timestamptz AND ${feedback.id} < ${decoded.id}))`
+            sql`(${feedback.created_at} < ${decoded.timestamp}::timestamptz OR (${feedback.created_at} = ${decoded.timestamp}::timestamptz AND ${feedback.id} < ${decoded.id}))`
           );
         }
       }
@@ -555,7 +499,7 @@ export async function teamFeedbackRoutes(app: FastifyInstance) {
         feedback: page.map((r) =>
           serializeFeedback(r, appNameMap.get(r.app_id), projectNameMap.get(r.project_id))
         ),
-        cursor: hasMore && lastItem ? encodeFeedbackCursor(lastItem.created_at, lastItem.id) : null,
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }

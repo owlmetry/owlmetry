@@ -13,6 +13,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useFeedback, useFeedbackDetail, feedbackActions } from "@/hooks/use-feedback";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
+import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { CountryEmoji } from "@/components/country-flag";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,16 +51,6 @@ const STATUS_CONFIG: Record<FeedbackStatus, { label: string; emoji: string; colo
 };
 
 const KANBAN_COLUMNS: FeedbackStatus[] = ["new", "in_review", "addressed", "dismissed"];
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function FeedbackCard({
   feedback,

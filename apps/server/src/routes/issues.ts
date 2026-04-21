@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
-import { issues, issueFingerprints, issueOccurrences, issueComments, apps, users, apiKeys, projects, eventAttachments } from "@owlmetry/db";
+import { issues, issueFingerprints, issueOccurrences, issueComments, apps, projects, eventAttachments } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES, ATTACHMENT_ISSUE_DETAIL_PAGE_SIZE } from "@owlmetry/shared";
 import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
@@ -8,26 +8,8 @@ import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { resolveProject } from "../utils/project.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
-import { normalizeLimit } from "../utils/pagination.js";
-
-/** Encode a keyset cursor from the last row's (last_seen_at, id). */
-function encodeIssueCursor(lastSeenAt: Date, id: string): string {
-  return Buffer.from(JSON.stringify([lastSeenAt.toISOString(), id])).toString("base64url");
-}
-
-/** Decode a keyset cursor back to (last_seen_at, id). Returns null on bad input. */
-function decodeIssueCursor(cursor: string): { lastSeenAt: string; id: string } | null {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString());
-    if (Array.isArray(parsed) && parsed.length === 2) {
-      return { lastSeenAt: parsed[0], id: parsed[1] };
-    }
-    // Legacy plain-UUID cursor: treat as id-only with epoch lastSeenAt so it won't filter on time
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { normalizeLimit, encodeKeysetCursor, decodeKeysetCursor } from "../utils/pagination.js";
+import { resolveCommentAuthor } from "../utils/comment-author.js";
 
 function serializeIssue(
   row: typeof issues.$inferSelect,
@@ -121,10 +103,10 @@ export async function issuesRoutes(app: FastifyInstance) {
       }
 
       if (cursor) {
-        const decoded = decodeIssueCursor(cursor);
+        const decoded = decodeKeysetCursor(cursor);
         if (decoded) {
           conditions.push(
-            sql`(${issues.last_seen_at} < ${decoded.lastSeenAt}::timestamptz OR (${issues.last_seen_at} = ${decoded.lastSeenAt}::timestamptz AND ${issues.id} < ${decoded.id}))`,
+            sql`(${issues.last_seen_at} < ${decoded.timestamp}::timestamptz OR (${issues.last_seen_at} = ${decoded.timestamp}::timestamptz AND ${issues.id} < ${decoded.id}))`,
           );
         } else {
           // Fallback for legacy plain-UUID cursors
@@ -167,7 +149,7 @@ export async function issuesRoutes(app: FastifyInstance) {
       const lastItem = page[page.length - 1];
       return {
         issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id))),
-        cursor: hasMore && lastItem ? encodeIssueCursor(lastItem.last_seen_at, lastItem.id) : null,
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.last_seen_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }
@@ -474,33 +456,15 @@ export async function issuesRoutes(app: FastifyInstance) {
 
       if (!issue) return reply.code(404).send({ error: "Issue not found" });
 
-      // Resolve author from auth context
-      const auth = request.auth;
-      let authorType: string;
-      let authorId: string;
-      let authorName: string;
-
-      if (auth.type === "user") {
-        authorType = "user";
-        authorId = auth.user_id;
-        // Look up user name
-        const [user] = await app.db.select({ name: users.name }).from(users).where(eq(users.id, auth.user_id)).limit(1);
-        authorName = user?.name ?? auth.email;
-      } else {
-        authorType = "agent";
-        authorId = auth.key_id;
-        // Look up API key name
-        const [key] = await app.db.select({ name: apiKeys.name }).from(apiKeys).where(eq(apiKeys.id, auth.key_id)).limit(1);
-        authorName = key?.name ?? "Agent";
-      }
+      const author = await resolveCommentAuthor(app.db, request.auth);
 
       const [created] = await app.db
         .insert(issueComments)
         .values({
           issue_id: issueId,
-          author_type: authorType,
-          author_id: authorId,
-          author_name: authorName,
+          author_type: author.authorType,
+          author_id: author.authorId,
+          author_name: author.authorName,
           body: body.trim(),
         })
         .returning();
@@ -652,10 +616,10 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
       if (devCondition) conditions.push(devCondition);
 
       if (cursor) {
-        const decoded = decodeIssueCursor(cursor);
+        const decoded = decodeKeysetCursor(cursor);
         if (decoded) {
           conditions.push(
-            sql`(${issues.last_seen_at} < ${decoded.lastSeenAt}::timestamptz OR (${issues.last_seen_at} = ${decoded.lastSeenAt}::timestamptz AND ${issues.id} < ${decoded.id}))`,
+            sql`(${issues.last_seen_at} < ${decoded.timestamp}::timestamptz OR (${issues.last_seen_at} = ${decoded.timestamp}::timestamptz AND ${issues.id} < ${decoded.id}))`,
           );
         } else {
           conditions.push(sql`${issues.id} < ${cursor}`);
@@ -697,7 +661,7 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
       const lastItem = page[page.length - 1];
       return {
         issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id), projectNameMap.get(i.project_id))),
-        cursor: hasMore && lastItem ? encodeIssueCursor(lastItem.last_seen_at, lastItem.id) : null,
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.last_seen_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }

@@ -34,17 +34,6 @@
         }
       }
     },
-    "owl.feedback.email.label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Email"
-          }
-        }
-      }
-    },
     "owl.feedback.email.placeholder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -129,28 +118,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tell us what's on your mind…"
-          }
-        }
-      }
-    },
-    "owl.feedback.message.section" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your feedback"
-          }
-        }
-      }
-    },
-    "owl.feedback.name.label" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Name"
           }
         }
       }

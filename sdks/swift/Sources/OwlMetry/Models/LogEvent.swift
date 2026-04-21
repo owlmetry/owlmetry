@@ -44,22 +44,3 @@ struct IngestRequestBody: Codable, Sendable {
     let bundle_id: String
     let events: [LogEvent]
 }
-
-struct FeedbackRequestBody: Codable, Sendable {
-    let bundle_id: String
-    let message: String
-    let session_id: String?
-    let user_id: String?
-    let submitter_name: String?
-    let submitter_email: String?
-    let app_version: String?
-    let environment: String?
-    let device_model: String?
-    let os_version: String?
-    let is_dev: Bool
-}
-
-struct FeedbackResponseBody: Codable, Sendable {
-    let id: String
-    let created_at: String
-}
