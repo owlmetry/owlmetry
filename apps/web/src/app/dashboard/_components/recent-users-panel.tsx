@@ -11,6 +11,7 @@ import { useTeam } from "@/contexts/team-context";
 import { useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { ProjectDot } from "@/lib/project-color";
 import { CountryEmoji } from "@/components/country-flag";
+import { AttributionBadge } from "@/components/attribution-badge";
 import { getBillingBadgeState } from "@/lib/billing-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
@@ -111,6 +112,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
                     <TooltipContent className="max-w-xs">{badge.cancelledTooltip}</TooltipContent>
                   </Tooltip>
                 )}
+                <AttributionBadge properties={user.properties} />
               </div>
               <CountryEmoji code={user.last_country_code} />
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">

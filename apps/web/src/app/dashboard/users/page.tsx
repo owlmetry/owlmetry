@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/table";
 import { ProjectDot } from "@/lib/project-color";
 import { CountryCell } from "@/components/country-flag";
+import { AttributionBadge } from "@/components/attribution-badge";
 
 const BILLING_TIER_LABELS: Record<BillingTier, string> = {
   paid: "💰 Paid",
@@ -461,6 +462,7 @@ export default function UsersPage() {
                               <TooltipContent className="max-w-xs">{badge.cancelledTooltip}</TooltipContent>
                             </Tooltip>
                           )}
+                          <AttributionBadge properties={user.properties} />
                           {user.properties.rc_last_purchase && (
                             <span className="text-xs text-muted-foreground">
                               {user.properties.rc_last_purchase}
