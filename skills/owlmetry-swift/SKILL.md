@@ -463,6 +463,40 @@ Connect RevenueCat to my OwlMetry project so I can see paid vs free users:
    subscribes, without waiting for RevenueCat's webhook.
 ```
 
+## Apple Search Ads Attribution
+
+OwlMetry auto-captures Apple Search Ads attribution on `Owl.configure()` — no code required. On the first launch after install, the SDK calls `AAAttribution.attributionToken()` (iOS 14.3+) in a background task, submits the token to OwlMetry, and the server resolves it with Apple's public Attribution API. Once captured (attributed or not), the result is cached per-install so it runs exactly once.
+
+On successful attribution the user picks up:
+- `attribution_source = "apple_search_ads"` (cross-network — future Meta/Google support writes `meta`/`google_ads` into the same key)
+- `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id`
+
+An install Apple did not attribute gets `attribution_source = "none"` and nothing else.
+
+**Opt-out:** set `attributionEnabled: false` when configuring:
+
+```swift
+try Owl.configure(
+    endpoint: "https://api.owlmetry.com",
+    apiKey: "owl_client_…",
+    attributionEnabled: false
+)
+```
+
+**Manual submission:** apps that run their own token fetch can hand the token off to OwlMetry:
+
+```swift
+await Owl.sendAppleSearchAdsAttributionToken(myCapturedToken)
+```
+
+Normal apps should not need to call this — the auto-capture on `configure()` covers it.
+
+**Privacy notes:**
+- AAAttribution is first-party and does **not** require App Tracking Transparency (no ATT prompt).
+- No privacy manifest entries are required for token retrieval.
+- Apple's attribution record may take up to ~24h to populate after install. The SDK retries across launches and gives up after 5 pending responses (writes `attribution_source = "none"`).
+- In the iOS simulator `AAAttribution.attributionToken()` throws `platformNotSupported` — set `OWLMETRY_MOCK_ADSERVICES_TOKEN` in the scheme's environment (DEBUG only) to mock a token.
+
 ## Collect User Feedback
 
 OwlMetry ships a reusable SwiftUI view (`OwlFeedbackView`) plus a programmatic API (`Owl.sendFeedback`) for gathering free-text feedback inside your app. Submissions are linked automatically to the current session, user id, app version, device, and environment — nothing extra to pass in.

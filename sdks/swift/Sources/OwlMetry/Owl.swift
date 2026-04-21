@@ -31,9 +31,10 @@ public enum Owl {
         flushOnBackground: Bool = true,
         compressionEnabled: Bool = true,
         networkTrackingEnabled: Bool = true,
-        consoleLogging: Bool = true
+        consoleLogging: Bool = true,
+        attributionEnabled: Bool = true
     ) throws {
-        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled, consoleLogging: consoleLogging)
+        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled, consoleLogging: consoleLogging, attributionEnabled: attributionEnabled)
         try configureWith(config)
     }
 
@@ -45,9 +46,10 @@ public enum Owl {
         flushOnBackground: Bool = true,
         compressionEnabled: Bool = true,
         networkTrackingEnabled: Bool = true,
-        consoleLogging: Bool = true
+        consoleLogging: Bool = true,
+        attributionEnabled: Bool = true
     ) throws {
-        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled, consoleLogging: consoleLogging)
+        let config = try OwlConfiguration(endpoint: endpoint, apiKey: apiKey, bundleId: bundleId, flushOnBackground: flushOnBackground, compressionEnabled: compressionEnabled, networkTrackingEnabled: networkTrackingEnabled, consoleLogging: consoleLogging, attributionEnabled: attributionEnabled)
         try configureWith(config)
     }
 
@@ -127,6 +129,20 @@ public enum Owl {
             }
         }
 
+        // Auto-capture Apple Search Ads attribution on configure. Opt-out via
+        // `attributionEnabled: false`. Fully self-contained: honors the
+        // per-install captured flag, handles simulator/non-iOS gracefully,
+        // and retries across launches on transient failures.
+        if config.attributionEnabled {
+            Task.detached(priority: .background) {
+                await AppleSearchAdsAttribution.captureIfNeeded(
+                    anonymousId: anonId,
+                    userId: userId,
+                    transport: transport
+                )
+            }
+        }
+
         // Emit session start event with launch time if available
         var sessionAttributes: [String: String]? = nil
         if let launchMs = Self.processLaunchDurationMs() {
@@ -141,6 +157,13 @@ public enum Owl {
     /// The current session ID, or `nil` if the SDK has not been configured.
     public static var sessionId: String? {
         state.withLock { $0.sessionId }
+    }
+
+    /// The current user ID used on outgoing events — the real user ID if
+    /// `setUser(_:)` has been called, otherwise the device's persistent
+    /// anonymous ID. `nil` before `configure()` has been called.
+    public static var currentUserId: String? {
+        state.withLock { $0.defaultUserId }
     }
 
     // MARK: - User Identity
@@ -198,6 +221,33 @@ public enum Owl {
         Task {
             await transport.setUserProperties(userId: userId, properties: properties)
         }
+    }
+
+    // MARK: - Attribution
+
+    /// Submit an Apple Search Ads attribution token obtained by the app
+    /// itself (for example from a custom attribution flow) and let OwlMetry
+    /// resolve it with Apple.
+    ///
+    /// You do **not** need to call this in normal use — `Owl.configure()`
+    /// auto-captures attribution in the background. Provided for apps that
+    /// opt out via `OwlConfiguration.attributionEnabled = false` and manage
+    /// token acquisition themselves, and for testing.
+    ///
+    /// Returns `true` on successful server submission (attributed or not),
+    /// `false` on pending, invalid token, or transport failure.
+    @discardableResult
+    public static func sendAppleSearchAdsAttributionToken(_ token: String) async -> Bool {
+        let (anonId, userId, transport) = state.withLock { s -> (String?, String?, EventTransport?) in
+            return (s.anonymousId, s.defaultUserId, s.transport)
+        }
+        guard let anonId, let userId, let transport else { return false }
+        return await AppleSearchAdsAttribution.submit(
+            token: token,
+            anonymousId: anonId,
+            userId: userId,
+            transport: transport
+        )
     }
 
     // MARK: - Logging
@@ -468,6 +518,11 @@ public enum Owl {
     /// Access the offline queue for testing.
     static var _offlineQueue: OfflineQueue? {
         state.withLock { $0.offlineQueue }
+    }
+
+    /// Access the event transport for testing.
+    static func _transportForTests() -> EventTransport? {
+        state.withLock { $0.transport }
     }
 
     // MARK: - Internal

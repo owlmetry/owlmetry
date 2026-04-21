@@ -50,7 +50,10 @@ done
 
 echo "=== Running Swift SDK integration tests ==="
 cd "$ROOT_DIR/sdks/swift"
+# Regex matches both the generic integration tests and the attribution tests;
+# pure unit test classes (DuplicateFilterTests etc.) are excluded here and
+# run via `swift test` standalone.
 OWLMETRY_TEST_ENDPOINT="http://127.0.0.1:$TEST_PORT" \
-    swift test --filter SDKIntegrationTests 2>&1
+    swift test --filter "(SDKIntegrationTests|AppleSearchAdsAttributionTests)" 2>&1
 
 echo "=== SDK integration tests passed ==="

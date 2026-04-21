@@ -21,6 +21,7 @@ struct ContentView: View {
                 funnelDemoSection
                 identitySection
                 userPropertiesSection
+                attributionSection
                 feedbackSection
                 backendDemoSection
                 logOutputSection
@@ -235,6 +236,73 @@ struct ContentView: View {
                 appendLog("[PROPS] plan=premium, rc_subscriber=true, rc_product=monthly_pro")
             }
             .tint(.purple)
+        }
+    }
+
+    // MARK: - Attribution
+
+    /// Attribution is auto-captured on `Owl.configure()`. The controls here
+    /// are for poking at it in development: force a dev-mode submission
+    /// without relying on AdServices, or clear the "captured" flag so the
+    /// next app launch re-attempts capture.
+    private var attributionSection: some View {
+        Section("Attribution") {
+            Text("Auto-captures Apple Search Ads attribution on app launch. Set OWLMETRY_MOCK_ADSERVICES_TOKEN in the scheme to exercise the real code path in the simulator.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("Submit Mock Attribution (dev)") {
+                Task {
+                    let result = await postDevMockAttribution(devMock: "attributed")
+                    appendLog("[ATTRIBUTION] submit mock → \(result)")
+                }
+            }
+            .tint(.purple)
+
+            Button("Submit Mock (unattributed)") {
+                Task {
+                    let result = await postDevMockAttribution(devMock: "unattributed")
+                    appendLog("[ATTRIBUTION] submit mock unattributed → \(result)")
+                }
+            }
+            .tint(.gray)
+
+            Button("Reset Capture Flag") {
+                let defaults = UserDefaults.standard
+                for key in defaults.dictionaryRepresentation().keys where key.contains("owlmetry.attribution.") {
+                    defaults.removeObject(forKey: key)
+                }
+                appendLog("[ATTRIBUTION] reset captured flags; relaunch to re-attempt auto-capture")
+            }
+            .tint(.orange)
+        }
+    }
+
+    private func postDevMockAttribution(devMock: String) async -> String {
+        let baseURL = "http://localhost:4000"
+        guard let url = URL(string: "\(baseURL)/v1/identity/attribution/apple-search-ads") else {
+            return "bad url"
+        }
+        guard let currentUser = Owl.currentUserId else {
+            return "Owl not configured"
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer owl_client_demo_000000000000000000000000000000000000000000", forHTTPHeaderField: "Authorization")
+        let body: [String: String] = [
+            "user_id": currentUser,
+            "attribution_token": "ignored-in-mock",
+            "dev_mock": devMock,
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let text = String(data: data, encoding: .utf8) ?? ""
+            return "\(status): \(text.prefix(200))"
+        } catch {
+            return "error: \(error.localizedDescription)"
         }
     }
 

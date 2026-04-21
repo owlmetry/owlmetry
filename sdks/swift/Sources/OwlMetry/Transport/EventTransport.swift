@@ -3,6 +3,7 @@ import os
 
 actor EventTransport {
     private var buffer: [LogEvent] = []
+    private let endpoint: URL
     private let ingestURL: URL
     private let claimURL: URL
     private let propertiesURL: URL
@@ -34,6 +35,7 @@ actor EventTransport {
         networkMonitor: NetworkMonitor,
         session: URLSession = .shared
     ) {
+        self.endpoint = endpoint
         self.ingestURL = endpoint.appendingPathComponent("v1/ingest")
         self.claimURL = endpoint.appendingPathComponent("v1/identity/claim")
         self.propertiesURL = endpoint.appendingPathComponent("v1/identity/properties")
@@ -44,6 +46,12 @@ actor EventTransport {
         self.offlineQueue = offlineQueue
         self.networkMonitor = networkMonitor
         self.session = session
+    }
+
+    /// Build the URL for an attribution submission to a specific network. Kept
+    /// as a helper so future network methods share the same namespace.
+    private func attributionURL(network: OwlAttributionNetwork) -> URL {
+        endpoint.appendingPathComponent("v1/identity/attribution/\(network.slug)")
     }
 
     func start() {
@@ -174,6 +182,87 @@ actor EventTransport {
         }
     }
 
+    /// One-shot submission of an Apple Search Ads attribution token.
+    /// Retries on transport failures (5 attempts, exponential backoff up to
+    /// 30s). The server resolves the token with Apple's Attribution API and
+    /// writes `asa_*` / `attribution_source` properties on the user.
+    func submitAppleSearchAdsAttributionToken(userId: String, token: String) async -> AttributionSubmissionResult {
+        let body: [String: String] = [
+            "user_id": userId,
+            "attribution_token": token,
+        ]
+        return await submitAttributionBody(body, network: .appleSearchAds)
+    }
+
+    /// Test-only variant that includes a `dev_mock` hint the server uses to
+    /// skip the upstream Apple call. Only honored when the server runs with
+    /// NODE_ENV != "production".
+    func submitAppleSearchAdsAttributionMock(userId: String, token: String, devMock: String) async -> AttributionSubmissionResult {
+        let body: [String: String] = [
+            "user_id": userId,
+            "attribution_token": token,
+            "dev_mock": devMock,
+        ]
+        return await submitAttributionBody(body, network: .appleSearchAds)
+    }
+
+    private func submitAttributionBody(_ body: [String: String], network: OwlAttributionNetwork) async -> AttributionSubmissionResult {
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
+            Self.logger.error("Failed to encode attribution request")
+            return .transportFailure
+        }
+
+        let url = attributionURL(network: network)
+
+        for attempt in 0..<maxRetries {
+            let request = makeRequest(url: url, body: httpBody)
+            do {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    if attempt < maxRetries - 1 { await sleepBackoff(attempt: attempt) }
+                    continue
+                }
+
+                if (200..<300).contains(http.statusCode) {
+                    if let decoded = try? JSONDecoder().decode(AttributionResponseBody.self, from: data) {
+                        if decoded.pending {
+                            return .pending(retryAfterSeconds: decoded.retry_after_seconds ?? 60)
+                        }
+                        return .success(
+                            attributionSource: decoded.properties["attribution_source"] ?? "unknown",
+                            properties: decoded.properties
+                        )
+                    }
+                    Self.logger.warning("Attribution response decode failed")
+                    return .transportFailure
+                }
+
+                // 4xx on this route means the server rejected the token as
+                // invalid (or a validation failure). Don't retry — retrying
+                // won't change the outcome.
+                if (400..<500).contains(http.statusCode) {
+                    return .invalidToken
+                }
+
+                // 5xx — retry with backoff.
+                Self.logger.warning("Attribution returned \(http.statusCode), attempt \(attempt + 1)/\(self.maxRetries)")
+            } catch {
+                Self.logger.warning("Attribution failed: \(error.localizedDescription), attempt \(attempt + 1)/\(self.maxRetries)")
+            }
+
+            if attempt < maxRetries - 1 {
+                await sleepBackoff(attempt: attempt)
+            }
+        }
+
+        return .transportFailure
+    }
+
+    private func sleepBackoff(attempt: Int) async {
+        let backoff = min(pow(2.0, Double(attempt)), maxBackoff)
+        try? await Task.sleep(nanoseconds: UInt64(backoff * 1_000_000_000))
+    }
+
     /// One-shot synchronous feedback submission. Does NOT queue offline — caller handles errors.
     func submitFeedback(_ payload: FeedbackRequestBody) async -> Result<OwlFeedbackReceipt, OwlFeedbackError> {
         let httpBody: Data
@@ -280,4 +369,11 @@ actor EventTransport {
 private struct IngestResponse: Codable {
     let accepted: Int
     let rejected: Int
+}
+
+private struct AttributionResponseBody: Decodable {
+    let attributed: Bool?
+    let pending: Bool
+    let retry_after_seconds: Int?
+    let properties: [String: String]
 }

@@ -26,6 +26,7 @@ import { metricsRoutes, metricByIdRoutes } from "../routes/metrics.js";
 import { funnelsRoutes, funnelByIdRoutes } from "../routes/funnels.js";
 import { auditLogsRoutes } from "../routes/audit-logs.js";
 import { userPropertiesRoutes } from "../routes/user-properties.js";
+import { attributionRoutes } from "../routes/attribution.js";
 import { integrationsRoutes } from "../routes/integrations.js";
 import { revenuecatRoutes } from "../routes/revenuecat.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
@@ -389,6 +390,7 @@ export async function buildApp() {
   await app.register(funnelByIdRoutes, { prefix: "/v1" });
   await app.register(auditLogsRoutes, { prefix: "/v1/teams/:teamId" });
   await app.register(userPropertiesRoutes, { prefix: "/v1" });
+  await app.register(attributionRoutes, { prefix: "/v1" });
   await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(revenuecatRoutes, { prefix: "/v1" });
   await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
