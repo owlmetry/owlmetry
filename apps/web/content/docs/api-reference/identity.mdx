@@ -1,9 +1,9 @@
 ---
 title: Identity
-description: Identity endpoints — claim anonymous events for a known user ID and set user properties.
+description: Identity endpoints — claim anonymous events for a known user ID, set user properties, and submit attribution tokens.
 ---
 
-Identity management: link anonymous events to a known user ID after authentication, and attach key-value properties to users.
+Identity management: link anonymous events to a known user ID after authentication, attach key-value properties to users, and submit ad-network attribution tokens.
 
 ## POST /v1/identity/claim
 
@@ -114,3 +114,64 @@ Set, merge, or delete user properties for a known user. Properties are stored as
 ```
 
 The returned `properties` object reflects the full post-merge state for the user. The merge operation is race-condition safe.
+
+## POST /v1/identity/attribution/:source
+
+Submit an ad-network attribution token for server-side resolution. The server calls the network's attribution API (e.g. Apple) and writes the result to the user's properties via the same merge semantics as `/v1/identity/properties`.
+
+**Auth required:** Yes (client API key with `users:write` permission, scoped to an app)
+
+### Path parameters
+
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `source` | `apple-search-ads` | Attribution network. The route is future-proofed — additional networks will slot in under new `source` values. |
+
+### Request
+
+```json
+{
+  "user_id": "owl_anon_A1B2…",
+  "attribution_token": "<AdServices token>"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | string | Yes | The user (anonymous or real) to attach attribution properties to. |
+| `attribution_token` | string | Yes | Opaque token from the ad network. For Apple Search Ads this is `AAAttribution.attributionToken()`. |
+| `dev_mock` | `"attributed" \| "unattributed" \| "pending"` | No | Development helper — ignored when `NODE_ENV=production`. |
+
+### Response
+
+```json
+// Attributed (200)
+{
+  "attributed": true,
+  "pending": false,
+  "properties": {
+    "attribution_source": "apple_search_ads",
+    "asa_campaign_id": "123",
+    "asa_ad_group_id": "456",
+    "asa_keyword_id": "789",
+    "asa_claim_type": "click",
+    "asa_ad_id": "42",
+    "asa_creative_set_id": "7"
+  }
+}
+
+// Not attributed (200)
+{ "attributed": false, "pending": false, "properties": { "attribution_source": "none" } }
+
+// Pending — Apple hasn't built the record yet (200)
+{ "attributed": null, "pending": true, "retry_after_seconds": 3600, "properties": {} }
+```
+
+On a `pending` response the caller should retry after `retry_after_seconds`. The Swift SDK retries across app launches up to `ASA_MAX_PENDING_ATTEMPTS` (5) times before writing `attribution_source = "none"` and stopping. Returns `400` for an invalid token, `502` for an upstream Apple error.
+
+### Properties written
+
+The server writes via the same `mergeUserProperties` helper used by `/v1/identity/properties`, so these keys merge into the user's existing properties and survive identity claim:
+
+- `attribution_source` — `"apple_search_ads"` when Apple attributed, `"none"` when capture completed but nothing attributed.
+- `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` — populated only when `attributed` is `true`.

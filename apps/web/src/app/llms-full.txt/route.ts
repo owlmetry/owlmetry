@@ -27,6 +27,7 @@ export function GET() {
     "- **Metrics**: Time any operation end-to-end — track p50, p95, failure rates",
     "- **Funnels**: Multi-step conversion funnels with A/B experiment segmentation",
     "- **Experiments**: Client-side A/B experiment assignment, persisted across sessions",
+    "- **Attribution**: Auto-captured Apple Search Ads acquisition data per user",
     "- **SDKs**: Swift (iOS/macOS) and Node.js — batching, compression, and retry built in",
     "- **CLI**: Agent-native CLI for setup, querying, and management (`npm i -g @owlmetry/cli`)",
     "- **Self-hosted**: Single Postgres database, deploy on your own infrastructure",

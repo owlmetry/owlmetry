@@ -65,6 +65,7 @@ func application(
 | `compressionEnabled` | `Bool` | `true` | Gzip-compress request bodies before sending. |
 | `networkTrackingEnabled` | `Bool` | `true` | Automatically track URLSession HTTP requests. |
 | `consoleLogging` | `Bool` | `true` | Print events to the Xcode console / terminal. Each line is prefixed with `🦉 OwlMetry` and the log level. Set to `false` to suppress. |
+| `attributionEnabled` | `Bool` | `true` | Auto-capture Apple Search Ads attribution on configure. See [below](#apple-search-ads-attribution). |
 
 ## Full Example with All Options
 
@@ -98,6 +99,37 @@ try Owl.configure(
 | `invalidEndpoint` | The endpoint string is not a valid URL. |
 | `invalidApiKey` | The API key does not start with `owl_client_`. |
 | `missingBundleId` | `Bundle.main.bundleIdentifier` is nil or empty. This can happen in command-line tools or certain test environments. |
+
+## Apple Search Ads Attribution
+
+When `attributionEnabled` is `true` (the default), the SDK auto-captures Apple Search Ads attribution shortly after `Owl.configure()`. It asks the AdServices framework for an attribution token, POSTs it to `/v1/identity/attribution/apple-search-ads`, and the server resolves it against Apple's Attribution API and writes the results to the current user's [properties](/docs/sdks/swift/user-properties).
+
+The SDK writes one of:
+
+- `attribution_source = "apple_search_ads"` plus `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` when Apple attributes the install.
+- `attribution_source = "none"` when Apple responds but the install is not attributed, or after `ASA_MAX_PENDING_ATTEMPTS` (5) failed retries.
+
+Capture runs once per anonymous ID and is idempotent — the SDK records completion in `UserDefaults` and skips on subsequent launches. If Apple's attribution record isn't ready yet (HTTP 404), the server returns `pending: true` and the SDK retries on the next launch, up to 5 attempts across ~24h.
+
+To opt out entirely:
+
+```swift
+try Owl.configure(
+    endpoint: "https://ingest.owlmetry.com",
+    apiKey: "owl_client_...",
+    attributionEnabled: false
+)
+```
+
+If you disable auto-capture, you can still submit a token manually — e.g. after showing an ATT prompt — with:
+
+```swift
+let sent = await Owl.sendAppleSearchAdsAttributionToken(token)
+```
+
+`Owl.resetAppleSearchAdsAttributionCapture()` clears the captured-once flag if you ever need to force a retry.
+
+Attribution properties carry through the identity claim: when an anonymous user is upgraded via `Owl.setUser()`, `asa_*` and `attribution_source` merge into the real user's properties.
 
 ## Calling Configure More Than Once
 

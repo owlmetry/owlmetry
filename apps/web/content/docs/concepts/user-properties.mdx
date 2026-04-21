@@ -76,3 +76,15 @@ Use **user properties** for data that describes the user and changes infrequentl
 ## Identity Claim Merge
 
 When an anonymous user is claimed (Swift `Owl.setUser()`, or direct `POST /v1/identity/claim`), properties from the anonymous user are merged into the real user. The real user's existing values take precedence on key conflicts.
+
+## Reserved Namespaces
+
+Some property keys are populated by OwlMetry itself and should not be written manually from your app code. Overwriting them is allowed (properties are just strings), but you'll collide with the values integrations and attribution write.
+
+| Prefix / Key | Populated by | Purpose |
+|---|---|---|
+| `rc_*` | [RevenueCat integration](/docs/concepts/integrations) | Subscription status, plan, entitlements, billing period |
+| `attribution_source` | Attribution subsystem | Which network attributed the install (`apple_search_ads`, `none`) |
+| `asa_*` | Swift SDK ([auto-captured](/docs/sdks/swift/configuration#apple-search-ads-attribution)) | Apple Search Ads campaign / ad group / keyword / ad / creative set IDs and claim type |
+
+Attribution properties are captured once per anonymous user by the Swift SDK and carried through the claim merge into the real user. To opt out, set `attributionEnabled: false` on `Owl.configure()`.

@@ -286,6 +286,8 @@ Owl.clearUser()
 Owl.clearUser(newAnonymousId: true)
 ```
 
+Read the current user id (real if `setUser` was called, otherwise the anonymous device id; `nil` before `configure()`) via `Owl.currentUserId: String?` — useful for wiring other SDKs or surfacing the id in debug UI.
+
 **Important:** The SDK automatically flushes buffered events before claiming identity. If a previous `setUser()` call failed to reach the server (e.g. the device was offline), the SDK re-issues the claim on the next launch, and any anonymous events that only flush after the claim are still re-attributed to the real user automatically. `Owl.setUser(id)` just works once the device gets network.
 
 ## Funnel Tracking
@@ -490,6 +492,8 @@ await Owl.sendAppleSearchAdsAttributionToken(myCapturedToken)
 ```
 
 Normal apps should not need to call this — the auto-capture on `configure()` covers it.
+
+**Dev-only reset:** call `Owl.resetAppleSearchAdsAttributionCapture()` to clear the per-install captured flag so the next `Owl.configure()` re-attempts capture — intended for development builds and UI tests, not production.
 
 **Privacy notes:**
 - AAAttribution is first-party and does **not** require App Tracking Transparency (no ATT prompt).
