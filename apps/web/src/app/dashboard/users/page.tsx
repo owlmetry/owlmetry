@@ -70,8 +70,9 @@ export default function UsersPage() {
       since: "",
       until: "",
       app_user_id: "",
+      sort: "first_seen",
     },
-    persistKeys: ["app_user_id"],
+    persistKeys: ["app_user_id", "sort"],
   });
 
   // Projects & apps for filter dropdowns
@@ -116,6 +117,8 @@ export default function UsersPage() {
   }
   if (filters.computedSince) filterParams.since = filters.computedSince;
   if (filters.computedUntil) filterParams.until = filters.computedUntil;
+  const sort = filters.get("sort") === "last_seen" ? "last_seen" : "first_seen";
+  filterParams.sort = sort;
 
   const { users, isLoading, isLoadingMore, hasMore, loadMore } = useTeamAppUsers(filterParams);
 
@@ -329,13 +332,27 @@ export default function UsersPage() {
         </div>
       </FilterSheet>
 
-      {/* Auto-refresh indicator */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-        </span>
-        Auto-refreshing every 30s
+      {/* Sort + auto-refresh */}
+      <div className="flex items-center justify-between gap-2">
+        <Select
+          value={sort}
+          onValueChange={(v) => filters.set("sort", v)}
+        >
+          <SelectTrigger className="h-8 w-[180px] text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="first_seen">Newest first seen</SelectItem>
+            <SelectItem value="last_seen">Most recently seen</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+          </span>
+          Auto-refreshing every 30s
+        </div>
       </div>
 
       {/* Users table */}
