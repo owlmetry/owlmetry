@@ -80,7 +80,7 @@ final class AppleSearchAdsAttributionTests: XCTestCase {
             return
         }
 
-        let result = await transport.submitAppleSearchAdsAttributionMock(
+        let result = await transport.submitAppleSearchAdsAttributionToken(
             userId: userId,
             token: "ignored",
             devMock: "attributed"
@@ -116,7 +116,7 @@ final class AppleSearchAdsAttributionTests: XCTestCase {
         AppleSearchAdsAttribution.State.reset(anonymousId: anonId)
 
         // Submit via the full capture flow with a pending-returning server.
-        _ = await AppleSearchAdsAttribution.submitForTest(
+        _ = await AppleSearchAdsAttribution.submit(
             token: "ignored",
             anonymousId: anonId,
             userId: userId,
@@ -153,7 +153,7 @@ final class AppleSearchAdsAttributionTests: XCTestCase {
             _ = AppleSearchAdsAttribution.State.incrementPendingAttempts(anonymousId: anonId)
         }
 
-        _ = await AppleSearchAdsAttribution.submitForTest(
+        _ = await AppleSearchAdsAttribution.submit(
             token: "ignored",
             anonymousId: anonId,
             userId: userId,

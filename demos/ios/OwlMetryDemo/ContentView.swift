@@ -268,11 +268,8 @@ struct ContentView: View {
             .tint(.gray)
 
             Button("Reset Capture Flag") {
-                let defaults = UserDefaults.standard
-                for key in defaults.dictionaryRepresentation().keys where key.contains("owlmetry.attribution.") {
-                    defaults.removeObject(forKey: key)
-                }
-                appendLog("[ATTRIBUTION] reset captured flags; relaunch to re-attempt auto-capture")
+                Owl.resetAppleSearchAdsAttributionCapture()
+                appendLog("[ATTRIBUTION] reset capture flag; relaunch to re-attempt auto-capture")
             }
             .tint(.orange)
         }

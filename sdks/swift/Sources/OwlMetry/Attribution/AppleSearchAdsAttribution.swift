@@ -53,23 +53,36 @@ enum AppleSearchAdsAttribution {
     /// Submit a caller-supplied token. Used by `Owl.sendAppleSearchAdsAttributionToken(_:)`
     /// (custom flows / tests). Respects the capture cache: if we already
     /// captured for this anon, we still POST but don't bump the retry counter.
+    ///
+    /// `devMock` is a test hook — it's forwarded to the server, which honors
+    /// it only in non-production builds. Production code leaves it nil.
     @discardableResult
-    static func submit(token: String, anonymousId: String, userId: String, transport: EventTransport) async -> Bool {
+    static func submit(
+        token: String,
+        anonymousId: String,
+        userId: String,
+        transport: EventTransport,
+        devMock: String? = nil
+    ) async -> Bool {
         // Optimistic cache: set the flag BEFORE the POST so a concurrent
         // captureIfNeeded doesn't duplicate work. Clear only on transport failure.
         let wasAlreadyCaptured = State.isCaptured(anonymousId: anonymousId)
         State.markCaptured(anonymousId: anonymousId)
 
-        let result = await transport.submitAppleSearchAdsAttributionToken(userId: userId, token: token)
+        let result = await transport.submitAppleSearchAdsAttributionToken(
+            userId: userId,
+            token: token,
+            devMock: devMock
+        )
 
         switch result {
         case .success:
             logger.info("Attribution submitted successfully")
             return true
         case .pending:
-            // Server says "Apple record not ready yet" — don't treat as
-            // captured. Bump the pending counter; if we've hit the cap, give
-            // up by writing attribution_source=none and calling it done.
+            // Apple's record may take ~24h to populate. Bump the pending
+            // counter; if we've hit the cap, give up by writing
+            // attribution_source=none and calling it done.
             if !wasAlreadyCaptured {
                 State.clearCaptured(anonymousId: anonymousId)
                 let attempts = State.incrementPendingAttempts(anonymousId: anonymousId)
@@ -83,13 +96,11 @@ enum AppleSearchAdsAttribution {
             }
             return false
         case .invalidToken:
-            // The server rejected the token as invalid. Not worth retrying —
             // Apple keeps the same token for the install, so a second fetch
-            // gives us the same string.
+            // gives us the same string — not worth retrying.
             logger.warning("Attribution token rejected as invalid; not retrying.")
             return false
         case .transportFailure:
-            // Transient — clear the captured flag so next launch retries.
             if !wasAlreadyCaptured {
                 State.clearCaptured(anonymousId: anonymousId)
             }
@@ -107,48 +118,6 @@ enum AppleSearchAdsAttribution {
         )
     }
 
-    /// Test-only entrypoint that lets a test exercise the full capture flow
-    /// against a server in `dev_mock` mode. Production code should never pass
-    /// a devMock value — the real Apple fetch path is the only valid prod flow.
-    @discardableResult
-    static func submitForTest(
-        token: String,
-        anonymousId: String,
-        userId: String,
-        transport: EventTransport,
-        devMock: String
-    ) async -> Bool {
-        let wasAlreadyCaptured = State.isCaptured(anonymousId: anonymousId)
-        State.markCaptured(anonymousId: anonymousId)
-
-        let result = await transport.submitAppleSearchAdsAttributionMock(
-            userId: userId,
-            token: token,
-            devMock: devMock
-        )
-
-        switch result {
-        case .success:
-            return true
-        case .pending:
-            if !wasAlreadyCaptured {
-                State.clearCaptured(anonymousId: anonymousId)
-                let attempts = State.incrementPendingAttempts(anonymousId: anonymousId)
-                if attempts >= maxPendingAttempts {
-                    await recordUnattributedAfterGiveUp(userId: userId, transport: transport)
-                    State.markCaptured(anonymousId: anonymousId)
-                }
-            }
-            return false
-        case .invalidToken:
-            return false
-        case .transportFailure:
-            if !wasAlreadyCaptured {
-                State.clearCaptured(anonymousId: anonymousId)
-            }
-            return false
-        }
-    }
 
     // MARK: - Token fetch (simulator-aware)
 
@@ -225,7 +194,6 @@ extension AppleSearchAdsAttribution {
             UserDefaults.standard.removeObject(forKey: capturedKey(anonymousId: anonymousId))
         }
 
-        @discardableResult
         static func incrementPendingAttempts(anonymousId: String) -> Int {
             let defaults = UserDefaults.standard
             let key = pendingAttemptsKey(anonymousId: anonymousId)

@@ -186,36 +186,28 @@ actor EventTransport {
     /// Retries on transport failures (5 attempts, exponential backoff up to
     /// 30s). The server resolves the token with Apple's Attribution API and
     /// writes `asa_*` / `attribution_source` properties on the user.
-    func submitAppleSearchAdsAttributionToken(userId: String, token: String) async -> AttributionSubmissionResult {
-        let body: [String: String] = [
+    ///
+    /// `devMock` is honored only when the server runs with NODE_ENV != "production"
+    /// and is used by tests to skip the upstream Apple call.
+    func submitAppleSearchAdsAttributionToken(
+        userId: String,
+        token: String,
+        devMock: String? = nil
+    ) async -> AttributionSubmissionResult {
+        var body: [String: String] = [
             "user_id": userId,
             "attribution_token": token,
         ]
-        return await submitAttributionBody(body, network: .appleSearchAds)
-    }
+        if let devMock { body["dev_mock"] = devMock }
 
-    /// Test-only variant that includes a `dev_mock` hint the server uses to
-    /// skip the upstream Apple call. Only honored when the server runs with
-    /// NODE_ENV != "production".
-    func submitAppleSearchAdsAttributionMock(userId: String, token: String, devMock: String) async -> AttributionSubmissionResult {
-        let body: [String: String] = [
-            "user_id": userId,
-            "attribution_token": token,
-            "dev_mock": devMock,
-        ]
-        return await submitAttributionBody(body, network: .appleSearchAds)
-    }
-
-    private func submitAttributionBody(_ body: [String: String], network: OwlAttributionNetwork) async -> AttributionSubmissionResult {
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else {
             Self.logger.error("Failed to encode attribution request")
             return .transportFailure
         }
 
-        let url = attributionURL(network: network)
+        let request = makeRequest(url: attributionURL(network: .appleSearchAds), body: httpBody)
 
         for attempt in 0..<maxRetries {
-            let request = makeRequest(url: url, body: httpBody)
             do {
                 let (data, response) = try await session.data(for: request)
                 guard let http = response as? HTTPURLResponse else {
@@ -224,27 +216,24 @@ actor EventTransport {
                 }
 
                 if (200..<300).contains(http.statusCode) {
-                    if let decoded = try? JSONDecoder().decode(AttributionResponseBody.self, from: data) {
-                        if decoded.pending {
-                            return .pending(retryAfterSeconds: decoded.retry_after_seconds ?? 60)
-                        }
-                        return .success(
-                            attributionSource: decoded.properties["attribution_source"] ?? "unknown",
-                            properties: decoded.properties
-                        )
+                    guard let decoded = try? JSONDecoder().decode(AttributionResponseBody.self, from: data) else {
+                        Self.logger.warning("Attribution response decode failed")
+                        return .transportFailure
                     }
-                    Self.logger.warning("Attribution response decode failed")
-                    return .transportFailure
+                    if decoded.pending {
+                        return .pending(retryAfterSeconds: decoded.retry_after_seconds ?? 60)
+                    }
+                    return .success(
+                        attributionSource: decoded.properties["attribution_source"] ?? "unknown",
+                        properties: decoded.properties
+                    )
                 }
 
-                // 4xx on this route means the server rejected the token as
-                // invalid (or a validation failure). Don't retry — retrying
-                // won't change the outcome.
+                // 4xx: server rejected the token. Retrying won't change the outcome.
                 if (400..<500).contains(http.statusCode) {
                     return .invalidToken
                 }
 
-                // 5xx — retry with backoff.
                 Self.logger.warning("Attribution returned \(http.statusCode), attempt \(attempt + 1)/\(self.maxRetries)")
             } catch {
                 Self.logger.warning("Attribution failed: \(error.localizedDescription), attempt \(attempt + 1)/\(self.maxRetries)")

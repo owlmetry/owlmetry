@@ -48,25 +48,18 @@ const ATTRIBUTION_SOURCE_LABELS: Record<string, string> = {
   none: "None",
 };
 
-function humanizeAttributionKey(key: string): string {
-  if (key === "attribution_source") return "Source";
-  // Strip the `asa_`/`meta_`/etc. prefix and humanize the remainder.
-  const stripped = ATTRIBUTION_PREFIXES.reduce(
+function stripPrefixAndHumanize(key: string, prefixes: readonly string[]): string {
+  const stripped = prefixes.reduce(
     (k, p) => (k.startsWith(p) ? k.slice(p.length) : k),
     key,
   );
-  // Replace underscores with spaces, sentence case.
   const words = stripped.replace(/_/g, " ").trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function humanizeSubscriptionKey(key: string): string {
-  const stripped = SUBSCRIPTION_PREFIXES.reduce(
-    (k, p) => (k.startsWith(p) ? k.slice(p.length) : k),
-    key,
-  );
-  const words = stripped.replace(/_/g, " ").trim();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+function humanizeAttributionKey(key: string): string {
+  if (key === "attribution_source") return "Source";
+  return stripPrefixAndHumanize(key, ATTRIBUTION_PREFIXES);
 }
 
 function PropertiesPanel({ properties }: { properties: Record<string, string> }) {
@@ -113,7 +106,7 @@ function PropertiesPanel({ properties }: { properties: Record<string, string> })
           </h3>
           <div className="space-y-1">
             {subscription.map(([k, v]) => (
-              <DetailRow key={k} label={humanizeSubscriptionKey(k)} value={v} />
+              <DetailRow key={k} label={stripPrefixAndHumanize(k, SUBSCRIPTION_PREFIXES)} value={v} />
             ))}
           </div>
         </>

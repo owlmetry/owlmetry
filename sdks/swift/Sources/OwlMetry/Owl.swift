@@ -250,6 +250,16 @@ public enum Owl {
         )
     }
 
+    /// Clear the "captured" flag for Apple Search Ads attribution on the
+    /// current install so the next `Owl.configure()` re-attempts capture.
+    /// Intended for development builds and UI tests; production apps should
+    /// not need this.
+    public static func resetAppleSearchAdsAttributionCapture() {
+        let anonId = state.withLock { $0.anonymousId }
+        guard let anonId else { return }
+        AppleSearchAdsAttribution.State.reset(anonymousId: anonId)
+    }
+
     // MARK: - Logging
 
     public static func info(
