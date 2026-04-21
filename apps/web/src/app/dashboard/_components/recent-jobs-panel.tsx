@@ -77,7 +77,7 @@ export function RecentJobsPanel() {
           return (
             <Link
               key={run.id}
-              href="/dashboard/jobs"
+              href={`/dashboard/jobs?job_id=${run.id}`}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-[88px] flex justify-start">

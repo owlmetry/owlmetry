@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 // Deep imports bypass the barrel export which pulls in node:crypto
 import type { JobRunResponse, JobRunsQueryParams, TriggerJobRequest, JobType, ProjectResponse } from "@owlmetry/shared";
 import { JOB_TYPE_META } from "@owlmetry/shared/jobs";
@@ -117,11 +117,14 @@ export default function JobsPage() {
       time_range: "",
       since: "",
       until: "",
+      job_id: "",
     },
+    persistKeys: ["job_id"],
   });
 
   const [selectedRun, setSelectedRun] = useState<JobRunResponse | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const jobIdParam = filters.get("job_id");
+  const sheetOpen = !!jobIdParam;
   const [triggerOpen, setTriggerOpen] = useState(false);
   const [triggerType, setTriggerType] = useState("");
   const [triggerProjectId, setTriggerProjectId] = useState("");
@@ -143,6 +146,26 @@ export default function JobsPage() {
     currentTeam?.id,
     queryFilters,
   );
+
+  // Resolve selectedRun from URL job_id: prefer loaded list, fall back to fetching by id
+  const runInList = useMemo(
+    () => (jobIdParam ? jobRuns.find((r) => r.id === jobIdParam) ?? null : null),
+    [jobIdParam, jobRuns],
+  );
+  const { data: fetchedRun } = useSWR<{ job_run: JobRunResponse }>(
+    jobIdParam && !runInList ? `/v1/jobs/${jobIdParam}` : null,
+  );
+  useEffect(() => {
+    if (!jobIdParam) {
+      setSelectedRun(null);
+      return;
+    }
+    if (runInList) {
+      setSelectedRun(runInList);
+    } else if (fetchedRun?.job_run && fetchedRun.job_run.id === jobIdParam) {
+      setSelectedRun(fetchedRun.job_run);
+    }
+  }, [jobIdParam, runInList, fetchedRun]);
 
   const timeRange = filters.get("time_range");
   const sinceInput = filters.get("since");
@@ -201,7 +224,7 @@ export default function JobsPage() {
     try {
       await api.post(`/v1/jobs/${runId}/cancel`);
       mutate();
-      setSheetOpen(false);
+      filters.set("job_id", "");
     } catch {
       // ignore
     } finally {
@@ -419,7 +442,7 @@ export default function JobsPage() {
                   return (
                     <TableRow
                       key={run.id}
-                      onClick={() => { setSelectedRun(run); setSheetOpen(true); }}
+                      onClick={() => { setSelectedRun(run); filters.set("job_id", run.id); }}
                       className="cursor-pointer"
                     >
                       <TableCell className="py-1.5">{statusBadge(run.status)}</TableCell>
@@ -471,7 +494,7 @@ export default function JobsPage() {
       )}
 
       {/* Detail sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet open={sheetOpen} onOpenChange={(v) => { if (!v) filters.set("job_id", ""); }}>
         <SheetContent className="w-[480px] sm:max-w-[480px] p-0 flex flex-col">
           <SheetHeader className="px-6 pt-6 pb-4">
             <SheetTitle>Job Run Detail</SheetTitle>
