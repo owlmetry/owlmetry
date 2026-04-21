@@ -528,6 +528,7 @@ Every event automatically includes:
 - `_connection` — network type (wifi, cellular, ethernet, offline) via `NWPathMonitor`
 - `experiments` — current A/B experiment assignments
 - `environment` — specific runtime (ios, ipados, macos)
+- `country_code` — ISO-3166 alpha-2 country, stamped server-side from the ingest request (SDK does not send this)
 
 **Auto-emitted lifecycle events** (no manual calls needed):
 - `sdk:session_started` — on `configure()`, includes `_launch_ms` (time from process start to configure)

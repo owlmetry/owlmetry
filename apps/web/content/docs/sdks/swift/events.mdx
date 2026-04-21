@@ -67,6 +67,10 @@ Owl.info(
 
 The SDK automatically captures the source file, function name, and line number of every log call. This metadata is included on the event and visible in the dashboard, making it straightforward to trace an event back to the code that emitted it.
 
+## Country Is Server-Derived
+
+Each event's `country_code` is resolved server-side from the Cloudflare `CF-IPCountry` header on the ingest request. The SDK never sends it, and raw IP addresses are not stored. If the server is self-hosted without Cloudflare (or the request didn't pass through it), `country_code` is `null`. See [Events › Country](/docs/concepts/events#country-server-derived).
+
 ## File Attachments
 
 You can attach files to any event via the `attachments` parameter, but in practice this is almost always used with `Owl.error()` to capture the exact input bytes that triggered a failure (a media file that failed to decode, a document that failed to parse, etc.).

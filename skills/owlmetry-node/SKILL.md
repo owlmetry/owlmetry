@@ -130,7 +130,7 @@ try {
 
 All methods: `Owl.info/debug/warn/error(message, attrs?, options?)`. The third `options` argument supports `{ attachments }` for uploading files alongside the event — see *File Attachments* below.
 
-Source module (file:line) is auto-captured from the call stack.
+Source module (file:line) is auto-captured from the call stack. A `country_code` (ISO-3166 alpha-2) is stamped server-side from the ingest request's `CF-IPCountry` header — the SDK does not send it.
 
 **Backend-specific examples:**
 ```typescript

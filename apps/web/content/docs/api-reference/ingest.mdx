@@ -93,6 +93,14 @@ Accept a batch of events for a specific app.
 - **Deduplication:** Events with a `client_event_id` that matches an existing event (within the last 48 hours) are silently skipped.
 - **Bundle ID:** For non-backend apps, the `bundle_id` in the request must match the app's registered bundle_id exactly.
 
+### Server-derived fields
+
+Some event fields are populated by the server and cannot be sent by the SDK. Any values supplied by the client for these fields are ignored:
+
+| Field | Source |
+|-------|--------|
+| `country_code` | 2-letter ISO country code derived from the Cloudflare `CF-IPCountry` header on the ingest request. `null` when the header is missing (self-hosted without Cloudflare, direct-to-origin dev requests) or reports `XX`/`T1`. IP addresses themselves are never stored. |
+
 ### Gzip compression
 
 The endpoint accepts gzip-compressed request bodies. Set the `Content-Encoding: gzip` header. Both the compressed input and the decompressed output are limited to 1 MiB each. The compressed size is enforced via `Content-Length` check; the decompressed size is enforced during streaming decompression to prevent gzip bomb attacks (HTTP 413 if exceeded). The Swift SDK compresses payloads automatically.

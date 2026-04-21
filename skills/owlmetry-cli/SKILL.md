@@ -369,7 +369,7 @@ owlmetry issues comments <issueId> --project-id <id> --format json           # L
 
 ### Events
 
-Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.step()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window.
+Events are the raw log records emitted by SDKs — every `Owl.info()`, `Owl.error()`, `Owl.step()`, etc. Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window. Each event also carries a `country_code` (ISO-3166 alpha-2, stamped server-side from the ingest request, not sent by SDKs) and the `events`/`events view` output includes a Country column/field.
 
 ```bash
 owlmetry events [--project-id <id>] [--app-id <id>] [--since <time>] [--until <time>] [--level info|debug|warn|error] [--user-id <id>] [--session-id <id>] [--screen-name <name>] [--limit <n>] [--cursor <cursor>] [--data-mode production|development|all] [--order asc|desc] --format json
@@ -394,7 +394,7 @@ Output is a single chronological `events` array with `target_event_id` flagging 
 owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--billing <tiers>] [--limit <n>] --format json
 ```
 
-`--anonymous` and `--real` are mutually exclusive. `--billing` takes a comma-separated list of tiers (`paid`, `trial`, `free`) derived from RevenueCat-synced user properties — e.g. `--billing paid,trial` returns subscribers and trialists, omitting free users. Omitting the flag (or listing all three tiers) returns every tier.
+`--anonymous` and `--real` are mutually exclusive. `--billing` takes a comma-separated list of tiers (`paid`, `trial`, `free`) derived from RevenueCat-synced user properties — e.g. `--billing paid,trial` returns subscribers and trialists, omitting free users. Omitting the flag (or listing all three tiers) returns every tier. User rows include a `last_country_code` (most recent ingest country) rendered as a Country column.
 
 ### Metric Events & Aggregation
 

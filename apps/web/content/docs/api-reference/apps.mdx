@@ -160,6 +160,7 @@ List users seen by a specific app, ordered by most recently seen.
       "is_anonymous": true,
       "first_seen_at": "2024-01-01T00:00:00.000Z",
       "last_seen_at": "2024-01-15T10:30:00.000Z",
+      "last_country_code": "US",
       "claimed_from": null,
       "properties": {},
       "apps": [
@@ -178,6 +179,8 @@ List users seen by a specific app, ordered by most recently seen.
 ```
 
 App users are project-scoped: the `project_id` identifies the project, and the `apps` array lists each app within that project that has seen this user. A user seen from multiple apps in the same project appears once, not once per app.
+
+`last_country_code` is a 2-letter ISO country code derived server-side from the Cloudflare `CF-IPCountry` header on the most recent ingest request that carried one. It is never sent by SDKs, and is `null` until a request with a recognised country header arrives. See [Events › Country](/docs/concepts/events#country-server-derived).
 
 ## GET /v1/app-users
 
