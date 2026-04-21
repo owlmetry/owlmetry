@@ -4,7 +4,7 @@ import { projectIntegrations, appUsers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
-import { mergeUserProperties } from "../utils/user-properties.js";
+import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import {
   mapRevenueCatAttributesToAttributionProperties,
   normalizeWebhookSubscriberAttributes,
@@ -197,12 +197,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
             .where(and(eq(appUsers.project_id, projectId), eq(appUsers.user_id, userId)))
             .limit(1);
           const currentProps = (userRow?.properties ?? {}) as Record<string, unknown>;
-          attributionProps = Object.fromEntries(
-            Object.entries(mapped).filter(([key]) => {
-              const existing = currentProps[key];
-              return existing === undefined || existing === null || existing === "";
-            }),
-          );
+          attributionProps = selectUnsetProps(mapped, currentProps);
         }
       }
 
@@ -319,8 +314,12 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         });
       }
 
-      // Fail-soft: if /subscriptions errors, still return entitlements-only props.
-      const subsResult = await fetchRevenueCatSubscriptions(rcConfig.api_key, projectIdResult.projectId, userId);
+      // Fetch subscriptions and attributes concurrently — independent of the
+      // entitlements call we already awaited. Fail-soft on both.
+      const [subsResult, attrsResult] = await Promise.all([
+        fetchRevenueCatSubscriptions(rcConfig.api_key, projectIdResult.projectId, userId),
+        fetchRevenueCatCustomerAttributes(rcConfig.api_key, projectIdResult.projectId, userId),
+      ]);
       const subsData = subsResult.status === "found" ? subsResult.data : undefined;
       if (subsResult.status === "error") {
         app.log.warn(
@@ -329,10 +328,6 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         );
       }
 
-      // Fail-soft: attribution backfill via RC subscriber attributes. Per-field
-      // merge keeps Apple-live data authoritative while adding RC's name/keyword
-      // enrichment to any slot Apple can't populate.
-      const attrsResult = await fetchRevenueCatCustomerAttributes(rcConfig.api_key, projectIdResult.projectId, userId);
       let attributionProps: Record<string, string> = {};
       if (attrsResult.status === "found") {
         const mapped = mapRevenueCatAttributesToAttributionProperties(attrsResult.attributes);
@@ -343,12 +338,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
             .where(and(eq(appUsers.project_id, projectId), eq(appUsers.user_id, userId)))
             .limit(1);
           const currentProps = (userRow?.properties ?? {}) as Record<string, unknown>;
-          attributionProps = Object.fromEntries(
-            Object.entries(mapped).filter(([key]) => {
-              const existing = currentProps[key];
-              return existing === undefined || existing === null || existing === "";
-            }),
-          );
+          attributionProps = selectUnsetProps(mapped, currentProps);
         }
       } else if (attrsResult.status === "error") {
         app.log.warn(

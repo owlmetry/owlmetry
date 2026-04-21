@@ -2,7 +2,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { projectIntegrations, appUsers } from "@owlmetry/db";
 import { ATTRIBUTION_SOURCE_PROPERTY } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
-import { mergeUserProperties } from "../utils/user-properties.js";
+import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { mapRevenueCatAttributesToAttributionProperties } from "../utils/attribution/revenuecat.js";
 import {
   type RevenueCatConfig,
@@ -151,8 +151,14 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
     try {
       const result = await fetchRevenueCatSubscriber(rcConfig.api_key, rcProjectId, user.user_id);
       if (result.status === "found") {
-        // Fail-soft: if /subscriptions errors, we still sync the entitlements data.
-        const subsResult = await fetchRevenueCatSubscriptions(rcConfig.api_key, rcProjectId, user.user_id);
+        // Fetch subscriptions and attributes concurrently — both are independent
+        // of the entitlements response and share the ~350ms throttle window
+        // against RC's 480/min Customer Information rate limit. Fail-soft on
+        // both: an error on either doesn't abort the other merge.
+        const [subsResult, attrsResult] = await Promise.all([
+          fetchRevenueCatSubscriptions(rcConfig.api_key, rcProjectId, user.user_id),
+          fetchRevenueCatCustomerAttributes(rcConfig.api_key, rcProjectId, user.user_id),
+        ]);
         const subsData = subsResult.status === "found" ? subsResult.data : undefined;
         if (subsResult.status === "error") {
           ctx.log.warn(
@@ -161,15 +167,6 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
           );
         }
 
-        // Fail-soft: attribution backfill via RC subscriber attributes
-        // (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`). Fills slots
-        // that Apple's live AdServices flow can't populate — names and the
-        // literal search term — while never overwriting anything already set.
-        const attrsResult = await fetchRevenueCatCustomerAttributes(
-          rcConfig.api_key,
-          rcProjectId,
-          user.user_id,
-        );
         let attributionProps: Record<string, string> = {};
         if (attrsResult.status === "found") {
           const mapped = mapRevenueCatAttributesToAttributionProperties(attrsResult.attributes);
@@ -177,12 +174,7 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
             attributionSkippedNoAsa++;
           } else {
             const currentProps = (user.properties ?? {}) as Record<string, unknown>;
-            attributionProps = Object.fromEntries(
-              Object.entries(mapped).filter(([key]) => {
-                const existing = currentProps[key];
-                return existing === undefined || existing === null || existing === "";
-              }),
-            );
+            attributionProps = selectUnsetProps(mapped, currentProps);
             if (Object.keys(attributionProps).length > 0) {
               if (currentProps[ATTRIBUTION_SOURCE_PROPERTY] !== undefined) {
                 attributionEnrichedExisting++;
