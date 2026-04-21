@@ -1,0 +1,81 @@
+---
+title: User Feedback
+description: Forward free-text user feedback from your own frontend to OwlMetry.
+---
+
+The Node SDK can forward user feedback to OwlMetry so it lands in the dashboard's feedback tracker alongside feedback captured by the Swift SDK. Use this when your users submit feedback through your own UI — a web form, a chat widget, a support page — and your Node server acts as the bridge.
+
+See the [Feedback concept page](/docs/concepts/feedback) for the status lifecycle, comments, and how to work with feedback once it's captured.
+
+## Forwarding Feedback
+
+```typescript
+import { Owl } from "@owlmetry/node";
+
+const receipt = await Owl.sendFeedback("The dashboard was really helpful", {
+    name: "Jane Doe",
+    email: "jane@example.com",
+    userId: "user_123",
+});
+
+console.log(receipt.id);        // uuid of the new feedback row
+console.log(receipt.createdAt); // ISO-8601 timestamp
+```
+
+Unlike the logging methods, `sendFeedback` is **not** fire-and-forget — it awaits the server response and throws on failure. Wrap calls in `try/catch` so you can report a useful error back to the user.
+
+## Express Example
+
+```typescript
+import express from "express";
+import { Owl } from "@owlmetry/node";
+
+const app = express();
+app.use(express.json());
+
+app.post("/api/feedback", async (req, res) => {
+    try {
+        const receipt = await Owl.sendFeedback(req.body.message, {
+            name: req.body.name,
+            email: req.body.email,
+            userId: req.auth?.userId,
+            sessionId: req.headers["x-owl-session-id"] as string | undefined,
+        });
+        res.json({ id: receipt.id });
+    } catch (err) {
+        res.status(400).json({ error: (err as Error).message });
+    }
+});
+```
+
+## Using a Scoped Logger
+
+A scoped instance auto-fills `user_id` and `session_id` so a single request handler can log *and* send feedback without repeating IDs:
+
+```typescript
+const owl = Owl.withUser(userId).withSession(req.headers["x-owl-session-id"]);
+owl.info("feedback form submitted");
+await owl.sendFeedback(message, { email });
+```
+
+Pass any option explicitly in the second argument to override what the scope provides.
+
+## Options
+
+| Option | Default | Notes |
+|---|---|---|
+| `name` | — | Submitter name. Trimmed, max 255 chars server-side. |
+| `email` | — | Submitter email. Validated server-side. |
+| `userId` | scope's userId | Attach to an end-user in the project. |
+| `sessionId` | scope's sessionId | UUID — links feedback to the event timeline for that session. Non-UUIDs are silently ignored. |
+| `bundleId` | — | Only needed when forwarding for a mobile frontend whose OwlMetry app has a bundle_id set. |
+| `environment` | `"backend"` | Must be allowed for the API key's app platform. |
+| `appVersion` | `config.appVersion` | |
+| `deviceModel` | — | Pass-through when forwarding from a mobile frontend. |
+| `osVersion` | — | Pass-through when forwarding from a mobile frontend. |
+| `isDev` | `config.isDev` | Routes feedback into the dashboard's dev bucket. |
+
+## Limits
+
+- `message` is required, trimmed, and capped at 4000 characters (enforced server-side).
+- The server rejects invalid emails and environments that don't match the API key's app platform — those come back as thrown errors with the server's reason in the message.

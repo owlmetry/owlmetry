@@ -348,6 +348,34 @@ Connect RevenueCat to my OwlMetry project so I can see paid vs free users:
    waiting for RevenueCat's webhook.
 ```
 
+## User Feedback
+
+Forward free-text feedback collected by your own frontend (form, chat widget, support page) into the OwlMetry feedback tracker. Use this when your Node server is the pass-through between the end user and OwlMetry.
+
+```typescript
+try {
+  const receipt = await Owl.sendFeedback(req.body.message, {
+    name: req.body.name,
+    email: req.body.email,
+    userId: req.auth?.userId,
+    sessionId: req.headers['x-owl-session-id'], // UUID; non-UUIDs are silently dropped
+  });
+  res.json({ id: receipt.id });
+} catch (err) {
+  res.status(400).json({ error: err.message });
+}
+
+// Scoped form — auto-attaches userId + sessionId from the scope
+const owl = Owl.withUser(userId).withSession(sessionHeader);
+await owl.sendFeedback(message, { email });
+```
+
+Unlike `info` / `error` / `setUserProperties`, `sendFeedback` **throws on failure** — the caller is waiting on a user action, so errors must propagate. Always wrap in `try/catch`.
+
+`message` is required and trimmed; max 4000 chars (server-enforced). The server validates the email and environment and returns a descriptive error if either is rejected. Returns `{ id, createdAt }` — surface `id` back to the user if you want to reference the submission later (for example, in a "Thanks, we got your feedback #abcd" toast).
+
+Feedback shows up on `/dashboard/feedback`, in `owlmetry feedback list`, and via the MCP `list-feedback` tool.
+
 ## Serverless Support
 
 Serverless environments (AWS Lambda, Vercel Functions, Cloud Functions) freeze the runtime after each invocation. Events still in the buffer are lost when the runtime freezes — the flush timer and `beforeExit` handler may never fire.

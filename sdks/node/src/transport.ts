@@ -1,12 +1,23 @@
 import { gzipSync } from "node:zlib";
 import type { ValidatedConfig } from "./configuration.js";
-import type { LogEvent, IngestRequest } from "./types.js";
+import type { LogEvent, IngestRequest, FeedbackSubmission, FeedbackReceipt } from "./types.js";
 
 const GZIP_THRESHOLD = 512;
 const MAX_BATCH_SIZE = 20;
 const MAX_RETRIES = 5;
 const MAX_BACKOFF_MS = 30000;
 const REQUEST_TIMEOUT_MS = 10000;
+
+function extractServerError(text: string): string | null {
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+    if (typeof parsed.error === "string") return parsed.error;
+  } catch {
+    // Not JSON — return raw text.
+  }
+  return null;
+}
 
 export class Transport {
   private buffer: LogEvent[] = [];
@@ -110,6 +121,64 @@ export class Transport {
     if (this.config.debug) {
       console.error(`OwlMetry: setUserProperties failed after ${MAX_RETRIES + 1} attempts`);
     }
+  }
+
+  /**
+   * Submit a feedback row synchronously. Returns the parsed receipt on success
+   * or throws on terminal failure (4xx other than 429, or retries exhausted).
+   *
+   * Unlike `enqueue` and `setUserProperties`, this is developer-facing — the
+   * caller is waiting on the result of a user action, so errors must propagate.
+   */
+  async submitFeedback(body: FeedbackSubmission): Promise<FeedbackReceipt> {
+    const payload = JSON.stringify(body);
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetch(`${this.config.endpoint}/v1/feedback`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${this.config.apiKey}`,
+          },
+          body: payload,
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+
+        if (res.ok) {
+          return (await res.json()) as FeedbackReceipt;
+        }
+
+        const text = await res.text().catch(() => "");
+
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          const serverMessage = extractServerError(text) ?? text;
+          throw new Error(
+            `OwlMetry: sendFeedback rejected (${res.status})${serverMessage ? `: ${serverMessage}` : ""}`,
+          );
+        }
+
+        lastError = new Error(
+          `OwlMetry: sendFeedback failed with ${res.status}${text ? `: ${text}` : ""}`,
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("OwlMetry: sendFeedback rejected")) {
+          throw err;
+        }
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (this.config.debug) {
+          console.error("OwlMetry: network error during sendFeedback", err);
+        }
+      }
+
+      if (attempt < MAX_RETRIES) {
+        const backoff = Math.min(Math.pow(2, attempt) * 1000, MAX_BACKOFF_MS);
+        await new Promise((r) => setTimeout(r, backoff));
+      }
+    }
+
+    throw lastError ?? new Error("OwlMetry: sendFeedback failed after retries");
   }
 
   private async sendBatch(events: LogEvent[]): Promise<void> {

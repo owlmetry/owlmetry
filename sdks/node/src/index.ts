@@ -4,13 +4,61 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { validateConfiguration, type ValidatedConfig } from "./configuration.js";
 import { Transport } from "./transport.js";
-import type { OwlConfiguration, OwlLogLevel, LogEvent } from "./types.js";
+import type {
+  OwlConfiguration,
+  OwlLogLevel,
+  LogEvent,
+  FeedbackSubmission,
+  FeedbackReceipt,
+} from "./types.js";
 import { OwlOperation } from "./operation.js";
 import { AttachmentUploader, type OwlAttachment } from "./attachment-uploader.js";
 
 export type { OwlConfiguration, OwlLogLevel, LogEvent } from "./types.js";
 export type { OwlAttachment } from "./attachment-uploader.js";
 export { OwlOperation } from "./operation.js";
+
+const MAX_FEEDBACK_MESSAGE_LENGTH = 4000;
+
+export interface SendFeedbackOptions {
+  /** Display name the user entered. */
+  name?: string;
+  /** Email the user entered. Validated server-side. */
+  email?: string;
+  /**
+   * User ID to attach to the feedback row. On a scoped logger this defaults
+   * to the scope's userId; pass here to override or set explicitly.
+   */
+  userId?: string;
+  /**
+   * UUID session to link to the event timeline. On a scoped logger this
+   * defaults to the scope's sessionId; non-UUID values are ignored.
+   */
+  sessionId?: string;
+  /**
+   * Bundle ID — only needed when forwarding feedback on behalf of a mobile
+   * frontend whose OwlMetry app has a bundle_id set. Backend apps have no
+   * bundle_id so this can be omitted.
+   */
+  bundleId?: string;
+  /** Override environment (default: "backend"). Validated server-side. */
+  environment?: string;
+  /** Override appVersion (default: value from `configure({ appVersion })`). */
+  appVersion?: string;
+  /** Device model — pass-through when forwarding from a mobile frontend. */
+  deviceModel?: string;
+  /** OS version — pass-through when forwarding from a mobile frontend. */
+  osVersion?: string;
+  /** Override isDev (default: value from `configure({ isDev })`). */
+  isDev?: boolean;
+}
+
+export interface SendFeedbackReceipt {
+  id: string;
+  createdAt: string;
+}
+
+export type { FeedbackSubmission, FeedbackReceipt } from "./types.js";
 
 const MAX_ATTRIBUTE_VALUE_LENGTH = 200;
 const SLUG_REGEX = /^[a-z0-9-]+$/;
@@ -200,6 +248,72 @@ function printToConsole(level: OwlLogLevel, message: string, attrs?: Record<stri
   }
 }
 
+function trimOrUndefined(value: string | undefined | null): string | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+async function sendFeedbackInternal(
+  message: string,
+  options: SendFeedbackOptions = {},
+  scopeUserId?: string,
+  scopeSessionId?: string,
+): Promise<SendFeedbackReceipt> {
+  const { config: cfg, transport: tx } = ensureConfigured();
+
+  const trimmedMessage = typeof message === "string" ? message.trim() : "";
+  if (!trimmedMessage) {
+    throw new Error("OwlMetry: feedback message is required");
+  }
+  if (trimmedMessage.length > MAX_FEEDBACK_MESSAGE_LENGTH) {
+    throw new Error(
+      `OwlMetry: feedback message must be at most ${MAX_FEEDBACK_MESSAGE_LENGTH} characters`,
+    );
+  }
+
+  const submitterName = trimOrUndefined(options.name);
+  const submitterEmail = trimOrUndefined(options.email);
+  const userId = options.userId ?? scopeUserId;
+  const rawSession = options.sessionId ?? scopeSessionId;
+  const sessionId = rawSession ? validateSessionId(rawSession) : undefined;
+
+  const body: FeedbackSubmission = {
+    message: trimmedMessage,
+    is_dev: options.isDev ?? cfg.isDev,
+    environment: options.environment ?? "backend",
+  };
+  if (options.bundleId) body.bundle_id = options.bundleId;
+  if (submitterName) body.submitter_name = submitterName;
+  if (submitterEmail) body.submitter_email = submitterEmail;
+  if (userId) body.user_id = userId;
+  if (sessionId) body.session_id = sessionId;
+  const appVersion = options.appVersion ?? cfg.appVersion;
+  if (appVersion) body.app_version = appVersion;
+  if (options.deviceModel) body.device_model = options.deviceModel;
+  if (options.osVersion) body.os_version = options.osVersion;
+
+  const receipt = await tx.submitFeedback(body);
+
+  try {
+    log(
+      "info",
+      "sdk:feedback_submitted",
+      {
+        has_email: submitterEmail ? "true" : "false",
+        has_name: submitterName ? "true" : "false",
+      },
+      userId,
+      undefined,
+      sessionId,
+    );
+  } catch {
+    // Audit event is best-effort.
+  }
+
+  return { id: receipt.id, createdAt: receipt.created_at };
+}
+
 function log(
   level: OwlLogLevel,
   message: string,
@@ -319,6 +433,18 @@ export class ScopedOwl {
    */
   recordMetric(metric: string, attrs?: Record<string, unknown>): void {
     log("info", `metric:${normalizeSlug(metric)}:record`, attrs, this.userId, undefined, this.sessionId);
+  }
+
+  /**
+   * Forward user feedback collected from your frontend to OwlMetry. Defaults
+   * `user_id` and `session_id` to the scope's values (override via `options`).
+   *
+   * Throws on failure — wrap calls in try/catch. Empty messages reject
+   * synchronously; server-side 4xx responses surface as thrown errors with
+   * the server's `error` field in the message.
+   */
+  async sendFeedback(message: string, options: SendFeedbackOptions = {}): Promise<SendFeedbackReceipt> {
+    return sendFeedbackInternal(message, options, this.userId, this.sessionId);
   }
 }
 
@@ -491,6 +617,25 @@ export const Owl = {
    */
   withSession(sessionId: string): ScopedOwl {
     return new ScopedOwl(undefined, validateSessionId(sessionId));
+  },
+
+  /**
+   * Forward user feedback collected from your frontend to OwlMetry.
+   *
+   * Use this when your own frontend (web form, chat widget, support page)
+   * sends feedback to your Node server and you want it captured in the
+   * OwlMetry feedback tracker.
+   *
+   * Throws on failure — wrap calls in try/catch. Empty messages reject
+   * synchronously; server-side 4xx responses surface as thrown errors with
+   * the server's `error` field in the message.
+   *
+   * @param message The user's feedback text (trimmed, max 4000 chars).
+   * @param options Optional metadata — submitter name/email, user/session IDs, etc.
+   * @returns Receipt containing the new feedback id and ISO-8601 createdAt.
+   */
+  async sendFeedback(message: string, options?: SendFeedbackOptions): Promise<SendFeedbackReceipt> {
+    return sendFeedbackInternal(message, options);
   },
 
   async flush(): Promise<void> {

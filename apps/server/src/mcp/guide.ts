@@ -128,7 +128,7 @@ To fully investigate an issue, follow this workflow:
 8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
 
 ### Feedback
-Free-text user feedback submitted from apps via the Swift SDK (\`OwlFeedbackView\` / \`Owl.sendFeedback\`). Each feedback row captures \`message\`, optional \`submitter_name\` and \`submitter_email\`, plus the session, user, app version, device, environment, and country automatically — so you can pivot between the user's comment and the events they were producing at the time.
+Free-text user feedback. Two ingest paths: mobile apps via the Swift SDK (\`OwlFeedbackView\` / \`Owl.sendFeedback\`), and server handlers via the Node SDK (\`Owl.sendFeedback\`) — use the Node path when a team collects feedback through their own frontend (form, chat widget, support page) and wants it forwarded into OwlMetry. Each feedback row captures \`message\`, optional \`submitter_name\` and \`submitter_email\`, plus the session, user, app version, device, environment, and country — automatically on mobile, caller-supplied on Node.
 
 - **Status lifecycle** — free transitions between \`new\`, \`in_review\`, \`addressed\`, \`dismissed\`. No forced order; \`dismissed\` is the "not actionable" state.
 - **Comments** — investigation notes from users (\`👤\`) and agents (\`🕶️\`), mirror the issue-comment model.

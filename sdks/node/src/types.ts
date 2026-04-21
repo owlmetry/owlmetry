@@ -47,3 +47,27 @@ export interface IngestResponse {
   rejected: number;
   errors?: Array<{ index: number; message: string }>;
 }
+
+/**
+ * Request body accepted by `POST /v1/feedback`. Mirrors
+ * `IngestFeedbackRequest` in `@owlmetry/shared`.
+ */
+export interface FeedbackSubmission {
+  bundle_id?: string;
+  message: string;
+  session_id?: string | null;
+  user_id?: string | null;
+  submitter_name?: string | null;
+  submitter_email?: string | null;
+  app_version?: string;
+  environment?: string;
+  device_model?: string;
+  os_version?: string;
+  is_dev?: boolean;
+}
+
+/** Server response from `POST /v1/feedback`. */
+export interface FeedbackReceipt {
+  id: string;
+  created_at: string;
+}

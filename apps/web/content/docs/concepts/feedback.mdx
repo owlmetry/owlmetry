@@ -9,8 +9,8 @@ Unlike [events](./events), feedback is **synchronous**: the SDK waits for the se
 
 ## How It Works
 
-1. A user submits feedback from your app via `OwlFeedbackView` (SwiftUI) or `Owl.sendFeedback(...)`.
-2. The SDK posts a single synchronous request to `POST /v1/feedback` with the current session id, user id, device info, and app version automatically attached.
+1. A user submits feedback from your app via `OwlFeedbackView` (SwiftUI) or `Owl.sendFeedback(...)`, or your own frontend posts to your Node server which forwards it with `Owl.sendFeedback(...)` from the [Node SDK](/docs/sdks/node/feedback).
+2. The SDK posts a single synchronous request to `POST /v1/feedback` with the current session id, user id, device info, and app version attached (automatically on mobile; caller-supplied on Node).
 3. The server validates, stores a row in `feedback`, and returns `{ id, created_at }`.
 4. The feedback appears on the `/dashboard/feedback` kanban, in the CLI via `owlmetry feedback list`, and via the MCP `list-feedback` tool.
 
@@ -60,3 +60,4 @@ The `OwlFeedbackView` Submit button inherits the SwiftUI environment tint — ap
 - [`/dashboard/feedback`](/dashboard/feedback) — kanban UI for triage
 - [`owlmetry feedback`](/docs/cli/feedback) — CLI reference
 - [Owl.sendFeedback + OwlFeedbackView](/docs/sdks/swift) — Swift SDK reference
+- [`Owl.sendFeedback` (Node SDK)](/docs/sdks/node/feedback) — forward feedback from your own frontend

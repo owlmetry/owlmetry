@@ -73,6 +73,26 @@ const handleCheckout = Owl.wrapHandler(async (req, res) => {
   json(res, 500, { error: "Payment provider unreachable" });
 });
 
+const handleFeedback = Owl.wrapHandler(async (req, res) => {
+  const body = await parseBody(req);
+  const { message, name, email, userId } = body;
+
+  if (!message || typeof message !== "string") {
+    json(res, 400, { error: "message is required" });
+    return;
+  }
+
+  const owl = scopedOwl(req, userId);
+
+  try {
+    const receipt = await owl.sendFeedback(message, { name, email });
+    json(res, 201, { id: receipt.id, createdAt: receipt.createdAt });
+  } catch (err) {
+    owl.warn("feedback submission failed", { reason: err.message });
+    json(res, 400, { error: err.message });
+  }
+});
+
 const handleProfile = Owl.wrapHandler(async (req, res) => {
   const body = await parseBody(req);
   const { userId, plan, company } = body;
@@ -123,6 +143,11 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/feedback" && req.method === "POST") {
+    await handleFeedback(req, res);
+    return;
+  }
+
   json(res, 404, { error: "Not found" });
 });
 
@@ -133,6 +158,7 @@ server.listen(PORT, () => {
   console.log("  POST /api/greet     { name, userId? }");
   console.log("  POST /api/checkout  { item, userId? }");
   console.log("  POST /api/profile   { userId, plan?, company? }");
+  console.log("  POST /api/feedback  { message, name?, email?, userId? }");
 });
 
 process.on("SIGINT", async () => {
