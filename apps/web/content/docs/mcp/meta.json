@@ -10,6 +10,7 @@
     "metrics",
     "funnels",
     "issues",
+    "attachments",
     "integrations",
     "jobs",
     "audit-logs"

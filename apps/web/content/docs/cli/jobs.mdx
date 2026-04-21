@@ -39,7 +39,7 @@ Shows full details of a job run including status, duration, progress, parameters
 owlmetry jobs trigger <jobType> --team-id <id> [--project-id <id>] [--param key=value ...] [--wait] [--notify] [--format json]
 ```
 
-Triggers a project-scoped job. The `--project-id` is required for project-scoped jobs like `revenuecat_sync`.
+Triggers a background job. The `--project-id` flag is required for project-scoped jobs like `revenuecat_sync`, and can be omitted for team-scoped jobs.
 
 ### Options
 

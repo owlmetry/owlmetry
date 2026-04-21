@@ -21,13 +21,15 @@ yarn add @owlmetry/node
 
 ## Import
 
-The SDK is ESM-only. Import it in your application entry point:
+The SDK ships both ESM and CommonJS builds. Import it in your application entry point:
 
-```typescript
+```typescript tab="ESM"
 import { Owl } from "@owlmetry/node";
 ```
 
-If your project still uses CommonJS (`require`), you will need to switch your `package.json` to `"type": "module"` or use dynamic `import()`.
+```javascript tab="CommonJS"
+const { Owl } = require("@owlmetry/node");
+```
 
 ## Zero Dependencies
 
@@ -36,7 +38,7 @@ If your project still uses CommonJS (`require`), you will need to switch your `p
 ## Requirements
 
 - **Node.js 20+** -- required for native `fetch` and `AbortSignal.timeout` support
-- **ESM** -- the package ships as pure ESM with `.js` extensions
+- **ESM or CommonJS** -- the package exports both via conditional `exports` in `package.json`
 
 ## Next Steps
 

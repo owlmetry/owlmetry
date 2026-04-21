@@ -96,9 +96,22 @@ Extends the list response with:
       "created_at": "2024-01-15T15:00:00.000Z",
       "updated_at": "2024-01-15T15:00:00.000Z"
     }
+  ],
+  "attachments": [
+    {
+      "id": "uuid",
+      "event_id": "uuid",
+      "original_filename": "crash.log",
+      "content_type": "text/plain",
+      "size_bytes": 2048,
+      "uploaded_at": "2024-01-15T14:30:02.000Z",
+      "created_at": "2024-01-15T14:30:01.000Z"
+    }
   ]
 }
 ```
+
+The `attachments` array contains up to 20 non-deleted attachments associated with the issue (most recent first). For pagination across all attachments linked to an issue, use the `/v1/attachments?issue_id=:issueId` endpoint.
 
 ## PATCH /v1/projects/:projectId/issues/:issueId
 
@@ -180,3 +193,26 @@ Soft-delete a comment. The original author or a team admin/owner can delete.
 **Auth required:** Yes (`issues:write`)
 
 Returns `{ "deleted": true }`.
+
+## GET /v1/issues
+
+Team-level cross-project issue listing. Returns issues across all accessible teams (or a specific team via `team_id`). Mirrors the `/v1/events` pattern. Each issue is returned with a `project_name` in addition to the per-project response fields.
+
+**Auth required:** Yes (`issues:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Filter to a specific team. |
+| `project_id` | string | Filter to a specific project. |
+| `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`. |
+| `app_id` | string | Filter to a specific app. |
+| `is_dev` | string | Filter by dev mode: `true` or `false`. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+| `cursor` | string | Cursor from previous response. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+Same shape as `GET /v1/projects/:projectId/issues`, but each issue also includes a `project_name` field.

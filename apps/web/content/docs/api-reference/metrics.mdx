@@ -48,7 +48,6 @@ Get a single metric definition by slug.
   "documentation": null,
   "schema_definition": null,
   "aggregation_rules": null,
-  "status": "active",
   "created_at": "2024-01-01T00:00:00.000Z",
   "updated_at": "2024-01-01T00:00:00.000Z"
 }
@@ -297,3 +296,28 @@ Run an aggregation query over metric events.
 | `unique_users` | number | Count of distinct user IDs. |
 | `error_breakdown` | array | Top 20 error messages with counts (from `fail` phase events). |
 | `groups` | array | Present only when `group_by` is specified. Max 100 groups. |
+
+## GET /v1/metrics/completions/count
+
+Aggregate count of metric completions (events with `phase = "complete"`) across all metrics the caller can access. Used by the all-projects dashboard stat HUD.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Filter to a specific team. |
+| `project_id` | string | Filter to a specific project. |
+| `app_id` | string | Filter to a specific app. |
+| `since` | string | Start time. Relative or ISO 8601. |
+| `until` | string | End time. Relative or ISO 8601. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+
+### Response
+
+```json
+{
+  "count": 1284
+}
+```

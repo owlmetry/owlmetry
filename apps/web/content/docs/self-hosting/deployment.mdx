@@ -16,6 +16,7 @@ module.exports = {
       name: "owlmetry-api",
       script: "apps/server/dist/index.js",
       cwd: "/opt/owlmetry",
+      max_memory_restart: "300M",
       env: {
         NODE_ENV: "production",
       },
@@ -25,6 +26,7 @@ module.exports = {
       script: "node_modules/.bin/next",
       args: "start",
       cwd: "/opt/owlmetry/apps/web",
+      max_memory_restart: "300M",
       env: {
         NODE_ENV: "production",
         PORT: 3000,
@@ -34,12 +36,20 @@ module.exports = {
 };
 ```
 
-Start the services and persist them across reboots:
+The `max_memory_restart: "300M"` cap auto-restarts a service if it balloons — useful on a 1–2 GB VPS where a runaway process can starve PostgreSQL.
+
+Start the services, persist them across reboots, and enable log rotation:
 
 ```bash
 cd /opt/owlmetry
 pm2 start ecosystem.config.cjs
 pm2 save
+
+# Rotate pm2 logs at 5 MB, keep 7 files, gzip compressed
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 5M
+pm2 set pm2-logrotate:retain 7
+pm2 set pm2-logrotate:compress true
 ```
 
 Verify both services are running:
@@ -64,10 +74,13 @@ pm2 reload all                       # Zero-downtime reload
 Create the nginx config at `/etc/nginx/sites-available/owlmetry`:
 
 ```nginx
-# API server (agent keys, dashboard API, auth)
+# API server (agent keys, dashboard API, auth, attachment uploads/downloads)
 server {
     listen 80;
     server_name api.yourdomain.com;
+
+    # Event attachments can be up to 250 MB per upload (per-user quota default)
+    client_max_body_size 260m;
 
     location / {
         proxy_pass http://127.0.0.1:4000;
@@ -79,6 +92,18 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
+    }
+
+    # Internal location for attachment downloads served via X-Accel-Redirect.
+    # Full snippet: deploy/attachments-nginx-snippet.conf
+    location /_attachments/ {
+        internal;
+        alias /opt/owlmetry-attachments/;
+        types { }
+        default_type application/octet-stream;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "private, no-store" always;
+        send_timeout 5m;
     }
 }
 
@@ -129,9 +154,16 @@ systemctl reload nginx
 
 The ingest server block sets `client_max_body_size 2m` to allow compressed event batches. The API and web server blocks include WebSocket upgrade headers for potential future use.
 
-### Attachments (optional)
+### Attachments
 
-If you use [event attachments](/docs/concepts/attachments), add the `internal` location from `deploy/attachments-nginx-snippet.conf` inside the API server block. Downloads are served via `X-Accel-Redirect`, so nginx must map an internal URI prefix (`OWLMETRY_ATTACHMENTS_INTERNAL_URI`) to the on-disk directory (`OWLMETRY_ATTACHMENTS_PATH`, default `/opt/owlmetry-attachments`).
+The config above already includes the `/_attachments/` internal location and a 260 MB `client_max_body_size` to allow SDK attachment uploads. Downloads are served via nginx `X-Accel-Redirect`, which maps the internal URI prefix (`OWLMETRY_ATTACHMENTS_INTERNAL_URI=/_attachments/`) to the on-disk directory (`OWLMETRY_ATTACHMENTS_PATH=/opt/owlmetry-attachments`). The full reference snippet with comments lives at `deploy/attachments-nginx-snippet.conf` in the repo.
+
+The directory must be writable by the user running pm2 (`root` in the default setup):
+
+```bash
+mkdir -p /opt/owlmetry-attachments
+chown -R root:root /opt/owlmetry-attachments
+```
 
 ## Cloudflare setup (recommended)
 
@@ -257,8 +289,25 @@ PGPASSWORD='yourpassword' psql -U owlmetry -h 127.0.0.1 -d owlmetry \
 
 - **Partitions** are auto-created on server startup (current month plus 2 months ahead). No manual intervention required.
 - **Auto-pruning** runs hourly when `MAX_DATABASE_SIZE_GB` is set. It drops the oldest monthly partitions first.
-- **Backups:** `pg_dump owlmetry > backup.sql`
+- **Per-project retention** is enforced by the `retention_cleanup` background job (daily at 2am UTC) using the `retention_days_events`, `retention_days_metrics`, and `retention_days_funnels` columns on `projects`.
 - **Size check:** `psql -c "SELECT pg_size_pretty(pg_database_size('owlmetry'));"`
+
+### Backups
+
+Dump the Postgres database only — attachment bytes live on disk under `OWLMETRY_ATTACHMENTS_PATH` and must **not** be included in `pg_dump`:
+
+```bash
+pg_dump --no-owner owlmetry | gzip > /opt/owlmetry-backups/owlmetry-$(date +%F).sql.gz
+```
+
+If you need to back up attachment files too, sync them separately (e.g. with `rsync` or an object-storage mirror) — do not try to tar them into the SQL dump.
+
+A simple daily backup cron with 7-day rotation:
+
+```bash
+# /etc/cron.d/owlmetry-backup
+0 3 * * * root PGPASSWORD='yourpassword' pg_dump -U owlmetry -h 127.0.0.1 --no-owner owlmetry | gzip > /opt/owlmetry-backups/owlmetry-$(date +\%F).sql.gz && find /opt/owlmetry-backups -name 'owlmetry-*.sql.gz' -mtime +7 -delete
+```
 
 ## Troubleshooting
 

@@ -84,7 +84,7 @@ Closed mode answers: "How many users completed the full progression from step 1 
 
 Both modes group events by `user_id`. A "user" in funnel analytics means a distinct `user_id` value. In closed mode, the system tracks each user's earliest timestamp at each step and requires strict chronological ordering — step N must occur after step N-1.
 
-**Important:** Events with no `user_id` are excluded from funnel analytics. If your app tracks funnel steps before calling `Owl.identify()`, those events will have no `user_id` and won't appear in funnel results. To track anonymous users through funnels, call `Owl.identify()` with an anonymous identifier before emitting `step()` events.
+**Important:** Events with no `user_id` are excluded from funnel analytics. The Swift SDK automatically attaches an anonymous `owl_anon_*` ID to every event, so those events *do* flow into funnels. On the Node SDK you must scope an instance to a user with `Owl.withUser("…")` before emitting `step()` — global `Owl.step()` calls have no `user_id` and are excluded from funnel results. Call `Owl.setUser("real-id")` (Swift) after sign-in to claim earlier anonymous events to the real user.
 
 ## Analytics Results
 

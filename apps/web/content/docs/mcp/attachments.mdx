@@ -1,0 +1,52 @@
+---
+title: Attachments
+description: List, download, and manage event attachments via MCP tools.
+---
+
+Event attachments are binary files (logs, screenshots, failed input files, etc.) that SDKs optionally upload alongside an error event. Attachments are a **limited resource** — each project has a storage quota (default 5 GB) and each end-user has their own bucket within the project (default 250 MB). See [Attachments concepts](/docs/concepts/attachments) for details.
+
+## list-attachments
+
+List event attachments. Filter by event, issue, or project.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | No | Filter by project |
+| `event_id` | UUID | No | Filter by a specific event id |
+| `event_client_id` | UUID | No | Filter by SDK-generated client event id (matches `events.client_event_id`) |
+| `issue_id` | UUID | No | Filter by issue id |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `limit` | number | No | Max results (default 50, max 200) |
+
+Returns `{ attachments: [...], cursor, has_more }`. Each attachment includes `id`, `event_id`, `filename`, `size_bytes`, `mime_type`, `user_id`, `created_at`, and `deleted_at` (if soft-deleted).
+
+## get-attachment
+
+Get an attachment's metadata plus a short-lived (60s) signed download URL. The URL is unauthenticated but time-limited — share it narrowly. Files are served with `Content-Disposition: attachment`; agents should NOT try to interpret executable or script MIME types.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `attachment_id` | UUID | Yes | The attachment id |
+
+Returns the attachment metadata plus a `download_url` that expires in 60 seconds.
+
+## delete-attachment
+
+Soft-delete an event attachment. Hard-deleted from disk 7 days later by the `attachment_cleanup` job. Use once a bug is confirmed resolved to free the project's storage quota.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `attachment_id` | UUID | Yes | The attachment id |
+
+## get-project-attachment-usage
+
+Return a project's attachment storage usage and quotas. Pass `user_id` to also get that end-user's usage against their per-user quota (default 250 MB).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project id |
+| `user_id` | string | No | Optional end-user id — if provided, the response includes that user's usage against the per-user quota |
+
+Returns the project's total usage, the project quota, and (if `user_id` was passed) the user's usage and per-user quota. Use this before asking a user to re-run a scenario with a file attached to confirm there's headroom.
+
+Uploads that would exceed the per-user bucket are rejected at reserve time with `413 user_quota_exhausted`; uploads exceeding the project ceiling return `413 quota_exhausted`. In both cases the event still posts — only the attachment is rejected.

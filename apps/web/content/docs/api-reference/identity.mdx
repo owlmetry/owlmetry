@@ -1,9 +1,9 @@
 ---
 title: Identity
-description: POST /v1/identity/claim — link anonymous events to a known user ID after authentication.
+description: Identity endpoints — claim anonymous events for a known user ID and set user properties.
 ---
 
-Link anonymous events to a known user ID after a user authenticates in your app.
+Identity management: link anonymous events to a known user ID after authentication, and attach key-value properties to users.
 
 ## POST /v1/identity/claim
 
@@ -63,3 +63,50 @@ Returns `404` if no events exist for the given `anonymous_id` across the project
 ### SDK integration note
 
 SDKs must flush all buffered events before calling this endpoint. Otherwise, in-flight events sent after the claim may still carry the old anonymous ID and will not be reassigned.
+
+## POST /v1/identity/properties
+
+Set, merge, or delete user properties for a known user. Properties are stored as a JSONB object on the `app_users` table and are project-scoped.
+
+**Auth required:** Yes (client API key with `users:write` permission)
+
+### Request
+
+```json
+{
+  "user_id": "user-456",
+  "properties": {
+    "plan": "pro",
+    "signup_source": "landing_page",
+    "removed_key": ""
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | string | Yes | The user to update. May be an anonymous ID (`owl_anon_*`) or a real user ID. |
+| `properties` | object | Yes | Key-value string pairs to merge. Empty-string values delete the key. |
+
+### Validation rules
+
+- Keys must be non-empty strings, max 50 characters.
+- Values must be strings, max 200 characters.
+- After merging, total property count cannot exceed 50.
+- The API key must be scoped to an app (client keys only).
+- Value of `""` (empty string) **deletes** the key from the user's properties.
+
+### Response
+
+```json
+// Success (200)
+{
+  "updated": true,
+  "properties": {
+    "plan": "pro",
+    "signup_source": "landing_page"
+  }
+}
+```
+
+The returned `properties` object reflects the full post-merge state for the user. The merge operation is race-condition safe.

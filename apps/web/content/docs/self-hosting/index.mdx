@@ -30,12 +30,14 @@ nginx (reverse proxy)
   |
   +-- owlmetry-api  (Fastify, port 4000)
   |
-  +-- owlmetry-web  (Next.js standalone, port 3000)
+  +-- owlmetry-web  (Next.js, port 3000)
   |
   +-- PostgreSQL 16  (localhost:5432)
+  |
+  +-- /opt/owlmetry-attachments  (on-disk event attachments)
 ```
 
-Both the API server and the web dashboard are Node.js processes managed by pm2. PostgreSQL runs locally on the same machine.
+Both the API server (`owlmetry-api`) and the web dashboard (`owlmetry-web`) are Node.js processes managed by pm2. PostgreSQL runs locally on the same machine. Event attachments (SDK file uploads) are stored on disk alongside the database — not inside Postgres.
 
 ## Domains
 

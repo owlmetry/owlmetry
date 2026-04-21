@@ -20,6 +20,8 @@ The script is idempotent and safe to run again if interrupted.
 
 ## 2. Clone and build
 
+The setup script creates `/opt/owlmetry` as an empty directory. Clone the repo into it:
+
 ```bash
 cd /opt/owlmetry
 git clone https://github.com/Jasonvdb/owlmetry.git .
@@ -38,32 +40,49 @@ cp .env.example .env
 Edit `.env` with your values:
 
 ```bash
+NODE_ENV=production
 DATABASE_URL=postgresql://owlmetry:<password>@localhost:5432/owlmetry
 JWT_SECRET=<random-64-char-string>
 PORT=4000
 HOST=0.0.0.0
 CORS_ORIGINS=https://yourdomain.com
+WEB_APP_URL=https://yourdomain.com
+API_PUBLIC_URL=https://api.yourdomain.com
+COOKIE_DOMAIN=.yourdomain.com
 MAX_DATABASE_SIZE_GB=8
 RESEND_API_KEY=<your-resend-key>
 EMAIL_FROM=noreply@yourdomain.com
-COOKIE_DOMAIN=.yourdomain.com
+
+# Event attachments (required in production — server refuses to start without the signing secret)
+OWLMETRY_ATTACHMENTS_PATH=/opt/owlmetry-attachments
+OWLMETRY_ATTACHMENTS_SIGNING_SECRET=<random-hex-string, must differ from JWT_SECRET>
+OWLMETRY_ATTACHMENTS_INTERNAL_URI=/_attachments/
 ```
 
-Generate a random JWT secret:
+Generate the secrets:
 
 ```bash
-openssl rand -base64 48
+openssl rand -base64 48    # JWT_SECRET
+openssl rand -hex 32       # OWLMETRY_ATTACHMENTS_SIGNING_SECRET (must NOT equal JWT_SECRET)
+```
+
+Create the attachments directory so the API server can write to it:
+
+```bash
+mkdir -p /opt/owlmetry-attachments
 ```
 
 See [Configuration](/docs/self-hosting/configuration) for a full reference of all environment variables.
 
 ## 4. Run migrations
 
+Migrations run from `packages/db` and do not auto-load the root `.env`, so prefix the command with `DATABASE_URL`:
+
 ```bash
-pnpm db:migrate
+DATABASE_URL='postgresql://owlmetry:<password>@localhost:5432/owlmetry' pnpm db:migrate
 ```
 
-This creates all database tables and sets up monthly event partitions. The events table uses `PARTITION BY RANGE` on the `timestamp` column. Partitions for the current month plus the next 2 months are created automatically.
+This creates all database tables and sets up monthly event partitions. The `events`, `metric_events`, and `funnel_events` tables use `PARTITION BY RANGE` on the `timestamp` column. Partitions for the current month plus the next 2 months are created automatically.
 
 Your first user account will be auto-created when you log in through the dashboard or CLI.
 

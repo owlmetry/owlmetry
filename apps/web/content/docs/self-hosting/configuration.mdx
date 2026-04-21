@@ -36,15 +36,24 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 ## Example `.env` file
 
 ```bash
+NODE_ENV=production
 DATABASE_URL=postgresql://owlmetry:yourpassword@localhost:5432/owlmetry
 JWT_SECRET=your-random-64-char-secret-here
 PORT=4000
 HOST=0.0.0.0
 CORS_ORIGINS=https://yourdomain.com
+WEB_APP_URL=https://yourdomain.com
+API_PUBLIC_URL=https://api.yourdomain.com
+COOKIE_DOMAIN=.yourdomain.com
 MAX_DATABASE_SIZE_GB=8
 RESEND_API_KEY=re_abc123...
 EMAIL_FROM=noreply@yourdomain.com
-COOKIE_DOMAIN=.yourdomain.com
+SYSTEM_JOBS_ALERT_EMAIL=ops@yourdomain.com
+
+# Event attachments
+OWLMETRY_ATTACHMENTS_PATH=/opt/owlmetry-attachments
+OWLMETRY_ATTACHMENTS_SIGNING_SECRET=your-random-hex-string-32-bytes
+OWLMETRY_ATTACHMENTS_INTERNAL_URI=/_attachments/
 ```
 
 ## Migration note

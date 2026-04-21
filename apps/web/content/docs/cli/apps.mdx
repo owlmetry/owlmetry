@@ -74,7 +74,7 @@ owlmetry apps create \
   --platform backend
 ```
 
-A client API key is automatically generated when an app is created. The key is returned in the response and stored on the app record.
+A client API key (`owl_client_*`) is automatically generated when an app is created. The key is returned in the response and stored as a row in the `api_keys` table — there is no separate column on the app record.
 
 ## Update an app
 

@@ -12,7 +12,10 @@ Your agent can set up the entire integration, query events, diagnose issues, and
 - **Event ingestion** with batch processing, deduplication, and gzip compression
 - **Structured metrics** with lifecycle tracking (start/complete/fail) and aggregation queries
 - **Funnel analytics** to measure conversion and drop-off across multi-step flows
+- **Issue tracker** that clusters error events into actionable issues with regression detection
+- **Event attachments** for uploading logs, screenshots, and crash dumps alongside error events
 - **A/B experiments** with client-side variant assignment and server-side analysis
+- **Third-party integrations** like RevenueCat that sync subscription data into user properties
 - **Agent-native API** where every operation is available through `owl_agent_` keys
 - **Single PostgreSQL** backend with monthly-partitioned event tables -- no Kafka, no ClickHouse, no Redis
 
@@ -38,5 +41,5 @@ Learn more: [MCP setup](/docs/mcp/setup) · [CLI installation](/docs/cli/install
 - **[Node.js SDK](/docs/sdks/node)** -- Server-side SDK for backends and serverless functions. Zero runtime dependencies. Covers events, metrics, funnels, identity, and serverless support.
 - **[MCP](/docs/mcp)** -- Connect AI agents directly to OwlMetry via the Model Context Protocol. No installation, automatic updates, 51 tools covering every operation.
 - **[CLI](/docs/cli)** -- Command-line interface for agents and humans. Query events, manage resources, and inspect audit logs. Supports `--format json` and `--format table`.
-- **[API Reference](/docs/api-reference)** -- Complete REST API covering authentication, ingestion, querying, project/app management, metrics, funnels, teams, and identity.
+- **[API Reference](/docs/api-reference)** -- Complete REST API covering authentication, ingestion, querying, project/app management, metrics, funnels, issues, attachments, integrations, teams, and identity.
 - **[Self-Hosting](/docs/self-hosting)** -- Deploy on your own infrastructure. Covers system requirements, PostgreSQL, nginx, SSL, pm2, and maintenance.

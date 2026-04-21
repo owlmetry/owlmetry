@@ -61,12 +61,14 @@ PORT=4000
 HOST=0.0.0.0
 CORS_ORIGINS=https://yourdomain.com
 COOKIE_DOMAIN=.yourdomain.com
+OWLMETRY_ATTACHMENTS_SIGNING_SECRET=<random-hex-string-different-from-JWT_SECRET>
 ```
 
-Generate a random JWT secret:
+Generate random secrets:
 
 ```bash
-openssl rand -base64 48
+openssl rand -base64 48    # JWT_SECRET
+openssl rand -hex 32       # OWLMETRY_ATTACHMENTS_SIGNING_SECRET
 ```
 
 | Variable | Required | Description |
@@ -75,6 +77,9 @@ openssl rand -base64 48
 | `JWT_SECRET` | Yes | Random string for signing authentication tokens |
 | `CORS_ORIGINS` | Yes | Your dashboard URL (e.g., `https://yourdomain.com`) |
 | `COOKIE_DOMAIN` | Yes | For cross-subdomain auth (e.g., `.yourdomain.com`) |
+| `OWLMETRY_ATTACHMENTS_SIGNING_SECRET` | Yes (prod) | HMAC secret for signed attachment download URLs. Server refuses to start in production without it. Must not equal `JWT_SECRET`. |
+| `OWLMETRY_ATTACHMENTS_PATH` | No | Directory for attachment bytes. Defaults to `/opt/owlmetry-attachments`. Exclude from `pg_dump` backups. |
+| `OWLMETRY_ATTACHMENTS_INTERNAL_URI` | No | nginx `internal` URI prefix to enable X-Accel-Redirect downloads (see `deploy/attachments-nginx-snippet.conf`). |
 | `RESEND_API_KEY` | No | [Resend](https://resend.com) API key for email delivery. If unset, verification codes print to the server console. |
 | `MAX_DATABASE_SIZE_GB` | No | Auto-prune old events when the database exceeds this size |
 

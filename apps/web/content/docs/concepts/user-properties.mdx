@@ -75,4 +75,4 @@ Use **user properties** for data that describes the user and changes infrequentl
 
 ## Identity Claim Merge
 
-When an anonymous user is claimed via `Owl.setUser()`, properties from the anonymous user are merged into the real user. The real user's values take precedence on key conflicts.
+When an anonymous user is claimed (Swift `Owl.setUser()`, or direct `POST /v1/identity/claim`), properties from the anonymous user are merged into the real user. The real user's existing values take precedence on key conflicts.

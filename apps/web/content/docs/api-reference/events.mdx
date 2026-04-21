@@ -106,6 +106,7 @@ Get a single event by ID.
 {
   "id": "uuid",
   "app_id": "uuid",
+  "project_id": "uuid",
   "client_event_id": "uuid",
   "session_id": "uuid",
   "user_id": "owl_anon_abc123",
@@ -126,8 +127,19 @@ Get a single event by ID.
   "is_dev": false,
   "experiments": null,
   "timestamp": "2024-01-15T10:30:00.000Z",
-  "received_at": "2024-01-15T10:30:01.000Z"
+  "received_at": "2024-01-15T10:30:01.000Z",
+  "attachments": [
+    {
+      "id": "uuid",
+      "original_filename": "crash.log",
+      "content_type": "text/plain",
+      "size_bytes": 2048,
+      "uploaded_at": "2024-01-15T10:30:02.000Z"
+    }
+  ]
 }
 ```
+
+The `project_id` is resolved from the event's app. The `attachments` array contains non-deleted attachments associated with the event (empty array if none).
 
 Returns `404` if the event does not exist or belongs to an app outside the caller's team.

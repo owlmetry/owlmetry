@@ -23,6 +23,8 @@ The SDK is a static `Owl` enum. All calls are non-blocking -- events are buffere
 - **[A/B experiments](/docs/sdks/swift/experiments)** -- client-side variant assignment persisted in Keychain, automatically included on all events.
 - **[Screen tracking](/docs/sdks/swift/screen-tracking)** -- `.owlScreen()` SwiftUI view modifier for automatic screen view and time-on-screen tracking.
 - **[Identity management](/docs/sdks/swift/identity)** -- anonymous IDs generated and persisted in Keychain, with server-side claim to link anonymous events to real users after login.
+- **[User properties](/docs/sdks/swift/user-properties)** -- attach custom key-value metadata to the current user with `Owl.setUserProperties()`.
+- **File attachments** -- attach files (logs, failed inputs, binaries) to `Owl.error()` events via `OwlAttachment`. See [Attachments](/docs/concepts/attachments).
 - **Network monitoring** -- connection type (wifi, cellular, ethernet, offline) included on every event via `NWPathMonitor`.
 - **Network request tracking** -- automatic instrumentation of `URLSession` HTTP requests, emitting `sdk:network_request` events with method, URL, status code, and duration.
 - **Offline queue** -- events are persisted to disk when the network is unavailable and retried automatically when connectivity returns.

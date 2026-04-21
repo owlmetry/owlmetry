@@ -48,6 +48,34 @@ Owl.info("Request completed", {
 
 Values longer than 200 characters are truncated. See [Events](/docs/concepts/events#custom-attributes) for more on how attributes are stored and queried.
 
+## File Attachments
+
+The third `options` argument of every log method accepts an `attachments` array. Each entry is a file from disk (`path`) or in-memory bytes (`buffer`) that will be uploaded alongside the event and viewable from the dashboard, CLI, or MCP:
+
+```typescript
+try {
+  await PdfParser.parse(inputPath);
+} catch (err) {
+  Owl.error("pdf parse failed", { error: String(err) }, {
+    attachments: [
+      { path: inputPath, name: "input.pdf" },                                     // from disk
+      { buffer: diagnosticsJson, name: "debug.json", contentType: "application/json" }, // in memory
+    ],
+  });
+}
+```
+
+Each attachment supports these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `path` | `string` | Absolute path to a file on disk. Mutually exclusive with `buffer`. |
+| `buffer` | `Buffer \| Uint8Array` | In-memory bytes. Mutually exclusive with `path`. |
+| `name` | `string` | Filename shown in the dashboard. Required for `buffer`; defaults to the basename of `path`. |
+| `contentType` | `string` | Overrides the inferred content type (inferred from file extension otherwise). |
+
+Uploads run on a serial queue and are awaited by `Owl.flush()` and `Owl.shutdown()`. Use attachments sparingly -- each project has a default 5 GB storage quota with a 250 MB per-user bucket. See [Attachments](/docs/concepts/attachments) for details on quotas and viewing attached files.
+
 ## User-Scoped Events
 
 Use `Owl.withUser()` to create a scoped instance that tags every event with a user ID:

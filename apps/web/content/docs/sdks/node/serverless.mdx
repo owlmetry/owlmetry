@@ -1,9 +1,11 @@
 ---
-title: Serverless & Edge
-description: Use wrapHandler() to guarantee event flush in Lambda, Vercel, and other serverless environments.
+title: Serverless
+description: Use wrapHandler() to guarantee event flush in Lambda, Vercel Serverless Functions, Firebase Cloud Functions, and other serverless environments.
 ---
 
 In serverless environments, your function may terminate before the SDK's background flush timer fires. `Owl.wrapHandler()` solves this by flushing all buffered events after every invocation.
+
+The SDK targets the Node.js runtime (AWS Lambda, Vercel Serverless Functions on Node, Firebase Cloud Functions v2, etc.). It is **not** compatible with Edge runtimes such as Vercel Edge Functions or Cloudflare Workers -- it depends on Node built-ins like `node:crypto`, `node:zlib`, and `node:fs`.
 
 ## The Problem
 
@@ -44,6 +46,24 @@ export const handler = Owl.wrapHandler(async (event, context) => {
 The wrapper preserves the return value and re-throws any exceptions after flushing. It works with any async function signature -- Lambda handlers, Vercel serverless functions, or custom wrappers.
 
 `Owl.flush()` also awaits any pending [file attachments](/docs/concepts/attachments), so `wrapHandler()` delivers attached files before the runtime freezes.
+
+### Firebase Cloud Functions
+
+Firebase's `onCall` (and similar wrappers) expect a strongly-typed callback. Because `wrapHandler` uses generic rest parameters, TypeScript sometimes cannot infer the handler's parameter type -- annotate it explicitly:
+
+```typescript
+import { onCall, type CallableRequest } from "firebase-functions/v2/https";
+import { Owl } from "@owlmetry/node";
+
+export const myFunction = onCall(
+  Owl.wrapHandler(async (request: CallableRequest) => {
+    const { data, auth } = request;
+    Owl.info("Function invoked", { uid: auth?.uid });
+    // ...
+    return { ok: true };
+  })
+);
+```
 
 ## beforeExit Handler
 
@@ -157,4 +177,4 @@ export const handler = Owl.wrapHandler(async (event) => {
 });
 ```
 
-Every event -- the operation start, track step, and operation complete/fail -- is flushed before the Lambda returns.
+Every event -- the operation start, funnel step, and operation complete/fail -- is flushed before the Lambda returns.

@@ -1,0 +1,65 @@
+---
+title: Attachments
+description: Inspect, download, and manage event attachments from the OwlMetry CLI.
+---
+
+The `owlmetry attachments` command group lets you inspect, download, and delete files that SDKs uploaded alongside events (for example log files or screenshots attached to an `Owl.error(...)` call). See [Attachments](/docs/concepts/attachments) for concepts and storage behavior.
+
+## List Attachments
+
+```bash
+owlmetry attachments list --project <id>
+```
+
+Lists attachments filtered by project. Results are paginated with a cursor.
+
+### Filters
+
+| Flag | Description |
+|------|-------------|
+| `--project <id>` | Filter by project id |
+| `--event <id>` | Filter by event id |
+| `--event-client-id <id>` | Filter by SDK-generated `client_event_id` |
+| `--issue <id>` | Filter by issue id |
+| `--cursor <cursor>` | Pagination cursor from a previous response |
+| `--limit <n>` | Max results (default 50, max 200) |
+
+## Show Attachment
+
+```bash
+owlmetry attachments show <id>
+```
+
+Shows metadata for a single attachment — filename, size, content type, SHA-256, project/app/event/issue references, and upload status. If the attachment has finished uploading, a short-lived signed download URL is included in the output.
+
+## Download Attachment
+
+```bash
+owlmetry attachments download <id>
+owlmetry attachments download <id> --out ./report.log
+```
+
+Downloads the attachment's bytes to a local file. Defaults to the original filename in the current directory; override with `--out`.
+
+Attachments are uploaded from end-user devices. The command prints a warning reminding you to scan the file or open it in a sandbox before inspecting.
+
+Errors with "Attachment has not finished uploading yet" if the client aborted mid-upload.
+
+## Delete Attachment
+
+```bash
+owlmetry attachments delete <id>
+```
+
+Soft-deletes the attachment. The disk bytes are reclaimed by the `attachment_cleanup` [background job](/docs/concepts/background-jobs) 7 days later.
+
+## Usage and Quotas
+
+```bash
+owlmetry attachments usage --project <id>
+owlmetry attachments usage --project <id> --user <userId>
+```
+
+Shows the project's attachment storage usage against its quota (file count, bytes used, project-wide quota, per-user quota). Pass `--user` to additionally report that end-user's usage against the per-user quota — useful for investigating `user_quota_exhausted` rejections.
+
+Both quotas are configurable per project via the dashboard, the [API](/docs/api-reference/projects), or the MCP `update-project` tool. Defaults are 5 GB per project and 250 MB per user.

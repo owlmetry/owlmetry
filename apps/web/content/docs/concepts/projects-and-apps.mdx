@@ -13,7 +13,12 @@ Projects are team-scoped and identified by a unique slug. They provide a shared 
 
 - [Metric definitions](/docs/concepts/metrics) -- performance tracking is defined per-project
 - [Funnel definitions](/docs/concepts/funnels) -- conversion funnels span apps within a project
+- [Integrations](/docs/concepts/integrations) -- third-party services like RevenueCat
+- [Issue alerting](/docs/concepts/issues) -- per-project `issue_alert_frequency` (`none`, `hourly`, `6_hourly`, `daily` (default), `weekly`)
+- [Attachment quotas](/docs/concepts/attachments) -- per-user and project-wide byte ceilings
 - Apps -- the platform-specific builds that send events
+
+Each project also has a required `#RRGGBB` hex **color** used throughout the dashboard to distinguish projects at a glance. If you omit the color on creation, the server auto-picks one from a 20-entry palette, avoiding colors already in use by other non-deleted projects in the same team. You can change the color any time via `PATCH /v1/projects/:id`, `owlmetry project update --color`, or the MCP `update-project` tool.
 
 Projects are managed through the [dashboard](/docs/concepts/authentication), the [CLI](/docs/cli/projects), or the [API](/docs/api-reference/projects).
 

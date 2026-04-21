@@ -21,15 +21,18 @@ The setup script creates a 2 GB swap file if one does not already exist, which h
 
 Disk usage depends on event volume. The `MAX_DATABASE_SIZE_GB` environment variable enables automatic pruning of old event partitions when the database exceeds a size threshold.
 
+If you plan to use [event attachments](/docs/concepts/attachments) (SDK file uploads like logs or screenshots), budget additional disk for `OWLMETRY_ATTACHMENTS_PATH` (default `/opt/owlmetry-attachments`). Attachment bytes live on disk, not in Postgres, and are governed by per-project and per-user quotas — default 5 GB per project ceiling and 250 MB per user bucket.
+
 ## Software dependencies
 
 | Dependency | Version | Notes |
 |------------|---------|-------|
-| Node.js | 20+ | Installed via NodeSource repository (setup script installs 22 LTS) |
-| pnpm | Latest | Installed via corepack |
-| PostgreSQL | 16 | Installed from official PostgreSQL apt repository |
+| Node.js | 22 LTS | Installed via NodeSource repository by the setup script |
+| pnpm | Latest | Installed globally via `npm install -g pnpm` |
+| pm2 | Latest | Installed globally via `npm install -g pm2`. Process manager for the `owlmetry-api` and `owlmetry-web` services |
+| PostgreSQL | 16 | Installed from the Ubuntu 24.04 apt repository |
 | nginx | Latest | Reverse proxy for the API and web dashboard |
-| pm2 | Latest | Process manager for Node.js services |
+| git | Latest | Required to clone the repository onto the VPS |
 
 All dependencies are installed automatically by the setup script (see [Installation](/docs/self-hosting/installation)).
 

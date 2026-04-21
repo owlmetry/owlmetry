@@ -16,7 +16,7 @@ owl.warn("Rate limit approaching");
 owl.step("onboarding-complete");
 ```
 
-The returned `ScopedOwl` has the same API as `Owl` -- `info()`, `debug()`, `warn()`, `error()`, `step()`, `startOperation()`, and `recordMetric()`.
+The returned `ScopedOwl` has the same API as `Owl` -- `info()`, `debug()`, `warn()`, `error()`, `step()`, `startOperation()`, `recordMetric()`, and `setUserProperties()`. It can be further narrowed with `.withSession(sessionId)` for session scoping.
 
 ## Middleware Pattern
 

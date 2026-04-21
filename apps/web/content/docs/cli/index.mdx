@@ -11,9 +11,36 @@ The OwlMetry CLI (`@owlmetry/cli`) lets you manage your OwlMetry instance from t
 - **Manage resources** — projects, apps, metrics, and funnels
 - **Inspect metrics** — view definitions, query aggregations, and browse raw metric events
 - **Analyze funnels** — run funnel queries with open/closed modes and experiment segmentation
+- **Triage issues** — list, claim, resolve, silence, merge, and comment on error issues
+- **Manage integrations** — add and sync third-party providers like RevenueCat
+- **Run background jobs** — trigger, watch, and cancel jobs, and browse run history
+- **Inspect attachments** — list, download, and delete event attachments uploaded by SDKs
+- **List app users** — filter by billing tier, anonymous/real, or search by ID
 - **Audit trail** — review who did what across your team
-- **Multi-team support** — authenticate with multiple teams and switch between them
+- **Multi-team support** — authenticate with multiple teams and switch between them with `owlmetry switch`
 - **AI agent integration** — bundled skill files for CLI, Node SDK, and Swift SDK
+
+## Command groups
+
+| Command | Purpose |
+|---------|---------|
+| `auth` | Send verification codes and exchange them for agent API keys |
+| `setup` | Configure the CLI with an existing agent API key |
+| `whoami` | Show the authenticated identity and list configured profiles |
+| `switch` | List configured team profiles or switch the active one |
+| `projects` | List, view, create, and update projects |
+| `apps` | List, view, create, and update apps within a project |
+| `events` | Query events with filters, time ranges, and pagination |
+| `investigate` | Build a breadcrumb timeline around a specific event |
+| `users` | List app users with billing-tier and anonymous/real filters |
+| `metrics` | Manage metric definitions and query aggregations or raw events |
+| `funnels` | Manage funnel definitions and run funnel analytics |
+| `issues` | View and manage error issues (resolve, silence, claim, merge, comment) |
+| `integrations` | Manage third-party integrations (e.g. RevenueCat) |
+| `jobs` | List, view, trigger, and cancel background jobs |
+| `attachments` | List, show, download, and delete event attachments; show project usage |
+| `audit-log` | View audit log entries for team actions |
+| `skills` | Print paths to the bundled AI skill files |
 
 ## Global options
 

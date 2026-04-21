@@ -109,3 +109,14 @@ Most read endpoints accept a `data_mode` query parameter to filter development v
 | `production` | Only production events (default) |
 | `development` | Only development events (`is_dev: true`) |
 | `all` | Both production and development events |
+
+## Additional endpoints
+
+Beyond the endpoints documented in this section, the API also exposes:
+
+| Area | Endpoints | Notes |
+|------|-----------|-------|
+| Attachments | `POST /v1/ingest/attachment`, `PUT /v1/ingest/attachment/:id`, `GET /v1/attachments`, `GET /v1/attachments/:id`, `DELETE /v1/attachments/:id`, `GET /v1/attachments/download`, `GET /v1/projects/:projectId/attachment-usage` | Upload, list, download (signed URL), delete attachments; query per-project/user quota usage. See [Attachments](/docs/concepts/attachments). |
+| Integrations | `GET /v1/projects/:projectId/integrations`, `POST /v1/projects/:projectId/integrations`, `PATCH /v1/projects/:projectId/integrations/:id`, `DELETE /v1/projects/:projectId/integrations/:id`, `POST /v1/projects/:projectId/integrations/:id/sync`, `GET /v1/integrations/providers` | Per-project third-party integrations (currently RevenueCat). Uses `integrations:read`/`integrations:write` permissions. |
+| Webhooks | `POST /v1/webhooks/revenuecat/:projectId` | RevenueCat webhook receiver. Authenticated by a per-project secret (no API key). |
+| MCP | `POST /mcp`, `GET /mcp`, `DELETE /mcp` | Model Context Protocol endpoint for AI coding agents. Authenticated with an `owl_agent_*` Bearer token. See the [MCP docs](/docs/mcp). |

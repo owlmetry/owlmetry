@@ -13,6 +13,7 @@
     "audit-log",
     "issues",
     "integrations",
-    "jobs"
+    "jobs",
+    "attachments"
   ]
 }

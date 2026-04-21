@@ -157,7 +157,7 @@ Update a funnel definition.
 
 Soft-delete a funnel definition.
 
-**Auth required:** Yes (JWT only, admin role required. Agent keys receive 403.)
+**Auth required:** Yes (`funnels:write` permission or JWT, admin role required for users)
 
 ```json
 // Response (200)
@@ -278,3 +278,34 @@ Run a funnel analytics query. Computes step-by-step conversion rates for users w
 | `drop_off_percentage` | number | Drop-off as a percentage of the previous step's users. Zero for the first step. |
 
 The `breakdown` array is only present when `group_by` is specified. Each entry contains the same step analytics structure scoped to a specific group value.
+
+## GET /v1/funnels/completions/count
+
+Aggregate counts of funnel starts and completions across all active funnels the caller can access. A "completion" is a funnel event matching the last step of any active funnel definition; a "start" matches the first step. Used by the all-projects dashboard stat HUD.
+
+**Auth required:** Yes (`funnels:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Filter to a specific team. |
+| `project_id` | string | Filter to a specific project. |
+| `app_id` | string | Filter to a specific app. |
+| `since` | string | Start time. Relative or ISO 8601. |
+| `until` | string | End time. Relative or ISO 8601. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+
+### Response
+
+```json
+{
+  "count": 320,
+  "started": 1024
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `count` | number | Number of funnel completion events (last-step matches). |
+| `started` | number | Number of funnel start events (first-step matches). |

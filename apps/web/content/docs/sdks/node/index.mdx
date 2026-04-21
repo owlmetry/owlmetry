@@ -3,15 +3,18 @@ title: Node.js SDK
 description: Integrate OwlMetry into Node.js backends, Express, Fastify, and serverless functions.
 ---
 
-The `@owlmetry/node` SDK instruments Node.js backend services -- Express, Fastify, raw HTTP servers, and serverless functions like AWS Lambda and Vercel Edge. It has zero runtime dependencies and ships as a pure ESM package.
+The `@owlmetry/node` SDK instruments Node.js backend services -- Express, Fastify, raw HTTP servers, and serverless functions like AWS Lambda, Vercel Serverless Functions, and Firebase Cloud Functions. It has zero runtime dependencies and ships as both ESM and CommonJS.
 
 ## Features
 
 - **[Events](/docs/sdks/node/events)** -- log at four severity levels (info, debug, warn, error) with custom attributes and automatic source-module capture from the call stack
+- **[File Attachments](/docs/concepts/attachments)** -- attach files to error events via the `attachments` option on every log method
 - **[Structured Metrics](/docs/sdks/node/metrics)** -- track operation lifecycles (start, complete, fail, cancel) and record single-shot measurements
 - **[Funnels](/docs/sdks/node/funnels)** -- emit named step completions for backend conversion tracking
 - **[Experiments](/docs/sdks/node/experiments)** -- assign A/B variants with persistent local storage and automatic event tagging
 - **[User Scoping](/docs/sdks/node/identity)** -- `Owl.withUser(userId)` returns a scoped instance that tags every event with a user ID
+- **[Session Scoping](/docs/sdks/node/identity#withsession)** -- `Owl.withSession(sessionId)` links backend events to a client's session for cross-SDK correlation
+- **[User Properties](/docs/sdks/node/user-properties)** -- attach custom metadata to users via `Owl.setUserProperties()`
 - **[Serverless Support](/docs/sdks/node/serverless)** -- `Owl.wrapHandler()` guarantees event flush before your function returns
 - **Auto-flush** -- events are buffered and sent in batches on a configurable interval, with automatic flush on process exit via the `beforeExit` handler
 - **Gzip compression** -- payloads over 512 bytes are compressed automatically
@@ -33,7 +36,7 @@ Owl.configure({
   serviceName: "my-api",
 });
 
-Owl.info("Server started", { port: "4000" });
+Owl.info("Server started", { port: 4000 });
 ```
 
 See the [installation guide](/docs/sdks/node/installation) to get started.

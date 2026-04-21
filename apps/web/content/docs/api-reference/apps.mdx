@@ -145,6 +145,7 @@ List users seen by a specific app, ordered by most recently seen.
 |-----------|------|-------------|
 | `search` | string | Filter by user_id substring (case-insensitive). |
 | `is_anonymous` | string | `"true"` for anonymous users only, `"false"` for identified users only. |
+| `billing_status` | string | Filter by billing tier (comma-separated). Values: `free`, `trial`, `paid`. Derived from RevenueCat integration properties. |
 | `cursor` | string | Cursor from previous response. |
 | `limit` | number | Items per page (1-200, default 50). |
 
@@ -154,15 +155,49 @@ List users seen by a specific app, ordered by most recently seen.
   "users": [
     {
       "id": "uuid",
-      "app_id": "uuid",
+      "project_id": "uuid",
       "user_id": "owl_anon_abc123",
       "is_anonymous": true,
       "first_seen_at": "2024-01-01T00:00:00.000Z",
       "last_seen_at": "2024-01-15T10:30:00.000Z",
-      "claimed_from": null
+      "claimed_from": null,
+      "properties": {},
+      "apps": [
+        {
+          "app_id": "uuid",
+          "app_name": "iOS App",
+          "first_seen_at": "2024-01-01T00:00:00.000Z",
+          "last_seen_at": "2024-01-15T10:30:00.000Z"
+        }
+      ]
     }
   ],
   "cursor": "2024-01-14T08:00:00.000Z",
   "has_more": false
 }
 ```
+
+App users are project-scoped: the `project_id` identifies the project, and the `apps` array lists each app within that project that has seen this user. A user seen from multiple apps in the same project appears once, not once per app.
+
+## GET /v1/app-users
+
+List users across apps/projects/teams. Accepts the same filters as `/v1/apps/:id/users` plus `team_id`, `project_id`, `app_id`, `since`, and `until` for cross-app queries.
+
+**Auth required:** Yes (`apps:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Filter to a specific team. |
+| `project_id` | string | Filter to a specific project. |
+| `app_id` | string | Filter to users who have been seen from a specific app. |
+| `search` | string | Filter by user_id substring (case-insensitive). |
+| `is_anonymous` | string | `"true"` for anonymous users only, `"false"` for identified users only. |
+| `billing_status` | string | Comma-separated billing tiers: `free`, `trial`, `paid`. |
+| `since` | string | Filter by `last_seen_at >= since`. Relative or ISO 8601. |
+| `until` | string | Filter by `last_seen_at <= until`. Relative or ISO 8601. |
+| `cursor` | string | Cursor from previous response. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+Response shape is identical to `/v1/apps/:id/users`.

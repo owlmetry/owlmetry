@@ -24,7 +24,7 @@ To fully investigate an issue from discovery to resolution:
 
 ## list-issues
 
-List issues for a project, ordered by most recently seen. Filter by status, app, or dev/prod mode.
+List issues for a project. Issues are error events grouped by fingerprint, sorted by severity (unique affected users). Filter by status, app, or dev/prod mode.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -37,7 +37,7 @@ List issues for a project, ordered by most recently seen. Filter by status, app,
 
 ## get-issue
 
-Get details of a specific issue, including occurrences (sessions affected), comments, and fingerprints.
+Get details of a specific issue, including occurrences (sessions affected), comments, fingerprints, and linked attachments. Each occurrence includes a `session_id` — pass it to [`query-events`](/docs/mcp/events#query-events) or [`investigate-event`](/docs/mcp/events#investigate-event) to reconstruct the full session timeline around the error.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
