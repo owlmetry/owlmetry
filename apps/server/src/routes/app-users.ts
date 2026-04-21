@@ -302,4 +302,38 @@ export async function appUsersRoutes(app: FastifyInstance) {
       };
     }
   );
+
+  // Single user by internal id
+  app.get<{ Params: { id: string } }>(
+    "/app-users/:id",
+    { preHandler: requirePermission("apps:read") },
+    async (request, reply) => {
+      const auth = request.auth;
+      const { id } = request.params;
+
+      const [row] = await app.db
+        .select()
+        .from(appUsers)
+        .where(eq(appUsers.id, id))
+        .limit(1);
+
+      if (!row) {
+        return reply.code(404).send({ error: "User not found" });
+      }
+
+      const [project] = await app.db
+        .select({ team_id: projects.team_id })
+        .from(projects)
+        .where(and(eq(projects.id, row.project_id), isNull(projects.deleted_at)))
+        .limit(1);
+
+      const allTeamIds = getAuthTeamIds(auth);
+      if (!project || !allTeamIds.includes(project.team_id)) {
+        return reply.code(404).send({ error: "User not found" });
+      }
+
+      const appInfoMap = await loadAppInfoForUsers(app.db, [row.id]);
+      return serializeAppUser({ ...row, apps: appInfoMap.get(row.id) ?? [] });
+    }
+  );
 }

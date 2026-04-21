@@ -69,7 +69,9 @@ export default function UsersPage() {
       time_range: "",
       since: "",
       until: "",
+      app_user_id: "",
     },
+    persistKeys: ["app_user_id"],
   });
 
   // Projects & apps for filter dropdowns
@@ -117,16 +119,36 @@ export default function UsersPage() {
   const { users, isLoading, isLoadingMore, hasMore, loadMore } = useTeamAppUsers(filterParams);
 
   const [selectedUser, setSelectedUser] = useState<AppUserResponse | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const appUserIdParam = filters.get("app_user_id");
+  const sheetOpen = !!appUserIdParam;
+
+  // Resolve selectedUser from URL app_user_id: prefer loaded list, fall back to fetching by id
+  const userInList = useMemo(
+    () => (appUserIdParam ? users.find((u) => u.id === appUserIdParam) ?? null : null),
+    [appUserIdParam, users],
+  );
+  const { data: fetchedUser } = useSWR<AppUserResponse>(
+    appUserIdParam && !userInList ? `/v1/app-users/${appUserIdParam}` : null,
+  );
+  useEffect(() => {
+    if (!appUserIdParam) {
+      setSelectedUser(null);
+      return;
+    }
+    if (userInList) {
+      setSelectedUser(userInList);
+    } else if (fetchedUser && fetchedUser.id === appUserIdParam) {
+      setSelectedUser(fetchedUser);
+    }
+  }, [appUserIdParam, userInList, fetchedUser]);
 
   function handleRowClick(user: AppUserResponse) {
     setSelectedUser(user);
-    setSheetOpen(true);
+    filters.set("app_user_id", user.id);
   }
 
   function handleSheetFilter(key: string, value: string) {
-    filters.set(key, value);
-    setSheetOpen(false);
+    filters.setMany({ [key]: value, app_user_id: "" });
   }
 
   function toggleBillingTier(tier: BillingTier, checked: boolean) {
@@ -457,7 +479,7 @@ export default function UsersPage() {
       <UserDetailSheet
         user={selectedUser}
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(v) => { if (!v) filters.set("app_user_id", ""); }}
         onFilter={handleSheetFilter}
         projectColorMap={projectColorMap}
         appColorMap={appColorMap}

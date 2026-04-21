@@ -50,7 +50,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
           return (
             <Link
               key={user.id}
-              href="/dashboard/users"
+              href={`/dashboard/users?app_user_id=${user.id}`}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-[68px] flex justify-start">
