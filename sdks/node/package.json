@@ -1,6 +1,6 @@
 {
   "name": "@owlmetry/node",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "OwlMetry Node.js Server SDK",
   "type": "module",
   "main": "./dist/index.cjs",
