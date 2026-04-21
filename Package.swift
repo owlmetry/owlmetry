@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "OwlMetry",
-            path: "sdks/swift/Sources/OwlMetry"
+            path: "sdks/swift/Sources/OwlMetry",
+            resources: [
+                .process("Resources"),
+            ]
         ),
         .testTarget(
             name: "OwlMetryTests",

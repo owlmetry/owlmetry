@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var greetName = "World"
     @State private var eventLog: [String] = []
     @State private var isRunningDemo = false
+    @State private var showFeedbackSheet = false
+    @State private var lastFeedbackId: String?
 
     var body: some View {
         NavigationStack {
@@ -19,10 +21,28 @@ struct ContentView: View {
                 funnelDemoSection
                 identitySection
                 userPropertiesSection
+                feedbackSection
                 backendDemoSection
                 logOutputSection
             }
             .navigationTitle("OwlMetry Demo")
+            .sheet(isPresented: $showFeedbackSheet) {
+                NavigationStack {
+                    OwlFeedbackView(
+                        name: userId.isEmpty ? nil : userId,
+                        onSubmitted: { receipt in
+                            lastFeedbackId = receipt.id
+                            appendLog("[FEEDBACK] sent id=\(receipt.id)")
+                            showFeedbackSheet = false
+                        },
+                        onCancel: { showFeedbackSheet = false }
+                    )
+                    .navigationTitle("Feedback")
+                    #if !os(macOS)
+                    .navigationBarTitleDisplayMode(.inline)
+                    #endif
+                }
+            }
         }
         .owlScreen("Home")
         .onAppear {
@@ -215,6 +235,60 @@ struct ContentView: View {
                 appendLog("[PROPS] plan=premium, rc_subscriber=true, rc_product=monthly_pro")
             }
             .tint(.purple)
+        }
+    }
+
+    // MARK: - Feedback
+
+    private var feedbackSection: some View {
+        Section("Feedback") {
+            Button {
+                showFeedbackSheet = true
+            } label: {
+                Label("Send Feedback (Sheet)", systemImage: "envelope")
+            }
+            .tint(.cyan)
+
+            NavigationLink {
+                OwlFeedbackView(
+                    name: userId.isEmpty ? nil : userId,
+                    onSubmitted: { receipt in
+                        lastFeedbackId = receipt.id
+                        appendLog("[FEEDBACK] sent id=\(receipt.id)")
+                    }
+                )
+                .navigationTitle("Feedback")
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+            } label: {
+                Label("Send Feedback (Push)", systemImage: "arrow.turn.down.right")
+            }
+
+            NavigationLink {
+                // Embedded usage: no nav toolbar of its own, so actions render inline.
+                OwlFeedbackView(
+                    showsContactFields: false,
+                    actionsPlacement: .inline,
+                    onSubmitted: { receipt in
+                        lastFeedbackId = receipt.id
+                        appendLog("[FEEDBACK] sent id=\(receipt.id)")
+                    }
+                )
+                .navigationTitle("Feedback (embedded)")
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+            } label: {
+                Label("Send Feedback (Embedded)", systemImage: "square.stack.3d.down.right")
+            }
+
+            if let lastFeedbackId {
+                Text("Last feedback id: \(lastFeedbackId)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
         }
     }
 

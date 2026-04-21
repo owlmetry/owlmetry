@@ -1,0 +1,62 @@
+---
+title: Feedback
+description: Collect free-text user feedback from your apps, triage it on a kanban dashboard, and link it back to the session that produced it.
+---
+
+Feedback is unstructured user input — "the photo importer hangs after ten images", "love the new dark mode", "please add an Apple TV version" — submitted directly from your app via the SDK and surfaced in the OwlMetry dashboard for triage.
+
+Unlike [events](./events), feedback is **synchronous**: the SDK waits for the server to confirm receipt before reporting success to the user, so your UI can show a trustworthy "Thanks!" state.
+
+## How It Works
+
+1. A user submits feedback from your app via `OwlFeedbackView` (SwiftUI) or `Owl.sendFeedback(...)`.
+2. The SDK posts a single synchronous request to `POST /v1/feedback` with the current session id, user id, device info, and app version automatically attached.
+3. The server validates, stores a row in `feedback`, and returns `{ id, created_at }`.
+4. The feedback appears on the `/dashboard/feedback` kanban, in the CLI via `owlmetry feedback list`, and via the MCP `list-feedback` tool.
+
+## Status Lifecycle
+
+Feedback moves through four statuses, and any transition is allowed:
+
+```
+new → in_review → addressed → dismissed
+```
+
+- **new** — just arrived, not looked at yet
+- **in_review** — someone on the team is investigating
+- **addressed** — action has been taken (shipped, responded to, etc.)
+- **dismissed** — spam, duplicate, or not actionable
+
+## What Gets Captured
+
+Submitted from the SDK:
+
+- **Message** — the free text (required, ≤ 4000 characters)
+- **Optional name** and **optional email** — the SDK view prompts for these but never forces them
+- **Session id** — links the submission to the user's event timeline
+- **User id** — anonymous id or real user id, auto-resolved server-side if the anon id has since been claimed
+- **Device info** — environment (ios/ipados/macos/android/web/backend), device model, OS version, app version
+- **is_dev** — dev-build flag inferred from the SDK's `#if DEBUG` state
+
+Derived server-side:
+
+- **country_code** — from the Cloudflare `CF-IPCountry` header when available
+
+## Comments
+
+Each feedback item supports lightweight threaded comments so you can document triage decisions, link to issues, or capture internal context. Both users and agent keys (via CLI/MCP) can comment; only the original author can edit their comment, and only the author or a team admin can delete it.
+
+## Delete vs Dismiss
+
+- **Dismiss** — keep the feedback for audit history; used for "not actionable" rather than "unwanted".
+- **Delete** — soft-delete (sets `deleted_at`). Only users can delete; agent keys receive 403 by design, to prevent an agent from silently removing real user feedback.
+
+## Theming the SDK View
+
+The `OwlFeedbackView` Submit button inherits the SwiftUI environment tint — apply `.tint(.brandColor)` at any level (view, navigation stack, or your top-level `WindowGroup`) and both the toolbar confirm button and the inline `.borderedProminent` button pick it up. In most apps no customization is needed because the view already inherits the enclosing nav tint or your app's accent color. See the [Swift SDK feedback docs](/docs/sdks/swift/feedback#theming--button-color) for details.
+
+## Related Resources
+
+- [`/dashboard/feedback`](/dashboard/feedback) — kanban UI for triage
+- [`owlmetry feedback`](/docs/cli/feedback) — CLI reference
+- [Owl.sendFeedback + OwlFeedbackView](/docs/sdks/swift) — Swift SDK reference

@@ -127,6 +127,16 @@ To fully investigate an issue, follow this workflow:
 7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, affected versions, reproduction steps, or a fix plan. This is visible to the team.
 8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
 
+### Feedback
+Free-text user feedback submitted from apps via the Swift SDK (\`OwlFeedbackView\` / \`Owl.sendFeedback\`). Each feedback row captures \`message\`, optional \`submitter_name\` and \`submitter_email\`, plus the session, user, app version, device, environment, and country automatically — so you can pivot between the user's comment and the events they were producing at the time.
+
+- **Status lifecycle** — free transitions between \`new\`, \`in_review\`, \`addressed\`, \`dismissed\`. No forced order; \`dismissed\` is the "not actionable" state.
+- **Comments** — investigation notes from users (\`👤\`) and agents (\`🕶️\`), mirror the issue-comment model.
+- **Session link** — \`session_id\` on the feedback row maps to the full event stream; pass it to \`investigate-event\` with any event from that session to reconstruct the breadcrumb timeline around the complaint.
+- **Delete** — user-only. MCP cannot delete feedback by design: use \`update-feedback-status → dismissed\` for "not actionable" instead.
+
+Typical workflow: \`list-feedback\` filtered to \`status: "new"\` → \`get-feedback\` to read the message and linked session → \`investigate-event\` on an event from that session to understand what the user was doing → \`add-feedback-comment\` with root cause or a cross-link to a related issue → \`update-feedback-status\` to \`in_review\` or \`addressed\`.
+
 ### Event Attachments (limited resource)
 SDKs can optionally upload a file alongside an error event (e.g. the input image that failed to convert, a 3D model file that failed to parse). These show up as \`attachments\` on \`get-event\` and \`get-issue\` responses and can be downloaded via \`get-attachment\` which returns a short-lived signed URL.
 
@@ -205,6 +215,12 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`merge-issues\` — Merge source issue into target (moves all data, deletes source)
 - \`list-issue-comments\` — List investigation comments on an issue
 - \`add-issue-comment\` — Add a comment to document findings or fixes
+
+### Feedback
+- \`list-feedback\` — List user feedback for a project (filter by status, app, dev/prod)
+- \`get-feedback\` — Get feedback detail with comments
+- \`update-feedback-status\` — Transition status (\`new\` | \`in_review\` | \`addressed\` | \`dismissed\`)
+- \`add-feedback-comment\` — Attach an investigation note or cross-link
 
 ### Attachments
 - \`list-attachments\` — filter by event, issue, or project

@@ -1140,6 +1140,101 @@ describe("MCP endpoint", () => {
     });
   });
 
+  // ── Feedback ──────────────────────────────────────────────────────────
+
+  describe("feedback", () => {
+    async function seedFeedback(projectId: string, appId: string, message = "MCP test feedback"): Promise<string> {
+      const client = (await import("postgres")).default("postgres://localhost:5432/owlmetry_test", { max: 1 });
+      const [row] = await client`
+        INSERT INTO feedback (project_id, app_id, message, status, is_dev)
+        VALUES (${projectId}, ${appId}, ${message}, 'new', false)
+        RETURNING id
+      `;
+      await client.end();
+      return row.id;
+    }
+
+    it("list-feedback returns feedback for a project", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "FB List", slug: "fb-list" }),
+      );
+      const { parsed: app } = parseToolResult(
+        await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" }),
+      );
+      const fbId = await seedFeedback(project.id, app.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "list-feedback", { project_id: project.id }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.feedback.some((f: any) => f.id === fbId)).toBe(true);
+    });
+
+    it("get-feedback returns detail with comments array", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "FB Detail", slug: "fb-detail" }),
+      );
+      const { parsed: app } = parseToolResult(
+        await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" }),
+      );
+      const fbId = await seedFeedback(project.id, app.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "get-feedback", { project_id: project.id, feedback_id: fbId }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.id).toBe(fbId);
+      expect(parsed.comments).toBeInstanceOf(Array);
+    });
+
+    it("update-feedback-status transitions through statuses", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "FB Status", slug: "fb-status" }),
+      );
+      const { parsed: app } = parseToolResult(
+        await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" }),
+      );
+      const fbId = await seedFeedback(project.id, app.id);
+
+      for (const status of ["in_review", "addressed", "dismissed"]) {
+        const { parsed, isError } = parseToolResult(
+          await callTool(key, "update-feedback-status", {
+            project_id: project.id,
+            feedback_id: fbId,
+            status,
+          }),
+        );
+        expect(isError).toBe(false);
+        expect(parsed.status).toBe(status);
+      }
+    });
+
+    it("add-feedback-comment creates agent-authored comment", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "FB Comment", slug: "fb-comment" }),
+      );
+      const { parsed: app } = parseToolResult(
+        await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" }),
+      );
+      const fbId = await seedFeedback(project.id, app.id);
+
+      const { parsed, isError } = parseToolResult(
+        await callTool(key, "add-feedback-comment", {
+          project_id: project.id,
+          feedback_id: fbId,
+          body: "Investigated — appears to be onboarding confusion.",
+        }),
+      );
+      expect(isError).toBe(false);
+      expect(parsed.author_type).toBe("agent");
+      expect(parsed.body).toContain("Investigated");
+    });
+  });
+
   // ── Error handling ────────────────────────────────────────────────────
 
   describe("error handling", () => {

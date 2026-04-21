@@ -300,6 +300,85 @@ public enum Owl {
         ExperimentManager.shared.clearAll()
     }
 
+    // MARK: - User Feedback
+
+    /// Submit user feedback synchronously. Returns an `OwlFeedbackReceipt` on success
+    /// so the caller can confirm the server received the submission.
+    ///
+    /// This is NOT offline-queued — if the network is unavailable the call throws and
+    /// the caller should let the user retry. Session, user id, device info, and
+    /// environment are attached automatically.
+    ///
+    /// - Parameters:
+    ///   - message: The feedback text. Required. Trimmed server-side; must be 1..4000 characters.
+    ///   - name: Optional submitter display name.
+    ///   - email: Optional submitter email (validated server-side).
+    @discardableResult
+    public static func sendFeedback(
+        message: String,
+        name: String? = nil,
+        email: String? = nil
+    ) async throws -> OwlFeedbackReceipt {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw OwlFeedbackError.emptyMessage }
+
+        let snapshot = state.withLock { s -> (EventTransport, String, DeviceInfo, String?, String?)? in
+            guard let transport = s.transport,
+                  let config = s.configuration,
+                  let deviceInfo = s.deviceInfo else {
+                if !s.hasWarnedNotConfigured {
+                    s.hasWarnedNotConfigured = true
+                    logger.warning("Owl.configure() has not been called. sendFeedback dropped.")
+                }
+                return nil
+            }
+            return (transport, config.bundleId, deviceInfo, s.defaultUserId, s.sessionId)
+        }
+
+        guard let (transport, bundleId, deviceInfo, userId, sessionId) = snapshot else {
+            throw OwlFeedbackError.notConfigured
+        }
+
+        #if DEBUG
+        let isDev = true
+        #else
+        let isDev = false
+        #endif
+
+        func trimNil(_ s: String?) -> String? {
+            guard let s else { return nil }
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+
+        let body = FeedbackRequestBody(
+            bundle_id: bundleId,
+            message: trimmed,
+            session_id: sessionId,
+            user_id: userId,
+            submitter_name: trimNil(name),
+            submitter_email: trimNil(email),
+            app_version: deviceInfo.appVersion,
+            environment: deviceInfo.platform.rawValue,
+            device_model: deviceInfo.deviceModel,
+            os_version: deviceInfo.osVersion,
+            is_dev: isDev
+        )
+
+        let result = await transport.submitFeedback(body)
+        switch result {
+        case .success(let receipt):
+            // Audit trail — feedback submission is observable in the event stream.
+            log("sdk:feedback_submitted", level: .info, screenName: nil,
+                attributes: ["has_email": trimNil(email) != nil ? "true" : "false",
+                             "has_name": trimNil(name) != nil ? "true" : "false"],
+                file: #file, function: #function, line: #line)
+            return receipt
+        case .failure(let error):
+            throw error
+        }
+    }
+
     // MARK: - Structured Metrics
 
     /// Regex for valid metric slugs: lowercase letters, numbers, and hyphens only.

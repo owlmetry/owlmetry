@@ -463,6 +463,88 @@ Connect RevenueCat to my OwlMetry project so I can see paid vs free users:
    subscribes, without waiting for RevenueCat's webhook.
 ```
 
+## Collect User Feedback
+
+OwlMetry ships a reusable SwiftUI view (`OwlFeedbackView`) plus a programmatic API (`Owl.sendFeedback`) for gathering free-text feedback inside your app. Submissions are linked automatically to the current session, user id, app version, device, and environment — nothing extra to pass in.
+
+### Programmatic submit
+
+```swift
+do {
+    let receipt = try await Owl.sendFeedback(
+        message: "Love the new import flow!",
+        name: currentUser?.displayName,   // optional
+        email: currentUser?.email         // optional
+    )
+    print("Feedback stored: \(receipt.id)")
+} catch let error as OwlFeedbackError {
+    // .emptyMessage, .notConfigured, .serverError, .transportFailure
+    showAlert(error.localizedDescription)
+}
+```
+
+Unlike events, `sendFeedback` is **synchronous** and **not offline-queued** — it returns a receipt on success and throws on failure so you can surface a retry.
+
+### Drop-in SwiftUI view
+
+`OwlFeedbackView` is a plain `View` — host it however you want: as a sheet, a navigation destination, or inline. Every user-facing string is localizable and overridable via `OwlFeedbackStrings`.
+
+```swift
+// 1. As a sheet
+.sheet(isPresented: $showFeedback) {
+    NavigationStack {
+        OwlFeedbackView(
+            name: user?.displayName,
+            email: user?.email,
+            onSubmitted: { _ in showFeedback = false },
+            onCancel: { showFeedback = false }
+        )
+        .navigationTitle("Feedback")
+    }
+}
+
+// 2. As a navigation destination
+NavigationLink("Send feedback") {
+    OwlFeedbackView()
+}
+
+// 3. Embedded inline
+VStack {
+    Text("Tell us what you think")
+    OwlFeedbackView(showsContactFields: false)
+}
+```
+
+### Customizing strings / localization
+
+`OwlFeedbackView` ships with English defaults bundled in the SDK. To override a single string or swap in your own localized catalog:
+
+```swift
+// Partial override
+OwlFeedbackView(strings: .default.with(header: "How are we doing?"))
+
+// Point at your app's own string catalog
+OwlFeedbackView(strings: OwlFeedbackStrings(
+    header: LocalizedStringResource("feedback.header", table: "MyApp"),
+    // …other fields keep defaults
+))
+```
+
+### Theming the Submit button
+
+Both the toolbar confirm action and the inline `.borderedProminent` Send button read the SwiftUI environment tint. Override it with `.tint()`:
+
+```swift
+OwlFeedbackView(onSubmitted: { _ in }, onCancel: {})
+    .tint(.orange)
+```
+
+If you don't apply `.tint()` explicitly, the view inherits the enclosing `NavigationStack`'s tint (or your app's accent color), so in most apps it already matches your brand without any extra code. The `.tint()` modifier propagates through the environment, so you can apply it on a parent view (e.g. at the top of your `WindowGroup`) and every `OwlFeedbackView` downstream will pick it up.
+
+### Where feedback lands
+
+Submissions show up on **Dashboard → Feedback** as a kanban with four statuses (`new → in_review → addressed → dismissed`). Humans, the CLI (`owlmetry feedback`), and MCP agents can all read and triage it.
+
 ## What the SDK Tracks Automatically
 
 Do not re-implement any of these — they are built into the SDK and emitted without any code:

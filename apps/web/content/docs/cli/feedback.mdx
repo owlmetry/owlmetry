@@ -1,0 +1,58 @@
+---
+title: Feedback
+description: Review and triage user feedback from the OwlMetry CLI.
+---
+
+The `owlmetry feedback` command group lets you list, triage, and annotate [feedback](/docs/concepts/feedback) collected from your apps via the Swift SDK.
+
+## List Feedback
+
+```bash
+owlmetry feedback list --project-id <id>
+```
+
+Lists feedback for a project, newest first.
+
+### Filters
+
+| Flag | Description |
+|------|-------------|
+| `--status <status>` | Filter by status: `new`, `in_review`, `addressed`, `dismissed` |
+| `--app-id <id>` | Filter to a specific app |
+| `--dev` | Show dev-build feedback only |
+| `--limit <n>` | Max entries to return |
+| `--cursor <cursor>` | Pagination cursor from previous response |
+
+## View Feedback Details
+
+```bash
+owlmetry feedback view <feedbackId> --project-id <id>
+```
+
+Shows the full message, submitter contact info, device details, linked session id, and any comments.
+
+## Change Status
+
+```bash
+owlmetry feedback status <feedbackId> --project-id <id> --to in_review
+owlmetry feedback status <feedbackId> --project-id <id> --to addressed
+owlmetry feedback status <feedbackId> --project-id <id> --to dismissed
+```
+
+Any transition between statuses is allowed (no forced lifecycle).
+
+## Add a Comment
+
+```bash
+owlmetry feedback comment <feedbackId> --project-id <id> --body "Fixed in v2.3 — closed the leak in PhotoImporter."
+```
+
+Agent comments are authored under the key's name; human comments are authored under the user's name.
+
+## Delete Feedback
+
+```bash
+owlmetry feedback delete <feedbackId> --project-id <id>
+```
+
+Soft-deletes the feedback (sets `deleted_at`). **User-only** — agent keys receive a 403 by design.

@@ -11,6 +11,7 @@ import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions
 import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
+import { feedbackIngestRoutes } from "../routes/feedback-ingest.js";
 import { ingestAttachmentRoutes } from "../routes/ingest-attachment.js";
 import { attachmentsRoutes } from "../routes/attachments.js";
 import { importRoutes } from "../routes/import.js";
@@ -29,6 +30,7 @@ import { integrationsRoutes } from "../routes/integrations.js";
 import { revenuecatRoutes } from "../routes/revenuecat.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
+import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
 import { mcpRoute } from "../mcp/index.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
@@ -370,6 +372,7 @@ export async function buildApp() {
   app.get("/health", async () => ({ status: "ok" }));
   await app.register(authRoutes, { prefix: "/v1/auth" });
   await app.register(ingestRoutes, { prefix: "/v1" });
+  await app.register(feedbackIngestRoutes, { prefix: "/v1" });
   await app.register(ingestAttachmentRoutes, { prefix: "/v1" });
   await app.register(attachmentsRoutes, { prefix: "/v1" });
   await app.register(importRoutes, { prefix: "/v1" });
@@ -392,6 +395,8 @@ export async function buildApp() {
   await app.register(jobsByIdRoutes, { prefix: "/v1" });
   await app.register(issuesRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamIssuesRoutes, { prefix: "/v1" });
+  await app.register(feedbackRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(teamFeedbackRoutes, { prefix: "/v1" });
   await app.register(mcpRoute);
 
   await app.ready();
@@ -401,6 +406,8 @@ export async function buildApp() {
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
   await client`DELETE FROM event_attachments`.catch(() => {});
+  await client`DELETE FROM feedback_comments`.catch(() => {});
+  await client`DELETE FROM feedback`.catch(() => {});
   await client`DELETE FROM issue_comments`.catch(() => {});
   await client`DELETE FROM issue_occurrences`.catch(() => {});
   await client`DELETE FROM issue_fingerprints`.catch(() => {});
@@ -483,7 +490,7 @@ export async function seedTestData() {
       ${team.id},
       'Test Agent Key',
       ${user.id},
-      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read"])}::jsonb
+      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read", "feedback:read", "feedback:write"])}::jsonb
     )
   `;
 

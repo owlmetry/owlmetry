@@ -12,7 +12,12 @@ let package = Package(
         .library(name: "OwlMetry", targets: ["OwlMetry"]),
     ],
     targets: [
-        .target(name: "OwlMetry"),
+        .target(
+            name: "OwlMetry",
+            resources: [
+                .process("Resources"),
+            ]
+        ),
         .testTarget(name: "OwlMetryTests", dependencies: ["OwlMetry"]),
     ]
 )

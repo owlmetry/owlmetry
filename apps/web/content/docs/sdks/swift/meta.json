@@ -10,6 +10,7 @@
     "experiments",
     "screen-tracking",
     "identity",
-    "user-properties"
+    "user-properties",
+    "feedback"
   ]
 }

@@ -194,6 +194,13 @@ owlmetry issues merge <targetIssueId> --project-id <id> --source <sourceIssueId>
 owlmetry issues comment <issueId> --project-id <id> --body "..." --format json
 owlmetry issues comments <issueId> --project-id <id> --format json
 
+# Feedback
+owlmetry feedback list --project-id <id> [--status new|in_review|addressed|dismissed] [--app-id <id>] [--dev] [--limit <n>] --format json
+owlmetry feedback view <feedbackId> --project-id <id> --format json
+owlmetry feedback status <feedbackId> --project-id <id> --to new|in_review|addressed|dismissed --format json
+owlmetry feedback comment <feedbackId> --project-id <id> --body "..." --format json
+owlmetry feedback delete <feedbackId> --project-id <id>  # user-only; agent keys get 403
+
 # Events
 owlmetry events [--project-id <id>] [--app-id <id>] [--level <level>] [--user-id <id>] [--session-id <id>] [--since <time>] [--limit <n>] [--order asc|desc] --format json
 owlmetry events view <id> --format json

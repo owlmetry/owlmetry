@@ -13,6 +13,7 @@ import { registerIntegrationsTools } from "./tools/integrations.js";
 import { registerJobsTools } from "./tools/jobs.js";
 import { registerAuditLogsTools } from "./tools/audit-logs.js";
 import { registerIssuesTools } from "./tools/issues.js";
+import { registerFeedbackTools } from "./tools/feedback.js";
 import { registerAttachmentsTools } from "./tools/attachments.js";
 
 const SKILLS_DIR = resolve(import.meta.dirname, "../../../../skills");
@@ -86,6 +87,7 @@ export function createMcpServer(app: FastifyInstance, agentKey: string): McpServ
   registerJobsTools(server, app, agentKey);
   registerAuditLogsTools(server, app, agentKey);
   registerIssuesTools(server, app, agentKey);
+  registerFeedbackTools(server, app, agentKey);
   registerAttachmentsTools(server, app, agentKey);
 
   return server;

@@ -33,16 +33,18 @@ TEAM_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM teams LIMIT 1")
 OWNER_ID=$(psql -tA "$TEST_DB_NAME" -c "SELECT user_id FROM team_members WHERE team_id = '$TEAM_ID' AND role = 'owner' LIMIT 1")
 
 EXISTING_CLI_KEY=$(psql -tA "$TEST_DB_NAME" -c "SELECT id FROM api_keys WHERE secret = '$TEST_CLI_AGENT_KEY' LIMIT 1")
+PERMS='["events:read","apps:read","apps:write","projects:read","projects:write","metrics:read","metrics:write","funnels:read","funnels:write","audit_logs:read","feedback:read","feedback:write"]'
 if [ -z "$EXISTING_CLI_KEY" ]; then
     echo "Creating full-permission CLI agent key..."
     psql -tA "$TEST_DB_NAME" <<SQL
 INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
 VALUES ('$TEST_CLI_AGENT_KEY', 'agent', NULL, '$TEAM_ID', 'CLI Test Agent Key', '$OWNER_ID',
-  '["events:read","apps:read","apps:write","projects:read","projects:write","metrics:read","metrics:write","funnels:read","funnels:write","audit_logs:read"]'::jsonb);
+  '$PERMS'::jsonb);
 SQL
     echo "CLI agent key seeded"
 else
-    echo "CLI agent key already exists"
+    echo "CLI agent key exists — refreshing permissions"
+    psql -tA "$TEST_DB_NAME" -c "UPDATE api_keys SET permissions = '$PERMS'::jsonb WHERE secret = '$TEST_CLI_AGENT_KEY'"
 fi
 
 # Ingest a few test events so queries have data

@@ -30,6 +30,13 @@ import type {
   UpdateIssueRequest,
   MergeIssuesRequest,
   CreateIssueCommentRequest,
+  FeedbackQueryParams,
+  FeedbackListResponse,
+  FeedbackDetailResponse,
+  FeedbackResponse,
+  FeedbackCommentResponse,
+  UpdateFeedbackRequest,
+  CreateFeedbackCommentRequest,
   JobRunResponse,
   JobRunsQueryParams,
   JobRunsResponse,
@@ -348,6 +355,27 @@ export class OwlMetryClient {
 
   async addIssueComment(projectId: string, issueId: string, body: CreateIssueCommentRequest): Promise<IssueCommentResponse> {
     return this.request<IssueCommentResponse>("POST", `/v1/projects/${projectId}/issues/${issueId}/comments`, { body });
+  }
+
+  // Feedback
+  async listFeedback(projectId: string, params: Partial<FeedbackQueryParams> = {}): Promise<FeedbackListResponse> {
+    return this.request<FeedbackListResponse>("GET", `/v1/projects/${projectId}/feedback`, { params: params as Record<string, string> });
+  }
+
+  async getFeedback(projectId: string, feedbackId: string): Promise<FeedbackDetailResponse> {
+    return this.request<FeedbackDetailResponse>("GET", `/v1/projects/${projectId}/feedback/${feedbackId}`);
+  }
+
+  async updateFeedback(projectId: string, feedbackId: string, body: UpdateFeedbackRequest): Promise<FeedbackResponse> {
+    return this.request<FeedbackResponse>("PATCH", `/v1/projects/${projectId}/feedback/${feedbackId}`, { body });
+  }
+
+  async deleteFeedback(projectId: string, feedbackId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/feedback/${feedbackId}`);
+  }
+
+  async addFeedbackComment(projectId: string, feedbackId: string, body: CreateFeedbackCommentRequest): Promise<FeedbackCommentResponse> {
+    return this.request<FeedbackCommentResponse>("POST", `/v1/projects/${projectId}/feedback/${feedbackId}/comments`, { body });
   }
 
   // Attachments

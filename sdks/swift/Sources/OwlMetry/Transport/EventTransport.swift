@@ -6,6 +6,7 @@ actor EventTransport {
     private let ingestURL: URL
     private let claimURL: URL
     private let propertiesURL: URL
+    private let feedbackURL: URL
     private let apiKey: String
     private let bundleId: String
     private let session: URLSession
@@ -36,6 +37,7 @@ actor EventTransport {
         self.ingestURL = endpoint.appendingPathComponent("v1/ingest")
         self.claimURL = endpoint.appendingPathComponent("v1/identity/claim")
         self.propertiesURL = endpoint.appendingPathComponent("v1/identity/properties")
+        self.feedbackURL = endpoint.appendingPathComponent("v1/feedback")
         self.apiKey = apiKey
         self.bundleId = bundleId
         self.compressionEnabled = compressionEnabled
@@ -171,6 +173,44 @@ actor EventTransport {
             Self.logger.error("User properties update failed for \(userId)")
         }
     }
+
+    /// One-shot synchronous feedback submission. Does NOT queue offline — caller handles errors.
+    func submitFeedback(_ payload: FeedbackRequestBody) async -> Result<OwlFeedbackReceipt, OwlFeedbackError> {
+        let httpBody: Data
+        do {
+            httpBody = try encoder.encode(payload)
+        } catch {
+            return .failure(.transportFailure("encoding failed: \(error.localizedDescription)"))
+        }
+
+        let request = makeRequest(url: feedbackURL, body: httpBody)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return .failure(.transportFailure("no HTTP response"))
+            }
+            if (200..<300).contains(http.statusCode) {
+                do {
+                    let decoded = try JSONDecoder().decode(FeedbackResponseBody.self, from: data)
+                    let date = Self.iso8601.date(from: decoded.created_at) ?? Date()
+                    return .success(OwlFeedbackReceipt(id: decoded.id, createdAt: date))
+                } catch {
+                    return .failure(.transportFailure("decode failed: \(error.localizedDescription)"))
+                }
+            }
+            let body = String(data: data, encoding: .utf8)
+            return .failure(.serverError(statusCode: http.statusCode, body: body))
+        } catch {
+            return .failure(.transportFailure(error.localizedDescription))
+        }
+    }
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 
     private func send(_ events: [LogEvent]) async -> Bool {
         guard let httpBody = try? encoder.encode(IngestRequestBody(bundle_id: bundleId, events: events)) else {

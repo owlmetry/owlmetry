@@ -1,0 +1,116 @@
+---
+title: User Feedback
+description: Collect free-text feedback from your users with OwlFeedbackView and Owl.sendFeedback.
+---
+
+The Swift SDK ships a reusable SwiftUI view (`OwlFeedbackView`) plus a programmatic API (`Owl.sendFeedback`) for gathering free-text feedback from inside your app. Submissions are linked automatically to the current session, user id, app version, device, and environment.
+
+See the [Feedback concept page](/docs/concepts/feedback) for what happens after a submission lands.
+
+## Programmatic API
+
+`Owl.sendFeedback` is synchronous and **not offline-queued** — it returns a receipt on success and throws on failure so you can surface a retry to the user:
+
+```swift
+do {
+    let receipt = try await Owl.sendFeedback(
+        message: "Love the new import flow!",
+        name: currentUser?.displayName,   // optional
+        email: currentUser?.email         // optional
+    )
+    print("Feedback stored: \(receipt.id)")
+} catch let error as OwlFeedbackError {
+    // .emptyMessage, .notConfigured, .serverError, .transportFailure
+    showAlert(error.localizedDescription)
+}
+```
+
+## SwiftUI View
+
+`OwlFeedbackView` is a plain `View` — you pick the presentation. It doesn't set its own `navigationTitle` or wrap itself in a `NavigationStack` on purpose.
+
+### As a sheet
+
+```swift
+.sheet(isPresented: $showFeedback) {
+    NavigationStack {
+        OwlFeedbackView(
+            name: user?.displayName,
+            email: user?.email,
+            onSubmitted: { _ in showFeedback = false },
+            onCancel: { showFeedback = false }
+        )
+        .navigationTitle("Feedback")
+    }
+}
+```
+
+### As a navigation destination
+
+```swift
+NavigationLink("Send feedback") {
+    OwlFeedbackView()
+        .navigationTitle("Feedback")
+}
+```
+
+### Embedded inline
+
+When the view has no enclosing toolbar to attach its actions to, pass `actionsPlacement: .inline` so Submit (and optional Cancel) render as a plain full-width button pinned to the bottom via `safeAreaInset`:
+
+```swift
+VStack {
+    Text("Tell us what you think")
+    OwlFeedbackView(
+        showsContactFields: false,
+        actionsPlacement: .inline
+    )
+}
+```
+
+## Theming — button color
+
+The Submit button (both the toolbar confirm action and the inline `.borderedProminent` variant) reads the SwiftUI environment tint. Override it with `.tint()` at any level in your hierarchy:
+
+```swift
+OwlFeedbackView(onSubmitted: { _ in }, onCancel: {})
+    .tint(.orange)
+```
+
+Or set it once on an ancestor and all `OwlFeedbackView` instances inherit:
+
+```swift
+WindowGroup {
+    ContentView()
+        .tint(.brandGreen)   // applies to toolbar + borderedProminent buttons everywhere
+}
+```
+
+If you don't apply `.tint()` explicitly, the view inherits the enclosing `NavigationStack`'s tint or your app's accent color — in most apps that already matches your brand, so no extra code is needed.
+
+## Customizing strings
+
+Every user-facing string is overridable via `OwlFeedbackStrings`. The defaults ship through the SDK's bundled `Localizable.xcstrings` catalog:
+
+```swift
+// Partial override
+OwlFeedbackView(strings: .default.with(header: "How are we doing?"))
+
+// Point at your app's own string catalog
+OwlFeedbackView(strings: OwlFeedbackStrings(
+    header: LocalizedStringResource("feedback.header", table: "MyApp"),
+    // …other fields keep defaults
+))
+```
+
+## Init parameters
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `name` | `nil` | Prefill the Name field (user can still edit). |
+| `email` | `nil` | Prefill the Email field (user can still edit). |
+| `showsContactFields` | `true` | Set `false` to hide Name + Email entirely. |
+| `actionsPlacement` | `.toolbar` | `.toolbar` (nav bar) or `.inline` (bottom button). |
+| `strings` | `.default` | `OwlFeedbackStrings` — every label/placeholder/error is overridable. |
+| `onSubmitted` | `nil` | Called with the `OwlFeedbackReceipt` on success (use it to dismiss the sheet). |
+| `onCancel` | `nil` | Called when the user taps Cancel. When `nil`, no Cancel button is shown. |

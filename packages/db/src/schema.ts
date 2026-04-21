@@ -29,6 +29,7 @@ export const metricPhaseEnum = pgEnum("metric_phase", ["start", "complete", "fai
 export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "completed", "failed", "cancelled"]);
 export const issueStatusEnum = pgEnum("issue_status", ["new", "in_progress", "resolved", "silenced", "regressed"]);
 export const issueAlertFrequencyEnum = pgEnum("issue_alert_frequency", ["none", "hourly", "6_hourly", "daily", "weekly"]);
+export const feedbackStatusEnum = pgEnum("feedback_status", ["new", "in_review", "addressed", "dismissed"]);
 
 // Users
 export const users = pgTable("users", {
@@ -679,6 +680,75 @@ export const eventAttachments = pgTable(
     index("event_attachments_issue_id_idx").on(table.issue_id),
     index("event_attachments_project_deleted_at_idx").on(table.project_id, table.deleted_at),
     index("event_attachments_project_user_idx").on(table.project_id, table.user_id),
+  ]
+);
+
+// Feedback — user-submitted feedback collected via SDK or dashboard. One row per submission.
+// Not partitioned (low volume, wants FK for comments). Soft-deletable for undo.
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    session_id: uuid("session_id"),
+    user_id: varchar("user_id", { length: 255 }),
+    message: text("message").notNull(),
+    submitter_name: varchar("submitter_name", { length: 255 }),
+    submitter_email: varchar("submitter_email", { length: 320 }),
+    status: feedbackStatusEnum("status").notNull().default("new"),
+    is_dev: boolean("is_dev").notNull().default(false),
+    environment: environmentEnum("environment"),
+    os_version: varchar("os_version", { length: 50 }),
+    app_version: varchar("app_version", { length: 50 }),
+    device_model: varchar("device_model", { length: 100 }),
+    country_code: varchar("country_code", { length: 2 }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("feedback_project_status_idx").on(table.project_id, table.status),
+    index("feedback_project_created_at_idx").on(table.project_id, table.created_at),
+    index("feedback_app_status_idx").on(table.app_id, table.status),
+    index("feedback_session_id_idx").on(table.session_id),
+    index("feedback_user_id_idx").on(table.user_id),
+  ]
+);
+
+// Feedback Comments — investigation notes from users and agents (mirrors issue_comments)
+export const feedbackComments = pgTable(
+  "feedback_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    feedback_id: uuid("feedback_id")
+      .notNull()
+      .references(() => feedback.id, { onDelete: "cascade" }),
+    author_type: varchar("author_type", { length: 10 }).notNull(),
+    author_id: uuid("author_id").notNull(),
+    author_name: varchar("author_name", { length: 255 }).notNull(),
+    body: text("body").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("feedback_comments_feedback_created_at_idx").on(table.feedback_id, table.created_at),
+    index("feedback_comments_author_id_idx").on(table.author_id),
   ]
 );
 

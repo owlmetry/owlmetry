@@ -12,6 +12,7 @@
     "funnels",
     "audit-log",
     "issues",
+    "feedback",
     "integrations",
     "jobs",
     "attachments"

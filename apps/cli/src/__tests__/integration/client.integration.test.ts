@@ -161,6 +161,54 @@ describe.skipIf(!TEST_ENDPOINT)("integration: OwlMetryClient", () => {
     });
   });
 
+  // --- Feedback ---
+
+  describe("feedback", () => {
+    async function seedFeedback(projectId: string): Promise<string> {
+      // Seed directly via the public client key ingest endpoint.
+      const clientKey = process.env.OWLMETRY_TEST_CLIENT_KEY ?? "owl_client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      const bundleId = process.env.OWLMETRY_TEST_BUNDLE_ID ?? "com.owlmetry.test";
+      const res = await fetch(`${TEST_ENDPOINT}/v1/feedback`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${clientKey}`,
+        },
+        body: JSON.stringify({ bundle_id: bundleId, message: `cli test feedback ${Date.now()}` }),
+      });
+      const body = await res.json() as { id: string };
+      void projectId; // project is implied by the client key
+      return body.id;
+    }
+
+    it("lists feedback for a project", async () => {
+      const projects = await client.listProjects();
+      const projectId = projects[0].id;
+      await seedFeedback(projectId);
+
+      const result = await client.listFeedback(projectId, { limit: "10" });
+      expect(result).toHaveProperty("feedback");
+      expect(Array.isArray(result.feedback)).toBe(true);
+    });
+
+    it("views, comments, and transitions a feedback item", async () => {
+      const projects = await client.listProjects();
+      const projectId = projects[0].id;
+      const id = await seedFeedback(projectId);
+
+      const detail = await client.getFeedback(projectId, id);
+      expect(detail.id).toBe(id);
+      expect(detail.comments).toEqual([]);
+
+      const commented = await client.addFeedbackComment(projectId, id, { body: "CLI integration note" });
+      expect(commented.body).toBe("CLI integration note");
+      expect(commented.author_type).toBe("agent");
+
+      const addressed = await client.updateFeedback(projectId, id, { status: "addressed" });
+      expect(addressed.status).toBe("addressed");
+    });
+  });
+
   // --- Error handling ---
 
   describe("errors", () => {

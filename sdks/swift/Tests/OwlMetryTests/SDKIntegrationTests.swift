@@ -1146,4 +1146,89 @@ final class SDKIntegrationTests: XCTestCase {
 
         return try await URLSession.shared.data(for: request)
     }
+
+    // MARK: - Feedback
+
+    func testSendFeedbackReturnsReceiptAndPersistsRow() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        let uniqueMessage = "integration test feedback \(UUID().uuidString)"
+        let receipt = try await Owl.sendFeedback(message: uniqueMessage, name: "Swift Test", email: "swift@example.com")
+
+        XCTAssertFalse(receipt.id.isEmpty)
+        XCTAssertFalse(receipt.createdAt.timeIntervalSince1970.isNaN)
+
+        // Fetch the feedback back via the project-scoped endpoint using the agent key
+        let rows = try await queryFeedback()
+        let match = rows.first(where: { ($0["message"] as? String) == uniqueMessage })
+        XCTAssertNotNil(match, "Feedback submitted via SDK should appear in the dashboard listing")
+        XCTAssertEqual(match?["submitter_name"] as? String, "Swift Test")
+        XCTAssertEqual(match?["submitter_email"] as? String, "swift@example.com")
+        XCTAssertEqual(match?["status"] as? String, "new")
+        // Session + device fields come from the configured SDK
+        XCTAssertNotNil(match?["session_id"])
+        XCTAssertNotNil(match?["device_model"])
+        XCTAssertNotNil(match?["os_version"])
+    }
+
+    func testSendFeedbackThrowsBeforeConfigure() async throws {
+        // Reset again just to be sure — setUp already resets.
+        await Owl.reset()
+        do {
+            _ = try await Owl.sendFeedback(message: "should throw")
+            XCTFail("sendFeedback should throw when Owl is not configured")
+        } catch let error as OwlFeedbackError {
+            XCTAssertEqual(error, .notConfigured)
+        }
+    }
+
+    func testSendFeedbackRejectsBlankMessage() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+        do {
+            _ = try await Owl.sendFeedback(message: "   ")
+            XCTFail("sendFeedback should throw on blank message")
+        } catch let error as OwlFeedbackError {
+            XCTAssertEqual(error, .emptyMessage)
+        }
+    }
+
+    func testSendFeedbackSurfacesServerErrorsAsTyped() async throws {
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+        do {
+            _ = try await Owl.sendFeedback(message: "hi", email: "not-an-email")
+            XCTFail("sendFeedback should throw when the server rejects the email")
+        } catch let error as OwlFeedbackError {
+            if case .serverError(let status, _) = error {
+                XCTAssertEqual(status, 400)
+            } else {
+                XCTFail("expected .serverError, got \(error)")
+            }
+        }
+    }
+
+    private func queryFeedback() async throws -> [[String: Any]] {
+        // Discover the project id via the agent key listing, then hit the project-scoped endpoint.
+        let projectsURL = URL(string: "\(Self.testEndpoint)/v1/projects")!
+        var projRequest = URLRequest(url: projectsURL)
+        projRequest.setValue("Bearer \(Self.testAgentKey)", forHTTPHeaderField: "Authorization")
+        let (projData, _) = try await URLSession.shared.data(for: projRequest)
+        let projJson = try JSONSerialization.jsonObject(with: projData) as? [String: Any]
+        let projects = projJson?["projects"] as? [[String: Any]] ?? []
+        guard let projectId = projects.first?["id"] as? String else {
+            XCTFail("No projects accessible to agent key")
+            return []
+        }
+
+        let url = URL(string: "\(Self.testEndpoint)/v1/projects/\(projectId)/feedback?data_mode=all&limit=100")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(Self.testAgentKey)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            XCTFail("Feedback query failed with status \(status)")
+            return []
+        }
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return json?["feedback"] as? [[String: Any]] ?? []
+    }
 }

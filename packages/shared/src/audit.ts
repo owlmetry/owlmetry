@@ -12,12 +12,13 @@ export type AuditResourceType =
   | "user"
   | "integration"
   | "job_run"
-  | "issue";
+  | "issue"
+  | "feedback";
 
 export const AUDIT_ACTIONS: AuditAction[] = ["create", "update", "delete"];
 export const AUDIT_RESOURCE_TYPES: AuditResourceType[] = [
   "app", "project", "api_key", "team", "team_member",
-  "invitation", "metric_definition", "funnel_definition", "user", "integration", "job_run", "issue",
+  "invitation", "metric_definition", "funnel_definition", "user", "integration", "job_run", "issue", "feedback",
 ];
 
 export interface AuditLogEntry {

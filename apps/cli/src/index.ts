@@ -16,6 +16,7 @@ import { switchCommand } from "./commands/switch.js";
 import { integrationsCommand } from "./commands/integrations.js";
 import { jobsCommand } from "./commands/jobs.js";
 import { issuesCommand } from "./commands/issues.js";
+import { feedbackCommand } from "./commands/feedback.js";
 import { attachmentsCommand } from "./commands/attachments.js";
 
 declare const __CLI_VERSION__: string;
@@ -50,6 +51,7 @@ program.addCommand(switchCommand);
 program.addCommand(integrationsCommand);
 program.addCommand(jobsCommand);
 program.addCommand(issuesCommand);
+program.addCommand(feedbackCommand);
 program.addCommand(attachmentsCommand);
 
 program.parseAsync().catch((err: unknown) => {

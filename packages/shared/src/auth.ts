@@ -41,7 +41,9 @@ export type Permission =
   | "jobs:read"
   | "jobs:write"
   | "issues:read"
-  | "issues:write";
+  | "issues:write"
+  | "feedback:read"
+  | "feedback:write";
 
 export const VALID_PERMISSIONS: Permission[] = [
   "events:write",
@@ -62,17 +64,19 @@ export const VALID_PERMISSIONS: Permission[] = [
   "jobs:write",
   "issues:read",
   "issues:write",
+  "feedback:read",
+  "feedback:write",
 ];
 
 export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
   client: ["events:write", "users:write"],
-  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write", "feedback:read", "feedback:write"],
   import: ["events:write", "users:write"],
 };
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
   client: ["events:write", "users:write"],
-  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write", "feedback:read", "feedback:write"],
   import: ["events:write", "users:write"],
 };
 
