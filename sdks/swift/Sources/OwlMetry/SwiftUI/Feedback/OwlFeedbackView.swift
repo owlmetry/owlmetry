@@ -74,6 +74,7 @@ public struct OwlFeedbackView: View {
     @State private var isSubmitting: Bool = false
     @State private var submitted: OwlFeedbackReceipt?
     @State private var errorMessage: String?
+    @State private var showNoContactAlert: Bool = false
 
     public init(
         name: String? = nil,
@@ -114,7 +115,7 @@ public struct OwlFeedbackView: View {
                                 ProgressView()
                             } else {
                                 Button {
-                                    Task { await submit() }
+                                    onSubmitTapped()
                                 } label: {
                                     Text(strings.submitButton).fontWeight(.semibold)
                                 }
@@ -129,6 +130,18 @@ public struct OwlFeedbackView: View {
             }, message: {
                 if let errorMessage { Text(errorMessage) } else { EmptyView() }
             })
+            .alert(Text(strings.noContactAlertTitle), isPresented: $showNoContactAlert, actions: {
+                Button(role: .destructive) {
+                    Task { await submit() }
+                } label: {
+                    Text(strings.noContactSubmitAnyway)
+                }
+                Button(role: .cancel) {} label: {
+                    Text(strings.noContactAddDetails)
+                }
+            }, message: {
+                Text(strings.noContactAlertMessage)
+            })
     }
 
     @ViewBuilder
@@ -136,7 +149,7 @@ public struct OwlFeedbackView: View {
         if actionsPlacement == .inline, submitted == nil {
             VStack(spacing: 10) {
                 Button {
-                    Task { await submit() }
+                    onSubmitTapped()
                 } label: {
                     HStack(spacing: 6) {
                         if isSubmitting {
@@ -251,20 +264,40 @@ public struct OwlFeedbackView: View {
         )
     }
 
-    private func submit() async {
+    private func onSubmitTapped() {
         let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMessage.isEmpty else {
             errorMessage = String(localized: strings.errorBlankMessage)
             return
         }
 
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedEmail.isEmpty, !isValidEmail(trimmedEmail) {
-            errorMessage = String(localized: strings.errorInvalidEmail)
-            return
+
+        if showsContactFields {
+            if (trimmedName.isEmpty && !trimmedEmail.isEmpty) || (!trimmedName.isEmpty && trimmedEmail.isEmpty) {
+                errorMessage = String(localized: strings.errorIncompleteContact)
+                return
+            }
+
+            if !trimmedEmail.isEmpty, !isValidEmail(trimmedEmail) {
+                errorMessage = String(localized: strings.errorInvalidEmail)
+                return
+            }
+
+            if trimmedName.isEmpty && trimmedEmail.isEmpty {
+                showNoContactAlert = true
+                return
+            }
         }
 
+        Task { await submit() }
+    }
+
+    private func submit() async {
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
 
         isSubmitting = true
         defer { isSubmitting = false }

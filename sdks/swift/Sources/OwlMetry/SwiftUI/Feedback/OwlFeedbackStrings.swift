@@ -24,7 +24,12 @@ public struct OwlFeedbackStrings: Sendable {
     public var errorTitle: LocalizedStringResource
     public var errorBlankMessage: LocalizedStringResource
     public var errorInvalidEmail: LocalizedStringResource
+    public var errorIncompleteContact: LocalizedStringResource
     public var errorGeneric: LocalizedStringResource
+    public var noContactAlertTitle: LocalizedStringResource
+    public var noContactAlertMessage: LocalizedStringResource
+    public var noContactSubmitAnyway: LocalizedStringResource
+    public var noContactAddDetails: LocalizedStringResource
 
     public init(
         header: LocalizedStringResource = .init("owl.feedback.header", defaultValue: "How can we improve?", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
@@ -42,7 +47,12 @@ public struct OwlFeedbackStrings: Sendable {
         errorTitle: LocalizedStringResource = .init("owl.feedback.error.title", defaultValue: "Couldn't send feedback", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
         errorBlankMessage: LocalizedStringResource = .init("owl.feedback.error.blank", defaultValue: "Please write a message first.", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
         errorInvalidEmail: LocalizedStringResource = .init("owl.feedback.error.email", defaultValue: "That doesn't look like a valid email.", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
-        errorGeneric: LocalizedStringResource = .init("owl.feedback.error.generic", defaultValue: "Something went wrong. Please try again.", bundle: .atURL(OwlMetryBundle.resources.bundleURL))
+        errorIncompleteContact: LocalizedStringResource = .init("owl.feedback.error.incomplete_contact", defaultValue: "Please provide both name and email or leave both empty.", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
+        errorGeneric: LocalizedStringResource = .init("owl.feedback.error.generic", defaultValue: "Something went wrong. Please try again.", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
+        noContactAlertTitle: LocalizedStringResource = .init("owl.feedback.no_contact.title", defaultValue: "No contact details", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
+        noContactAlertMessage: LocalizedStringResource = .init("owl.feedback.no_contact.message", defaultValue: "Without your contact details, we won't be able to follow up on your feedback. Are you sure you want to continue?", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
+        noContactSubmitAnyway: LocalizedStringResource = .init("owl.feedback.no_contact.submit", defaultValue: "Submit anyway", bundle: .atURL(OwlMetryBundle.resources.bundleURL)),
+        noContactAddDetails: LocalizedStringResource = .init("owl.feedback.no_contact.add", defaultValue: "Add contact details", bundle: .atURL(OwlMetryBundle.resources.bundleURL))
     ) {
         self.header = header
         self.footer = footer
@@ -59,7 +69,12 @@ public struct OwlFeedbackStrings: Sendable {
         self.errorTitle = errorTitle
         self.errorBlankMessage = errorBlankMessage
         self.errorInvalidEmail = errorInvalidEmail
+        self.errorIncompleteContact = errorIncompleteContact
         self.errorGeneric = errorGeneric
+        self.noContactAlertTitle = noContactAlertTitle
+        self.noContactAlertMessage = noContactAlertMessage
+        self.noContactSubmitAnyway = noContactSubmitAnyway
+        self.noContactAddDetails = noContactAddDetails
     }
 
     public static let `default` = OwlFeedbackStrings()
@@ -81,7 +96,12 @@ public struct OwlFeedbackStrings: Sendable {
         errorTitle: LocalizedStringResource? = nil,
         errorBlankMessage: LocalizedStringResource? = nil,
         errorInvalidEmail: LocalizedStringResource? = nil,
-        errorGeneric: LocalizedStringResource? = nil
+        errorIncompleteContact: LocalizedStringResource? = nil,
+        errorGeneric: LocalizedStringResource? = nil,
+        noContactAlertTitle: LocalizedStringResource? = nil,
+        noContactAlertMessage: LocalizedStringResource? = nil,
+        noContactSubmitAnyway: LocalizedStringResource? = nil,
+        noContactAddDetails: LocalizedStringResource? = nil
     ) -> OwlFeedbackStrings {
         var copy = self
         if let header { copy.header = header }
@@ -99,7 +119,12 @@ public struct OwlFeedbackStrings: Sendable {
         if let errorTitle { copy.errorTitle = errorTitle }
         if let errorBlankMessage { copy.errorBlankMessage = errorBlankMessage }
         if let errorInvalidEmail { copy.errorInvalidEmail = errorInvalidEmail }
+        if let errorIncompleteContact { copy.errorIncompleteContact = errorIncompleteContact }
         if let errorGeneric { copy.errorGeneric = errorGeneric }
+        if let noContactAlertTitle { copy.noContactAlertTitle = noContactAlertTitle }
+        if let noContactAlertMessage { copy.noContactAlertMessage = noContactAlertMessage }
+        if let noContactSubmitAnyway { copy.noContactSubmitAnyway = noContactSubmitAnyway }
+        if let noContactAddDetails { copy.noContactAddDetails = noContactAddDetails }
         return copy
     }
 }

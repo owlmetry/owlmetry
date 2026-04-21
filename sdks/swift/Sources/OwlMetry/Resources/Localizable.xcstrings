@@ -78,6 +78,17 @@
         }
       }
     },
+    "owl.feedback.error.incomplete_contact" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please provide both name and email or leave both empty."
+          }
+        }
+      }
+    },
     "owl.feedback.error.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -118,6 +129,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tell us what's on your mind…"
+          }
+        }
+      }
+    },
+    "owl.feedback.no_contact.add" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add contact details"
+          }
+        }
+      }
+    },
+    "owl.feedback.no_contact.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Without your contact details, we won't be able to follow up on your feedback. Are you sure you want to continue?"
+          }
+        }
+      }
+    },
+    "owl.feedback.no_contact.submit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Submit anyway"
+          }
+        }
+      }
+    },
+    "owl.feedback.no_contact.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No contact details"
           }
         }
       }
