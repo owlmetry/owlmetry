@@ -387,6 +387,7 @@ export interface AppUserResponse {
   apps: AppUserAppInfo[];
   first_seen_at: string;
   last_seen_at: string;
+  last_country_code: string | null;
 }
 
 export interface AppUsersResponse {

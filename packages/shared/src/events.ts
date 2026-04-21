@@ -43,6 +43,7 @@ export interface StoredEvent {
   build_number: string | null;
   device_model: string | null;
   locale: string | null;
+  country_code: string | null;
   is_dev: boolean;
   experiments: Record<string, string> | null;
   timestamp: Date;

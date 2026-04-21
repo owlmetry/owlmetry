@@ -13,6 +13,7 @@ interface ErrorEvent {
   source_module: string | null;
   app_version: string | null;
   environment: string | null;
+  country_code: string | null;
   is_dev: boolean;
   timestamp: Date;
 }
@@ -61,7 +62,7 @@ export const issueScanHandler: JobHandler = async (ctx) => {
       const scanSinceIso = scanSince.toISOString();
       const errorEvents = await client<ErrorEvent[]>`
         SELECT id, app_id, client_event_id, session_id, user_id, message, source_module,
-               app_version, environment, is_dev, "timestamp"
+               app_version, environment, country_code, is_dev, "timestamp"
         FROM events
         WHERE app_id = ${appRow.id}
           AND level = 'error'
@@ -155,8 +156,8 @@ export const issueScanHandler: JobHandler = async (ctx) => {
         for (const { event } of group) {
           const eventTimestamp = new Date(event.timestamp).toISOString();
           const result = await client`
-            INSERT INTO issue_occurrences (issue_id, session_id, user_id, app_version, environment, event_id, "timestamp")
-            VALUES (${issueId}, ${event.session_id}, ${event.user_id}, ${event.app_version}, ${event.environment}::environment, ${event.id}, ${eventTimestamp}::timestamptz)
+            INSERT INTO issue_occurrences (issue_id, session_id, user_id, app_version, environment, event_id, country_code, "timestamp")
+            VALUES (${issueId}, ${event.session_id}, ${event.user_id}, ${event.app_version}, ${event.environment}::environment, ${event.id}, ${event.country_code}, ${eventTimestamp}::timestamptz)
             ON CONFLICT (issue_id, session_id) DO NOTHING
           `;
 

@@ -9,6 +9,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
+import { countryFlag } from "@/lib/country-flag";
 // Deep import bypasses the barrel export which pulls in node:crypto
 import { formatBytes } from "@owlmetry/shared/constants";
 import {
@@ -314,7 +315,9 @@ function IssueDetailModal({
                     <span>Version</span>
                     <span>Env</span>
                   </div>
-                  {issue.occurrences.map((occ) => (
+                  {issue.occurrences.map((occ) => {
+                    const flag = countryFlag(occ.country_code);
+                    return (
                     <div key={occ.id} className="grid grid-cols-5 gap-2 p-2">
                       <span>{formatDateTime(occ.timestamp)}</span>
                       <a
@@ -323,11 +326,15 @@ function IssueDetailModal({
                         rel="noopener noreferrer"
                         className="font-mono truncate text-primary hover:underline"
                       >{occ.session_id.slice(0, 8)}…</a>
-                      <span className="truncate">{occ.user_id ?? <span className="text-muted-foreground">anon</span>}</span>
+                      <span className="truncate inline-flex items-center gap-1">
+                        {flag.emoji && <span title={flag.name}>{flag.emoji}</span>}
+                        {occ.user_id ?? <span className="text-muted-foreground">anon</span>}
+                      </span>
                       <span>{occ.app_version ?? "—"}</span>
                       <span>{occ.environment ?? "—"}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

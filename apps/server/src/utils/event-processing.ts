@@ -12,6 +12,22 @@ import type { FastifyBaseLogger } from "fastify";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Parse the Cloudflare `CF-IPCountry` header into a normalized 2-letter ISO
+ * country code. Returns null for missing, unknown (`XX`), Tor (`T1`), or any
+ * value that isn't two letters. Case-insensitive; result is uppercase.
+ */
+export function parseCountryHeader(
+  value: string | string[] | undefined
+): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || typeof raw !== "string") return null;
+  const normalized = raw.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) return null;
+  if (normalized === "XX" || normalized === "T1") return null;
+  return normalized;
+}
+
+/**
  * Validate common event fields (message, level, session_id, timestamp format, future check).
  * If `maxAgeDays` is provided, also rejects timestamps older than that many days.
  */
@@ -65,6 +81,7 @@ export function buildEventRow(
   e: IngestEventPayload,
   app_id: string,
   api_key_id: string | null,
+  country_code: string | null = null,
 ): typeof events.$inferInsert {
   return {
     app_id,
@@ -83,6 +100,7 @@ export function buildEventRow(
     device_model: e.device_model || null,
     build_number: e.build_number || null,
     locale: e.locale || null,
+    country_code,
     is_dev: e.is_dev ?? false,
     experiments: e.experiments || null,
     timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
@@ -118,6 +136,7 @@ export function buildMetricRows(
       app_version: ev.app_version ?? null,
       device_model: ev.device_model ?? null,
       build_number: ev.build_number ?? null,
+      country_code: ev.country_code ?? null,
       is_dev: ev.is_dev ?? false,
       client_event_id: ev.client_event_id || null,
       timestamp: ev.timestamp as Date,
@@ -151,6 +170,7 @@ export function buildFunnelRows(
       app_version: ev.app_version ?? null,
       device_model: ev.device_model ?? null,
       build_number: ev.build_number ?? null,
+      country_code: ev.country_code ?? null,
       is_dev: ev.is_dev ?? false,
       client_event_id: ev.client_event_id || null,
       timestamp: ev.timestamp as Date,
@@ -194,6 +214,7 @@ export function upsertAppUsers(
   project_id: string,
   app_id: string,
   log: FastifyBaseLogger,
+  country_code: string | null = null,
 ) {
   const uniqueUserIds = [...new Set(
     validEvents.map((e) => e.user_id).filter((id): id is string => !!id)
@@ -204,12 +225,19 @@ export function upsertAppUsers(
     project_id,
     user_id: uid,
     is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
+    last_country_code: country_code,
   }));
+  // Only overwrite last_country_code when the request carried one; a missing
+  // CF-IPCountry header (e.g., dev, direct origin) must not wipe a previously
+  // resolved country.
   db.insert(appUsers)
     .values(userRows)
     .onConflictDoUpdate({
       target: [appUsers.project_id, appUsers.user_id],
-      set: { last_seen_at: sql`NOW()` },
+      set: {
+        last_seen_at: sql`NOW()`,
+        ...(country_code ? { last_country_code: country_code } : {}),
+      },
     })
     .returning({ id: appUsers.id, user_id: appUsers.user_id })
     .then((upserted) => {

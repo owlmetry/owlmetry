@@ -37,6 +37,7 @@ export interface IssueOccurrenceResponse {
   app_version: string | null;
   environment: string | null;
   event_id: string | null;
+  country_code: string | null;
   timestamp: string;
   created_at: string;
 }

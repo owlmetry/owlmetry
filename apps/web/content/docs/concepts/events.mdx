@@ -37,6 +37,7 @@ Each event contains the following fields:
 | `build_number` | string | No | App build number |
 | `device_model` | string | No | Device hardware model |
 | `locale` | string | No | User locale (e.g., `en_US`) |
+| `country_code` | string | No | 2-letter ISO country code, derived server-side from the request IP via Cloudflare. Never sent by SDKs. |
 | `is_dev` | boolean | No | Whether the event came from a development build |
 | `experiments` | object | No | Active A/B experiment variant assignments |
 | `timestamp` | string (ISO 8601) | No | When the event occurred (server uses receipt time if omitted) |
@@ -113,6 +114,15 @@ The SDKs automatically populate device and app metadata on every event without a
 - **`is_dev`** -- whether this is a development build (see [Data Mode](/docs/concepts/data-mode))
 
 For SDK-specific details, see the [Swift SDK events guide](/docs/sdks/swift/events) or the [Node SDK events guide](/docs/sdks/node/events).
+
+### Country (server-derived)
+
+`country_code` on events and `last_country_code` on users is a 2-letter ISO
+country code (e.g. `US`, `DE`). It's derived server-side from Cloudflare's
+`CF-IPCountry` header — SDKs do not send it, and IP addresses are never
+stored. If the request didn't pass through Cloudflare (self-hosted without a
+CDN, direct-to-origin dev requests), the field is `null`. Historical events
+ingested before the feature was introduced are also `null`.
 
 ## Partitioned Storage
 

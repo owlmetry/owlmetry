@@ -13,6 +13,7 @@ import {
   buildEventRow,
   dualWriteSpecializedEvents,
   upsertAppUsers,
+  parseCountryHeader,
 } from "../utils/event-processing.js";
 import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
 
@@ -23,6 +24,7 @@ export async function ingestRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { bundle_id, events: payloads } = request.body;
+      const countryCode = parseCountryHeader(request.headers["cf-ipcountry"]);
 
       if (!Array.isArray(payloads) || payloads.length === 0) {
         return reply.code(400).send({ error: "events array is required" });
@@ -133,13 +135,13 @@ export async function ingestRoutes(app: FastifyInstance) {
         }
         const resolved = e.user_id ? claimedMap.get(e.user_id) : undefined;
         const rewritten = resolved ? { ...e, user_id: resolved } : e;
-        valid.push(buildEventRow(rewritten, app_id, api_key_id));
+        valid.push(buildEventRow(rewritten, app_id, api_key_id, countryCode));
       }
 
       if (valid.length > 0) {
         await app.db.insert(events).values(valid);
         dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
-        upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+        upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log, countryCode);
 
         const insertedClientIds = valid
           .map((v) => v.client_event_id)

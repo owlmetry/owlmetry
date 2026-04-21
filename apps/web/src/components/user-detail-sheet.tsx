@@ -15,6 +15,7 @@ import { DetailRow } from "@/components/detail-row";
 import { ArrowRight } from "lucide-react";
 import { formatDateTime } from "@/lib/format-date";
 import { ProjectDot } from "@/lib/project-color";
+import { countryFlag } from "@/lib/country-flag";
 import type { AppUserResponse } from "@owlmetry/shared";
 
 interface UserDetailSheetProps {
@@ -58,6 +59,12 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
             />
             <DetailRow label="First Seen" value={formatDateTime(user.first_seen_at)} />
             <DetailRow label="Last Seen" value={formatDateTime(user.last_seen_at)} />
+            {(() => {
+              const f = countryFlag(user.last_country_code);
+              return f.emoji ? (
+                <DetailRow label="Last Country" value={`${f.emoji} ${f.name} (${f.code})`} />
+              ) : null;
+            })()}
             {user.claimed_from && user.claimed_from.length > 0 && (
               <DetailRow label="Claimed From" value={user.claimed_from.join(", ")} />
             )}

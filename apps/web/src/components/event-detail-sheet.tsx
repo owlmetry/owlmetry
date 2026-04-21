@@ -19,6 +19,7 @@ import {
 } from "@/components/attachment-download-button";
 import { ProjectDot } from "@/lib/project-color";
 import { formatDateTime } from "@/lib/format-date";
+import { countryFlag } from "@/lib/country-flag";
 import { api } from "@/lib/api";
 // Deep import bypasses the barrel export which pulls in node:crypto
 import { formatBytes } from "@owlmetry/shared/constants";
@@ -107,6 +108,15 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
             <DetailRow label="Build Number" value={event.build_number} />
             <DetailRow label="Device Model" value={event.device_model} />
             <DetailRow label="Locale" value={event.locale} />
+            {(() => {
+              const f = countryFlag(event.country_code);
+              return (
+                <DetailRow
+                  label="Country"
+                  value={f.emoji ? `${f.emoji} ${f.name} (${f.code})` : null}
+                />
+              );
+            })()}
             {event.is_dev && (
               <div className="flex justify-between gap-4 py-1.5">
                 <span className="shrink-0 text-xs text-muted-foreground">🛠️ Dev Build</span>

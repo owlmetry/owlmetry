@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProjectDot } from "@/lib/project-color";
+import { countryFlag } from "@/lib/country-flag";
 
 const BILLING_TIER_LABELS: Record<BillingTier, string> = {
   paid: "💰 Paid",
@@ -380,6 +381,7 @@ export default function UsersPage() {
                   <TableHead className="w-[200px]">Properties</TableHead>
                   <TableHead className="w-[160px]">First Seen</TableHead>
                   <TableHead className="w-[160px]">Last Seen</TableHead>
+                  <TableHead className="w-[80px]">Country</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -486,6 +488,19 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="text-xs py-1.5" title={formatDateTime(user.last_seen_at)}>
                       {timeAgoOrDate(user.last_seen_at, formatDateTime)}
+                    </TableCell>
+                    <TableCell className="text-xs py-1.5" title={countryFlag(user.last_country_code).name}>
+                      {(() => {
+                        const f = countryFlag(user.last_country_code);
+                        return f.emoji ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span>{f.emoji}</span>
+                            <span className="font-mono">{f.code}</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                   );

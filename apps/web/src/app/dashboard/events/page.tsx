@@ -23,6 +23,7 @@ import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
 import { ProjectDot } from "@/lib/project-color";
+import { countryFlag } from "@/lib/country-flag";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -405,6 +406,7 @@ export default function EventsPage() {
                   <TableHead>Message</TableHead>
                   <TableHead className="w-[140px]">App</TableHead>
                   <TableHead className="w-[100px]">Environment</TableHead>
+                  <TableHead className="w-[80px]">Country</TableHead>
                   <TableHead className="w-[140px]">User ID</TableHead>
                   <TableHead className="w-[120px]">Screen</TableHead>
                 </TableRow>
@@ -443,6 +445,19 @@ export default function EventsPage() {
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {event.environment ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5" title={countryFlag(event.country_code).name}>
+                        {(() => {
+                          const f = countryFlag(event.country_code);
+                          return f.emoji ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span>{f.emoji}</span>
+                              <span className="font-mono">{f.code}</span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5 truncate max-w-[140px]">
                         {event.user_id ?? "—"}

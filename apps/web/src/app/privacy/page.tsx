@@ -65,6 +65,12 @@ export default function PrivacyPolicyPage() {
                 locale
               </li>
               <li>
+                <strong>Approximate location:</strong> country (2-letter ISO
+                code) derived from the visitor&apos;s IP address at the
+                Cloudflare edge at request time. IP addresses themselves are
+                never stored. No city, region, or precise location is collected.
+              </li>
+              <li>
                 <strong>App information:</strong> app version, build number,
                 bundle identifier
               </li>

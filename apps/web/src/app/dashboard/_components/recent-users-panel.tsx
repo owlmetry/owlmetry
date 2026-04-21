@@ -10,6 +10,7 @@ import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
 import { useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { ProjectDot } from "@/lib/project-color";
+import { countryFlag } from "@/lib/country-flag";
 import { getBillingBadgeState } from "@/lib/billing-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
@@ -51,6 +52,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
           const extraApps = Math.max(0, (user.apps?.length ?? 0) - 1);
           const project = !firstApp ? projectInfoMap.get(user.project_id) : null;
           const badge = getBillingBadgeState(user.properties);
+          const flag = countryFlag(user.last_country_code);
           return (
             <Link
               key={user.id}
@@ -111,6 +113,14 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
                   </Tooltip>
                 )}
               </div>
+              {flag.emoji && (
+                <span
+                  className="text-xs shrink-0"
+                  title={`${flag.name} (${flag.code})`}
+                >
+                  {flag.emoji}
+                </span>
+              )}
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
                 {timeAgo(mode === "new" ? user.first_seen_at : user.last_seen_at)}
               </span>

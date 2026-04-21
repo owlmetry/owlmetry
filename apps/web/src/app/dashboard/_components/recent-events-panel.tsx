@@ -8,6 +8,7 @@ import type { AppResponse, LogLevel } from "@owlmetry/shared";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectDot } from "@/lib/project-color";
+import { countryFlag } from "@/lib/country-flag";
 import { useEvents } from "@/hooks/use-events";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { useTeam } from "@/contexts/team-context";
@@ -57,6 +58,7 @@ export function RecentEventsPanel() {
       ) : (
         visible.map((event) => {
           const meta = appMeta.get(event.app_id);
+          const flag = countryFlag(event.country_code);
           return (
             <Link
               key={event.id}
@@ -83,6 +85,14 @@ export function RecentEventsPanel() {
                   )}
                 </div>
               </div>
+              {flag.emoji && (
+                <span
+                  className="text-xs shrink-0"
+                  title={`${flag.name} (${flag.code})`}
+                >
+                  {flag.emoji}
+                </span>
+              )}
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
                 {timeAgo(event.timestamp)}
               </span>

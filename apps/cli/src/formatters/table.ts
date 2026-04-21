@@ -64,7 +64,7 @@ export function formatAppDetail(app: AppResponse): string {
 
 export function formatAppUsersTable(users: AppUserResponse[]): string {
   const table = new Table({
-    head: [chalk.bold("User ID"), chalk.bold("Type"), chalk.bold("Apps"), chalk.bold("Claims"), chalk.bold("First Seen"), chalk.bold("Last Seen")],
+    head: [chalk.bold("User ID"), chalk.bold("Type"), chalk.bold("Apps"), chalk.bold("Claims"), chalk.bold("Country"), chalk.bold("First Seen"), chalk.bold("Last Seen")],
   });
   for (const u of users) {
     const appNames = u.apps?.map((a) => a.app_name).join(", ") || "-";
@@ -73,6 +73,7 @@ export function formatAppUsersTable(users: AppUserResponse[]): string {
       u.is_anonymous ? "anon" : "real",
       appNames,
       String(u.claimed_from?.length ?? 0),
+      u.last_country_code ?? "",
       u.first_seen_at,
       u.last_seen_at,
     ]);
@@ -81,9 +82,9 @@ export function formatAppUsersTable(users: AppUserResponse[]): string {
 }
 
 export function formatEventsTable(events: StoredEventResponse[]): string {
-  const msgWidth = Math.max(20, Math.min(60, getTerminalWidth() - 80));
+  const msgWidth = Math.max(20, Math.min(60, getTerminalWidth() - 85));
   const table = new Table({
-    head: [chalk.bold("Timestamp"), chalk.bold("Level"), chalk.bold("Message"), chalk.bold("User"), chalk.bold("Screen")],
+    head: [chalk.bold("Timestamp"), chalk.bold("Level"), chalk.bold("Message"), chalk.bold("User"), chalk.bold("Country"), chalk.bold("Screen")],
   });
   for (const e of events) {
     table.push([
@@ -91,6 +92,7 @@ export function formatEventsTable(events: StoredEventResponse[]): string {
       e.level,
       truncate(e.message, msgWidth),
       e.user_id ?? "",
+      e.country_code ?? "",
       e.screen_name ?? "",
     ]);
   }
@@ -115,6 +117,7 @@ export function formatEventDetail(event: StoredEventResponse): string {
     `${chalk.bold("Build Number:")}    ${event.build_number ?? "—"}`,
     `${chalk.bold("Device Model:")}    ${event.device_model ?? "—"}`,
     `${chalk.bold("Locale:")}          ${event.locale ?? "—"}`,
+    `${chalk.bold("Country:")}         ${event.country_code ?? "—"}`,
     `${chalk.bold("Dev Build:")}       ${event.is_dev ? chalk.yellow("Yes") : "No"}`,
   ];
 

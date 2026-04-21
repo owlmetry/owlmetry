@@ -205,6 +205,7 @@ export const events = pgTable(
     device_model: varchar("device_model", { length: 100 }),
     build_number: varchar("build_number", { length: 50 }),
     locale: varchar("locale", { length: 20 }),
+    country_code: varchar("country_code", { length: 2 }),
     is_dev: boolean("is_dev").notNull().default(false),
     experiments: jsonb("experiments").$type<Record<string, string>>(),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
@@ -255,6 +256,7 @@ export const appUsers = pgTable(
     last_seen_at: timestamp("last_seen_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    last_country_code: varchar("last_country_code", { length: 2 }),
   },
   (table) => [
     uniqueIndex("app_users_project_user_idx").on(table.project_id, table.user_id),
@@ -393,6 +395,7 @@ export const metricEvents = pgTable(
     app_version: varchar("app_version", { length: 50 }),
     device_model: varchar("device_model", { length: 100 }),
     build_number: varchar("build_number", { length: 50 }),
+    country_code: varchar("country_code", { length: 2 }),
     is_dev: boolean("is_dev").notNull().default(false),
     client_event_id: uuid("client_event_id"),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
@@ -453,6 +456,7 @@ export const funnelEvents = pgTable(
     app_version: varchar("app_version", { length: 50 }),
     device_model: varchar("device_model", { length: 100 }),
     build_number: varchar("build_number", { length: 50 }),
+    country_code: varchar("country_code", { length: 2 }),
     is_dev: boolean("is_dev").notNull().default(false),
     client_event_id: uuid("client_event_id"),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
@@ -597,6 +601,7 @@ export const issueOccurrences = pgTable(
     app_version: varchar("app_version", { length: 50 }),
     environment: environmentEnum("environment"),
     event_id: uuid("event_id"),
+    country_code: varchar("country_code", { length: 2 }),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()

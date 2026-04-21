@@ -66,6 +66,7 @@ function serializeOccurrence(row: typeof issueOccurrences.$inferSelect) {
     app_version: row.app_version,
     environment: row.environment,
     event_id: row.event_id,
+    country_code: row.country_code,
     timestamp: row.timestamp.toISOString(),
     created_at: row.created_at.toISOString(),
   };

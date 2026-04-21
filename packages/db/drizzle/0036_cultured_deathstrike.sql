@@ -1,0 +1,1 @@
+ALTER TABLE "issue_occurrences" ADD COLUMN "country_code" varchar(2);

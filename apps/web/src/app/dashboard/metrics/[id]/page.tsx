@@ -13,6 +13,7 @@ import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
 import { type FilterChip, truncateId } from "@/components/filter-sheet";
 import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
 import { formatShortDate, formatTime } from "@/lib/format-date";
+import { countryFlag } from "@/lib/country-flag";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -359,6 +360,7 @@ export default function MetricDetailPage() {
                   <TableHead className="w-[80px]">Phase</TableHead>
                   <TableHead className="w-[100px]">Duration</TableHead>
                   <TableHead className="w-[140px]">User</TableHead>
+                  <TableHead className="w-[80px]">Country</TableHead>
                   <TableHead>Error</TableHead>
                   <TableHead>Attributes</TableHead>
                 </TableRow>
@@ -381,6 +383,19 @@ export default function MetricDetailPage() {
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5 truncate max-w-[140px]">
                         {event.user_id ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs py-1.5" title={countryFlag(event.country_code).name}>
+                        {(() => {
+                          const f = countryFlag(event.country_code);
+                          return f.emoji ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span>{f.emoji}</span>
+                              <span className="font-mono">{f.code}</span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-xs py-1.5 text-red-500 truncate max-w-[200px]">
                         {event.error ?? "—"}
