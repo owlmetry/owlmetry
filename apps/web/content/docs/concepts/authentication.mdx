@@ -14,7 +14,7 @@ There are no passwords or separate registration flows. Authentication works in t
 
 If the email has never been seen before, an account is automatically created on first verification.
 
-The JWT is identity-only (contains `sub` and `email`) and is set as an HTTP cookie. Cross-subdomain auth is supported via the `COOKIE_DOMAIN` environment variable.
+The JWT is identity-only (contains `sub` and `email`), has **no expiry** (web sessions never expire until sign-out), and is set as an HTTP cookie. Cross-subdomain auth is supported via the `COOKIE_DOMAIN` environment variable.
 
 ## API Keys
 
@@ -26,9 +26,9 @@ API keys are used by SDKs, the CLI, and automated systems to interact with the O
 | Agent | `owl_agent_` | CLI, automation | Querying data and managing resources |
 | Import | `owl_import_` | Bulk import scripts | Historical data import via `POST /v1/import` (app-scoped) |
 
-### Security
+### Storage
 
-API keys are stored securely and can be viewed at any time from the **API Keys** page in the dashboard.
+API key secrets are stored as plaintext in the `secret` column of the `api_keys` table so they can be retrieved at any time from the **API Keys** page in the dashboard. Protect your database the same way you would protect any other production secret store.
 
 When an app is created, a client key is automatically generated. The key is returned in the `client_secret` field of the app response and is always accessible via the API Keys page.
 

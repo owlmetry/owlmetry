@@ -37,6 +37,14 @@ Unlike the CLI (which requires `npm install`, periodic updates, and an interacti
 | Jobs | `list-jobs`, `get-job`, `trigger-job`, `cancel-job` | 4 |
 | Audit Logs | `list-audit-logs` | 1 |
 
-## Agent guide resource
+## Agent resources
 
-The server also exposes an `owlmetry://guide` MCP resource containing a comprehensive operational guide — concepts, resource hierarchy, workflows, and conventions. MCP clients can read this resource on connection to understand how to use the tools effectively.
+The server also exposes MCP resources that clients can read on connection:
+
+| URI | Description |
+|-----|-------------|
+| `owlmetry://guide` | Operational guide — concepts, resource hierarchy, workflows, and conventions |
+| `owlmetry://skills/swift` | Swift SDK integration guide — screen tracking, events, metrics, funnels, experiments |
+| `owlmetry://skills/node` | Node.js SDK integration guide — events, metrics, funnels, experiments, serverless |
+
+Supported clients read these automatically so agents understand how to use the tools and instrument code correctly.

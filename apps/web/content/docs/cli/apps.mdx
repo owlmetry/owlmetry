@@ -89,6 +89,10 @@ Only the app name can be updated. Bundle IDs are immutable after creation.
 | `<id>` | Yes | App UUID |
 | `--name <name>` | Yes | New app name |
 
+## Deleting apps
+
+The CLI does not expose an `apps delete` command. App deletion is user-only — agent API keys receive a `403` from the delete endpoint. To delete an app, use the web dashboard while signed in as a user.
+
 ## JSON output
 
 All app commands support `--format json` for machine-readable output:

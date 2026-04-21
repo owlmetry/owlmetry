@@ -14,6 +14,8 @@ const variant = Owl.getVariant("checkout-flow", ["control", "streamlined"]);
 // variant is "control" or "streamlined" — stable across restarts
 ```
 
+If `options` is empty and no prior assignment exists, `getVariant()` returns an empty string (and logs a warning when `debug: true`).
+
 Assignments are saved to `~/.owlmetry/experiments.json` on disk. This means:
 
 - On long-running servers, assignments persist across restarts

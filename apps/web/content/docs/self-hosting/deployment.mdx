@@ -302,12 +302,24 @@ pg_dump --no-owner owlmetry | gzip > /opt/owlmetry-backups/owlmetry-$(date +%F).
 
 If you need to back up attachment files too, sync them separately (e.g. with `rsync` or an object-storage mirror) — do not try to tar them into the SQL dump.
 
-A simple daily backup cron with 7-day rotation:
+A simple daily backup cron that runs at 3am UTC with 7-day rotation:
 
 ```bash
 # /etc/cron.d/owlmetry-backup
 0 3 * * * root PGPASSWORD='yourpassword' pg_dump -U owlmetry -h 127.0.0.1 --no-owner owlmetry | gzip > /opt/owlmetry-backups/owlmetry-$(date +\%F).sql.gz && find /opt/owlmetry-backups -name 'owlmetry-*.sql.gz' -mtime +7 -delete
 ```
+
+### Health checks
+
+A simple health-check cron auto-restarts a service if it stops responding. Runs every 5 minutes against the API `/health` endpoint and the web dashboard root:
+
+```bash
+# /etc/cron.d/owlmetry-healthcheck
+*/5 * * * * root (curl -sf http://127.0.0.1:4000/health > /dev/null || pm2 restart owlmetry-api) >> /opt/owlmetry-backups/healthcheck.log 2>&1
+*/5 * * * * root (curl -sf http://127.0.0.1:3000/ > /dev/null || pm2 restart owlmetry-web) >> /opt/owlmetry-backups/healthcheck.log 2>&1
+```
+
+The log file stays empty when both services respond. Entries appear only when a restart was triggered.
 
 ## Troubleshooting
 

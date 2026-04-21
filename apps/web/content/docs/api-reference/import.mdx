@@ -92,6 +92,13 @@ Same as `/v1/ingest` — events matching `metric:<slug>:<phase>` are written to 
 }
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `accepted` | number | Newly inserted events (no matching `client_event_id` existed). |
+| `updated` | number | Events that matched an existing `client_event_id` and were upserted in place. |
+| `rejected` | number | Events that failed validation. |
+| `errors` | array | Validation errors, one per rejected event. Only present when `rejected > 0`. |
+
 ## Creating an import key
 
 Import keys are app-scoped (like client keys) but use the `owl_import_` prefix.

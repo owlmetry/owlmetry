@@ -113,7 +113,7 @@ The SDK emits several events automatically without any manual calls:
 | `sdk:app_backgrounded` | info | When the app enters the background. |
 | `sdk:screen_appeared` | info | When a view with `.owlScreen()` appears. See [Screen Tracking](/docs/sdks/swift/screen-tracking). |
 | `sdk:screen_disappeared` | debug | When a view with `.owlScreen()` disappears. Includes `_duration_ms`. |
-| `sdk:network_request` | info/warn/error | On URLSession HTTP request completion. See below. |
+| `sdk:network_request` | debug/warn/error | On URLSession HTTP request completion. See below. |
 
 ## Network Request Tracking
 
@@ -130,7 +130,7 @@ Each tracked request emits a `sdk:network_request` event with these attributes:
 | `_http_response_size` | Response body size in bytes. |
 | `_http_error` | Error description (network failures only). |
 
-Log levels are assigned based on the response: `info` for 2xx/3xx, `warn` for 4xx/5xx, and `error` for network failures with no response.
+Log levels are assigned based on the response: `debug` for 2xx/3xx, `warn` for 4xx/5xx, and `error` for network failures with no response. Debug-level network events stay out of production views by default, while 4xx/5xx and network errors surface clearly.
 
 The SDK's own requests to the OwlMetry ingest endpoint are automatically excluded. To disable network request tracking entirely:
 

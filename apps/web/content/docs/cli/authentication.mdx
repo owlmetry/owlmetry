@@ -48,7 +48,9 @@ If you already have an agent API key, use `setup` to configure the CLI directly 
 owlmetry --endpoint https://api.owlmetry.com --api-key owl_agent_xxx setup
 ```
 
-The command validates the key by calling the `/v1/auth/whoami` endpoint, then saves the config.
+Both `--endpoint` and `--api-key` are required globals for this command. Optionally pass `--ingest-endpoint <url>` to override the ingest endpoint (defaults to the API endpoint for self-hosted instances, or `https://ingest.owlmetry.com` when targeting `https://api.owlmetry.com`).
+
+The command validates the key by calling the `/v1/auth/whoami` endpoint, fetches the team info, and saves the config (merging with any existing team profiles).
 
 ## Config file
 

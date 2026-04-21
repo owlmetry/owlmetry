@@ -29,10 +29,22 @@ Pick your editor below for copy-pasteable config. We support **Claude Code**, **
 
 Any MCP-compatible client can connect to OwlMetry. The endpoint uses:
 
-- **Transport:** Streamable HTTP (POST only)
+- **Transport:** Streamable HTTP (stateless JSON)
 - **URL:** `https://api.owlmetry.com/mcp`
-- **Auth:** `Authorization: Bearer owl_agent_YOUR_KEY_HERE` header
-- **Mode:** Stateless JSON — each request is independent, no session initialization needed
+- **Auth:** `Authorization: Bearer owl_agent_YOUR_KEY_HERE` header (required on POST and GET)
+- **Mode:** Stateless JSON — each POST request is independent, no session initialization needed. GET opens an authenticated SSE stream; DELETE returns 405.
+
+## MCP Resources
+
+In addition to 51 tools, the server exposes three MCP resources that clients can read on connection:
+
+| URI | Description |
+|-----|-------------|
+| `owlmetry://guide` | Operational guide — concepts, resource hierarchy, workflows, and conventions |
+| `owlmetry://skills/swift` | Swift SDK integration guide — screen tracking, events, metrics, funnels, experiments |
+| `owlmetry://skills/node` | Node.js SDK integration guide — events, metrics, funnels, experiments, serverless |
+
+Supported clients read the guide automatically so agents understand how to use the tools effectively.
 
 ## Authentication
 

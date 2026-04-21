@@ -51,12 +51,15 @@ Verify the code and authenticate. Sets a JWT cookie (`token`, httpOnly, 10-year 
       "id": "uuid",
       "name": "User's Team",
       "slug": "user-abc12345",
-      "role": "owner"
+      "role": "owner",
+      "default_agent_key": "owl_agent_..."
     }
   ],
   "is_new_user": false
 }
 ```
+
+Each team includes a `default_agent_key` field — the oldest non-deleted agent key for that team. Used by the MCP setup flow; omitted if no agent key exists.
 
 ## POST /v1/auth/agent-login
 

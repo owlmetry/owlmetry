@@ -191,7 +191,7 @@ Run a funnel analytics query. Computes step-by-step conversion rates for users w
 | Mode | Behavior |
 |------|----------|
 | `closed` | Sequential. Users must complete steps in order. Step N only counts users who completed step N-1 before (by timestamp). |
-| `open` | Independent. Each step is evaluated separately. A user counts for step N regardless of whether they completed earlier steps. |
+| `open` (default) | GA4-style. Each step is evaluated independently, then earlier-step counts are backfilled with users who reached any later step. This guarantees the funnel is monotonically non-increasing. |
 
 ### Group by options
 

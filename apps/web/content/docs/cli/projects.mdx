@@ -69,6 +69,10 @@ owlmetry projects update 550e8400-... --retention-events 60 --retention-metrics 
 owlmetry projects update 550e8400-... --retention-events null  # Reset to default
 ```
 
+## Deleting projects
+
+The CLI does not expose a `projects delete` command. Project deletion is user-only — agent API keys receive a `403` from the delete endpoint. To delete a project, use the web dashboard while signed in as a user.
+
 ## JSON output
 
 All project commands support `--format json` for machine-readable output:
