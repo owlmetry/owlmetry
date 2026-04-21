@@ -60,12 +60,15 @@ export default function EventsPage() {
       since: "",
       until: "",
       order: "",
+      event_id: "",
     },
+    persistKeys: ["event_id"],
   });
 
-  // Selected event for detail sheet
+  // Selected event for detail sheet — open state is derived from URL event_id
   const [selectedEvent, setSelectedEvent] = useState<StoredEventResponse | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const eventIdParam = filters.get("event_id");
+  const sheetOpen = !!eventIdParam;
 
   // Projects & apps for filter dropdowns
   const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
@@ -109,6 +112,26 @@ export default function EventsPage() {
 
   const { events, isLoading, isLoadingMore, hasMore, loadMore } = useEvents(filterParams);
 
+  // Resolve selectedEvent from URL event_id: prefer loaded list, fall back to fetching by id
+  const eventInList = useMemo(
+    () => (eventIdParam ? events.find((e) => e.id === eventIdParam) ?? null : null),
+    [eventIdParam, events],
+  );
+  const { data: fetchedEvent } = useSWR<StoredEventResponse>(
+    eventIdParam && !eventInList ? `/v1/events/${eventIdParam}` : null,
+  );
+  useEffect(() => {
+    if (!eventIdParam) {
+      setSelectedEvent(null);
+      return;
+    }
+    if (eventInList) {
+      setSelectedEvent(eventInList);
+    } else if (fetchedEvent && fetchedEvent.id === eventIdParam) {
+      setSelectedEvent(fetchedEvent);
+    }
+  }, [eventIdParam, eventInList, fetchedEvent]);
+
   // App name + project lookup
   const appNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -151,16 +174,20 @@ export default function EventsPage() {
 
   function handleRowClick(event: StoredEventResponse) {
     setSelectedEvent(event);
-    setSheetOpen(true);
+    filters.set("event_id", event.id);
   }
 
   function handleEventSelect(event: StoredEventResponse) {
     setSelectedEvent(event);
+    filters.set("event_id", event.id);
   }
 
   function handleFilter(key: string, value: string) {
-    filters.set(key, value);
-    setSheetOpen(false);
+    filters.setMany({ [key]: value, event_id: "" });
+  }
+
+  function handleSheetOpenChange(open: boolean) {
+    if (!open) filters.set("event_id", "");
   }
 
   return (
@@ -448,7 +475,7 @@ export default function EventsPage() {
       <EventDetailSheet
         event={selectedEvent}
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={handleSheetOpenChange}
         onEventSelect={handleEventSelect}
         onFilter={handleFilter}
         projectColor={selectedEvent ? appColorMap.get(selectedEvent.app_id) : undefined}

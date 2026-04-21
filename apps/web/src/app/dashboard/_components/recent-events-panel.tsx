@@ -60,7 +60,7 @@ export function RecentEventsPanel() {
           return (
             <Link
               key={event.id}
-              href="/dashboard/events"
+              href={`/dashboard/events?event_id=${event.id}`}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-16 flex justify-start">
