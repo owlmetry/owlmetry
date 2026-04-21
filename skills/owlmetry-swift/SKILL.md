@@ -124,7 +124,7 @@ Owl.clearUser()
 
 **Where to find it:** Search for login/logout methods, auth state listeners, or session management code. Look for patterns like setting a user ID on other services (crash reporting, analytics), storing auth tokens, or clearing user state. Place `Owl.setUser()` right after the user ID becomes available. Place `Owl.clearUser()` in the sign-out/logout handler.
 
-The SDK automatically flushes buffered events before claiming identity, so anonymous events from before login are retroactively linked to the user.
+The SDK automatically flushes buffered events before claiming identity, so anonymous events from before login are retroactively linked to the user. It also handles the "claim made while offline" case: if the claim never reached the server, the SDK retries it on the next launch once a saved user id is detected, and the server re-attributes any late-flushing anonymous events to the real user automatically — no manual retry needed.
 
 ## Next Steps — Codebase Instrumentation
 
@@ -286,7 +286,7 @@ Owl.clearUser()
 Owl.clearUser(newAnonymousId: true)
 ```
 
-**Important:** The SDK automatically flushes buffered events before claiming identity.
+**Important:** The SDK automatically flushes buffered events before claiming identity. If a previous `setUser()` call failed to reach the server (e.g. the device was offline), the SDK re-issues the claim on the next launch, and any anonymous events that only flush after the claim are still re-attributed to the real user automatically. `Owl.setUser(id)` just works once the device gets network.
 
 ## Funnel Tracking
 

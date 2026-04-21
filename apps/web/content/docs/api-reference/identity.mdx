@@ -64,6 +64,10 @@ Returns `404` if no events exist for the given `anonymous_id` across the project
 
 SDKs must flush all buffered events before calling this endpoint. Otherwise, in-flight events sent after the claim may still carry the old anonymous ID and will not be reassigned.
 
+### Ingest-side re-attribution
+
+Once an anonymous ID has been claimed, `/v1/ingest` also re-attributes any events that arrive tagged with that anon ID to the real user. This keeps offline-queued events flushed after the claim consistent with events sent before it — you do not need a second claim call to mop up stragglers.
+
 ## POST /v1/identity/properties
 
 Set, merge, or delete user properties for a known user. Properties are stored as a JSONB object on the `app_users` table and are project-scoped.

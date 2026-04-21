@@ -35,6 +35,8 @@ This does two things:
 
 The user ID is persisted in `UserDefaults`, so it survives app restarts. On the next launch, `Owl.configure()` will use the saved user ID automatically -- you do not need to call `setUser()` again unless the user has logged out.
 
+On launch, `Owl.configure()` also fires an idempotent claim in the background if a saved user ID is present. This closes the gap where a previous session's claim never reached the server (e.g. the app was killed before it flushed). Any late-arriving events still tagged with the old anonymous ID are re-attributed server-side on ingest, so you don't need to handle this case yourself.
+
 ## Clearing a User
 
 On logout, call `Owl.clearUser()` to revert to anonymous tracking:
