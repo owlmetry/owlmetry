@@ -76,8 +76,13 @@ enum AppleSearchAdsAttribution {
         )
 
         switch result {
-        case .success:
+        case .success(let attributionSource, _):
             logger.info("Attribution submitted successfully")
+            Owl.info("sdk:attribution_capture", attributes: [
+                "_network": OwlAttributionNetwork.appleSearchAds.slug,
+                "_outcome": "success",
+                "_attribution_source": attributionSource,
+            ])
             return true
         case .pending:
             // Apple's record may take ~24h to populate. Bump the pending
@@ -88,10 +93,21 @@ enum AppleSearchAdsAttribution {
                 let attempts = State.incrementPendingAttempts(anonymousId: anonymousId)
                 if attempts >= maxPendingAttempts {
                     logger.info("Attribution pending cap reached (\(attempts) attempts); giving up.")
+                    Owl.warn("sdk:attribution_capture", attributes: [
+                        "_network": OwlAttributionNetwork.appleSearchAds.slug,
+                        "_outcome": "gave_up",
+                        "_attempts": String(attempts),
+                    ])
                     await recordUnattributedAfterGiveUp(userId: userId, transport: transport)
                     State.markCaptured(anonymousId: anonymousId)
                 } else {
                     logger.info("Attribution pending (attempt \(attempts)/\(maxPendingAttempts)); will retry on next launch.")
+                    Owl.info("sdk:attribution_capture", attributes: [
+                        "_network": OwlAttributionNetwork.appleSearchAds.slug,
+                        "_outcome": "pending",
+                        "_attempt": String(attempts),
+                        "_max_attempts": String(maxPendingAttempts),
+                    ])
                 }
             }
             return false
@@ -99,12 +115,20 @@ enum AppleSearchAdsAttribution {
             // Apple keeps the same token for the install, so a second fetch
             // gives us the same string — not worth retrying.
             logger.warning("Attribution token rejected as invalid; not retrying.")
+            Owl.error("sdk:attribution_capture", attributes: [
+                "_network": OwlAttributionNetwork.appleSearchAds.slug,
+                "_outcome": "invalid_token",
+            ])
             return false
         case .transportFailure:
             if !wasAlreadyCaptured {
                 State.clearCaptured(anonymousId: anonymousId)
             }
             logger.warning("Attribution transport failure; will retry on next launch.")
+            Owl.error("sdk:attribution_capture", attributes: [
+                "_network": OwlAttributionNetwork.appleSearchAds.slug,
+                "_outcome": "transport_failure",
+            ])
             return false
         }
     }
@@ -149,6 +173,11 @@ enum AppleSearchAdsAttribution {
             return try AAAttribution.attributionToken()
         } catch {
             logger.warning("AAAttribution.attributionToken() failed: \(error.localizedDescription, privacy: .public)")
+            Owl.warn("sdk:attribution_capture", attributes: [
+                "_network": OwlAttributionNetwork.appleSearchAds.slug,
+                "_outcome": "token_fetch_failed",
+                "_error": String(describing: error),
+            ])
             return nil
         }
     }

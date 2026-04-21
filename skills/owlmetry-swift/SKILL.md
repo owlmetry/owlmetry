@@ -501,6 +501,19 @@ Normal apps should not need to call this — the auto-capture on `configure()` c
 - Apple's attribution record may take up to ~24h to populate after install. The SDK retries across launches and gives up after 5 pending responses (writes `attribution_source = "none"`).
 - In the iOS simulator `AAAttribution.attributionToken()` throws `platformNotSupported` — set `OWLMETRY_MOCK_ADSERVICES_TOKEN` in the scheme's environment (DEBUG only) to mock a token.
 
+**Debug via OwlMetry itself:** every capture attempt emits an `sdk:attribution_capture` event so you can see success/fail from the dashboard without attaching a debugger. Attributes:
+
+| `_outcome` | Level | Extra attributes | When |
+|---|---|---|---|
+| `success` | info | `_attribution_source` (`apple_search_ads` \| `none`) | Apple returned a decisive answer |
+| `pending` | info | `_attempt`, `_max_attempts` | Apple 404 — record not ready, will retry next launch |
+| `gave_up` | warn | `_attempts` | Hit the 5-pending cap; wrote `attribution_source = "none"` |
+| `token_fetch_failed` | warn | `_error` | `AAAttribution.attributionToken()` threw on-device |
+| `invalid_token` | error | — | Apple rejected the token (400); never retried |
+| `transport_failure` | error | — | OwlMetry POST failed after all transport retries |
+
+Filter the dashboard Events list by `sdk:attribution_capture` (and optionally level) to spot install cohorts where capture never succeeds.
+
 ## Collect User Feedback
 
 OwlMetry ships a reusable SwiftUI view (`OwlFeedbackView`) plus a programmatic API (`Owl.sendFeedback`) for gathering free-text feedback inside your app. Submissions are linked automatically to the current session, user id, app version, device, and environment — nothing extra to pass in.

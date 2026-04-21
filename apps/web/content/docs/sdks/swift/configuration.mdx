@@ -131,6 +131,21 @@ let sent = await Owl.sendAppleSearchAdsAttributionToken(token)
 
 Attribution properties carry through the identity claim: when an anonymous user is upgraded via `Owl.setUser()`, `asa_*` and `attribution_source` merge into the real user's properties.
 
+### Debugging attribution from the dashboard
+
+Every capture attempt emits an `sdk:attribution_capture` event so you can spot failures without attaching a debugger. The `_outcome` attribute distinguishes the states:
+
+| `_outcome` | Level | Extra attributes | When |
+|---|---|---|---|
+| `success` | info | `_attribution_source` | Apple returned a decisive answer (`apple_search_ads` or `none`). |
+| `pending` | info | `_attempt`, `_max_attempts` | Apple 404 — record not ready yet. Will retry on next launch. |
+| `gave_up` | warn | `_attempts` | Hit the 5-pending cap; SDK wrote `attribution_source = "none"`. |
+| `token_fetch_failed` | warn | `_error` | `AAAttribution.attributionToken()` threw on-device. |
+| `invalid_token` | error | — | Apple rejected the token (400); never retried. |
+| `transport_failure` | error | — | OwlMetry POST failed after transport retries. |
+
+Filter the dashboard events list by `sdk:attribution_capture` to see the capture outcome for each install.
+
 ## Calling Configure More Than Once
 
 Calling `configure()` again is safe. The SDK will shut down the previous transport, stop the old lifecycle observer, and start fresh with a new session ID. This generates a new `sdk:session_started` event.
