@@ -21,7 +21,7 @@ Query analytics events with flexible filters. Defaults to the last 24 hours.
 | `since` | string | No | Start time — relative (`1h`, `7d`) or ISO 8601 |
 | `until` | string | No | End time — relative or ISO 8601 |
 | `cursor` | string | No | Pagination cursor from previous response (tied to the current `order`) |
-| `limit` | number | No | Max results (default 50, max 1000) |
+| `limit` | number | No | Max results (default 50, max 200) |
 | `data_mode` | string | No | `production` (default), `development`, or `all` |
 | `order` | string | No | Sort direction by timestamp: `desc` (default, newest first) or `asc` (oldest first — preferred for session timelines and breadcrumb walks) |
 | `compact` | boolean | No | Drop verbose fields (`custom_attributes`, `experiments`, device metadata) to stay under MCP token limits |

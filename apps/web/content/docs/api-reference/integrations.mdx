@@ -7,7 +7,7 @@ Manage third-party integrations on a per-project basis. Currently supports **Rev
 
 All configuration secrets (e.g., `api_key`) are redacted in responses — only the first 4 characters are returned, followed by `****`. Webhook secrets are auto-generated server-side and are never part of the user-facing config payload.
 
-## GET /v1/integrations/providers
+## GET /v1/projects/:projectId/integrations/providers
 
 List all supported integration providers and their config schemas.
 

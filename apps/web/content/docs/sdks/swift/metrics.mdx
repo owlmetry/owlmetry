@@ -105,7 +105,7 @@ let op = Owl.startOperation("Photo Upload")
 
 ## Server-Side Metric Definitions
 
-Metric definitions must exist on the server before the SDK emits events for a given slug. Create them through the CLI or the dashboard. Events for undefined slugs will still be ingested but will not appear in metric queries until the definition is created.
+You do not need to create a metric definition before emitting events — the server stores metric events by slug regardless, and they appear in metric queries immediately. Defining a metric in the dashboard or via the CLI gives you a human-readable name, description, and documentation alongside the aggregated data.
 
 ## When to Use Metrics vs Events
 

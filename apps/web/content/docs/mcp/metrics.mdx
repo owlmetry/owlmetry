@@ -24,7 +24,7 @@ Get a metric definition by slug.
 
 ## create-metric
 
-Create a metric definition. The definition must exist before SDKs emit events for this slug. Requires `metrics:write` permission.
+Create a metric definition. Definitions are optional — metric events are ingested and queryable by slug either way — but defining a metric gives you a human-readable name and documentation in the dashboard. Requires `metrics:write` permission.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -108,5 +108,5 @@ List raw metric events for a specific metric slug. Useful for debugging individu
 | `since` | string | No | Start time (default: 24h) |
 | `until` | string | No | End time |
 | `cursor` | string | No | Pagination cursor |
-| `limit` | number | No | Max results (default 50, max 1000) |
+| `limit` | number | No | Max results (default 50, max 200) |
 | `data_mode` | string | No | `production`, `development`, or `all` |

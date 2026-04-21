@@ -5,7 +5,76 @@ description: Event attachment API — list, fetch, download, delete, and inspect
 
 Manage event attachments — binary files (logs, screenshots, crash dumps) uploaded by SDKs alongside events. See [Attachments concepts](/docs/concepts/attachments) for quotas, storage, and cleanup behavior.
 
-Upload endpoints (`POST /v1/ingest/attachment` and `PUT /v1/ingest/attachment/:id`) are documented under [Ingest](/docs/api-reference/ingest).
+## POST /v1/ingest/attachment
+
+Reserve an event attachment. The SDK sends metadata (filename, size, SHA-256, content type, `client_event_id`, optional `user_id`). The server validates quotas and returns an `upload_url` to PUT the bytes to.
+
+**Auth required:** Yes (client API key with `events:write` permission, scoped to an app)
+
+**Rate limited:** Yes
+
+### Request body
+
+```json
+{
+  "client_event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "user_id": "user_42",
+  "original_filename": "input.heic",
+  "content_type": "image/heic",
+  "size_bytes": 1048576,
+  "sha256": "f1a2b3c4...",
+  "is_dev": false
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `client_event_id` | string | Yes | Links the attachment to its event (matches `events.client_event_id`). |
+| `original_filename` | string | Yes | Filename shown in the dashboard. Max 255 chars. |
+| `content_type` | string | Yes | MIME type. Executables/scripts are rejected with 415. |
+| `size_bytes` | integer | Yes | Declared size, used for quota checks before upload. |
+| `sha256` | string | Yes | 64-char lowercase hex of the file's SHA-256. Verified during upload. |
+| `user_id` | string | No | End-user ID — enables the per-user quota check. Omit for backend apps that don't track end-users. |
+| `is_dev` | boolean | No | Whether this is a development-build attachment. Default `false`. |
+
+### Response
+
+```json
+// Success (201)
+{
+  "attachment_id": "uuid",
+  "upload_url": "https://api.owlmetry.com/v1/ingest/attachment/<id>",
+  "expires_at": "2024-01-15T10:35:00.000Z"
+}
+```
+
+### Rejection codes (413)
+
+| Code | Meaning |
+|------|---------|
+| `user_quota_exhausted` | Per-user bucket would be exceeded (requires `user_id`). |
+| `quota_exhausted` | Project-wide quota would be exceeded. |
+
+Rejections include the effective quota and current usage. The calling event still posts — SDKs drop the attachment silently on rejection.
+
+## PUT /v1/ingest/attachment/:id
+
+Stream the file bytes to the URL returned by `POST /v1/ingest/attachment`. The server verifies `Content-Length` against the reserved `size_bytes` and recomputes SHA-256 to match the reservation.
+
+**Auth required:** Yes (same client API key used to reserve)
+
+**Headers:** `Content-Type: application/octet-stream`
+
+### Response
+
+```json
+// Success (200)
+{
+  "uploaded": true
+}
+```
+
+Returns 409 `already_uploaded` if the reservation already has bytes, 410 if the reservation was soft-deleted, and 413 if the streamed body exceeds the declared `size_bytes`.
 
 ## GET /v1/attachments
 
@@ -151,5 +220,4 @@ Return current attachment disk usage for a project, with optional per-user break
 
 ## Related endpoints
 
-- **Upload reservation + PUT**: see [Ingest → Attachments](/docs/api-reference/ingest). Uses the `client_event_id` and `user_id` to enforce quotas; `user_quota_exhausted` (413) and `quota_exhausted` (413) rejection codes come from these endpoints.
 - **Cleanup**: the `attachment_cleanup` background job (daily 5am UTC) hard-deletes soft-deleted rows past the 7-day grace period and sweeps orphans. See [Background jobs](/docs/concepts/background-jobs).
