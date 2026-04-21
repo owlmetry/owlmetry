@@ -12,6 +12,8 @@
     "metrics",
     "funnels",
     "issues",
+    "attachments",
+    "integrations",
     "teams",
     "identity",
     "jobs"

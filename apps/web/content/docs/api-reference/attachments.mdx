@@ -1,0 +1,155 @@
+---
+title: Attachments
+description: Event attachment API — list, fetch, download, delete, and inspect project quota usage.
+---
+
+Manage event attachments — binary files (logs, screenshots, crash dumps) uploaded by SDKs alongside events. See [Attachments concepts](/docs/concepts/attachments) for quotas, storage, and cleanup behavior.
+
+Upload endpoints (`POST /v1/ingest/attachment` and `PUT /v1/ingest/attachment/:id`) are documented under [Ingest](/docs/api-reference/ingest).
+
+## GET /v1/attachments
+
+List attachments for the authenticated caller's teams. Ordered by `created_at` descending. Soft-deleted rows are excluded.
+
+**Auth required:** Yes (`events:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `event_id` | string | Filter to a specific event row (`events.id`). |
+| `event_client_id` | string | Filter by the client-provided event UUID. Useful when the event hasn't arrived yet — attachments are uploaded by the SDK in parallel with the event batch. |
+| `issue_id` | string | Filter to attachments linked to an issue. |
+| `project_id` | string | Filter to one project. Omit to get attachments across all teams the caller can access. |
+| `cursor` | string | ISO timestamp cursor from the previous response. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+```json
+{
+  "attachments": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "app_id": "uuid",
+      "event_client_id": "uuid",
+      "event_id": "uuid",
+      "issue_id": "uuid",
+      "user_id": "user_42",
+      "original_filename": "crash.log",
+      "content_type": "text/plain",
+      "size_bytes": 4821,
+      "sha256": "f1a2…",
+      "is_dev": false,
+      "uploaded_at": "2024-01-15T10:30:05.000Z",
+      "created_at": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "cursor": "2024-01-15T10:30:00.000Z",
+  "has_more": false
+}
+```
+
+`uploaded_at` is `null` for attachments that have been reserved but not yet PUT. Callers should treat those as pending — no download URL is available until the upload completes.
+
+## GET /v1/attachments/:id
+
+Fetch a single attachment with a signed download URL.
+
+**Auth required:** Yes (`events:read` permission or JWT)
+
+### Response
+
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "app_id": "uuid",
+  "event_client_id": "uuid",
+  "event_id": "uuid",
+  "issue_id": null,
+  "user_id": "user_42",
+  "original_filename": "crash.log",
+  "content_type": "text/plain",
+  "size_bytes": 4821,
+  "sha256": "f1a2…",
+  "is_dev": false,
+  "uploaded_at": "2024-01-15T10:30:05.000Z",
+  "created_at": "2024-01-15T10:30:00.000Z",
+  "download_url": {
+    "url": "https://api.owlmetry.com/v1/attachments/download?t=...",
+    "expires_at": "2024-01-15T10:31:05.000Z",
+    "original_filename": "crash.log",
+    "content_type": "text/plain",
+    "size_bytes": 4821
+  }
+}
+```
+
+The `download_url` object is omitted if the attachment has not yet been uploaded. Signed URLs expire 60 seconds after issuance (`ATTACHMENT_DOWNLOAD_URL_TTL_SECONDS`). Returns 404 if the attachment does not exist, is soft-deleted, or belongs to a team the caller cannot access.
+
+## GET /v1/attachments/download
+
+Stream the attachment bytes. Requires a signed token — do not call this endpoint directly; use the `download_url.url` value from `GET /v1/attachments/:id`.
+
+**Auth required:** No (token-based)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `t` | string | Signed HMAC token. Expires 60 seconds after being issued. |
+
+Returns the file bytes with `Content-Type`, `Content-Length`, `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, and `Cache-Control: private, no-store`. If the server is configured with `OWLMETRY_ATTACHMENTS_INTERNAL_URI`, the response uses `X-Accel-Redirect` so nginx streams bytes directly without passing them through Node.
+
+Returns 401 for missing/invalid/expired tokens. Returns 404 if the attachment no longer exists or has not completed upload.
+
+## DELETE /v1/attachments/:id
+
+Soft-delete an attachment. The row is kept for 7 days (`ATTACHMENT_SOFT_DELETE_GRACE_DAYS`) before the `attachment_cleanup` job hard-deletes the bytes and database row.
+
+**Auth required:** Yes (`events:write` permission; member role or higher)
+
+```json
+// Response (200)
+{
+  "ok": true
+}
+```
+
+Returns 404 if the attachment is missing or already soft-deleted. Returns 403 if the caller lacks the member role on the owning team.
+
+## GET /v1/projects/:projectId/attachment-usage
+
+Return current attachment disk usage for a project, with optional per-user breakdown.
+
+**Auth required:** Yes (`events:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `user_id` | string | Optional. If supplied, includes `user_used_bytes` and `user_file_count` for that user. |
+
+### Response
+
+```json
+{
+  "project_id": "uuid",
+  "used_bytes": 104857600,
+  "quota_bytes": 5368709120,
+  "user_quota_bytes": 262144000,
+  "file_count": 1842,
+  "user_id": "user_42",
+  "user_used_bytes": 12582912,
+  "user_file_count": 37
+}
+```
+
+`quota_bytes` and `user_quota_bytes` return the effective values — either the per-project override (`attachment_project_quota_bytes` / `attachment_user_quota_bytes` on `projects`) or the defaults (5 GB project, 250 MB per user). Returns 404 if the project is missing, soft-deleted, or not accessible to the caller.
+
+## Related endpoints
+
+- **Upload reservation + PUT**: see [Ingest → Attachments](/docs/api-reference/ingest). Uses the `client_event_id` and `user_id` to enforce quotas; `user_quota_exhausted` (413) and `quota_exhausted` (413) rejection codes come from these endpoints.
+- **Cleanup**: the `attachment_cleanup` background job (daily 5am UTC) hard-deletes soft-deleted rows past the 7-day grace period and sweeps orphans. See [Background jobs](/docs/concepts/background-jobs).

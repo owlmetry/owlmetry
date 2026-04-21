@@ -1,0 +1,202 @@
+---
+title: Integrations
+description: Third-party integration API — list providers, manage per-project connections, and trigger syncs.
+---
+
+Manage third-party integrations on a per-project basis. Currently supports **RevenueCat** (subscription management, V2 API). See [Integrations concepts](/docs/concepts/integrations) for syncing behavior and user property mapping.
+
+All configuration secrets (e.g., `api_key`) are redacted in responses — only the first 4 characters are returned, followed by `****`. Webhook secrets are auto-generated server-side and are never part of the user-facing config payload.
+
+## GET /v1/integrations/providers
+
+List all supported integration providers and their config schemas.
+
+**Auth required:** Yes (`integrations:read` permission or JWT)
+
+### Response
+
+```json
+{
+  "providers": [
+    {
+      "id": "revenuecat",
+      "name": "RevenueCat",
+      "description": "Subscription management — syncs subscriber status, revenue, and entitlements to user properties.",
+      "configFields": [
+        {
+          "key": "api_key",
+          "label": "Secret API Key",
+          "required": true,
+          "sensitive": true,
+          "placeholder": "sk_...",
+          "description": "RevenueCat V2 Secret API key..."
+        }
+      ]
+    }
+  ]
+}
+```
+
+## GET /v1/projects/:projectId/integrations
+
+List active integrations for a project. Soft-deleted rows are excluded.
+
+**Auth required:** Yes (`integrations:read` permission or JWT)
+
+### Response
+
+```json
+{
+  "integrations": [
+    {
+      "id": "uuid",
+      "project_id": "uuid",
+      "provider": "revenuecat",
+      "config": { "api_key": "sk_a****" },
+      "enabled": true,
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "updated_at": "2024-01-15T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+## POST /v1/projects/:projectId/integrations
+
+Create a new integration. Only one active integration per `(project, provider)` pair — a 409 is returned if one already exists. If a soft-deleted integration for the same provider exists, it is restored with the new config.
+
+**Auth required:** Yes (`integrations:write` permission; admin role required)
+
+### Request body
+
+```json
+{
+  "provider": "revenuecat",
+  "config": {
+    "api_key": "sk_your_revenuecat_secret_key"
+  }
+}
+```
+
+Fields must match the provider definition returned by `/v1/integrations/providers`. All values must be strings. Unknown keys are rejected with 400. For RevenueCat, a `webhook_secret` is generated automatically and is not part of the user-supplied config.
+
+### Response (201)
+
+```json
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "provider": "revenuecat",
+  "config": { "api_key": "sk_y****" },
+  "enabled": true,
+  "created_at": "2024-01-15T10:30:00.000Z",
+  "updated_at": "2024-01-15T10:30:00.000Z",
+  "webhook_setup": {
+    "webhook_url": "https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>",
+    "authorization_header": "Bearer <webhook_secret>",
+    "environment": "Both Production and Sandbox",
+    "events_filter": "All apps, All events"
+  }
+}
+```
+
+The `webhook_setup` object is only returned for providers that use webhooks (currently RevenueCat). It contains the one-time values needed to configure the third-party side — copy these immediately; the `webhook_secret` is not recoverable afterwards.
+
+## PATCH /v1/projects/:projectId/integrations/:provider
+
+Update an existing integration's config or enabled flag. Config fields merge with the stored config, so partial updates work (unspecified fields are preserved).
+
+**Auth required:** Yes (`integrations:write` permission; admin role required)
+
+### Request body
+
+```json
+{
+  "config": {
+    "api_key": "sk_new_rotated_key"
+  },
+  "enabled": true
+}
+```
+
+Both fields are optional; send whichever you want to change. Config validation runs against the merged result excluding internal fields like `webhook_secret`.
+
+### Response (200)
+
+Same shape as `GET /v1/projects/:projectId/integrations` single item (without `webhook_setup`).
+
+Returns 404 if no active integration exists for that provider. Returns 400 if the provider is not supported or the merged config is invalid.
+
+## DELETE /v1/projects/:projectId/integrations/:provider
+
+Soft-delete an integration. The row is kept for audit history and restoration — re-creating the same `(project, provider)` pair via POST will restore and overwrite it.
+
+**Auth required:** Yes (`integrations:write` permission; admin role required)
+
+```json
+// Response (200)
+{
+  "deleted": true
+}
+```
+
+## POST /v1/projects/:projectId/integrations/revenuecat/sync
+
+Trigger a full RevenueCat subscriber sync for every non-anonymous user in the project. Runs asynchronously as a `revenuecat_sync` background job.
+
+**Auth required:** Yes (`integrations:write` permission; admin role required)
+
+### Response (200)
+
+```json
+{
+  "syncing": true,
+  "total": 1250,
+  "job_run_id": "uuid"
+}
+```
+
+Use the returned `job_run_id` with `GET /v1/teams/:teamId/jobs/:jobRunId` to poll progress. If no non-anonymous users exist, returns `{ "synced": 0, "total": 0 }` without triggering a job.
+
+Returns 404 if RevenueCat is not configured or has been disabled for the project.
+
+## POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId
+
+Sync a single user from RevenueCat synchronously. Uses the RevenueCat V2 API to fetch the subscriber's entitlements and active subscriptions, then merges mapped properties onto the user.
+
+**Auth required:** Yes (`integrations:write` permission; admin role required)
+
+### Response (200)
+
+```json
+{
+  "updated": 1,
+  "properties": {
+    "rc_subscriber": "true",
+    "rc_status": "active",
+    "rc_product": "premium_monthly",
+    "rc_period_type": "normal",
+    "rc_billing_period": "2024-01-01..2024-02-01",
+    "rc_entitlements": "premium"
+  }
+}
+```
+
+Returns 404 if the subscriber does not exist in RevenueCat. Returns 502 if the RevenueCat API is unreachable or returns an error. Falls back to entitlements-only properties if the `/subscriptions` sub-fetch fails.
+
+## POST /v1/webhooks/revenuecat/:projectId
+
+Receive RevenueCat webhook events. This endpoint is called by RevenueCat itself, not by API clients — configure RevenueCat to POST here using the `webhook_url` and `authorization_header` values returned by `POST /v1/projects/:projectId/integrations`.
+
+**Auth required:** No (uses the webhook `Authorization: Bearer <webhook_secret>` header from the integration config)
+
+Handled event types: `INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `UNCANCELLATION`, `CANCELLATION`, `BILLING_ISSUE`, `EXPIRATION`. Event properties (`rc_subscriber`, `rc_status`, `rc_will_renew`, `rc_product`, `rc_last_purchase`, `rc_entitlements`, `rc_period_type`, `rc_billing_period`) are merged onto the user identified by `event.app_user_id` (or `event.original_app_user_id` when the former is null — e.g. `TRANSFER` events).
+
+```json
+// Response (200)
+{
+  "received": true
+}
+```
+
+Returns 404 if RevenueCat is not configured or disabled for the project. Returns 401 if the `Authorization` header does not match the stored webhook secret. Returns 400 if the payload is malformed or lacks a user ID.
