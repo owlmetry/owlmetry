@@ -119,6 +119,17 @@ public enum Owl {
             await filter.start()
         }
 
+        // If a real user id was persisted but the /v1/identity/claim call on
+        // the previous session never succeeded (e.g. the device was offline),
+        // late-arriving anon events could end up stranded under the anon id.
+        // Fire an idempotent claim on startup; the server short-circuits via
+        // claimed_from if the mapping is already recorded.
+        if let savedUserId = IdentityManager.savedUserId(), savedUserId != anonId {
+            Task {
+                await transport.claimIdentity(anonymousId: anonId, userId: savedUserId)
+            }
+        }
+
         // Emit session start event with launch time if available
         var sessionAttributes: [String: String]? = nil
         if let launchMs = Self.processLaunchDurationMs() {

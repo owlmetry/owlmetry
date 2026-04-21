@@ -294,10 +294,14 @@ final class SDKIntegrationTests: XCTestCase {
     func testClearUserRevertsToAnonymousId() async throws {
         try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
 
-        // Set user then clear
+        // Set user then clear. Pass newAnonymousId so future events aren't
+        // re-attributed to "temp-user" server-side via claimed_from: once the
+        // device anon id has been absorbed into a real user, the server keeps
+        // rewriting events under that anon id to the real user on ingest.
+        // Rotating the anon is the correct "shared device" logout flow.
         Owl.setUser("temp-user")
         try await Task.sleep(nanoseconds: 500_000_000)
-        Owl.clearUser()
+        Owl.clearUser(newAnonymousId: true)
 
         Owl.info("after clear", screenName: "clear_user")
         await Owl.shutdown()
@@ -308,7 +312,7 @@ final class SDKIntegrationTests: XCTestCase {
         let uid = events.first?["user_id"] as? String
         XCTAssertNotNil(uid)
         XCTAssertTrue(uid?.hasPrefix(IdentityManager.anonymousIdPrefix) == true,
-                       "After clearUser, events should use anonymous ID again")
+                       "After clearUser(newAnonymousId: true), events should use the fresh anonymous ID")
     }
 
     func testClearUserWithNewAnonymousId() async throws {
@@ -1000,6 +1004,69 @@ final class SDKIntegrationTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return false
+    }
+
+    // MARK: - Late-arriving anon event race (regression coverage)
+
+    /// Simulates the offline-queue race that bit production: an event tagged
+    /// with the anon id arrives at /v1/ingest *after* /v1/identity/claim has
+    /// already committed. The server must resolve the anon id through
+    /// app_users.claimed_from and attribute the event to the real user.
+    func testLateAnonEventRewrittenViaClaimedFrom() async throws {
+        let anonId = "\(IdentityManager.anonymousIdPrefix)\(UUID().uuidString)"
+        let realId = "late-arrival-real-\(UUID().uuidString)"
+
+        // Anchor event + claim so claimed_from is populated.
+        try await ingestEvents([
+            ["level": "info", "message": "anchor", "user_id": anonId, "screen_name": "late_race"],
+        ])
+        let claimResponse = try await claimIdentity(anonymousId: anonId, userId: realId)
+        XCTAssertTrue(claimResponse["claimed"] as? Bool == true)
+
+        // Late anon-tagged event (as if flushed from the on-disk offline queue).
+        try await ingestEvents([
+            ["level": "info", "message": "late offline event", "user_id": anonId, "screen_name": "late_race"],
+        ])
+
+        let events = try await queryEvents(screenName: "late_race")
+        XCTAssertEqual(events.count, 2)
+        for event in events {
+            XCTAssertEqual(event["user_id"] as? String, realId,
+                           "Late anon event should be rewritten to real user id via claimed_from")
+        }
+    }
+
+    /// Exercises the SDK-side startup reclaim: after a previous session saved
+    /// a real user id, reconfiguring the SDK should fire an idempotent
+    /// claimIdentity call even without an explicit setUser. We pre-ingest an
+    /// anon event, persist a saved user id, then configure() and verify the
+    /// events were re-attributed.
+    func testStartupReclaimIdempotentWhenSavedUserIdPresent() async throws {
+        let anonId = IdentityManager.anonymousId() // install the current anon id
+        let realId = "startup-reclaim-\(UUID().uuidString)"
+
+        // Pre-seed an anon event directly via the ingest endpoint.
+        try await ingestEvents([
+            ["level": "info", "message": "before restart", "user_id": anonId, "screen_name": "startup_reclaim"],
+        ])
+
+        // Persist a saved user id as if a prior session's setUser had run but
+        // the claim POST never succeeded.
+        IdentityManager.saveUserId(realId)
+
+        // Reconfigure — this should fire the startup reclaim.
+        try Owl.configure(endpoint: Self.testEndpoint, apiKey: Self.testClientKey, bundleId: Self.testBundleId)
+
+        // Give the claim Task a moment to complete.
+        try await Task.sleep(nanoseconds: 2_000_000_000)
+
+        await Owl.shutdown()
+
+        let events = try await queryEvents(screenName: "startup_reclaim")
+        XCTAssertGreaterThanOrEqual(events.count, 1)
+        let before = events.first(where: { ($0["message"] as? String) == "before restart" })
+        XCTAssertEqual(before?["user_id"] as? String, realId,
+                       "Pre-restart anon event should be reassigned by the startup reclaim")
     }
 
     private func queryEvents(

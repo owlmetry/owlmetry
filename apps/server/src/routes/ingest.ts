@@ -14,6 +14,7 @@ import {
   dualWriteSpecializedEvents,
   upsertAppUsers,
 } from "../utils/event-processing.js";
+import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
 
 export async function ingestRoutes(app: FastifyInstance) {
   app.post<{ Body: IngestRequest }>(
@@ -118,12 +119,24 @@ export async function ingestRoutes(app: FastifyInstance) {
       }
 
       const api_key_id = auth.type === "api_key" ? auth.key_id : null;
+
+      // Rewrite anon user_ids that have already been claimed so late-arriving
+      // offline-queued events land under the real user instead of re-creating
+      // a stale anon app_users row.
+      const claimedMap = await resolveClaimedUserIds(
+        app.db,
+        appRow.project_id,
+        validated.map((v) => v.event.user_id)
+      );
+
       const valid: Array<typeof events.$inferInsert> = [];
       for (const { event: e } of validated) {
         if (e.client_event_id && existingIds.has(e.client_event_id)) {
           continue;
         }
-        valid.push(buildEventRow(e, app_id, api_key_id));
+        const resolved = e.user_id ? claimedMap.get(e.user_id) : undefined;
+        const rewritten = resolved ? { ...e, user_id: resolved } : e;
+        valid.push(buildEventRow(rewritten, app_id, api_key_id));
       }
 
       if (valid.length > 0) {
