@@ -64,16 +64,14 @@ export function useUrlFilters(config: UrlFilterConfig): UrlFilters {
     (vals: Record<string, string>) => {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(vals)) {
-        // Only include non-default, non-empty values in URL
-        // Exception: always include values that were in the initial URL (like project_id)
-        if (value && value !== defaults[key]) {
-          params.set(key, value);
-        }
+        if (!value) continue;
+        if (value === defaults[key] && !persistSet.has(key)) continue;
+        params.set(key, value);
       }
       const qs = params.toString();
       return `${path}${qs ? `?${qs}` : ""}`;
     },
-    [defaults, path],
+    [defaults, path, persistSet],
   );
 
   const updateUrl = useCallback(
