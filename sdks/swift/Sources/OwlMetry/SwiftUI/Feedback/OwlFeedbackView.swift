@@ -19,15 +19,17 @@ public enum OwlFeedbackActionsPlacement: Sendable {
 /// which merges Submit + Cancel into the enclosing nav bar; use `.inline` when
 /// embedding the view with no nav bar available.
 ///
+/// After a successful submission the view shows a "Thanks!" alert and, when
+/// the user taps OK, pops itself via `@Environment(\.dismiss)` — so sheets
+/// close and pushed views pop automatically. `onSubmitted` is still invoked
+/// with the receipt for callers that want to log or react to the send.
+///
 /// ```swift
 /// // Sheet
 /// .sheet(isPresented: $show) {
 ///     NavigationStack {
-///         OwlFeedbackView(
-///             onSubmitted: { _ in show = false },
-///             onCancel: { show = false }
-///         )
-///         .navigationTitle("Feedback")
+///         OwlFeedbackView(onCancel: { show = false })
+///             .navigationTitle("Feedback")
 ///     }
 /// }
 ///
@@ -68,6 +70,8 @@ public struct OwlFeedbackView: View {
     private let onSubmitted: ((OwlFeedbackReceipt) -> Void)?
     private let onCancel: (() -> Void)?
 
+    @Environment(\.dismiss) private var dismiss
+
     @State private var message: String = ""
     @State private var name: String = ""
     @State private var email: String = ""
@@ -75,6 +79,7 @@ public struct OwlFeedbackView: View {
     @State private var submitted: OwlFeedbackReceipt?
     @State private var errorMessage: String?
     @State private var showNoContactAlert: Bool = false
+    @State private var showSuccessAlert: Bool = false
 
     public init(
         name: String? = nil,
@@ -141,6 +146,18 @@ public struct OwlFeedbackView: View {
                 }
             }, message: {
                 Text(strings.noContactAlertMessage)
+            })
+            .alert(Text(strings.successTitle), isPresented: $showSuccessAlert, actions: {
+                Button(role: .cancel) {
+                    if let receipt = submitted {
+                        onSubmitted?(receipt)
+                    }
+                    dismiss()
+                } label: {
+                    Text("OK")
+                }
+            }, message: {
+                Text(strings.successBody)
             })
     }
 
@@ -238,18 +255,6 @@ public struct OwlFeedbackView: View {
                 }
             }
 
-            if submitted != nil {
-                Section {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(strings.successTitle)
-                            .font(.headline)
-                        Text(strings.successBody)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-
         }
     }
 
@@ -309,7 +314,7 @@ public struct OwlFeedbackView: View {
                 email: trimmedEmail.isEmpty ? nil : trimmedEmail
             )
             submitted = receipt
-            onSubmitted?(receipt)
+            showSuccessAlert = true
         } catch let error as OwlFeedbackError {
             switch error {
             case .emptyMessage:
