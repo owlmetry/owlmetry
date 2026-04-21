@@ -8,9 +8,12 @@ interface AttributionBadgeProps {
 }
 
 const ASA_TOOLTIP_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "asa_campaign_id", label: "Campaign" },
-  { key: "asa_ad_group_id", label: "Ad group" },
-  { key: "asa_keyword_id", label: "Keyword" },
+  { key: "asa_campaign_name", label: "Campaign" },
+  { key: "asa_campaign_id", label: "Campaign ID" },
+  { key: "asa_ad_group_name", label: "Ad group" },
+  { key: "asa_ad_group_id", label: "Ad group ID" },
+  { key: "asa_keyword", label: "Keyword" },
+  { key: "asa_keyword_id", label: "Keyword ID" },
   { key: "asa_ad_id", label: "Ad" },
   { key: "asa_creative_set_id", label: "Creative" },
   { key: "asa_claim_type", label: "Claim type" },

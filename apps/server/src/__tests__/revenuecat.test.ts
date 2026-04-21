@@ -186,16 +186,46 @@ function buildSubscriptionsResponse(
   };
 }
 
+function buildCustomerAttributesResponse(
+  items: Array<{ name: string; value: string; updated_at?: number }> = [],
+) {
+  return {
+    object: "customer" as const,
+    id: "rc_user_123",
+    project_id: TEST_RC_PROJECT_ID,
+    first_seen_at: Date.now() - 86400000,
+    last_seen_at: Date.now(),
+    last_seen_country: "US",
+    last_seen_platform: "iOS",
+    last_seen_platform_version: "17.0",
+    last_seen_app_version: "1.0.0",
+    attributes: {
+      object: "list" as const,
+      items: items.map((i) => ({
+        object: "customer.attribute" as const,
+        name: i.name,
+        value: i.value,
+        updated_at: i.updated_at ?? Date.now(),
+      })),
+      next_page: null,
+      url: "/v2/projects/.../customers/.../attributes",
+    },
+  };
+}
+
 /**
  * Install a fetch mock that handles the V2 /projects lookup, the
- * /customers/{id}/active_entitlements call, and the /customers/{id}/subscriptions
- * call. Returns a cleanup function.
+ * /customers/{id}/active_entitlements call, the /customers/{id}/subscriptions
+ * call, and the /customers/{id}?expand=attributes call. Returns a cleanup
+ * function.
  */
 function mockRevenueCatV2(options: {
   entitlementsResponse?: unknown;
   entitlementsStatus?: number;
   subscriptionsResponse?: unknown;
   subscriptionsStatus?: number;
+  attributesResponse?: unknown;
+  attributesStatus?: number;
   captureAuthHeader?: (header: string | null) => void;
   capturedUrl?: (url: string) => void;
 }) {
@@ -227,6 +257,16 @@ function mockRevenueCatV2(options: {
     if (url.includes("api.revenuecat.com/v2/projects") && url.includes("/subscriptions")) {
       const status = options.subscriptionsStatus ?? 200;
       const body = options.subscriptionsResponse ?? buildSubscriptionsResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("api.revenuecat.com/v2/projects") && url.includes("expand=attributes")) {
+      const status = options.attributesStatus ?? 200;
+      const body = status === 404
+        ? { code: 7259, message: "Customer not found." }
+        : options.attributesResponse ?? buildCustomerAttributesResponse();
       return new Response(JSON.stringify(body), {
         status,
         headers: { "Content-Type": "application/json" },
@@ -567,6 +607,108 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
     // No properties should be set for TEST events
     const props = await getUserProperties("rc_user_123");
     expect(props).toBeNull();
+  });
+
+  it("parses ASA attribution from subscriber_attributes on webhook", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_attr_user");
+
+    const now = Date.now();
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("INITIAL_PURCHASE", {
+        app_user_id: "rc_attr_user",
+        original_app_user_id: "rc_attr_user",
+        aliases: ["rc_attr_user"],
+        subscriber_attributes: {
+          "$mediaSource": { value: "Apple Search Ads", updated_at_ms: now },
+          "$campaign": { value: "camp_one", updated_at_ms: now },
+          "$adGroup": { value: "adgroup_a", updated_at_ms: now },
+          "$keyword": { value: "ring lights", updated_at_ms: now },
+        },
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const props = await getUserProperties("rc_attr_user");
+    expect(props?.attribution_source).toBe("apple_search_ads");
+    expect(props?.asa_campaign_name).toBe("camp_one");
+    expect(props?.asa_ad_group_name).toBe("adgroup_a");
+    expect(props?.asa_keyword).toBe("ring lights");
+    // Subscription props still applied alongside
+    expect(props?.rc_subscriber).toBe("true");
+  });
+
+  it("webhook per-field merge does not overwrite existing attribution_source", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("already_attr_user");
+
+    // Seed with Apple-live attribution first
+    await app.inject({
+      method: "POST",
+      url: "/v1/identity/properties",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        user_id: "already_attr_user",
+        properties: {
+          attribution_source: "apple_search_ads",
+          asa_campaign_id: "542370539",
+        },
+      },
+    });
+
+    const now = Date.now();
+    await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("RENEWAL", {
+        app_user_id: "already_attr_user",
+        original_app_user_id: "already_attr_user",
+        aliases: ["already_attr_user"],
+        subscriber_attributes: {
+          "$mediaSource": { value: "Apple Search Ads", updated_at_ms: now },
+          "$campaign": { value: "rc_campaign", updated_at_ms: now },
+          "$keyword": { value: "rc_kw", updated_at_ms: now },
+        },
+      }),
+    });
+
+    const props = await getUserProperties("already_attr_user");
+    // attribution_source and id field preserved
+    expect(props?.attribution_source).toBe("apple_search_ads");
+    expect(props?.asa_campaign_id).toBe("542370539");
+    // Name + keyword layered on
+    expect(props?.asa_campaign_name).toBe("rc_campaign");
+    expect(props?.asa_keyword).toBe("rc_kw");
+  });
+
+  it("webhook ignores non-ASA subscriber_attributes", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_non_asa_user");
+
+    const now = Date.now();
+    await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("INITIAL_PURCHASE", {
+        app_user_id: "rc_non_asa_user",
+        original_app_user_id: "rc_non_asa_user",
+        aliases: ["rc_non_asa_user"],
+        subscriber_attributes: {
+          "$mediaSource": { value: "Facebook Ads", updated_at_ms: now },
+          "$campaign": { value: "meta_xyz", updated_at_ms: now },
+        },
+      }),
+    });
+
+    const props = await getUserProperties("rc_non_asa_user");
+    expect(props?.attribution_source).toBeUndefined();
+    expect(props?.asa_campaign_name).toBeUndefined();
+    expect(props?.rc_subscriber).toBe("true");
   });
 
   it("skips webhook auth when webhook_secret is not configured", async () => {
@@ -963,6 +1105,141 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
 
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toMatch(/not found/);
+  });
+
+  it("backfills ASA attribution from RC subscriber attributes on sync", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_user_123");
+
+    const cleanup = mockRevenueCatV2({
+      attributesResponse: buildCustomerAttributesResponse([
+        { name: "$mediaSource", value: "Apple Search Ads" },
+        { name: "$campaign", value: "USA_main_keyword" },
+        { name: "$adGroup", value: "USA_broad" },
+        { name: "$keyword", value: "mockup creator" },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/rc_user_123`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.attribution_source).toBe("apple_search_ads");
+      expect(props.asa_campaign_name).toBe("USA_main_keyword");
+      expect(props.asa_ad_group_name).toBe("USA_broad");
+      expect(props.asa_keyword).toBe("mockup creator");
+
+      // DB was updated
+      const dbProps = await getUserProperties("rc_user_123");
+      expect(dbProps?.attribution_source).toBe("apple_search_ads");
+      expect(dbProps?.asa_keyword).toBe("mockup creator");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("per-field merges RC attribution without overwriting Apple-live fields", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("apple_live_user");
+
+    // Seed user with Apple-live attribution (ids + attribution_source already set)
+    await app.inject({
+      method: "POST",
+      url: "/v1/identity/properties",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        user_id: "apple_live_user",
+        properties: {
+          attribution_source: "apple_search_ads",
+          asa_campaign_id: "542370539",
+          asa_ad_group_id: "542317095",
+          asa_keyword_id: "87675432",
+        },
+      },
+    });
+
+    const cleanup = mockRevenueCatV2({
+      attributesResponse: buildCustomerAttributesResponse([
+        { name: "$mediaSource", value: "Apple Search Ads" },
+        { name: "$campaign", value: "USA_main_keyword" },
+        { name: "$adGroup", value: "USA_broad" },
+        { name: "$keyword", value: "mockup creator" },
+      ]),
+    });
+    try {
+      await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/apple_live_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+    } finally {
+      cleanup();
+    }
+
+    const dbProps = await getUserProperties("apple_live_user");
+    // Apple-live fields preserved
+    expect(dbProps?.attribution_source).toBe("apple_search_ads");
+    expect(dbProps?.asa_campaign_id).toBe("542370539");
+    expect(dbProps?.asa_ad_group_id).toBe("542317095");
+    expect(dbProps?.asa_keyword_id).toBe("87675432");
+    // RC enrichment layered on top
+    expect(dbProps?.asa_campaign_name).toBe("USA_main_keyword");
+    expect(dbProps?.asa_ad_group_name).toBe("USA_broad");
+    expect(dbProps?.asa_keyword).toBe("mockup creator");
+  });
+
+  it("skips attribution writes when RC $mediaSource is not Apple Search Ads", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_user_123");
+
+    const cleanup = mockRevenueCatV2({
+      attributesResponse: buildCustomerAttributesResponse([
+        { name: "$mediaSource", value: "Facebook Ads" },
+        { name: "$campaign", value: "meta_campaign" },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/rc_user_123`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.attribution_source).toBeUndefined();
+      expect(props.asa_campaign_name).toBeUndefined();
+      expect(props.rc_subscriber).toBe("true"); // subscription sync still works
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("single-user sync survives RC attributes endpoint errors (fail-soft)", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_user_123");
+
+    const cleanup = mockRevenueCatV2({
+      attributesStatus: 500,
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/rc_user_123`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().properties.rc_subscriber).toBe("true");
+      // No attribution props since the fetch failed
+      expect(res.json().properties.attribution_source).toBeUndefined();
+    } finally {
+      cleanup();
+    }
   });
 });
 

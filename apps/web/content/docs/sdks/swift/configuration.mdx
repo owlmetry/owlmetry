@@ -109,6 +109,8 @@ The SDK writes one of:
 - `attribution_source = "apple_search_ads"` plus `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` when Apple attributes the install.
 - `attribution_source = "none"` when Apple responds but the install is not attributed, or after `ASA_MAX_PENDING_ATTEMPTS` (5) failed retries.
 
+The SDK's live path only populates numeric IDs — Apple's AdServices Attribution API doesn't return human-readable names. If a project has the [RevenueCat integration](/docs/concepts/integrations) enabled **and** RC's Advanced Apple AdServices integration is configured with ASA Campaign Management API credentials, RC resolves those IDs to names server-side and exposes them as subscriber attributes. OwlMetry's RC sync and webhook paths then fill `asa_campaign_name`, `asa_ad_group_name`, and the literal `asa_keyword` search term on top of the numeric IDs. Those fields are additive — the live SDK flow and the RC backfill never overwrite each other.
+
 Capture runs once per anonymous ID and is idempotent — the SDK records completion in `UserDefaults` and skips on subsequent launches. If Apple's attribution record isn't ready yet (HTTP 404), the server returns `pending: true` and the SDK retries on the next launch, up to 5 attempts across ~24h.
 
 To opt out entirely:

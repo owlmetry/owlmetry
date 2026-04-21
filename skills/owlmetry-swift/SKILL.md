@@ -475,6 +475,8 @@ On successful attribution the user picks up:
 
 An install Apple did not attribute gets `attribution_source = "none"` and nothing else.
 
+If the project has the **RevenueCat integration** enabled and RC's Advanced Apple AdServices integration is configured (ASA Campaign Management API creds), OwlMetry's RC sync/webhook paths also populate `asa_campaign_name`, `asa_ad_group_name`, and `asa_keyword` (the literal search term). Those names come from RC resolving Apple's numeric IDs via the ASA Campaign Management API — complementary to the numeric IDs the Swift SDK writes, never overwriting them.
+
 **Opt-out:** set `attributionEnabled: false` when configuring:
 
 ```swift

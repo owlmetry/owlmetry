@@ -12,4 +12,8 @@ export const ATTRIBUTION_RESOLVERS: Record<AttributionNetwork, AttributionResolv
 };
 
 export { mapAppleAttributionToProperties, appleSearchAdsResolver } from "./apple-search-ads.js";
+export {
+  mapRevenueCatAttributesToAttributionProperties,
+  normalizeWebhookSubscriberAttributes,
+} from "./revenuecat.js";
 export type { AttributionResolveOutcome, AttributionResolver } from "./types.js";

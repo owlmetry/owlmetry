@@ -85,6 +85,9 @@ Some property keys are populated by OwlMetry itself and should not be written ma
 |---|---|---|
 | `rc_*` | [RevenueCat integration](/docs/concepts/integrations) | Subscription status, plan, entitlements, billing period |
 | `attribution_source` | Attribution subsystem | Which network attributed the install (`apple_search_ads`, `none`) |
-| `asa_*` | Swift SDK ([auto-captured](/docs/sdks/swift/configuration#apple-search-ads-attribution)) | Apple Search Ads campaign / ad group / keyword / ad / creative set IDs and claim type |
+| `asa_*_id` / `asa_claim_type` | Swift SDK ([auto-captured](/docs/sdks/swift/configuration#apple-search-ads-attribution)) | Apple Search Ads IDs (campaign, ad group, keyword, ad, creative set) plus claim type, resolved from Apple's AdServices API |
+| `asa_campaign_name`, `asa_ad_group_name`, `asa_keyword` | [RevenueCat integration](/docs/concepts/integrations) backfill | Human-readable names for the same campaign / ad group the `asa_*_id` fields identify, plus the literal search term. Apple's AdServices Attribution API returns only numeric IDs — these name fields are populated by RevenueCat, which resolves Apple's IDs to names via Apple's ASA Campaign Management API (requires RevenueCat's "Advanced" Apple AdServices integration to be configured with ASA API credentials). |
 
 Attribution properties are captured once per anonymous user by the Swift SDK and carried through the claim merge into the real user. To opt out, set `attributionEnabled: false` on `Owl.configure()`.
+
+The RC backfill path is additive: it never overwrites an `asa_*_id` or `attribution_source` set by the Swift SDK's live flow — it only fills empty slots. For users who predate the Apple AdServices capture, RC is the only source of attribution.

@@ -25,9 +25,11 @@ export type AttributionSourceValue =
   (typeof ATTRIBUTION_SOURCE_VALUES)[keyof typeof ATTRIBUTION_SOURCE_VALUES];
 
 // Apple Search Ads property keys (namespace: `asa_`).
-// The set mirrors the fields RevenueCat surfaces under "Acquisition and
-// attribution" plus the two additional IDs the WISHLIST_PLAN.md called out
-// (ad, creative). `attribution_source` is tracked separately — not prefixed.
+// ID fields come from Apple's AdServices API (first-party, live flow). Name
+// fields and the raw search term come from RevenueCat's stored subscriber
+// attributes (backfill path) — Apple's own API only returns numeric IDs, so
+// the names are strictly complementary. A user caught by both sources
+// populates every slot.
 export const ASA_PROPERTY_PREFIX = "asa_";
 export const ASA_PROPERTY_KEYS = [
   "asa_campaign_id",
@@ -36,6 +38,9 @@ export const ASA_PROPERTY_KEYS = [
   "asa_claim_type",
   "asa_ad_id",
   "asa_creative_set_id",
+  "asa_campaign_name",
+  "asa_ad_group_name",
+  "asa_keyword",
 ] as const;
 export type AsaPropertyKey = (typeof ASA_PROPERTY_KEYS)[number];
 

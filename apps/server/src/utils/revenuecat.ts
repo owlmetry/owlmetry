@@ -36,6 +36,39 @@ export interface RevenueCatV2ActiveEntitlementsResponse {
   url: string;
 }
 
+// V2 customer attribute — reserved (`$`-prefixed) and custom attributes both
+// share this shape. Returned as a list inside the customer object when the
+// endpoint is called with `?expand=attributes`.
+export interface RevenueCatV2Attribute {
+  object: "customer.attribute";
+  name: string;
+  value: string;
+  updated_at: number;
+}
+
+export interface RevenueCatV2CustomerAttributes {
+  object: "list";
+  items: RevenueCatV2Attribute[];
+  next_page: string | null;
+  url: string;
+}
+
+// V2 customer object with `?expand=attributes`. Other expand options exist
+// (active_entitlements, subscriptions) but we only need attributes here —
+// entitlements and subscriptions have their own helpers below.
+export interface RevenueCatV2CustomerExpanded {
+  object: "customer";
+  id: string;
+  project_id: string;
+  first_seen_at: number;
+  last_seen_at: number;
+  last_seen_country: string | null;
+  last_seen_platform: string | null;
+  last_seen_platform_version: string | null;
+  last_seen_app_version: string | null;
+  attributes?: RevenueCatV2CustomerAttributes;
+}
+
 // V2 subscription object. Fields below are the ones we consume — the real
 // response has more (entitlements, total_revenue_in_usd, store metadata, etc).
 export interface RevenueCatV2Subscription {
@@ -175,6 +208,39 @@ export async function fetchRevenueCatSubscriptions(
     });
     if (res.ok) {
       return { status: "found", data: (await res.json()) as RevenueCatV2SubscriptionsResponse };
+    }
+    if (res.status === 404) return { status: "not_found" };
+    return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export type FetchCustomerAttributesResult =
+  | { status: "found"; attributes: RevenueCatV2Attribute[] }
+  | { status: "not_found" }
+  | { status: "error"; statusCode?: number; message?: string };
+
+/**
+ * Fetch a RevenueCat customer's reserved + custom attributes via the V2 API.
+ * Used to backfill Apple Search Ads attribution for users who predate our
+ * first-party AdServices flow — RC has been collecting `$mediaSource`,
+ * `$campaign`, `$adGroup`, `$keyword` since their SDK was installed.
+ */
+export async function fetchRevenueCatCustomerAttributes(
+  apiKey: string,
+  rcProjectId: string,
+  userId: string,
+): Promise<FetchCustomerAttributesResult> {
+  try {
+    const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/customers/${encodeURIComponent(userId)}?expand=attributes`;
+    const res = await fetch(url, {
+      headers: rcHeaders(apiKey),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as RevenueCatV2CustomerExpanded;
+      return { status: "found", attributes: data.attributes?.items ?? [] };
     }
     if (res.status === 404) return { status: "not_found" };
     return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };

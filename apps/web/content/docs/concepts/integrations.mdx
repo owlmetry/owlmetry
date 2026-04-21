@@ -78,6 +78,8 @@ Webhooks capture future events, but users who subscribed before the integration 
 - **Bulk sync** — syncs all non-anonymous users in the project (rate-limited to ~180 req/min)
 - **Single-user sync** — fetches one subscriber's data immediately
 
+Sync and webhooks also backfill **Apple Search Ads attribution** from RevenueCat's subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`). RevenueCat populates these for every ASA-attributed subscriber: the Attribution token arrives via the RC SDK, RC resolves it against Apple's AdServices Attribution API to get the numeric campaign/ad-group/keyword IDs, and then — **when the "Advanced" Apple AdServices integration is configured in RevenueCat with ASA Campaign Management API credentials** — RC resolves those IDs to human-readable names via Apple's ASA Campaign Management API. The numeric IDs stay server-side at RC; only the resolved names are exposed as subscriber attributes. The backfill writes `attribution_source`, `asa_campaign_name`, `asa_ad_group_name`, and `asa_keyword` — complementary to the numeric ID fields the Swift SDK's live path writes. See [user properties](/docs/concepts/user-properties#reserved-namespaces) for the full field table. Existing attribution data from the live flow is never overwritten (per-field merge).
+
 ## Managing Integrations
 
 ### Dashboard

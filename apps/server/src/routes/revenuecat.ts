@@ -6,10 +6,15 @@ import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
 import {
+  mapRevenueCatAttributesToAttributionProperties,
+  normalizeWebhookSubscriberAttributes,
+} from "../utils/attribution/revenuecat.js";
+import {
   type RevenueCatConfig,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
   fetchRevenueCatSubscriptions,
+  fetchRevenueCatCustomerAttributes,
   fetchRevenueCatProjectId,
   computeBillingPeriod,
 } from "../utils/revenuecat.js";
@@ -173,12 +178,40 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Invalid webhook payload: no user ID" });
       }
 
-      const props = mapWebhookEventToProperties(event);
-      if (Object.keys(props).length === 0) {
+      const subscriberProps = mapWebhookEventToProperties(event);
+
+      // Attribution backfill via subscriber_attributes. RC pipes
+      // `$mediaSource` / `$campaign` / `$adGroup` / `$keyword` through every
+      // webhook, which lets us fill attribution for active subscribers
+      // without waiting on the next scheduled sync. Per-field merge — never
+      // overwrite data we already have (Apple live / prior sync wins).
+      let attributionProps: Record<string, string> = {};
+      if (event.subscriber_attributes && Object.keys(event.subscriber_attributes).length > 0) {
+        const mapped = mapRevenueCatAttributesToAttributionProperties(
+          normalizeWebhookSubscriberAttributes(event.subscriber_attributes),
+        );
+        if (Object.keys(mapped).length > 0) {
+          const [userRow] = await app.db
+            .select({ properties: appUsers.properties })
+            .from(appUsers)
+            .where(and(eq(appUsers.project_id, projectId), eq(appUsers.user_id, userId)))
+            .limit(1);
+          const currentProps = (userRow?.properties ?? {}) as Record<string, unknown>;
+          attributionProps = Object.fromEntries(
+            Object.entries(mapped).filter(([key]) => {
+              const existing = currentProps[key];
+              return existing === undefined || existing === null || existing === "";
+            }),
+          );
+        }
+      }
+
+      const combinedProps = { ...subscriberProps, ...attributionProps };
+      if (Object.keys(combinedProps).length === 0) {
         return { received: true };
       }
 
-      await mergeUserProperties(app.db, projectId, userId, props);
+      await mergeUserProperties(app.db, projectId, userId, combinedProps);
 
       return { received: true };
     }
@@ -296,7 +329,36 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         );
       }
 
-      const props = mapSubscriberToProperties(subscriberResult.data, subsData);
+      // Fail-soft: attribution backfill via RC subscriber attributes. Per-field
+      // merge keeps Apple-live data authoritative while adding RC's name/keyword
+      // enrichment to any slot Apple can't populate.
+      const attrsResult = await fetchRevenueCatCustomerAttributes(rcConfig.api_key, projectIdResult.projectId, userId);
+      let attributionProps: Record<string, string> = {};
+      if (attrsResult.status === "found") {
+        const mapped = mapRevenueCatAttributesToAttributionProperties(attrsResult.attributes);
+        if (Object.keys(mapped).length > 0) {
+          const [userRow] = await app.db
+            .select({ properties: appUsers.properties })
+            .from(appUsers)
+            .where(and(eq(appUsers.project_id, projectId), eq(appUsers.user_id, userId)))
+            .limit(1);
+          const currentProps = (userRow?.properties ?? {}) as Record<string, unknown>;
+          attributionProps = Object.fromEntries(
+            Object.entries(mapped).filter(([key]) => {
+              const existing = currentProps[key];
+              return existing === undefined || existing === null || existing === "";
+            }),
+          );
+        }
+      } else if (attrsResult.status === "error") {
+        app.log.warn(
+          { projectId, userId, statusCode: attrsResult.statusCode, message: attrsResult.message },
+          "RC attributes fetch failed (continuing without attribution backfill)",
+        );
+      }
+
+      const subscriberProps = mapSubscriberToProperties(subscriberResult.data, subsData);
+      const props = { ...subscriberProps, ...attributionProps };
       await mergeUserProperties(app.db, projectId, userId, props);
 
       return { updated: 1, properties: props };

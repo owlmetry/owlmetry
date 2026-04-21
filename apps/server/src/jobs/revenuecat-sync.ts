@@ -1,12 +1,15 @@
 import { eq, and, isNull } from "drizzle-orm";
 import { projectIntegrations, appUsers } from "@owlmetry/db";
+import { ATTRIBUTION_SOURCE_PROPERTY } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
+import { mapRevenueCatAttributesToAttributionProperties } from "../utils/attribution/revenuecat.js";
 import {
   type RevenueCatConfig,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
   fetchRevenueCatSubscriptions,
+  fetchRevenueCatCustomerAttributes,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
 
@@ -37,9 +40,15 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
 
   const rcConfig = integration.config as unknown as RevenueCatConfig;
 
-  // Get all non-anonymous users in the project
+  // Get all non-anonymous users in the project. `properties` is pulled so
+  // we can apply the per-field merge for RC-backfilled attribution without
+  // a second round-trip.
   const users = await ctx.db
-    .select({ id: appUsers.id, user_id: appUsers.user_id })
+    .select({
+      id: appUsers.id,
+      user_id: appUsers.user_id,
+      properties: appUsers.properties,
+    })
     .from(appUsers)
     .where(
       and(
@@ -86,6 +95,11 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   let errors = 0;
   let active = 0;
   let inactive = 0;
+  // Attribution-specific counters — separate from subscription sync so we can
+  // see at a glance how much of the backfill actually landed.
+  let attributionSynced = 0;
+  let attributionEnrichedExisting = 0;
+  let attributionSkippedNoAsa = 0;
   const notFoundUsers: string[] = [];
   const errorUsers: string[] = [];
   const errorStatusCounts: Record<string, number> = {};
@@ -104,6 +118,9 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       inactive,
       not_found: notFound,
       errors,
+      attribution_synced: attributionSynced,
+      attribution_enriched_existing: attributionEnrichedExisting,
+      attribution_skipped_no_asa: attributionSkippedNoAsa,
       ...extra,
     };
     if (notFoundUsers.length > 0) {
@@ -143,10 +160,51 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
             "RC subscriptions fetch failed (continuing with entitlements-only props)",
           );
         }
-        const props = mapSubscriberToProperties(result.data, subsData);
-        await mergeUserProperties(ctx.db, projectId, user.user_id, props);
+
+        // Fail-soft: attribution backfill via RC subscriber attributes
+        // (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`). Fills slots
+        // that Apple's live AdServices flow can't populate — names and the
+        // literal search term — while never overwriting anything already set.
+        const attrsResult = await fetchRevenueCatCustomerAttributes(
+          rcConfig.api_key,
+          rcProjectId,
+          user.user_id,
+        );
+        let attributionProps: Record<string, string> = {};
+        if (attrsResult.status === "found") {
+          const mapped = mapRevenueCatAttributesToAttributionProperties(attrsResult.attributes);
+          if (Object.keys(mapped).length === 0) {
+            attributionSkippedNoAsa++;
+          } else {
+            const currentProps = (user.properties ?? {}) as Record<string, unknown>;
+            attributionProps = Object.fromEntries(
+              Object.entries(mapped).filter(([key]) => {
+                const existing = currentProps[key];
+                return existing === undefined || existing === null || existing === "";
+              }),
+            );
+            if (Object.keys(attributionProps).length > 0) {
+              if (currentProps[ATTRIBUTION_SOURCE_PROPERTY] !== undefined) {
+                attributionEnrichedExisting++;
+              } else {
+                attributionSynced++;
+              }
+            }
+          }
+        } else if (attrsResult.status === "error") {
+          ctx.log.warn(
+            { userId: user.user_id, statusCode: attrsResult.statusCode, message: attrsResult.message },
+            "RC attributes fetch failed (continuing without attribution backfill)",
+          );
+        }
+
+        const subscriberProps = mapSubscriberToProperties(result.data, subsData);
+        await mergeUserProperties(ctx.db, projectId, user.user_id, {
+          ...subscriberProps,
+          ...attributionProps,
+        });
         synced++;
-        if (props.rc_status === "active") {
+        if (subscriberProps.rc_status === "active") {
           active++;
         } else {
           inactive++;
@@ -194,6 +252,10 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
     }
   }
 
-  ctx.log.info(`RevenueCat sync complete: ${synced}/${total} synced (${active} active, ${inactive} inactive), ${notFound} not found, ${errors} errors`);
+  ctx.log.info(
+    `RevenueCat sync complete: ${synced}/${total} synced (${active} active, ${inactive} inactive), ` +
+    `${notFound} not found, ${errors} errors. Attribution: ${attributionSynced} filled, ` +
+    `${attributionEnrichedExisting} enriched, ${attributionSkippedNoAsa} non-ASA.`,
+  );
   return buildResult();
 };
