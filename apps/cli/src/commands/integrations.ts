@@ -119,7 +119,7 @@ integrationsCommand
         lines.push(chalk.dim("The authorization header contains the webhook secret. It will not be shown again."));
       }
       if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
-        const publicKey = typeof result.config.public_key_pem === "string" ? result.config.public_key_pem : "";
+        const publicKey = result.config.public_key_pem || "";
         lines.push("");
         lines.push(chalk.bold("── Public Key (upload to Apple) ──"));
         lines.push(publicKey);

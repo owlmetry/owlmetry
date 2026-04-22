@@ -328,10 +328,10 @@ function PendingSetup({
   onRemove: () => void;
 }) {
   const cfg = integration.config;
-  const publicKey = typeof cfg.public_key_pem === "string" ? cfg.public_key_pem : "";
-  const savedClientId = typeof cfg.client_id === "string" ? cfg.client_id : "";
-  const savedTeamId = typeof cfg.team_id === "string" ? cfg.team_id : "";
-  const savedKeyId = typeof cfg.key_id === "string" ? cfg.key_id : "";
+  const publicKey = cfg.public_key_pem || "";
+  const savedClientId = cfg.client_id || "";
+  const savedTeamId = cfg.team_id || "";
+  const savedKeyId = cfg.key_id || "";
   const credsComplete = Boolean(savedClientId && savedTeamId && savedKeyId);
 
   return (
