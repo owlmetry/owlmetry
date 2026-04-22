@@ -183,6 +183,7 @@ owlmetry integrations add apple-search-ads --project-id <id> --client-id <SEARCH
 owlmetry integrations update <provider> --project-id <id> [provider-specific flags...] [--enable] [--disable] --format json
 owlmetry integrations test apple-search-ads --project-id <id>  # Verify creds via /api/v5/acls
 owlmetry integrations remove <provider> --project-id <id>
+owlmetry integrations copy <provider> --from <sourceProjectId> --to <targetProjectId> --format json  # Duplicate credentials from another project in the same team
 owlmetry integrations sync <provider> --project-id <id> [--user <userId>] --format json
 
 # Issues
@@ -340,7 +341,13 @@ owlmetry integrations add apple-search-ads --project-id <id> \
 owlmetry integrations test apple-search-ads --project-id <id>                # Validates credentials via /api/v5/acls
 owlmetry integrations sync apple-search-ads --project-id <id>                # Backfill names on existing users
 owlmetry integrations sync apple-search-ads --project-id <id> --user <userId>
+
+# Copy credentials between projects in the same team (both providers)
+owlmetry integrations copy revenuecat --from <sourceProjectId> --to <targetProjectId>
+owlmetry integrations copy apple-search-ads --from <sourceProjectId> --to <targetProjectId>
 ```
+
+**Copying credentials:** `integrations copy` duplicates a configured provider's credentials from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source API key later means editing both copies. For RevenueCat, a fresh `webhook_secret` is generated on the target (each project has its own webhook URL), so if you want RevenueCat to deliver events to the target project you must add a second webhook in RevenueCat with the returned setup values. The source project's webhook continues to work unchanged. Returns 409 if the target already has an active integration for that provider, 404 if the source has none, 403 if the projects are in different teams or the caller isn't a team admin.
 
 **RevenueCat:** `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access. A webhook secret is auto-generated. The output includes a **Webhook Setup** section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook): webhook URL, authorization header, environment, and events filter.
 
@@ -518,7 +525,7 @@ For self-hosted instances, replace `api.owlmetry.com` with your server's domain.
 | Metrics | `list-metrics`, `get-metric`, `create-metric`, `update-metric`, `delete-metric`, `query-metric`, `list-metric-events` |
 | Funnels | `list-funnels`, `get-funnel`, `create-funnel`, `update-funnel`, `delete-funnel`, `query-funnel` |
 | Issues | `list-issues`, `get-issue`, `resolve-issue`, `silence-issue`, `reopen-issue`, `claim-issue`, `merge-issues`, `list-issue-comments`, `add-issue-comment` |
-| Integrations | `list-providers`, `list-integrations`, `add-integration`, `update-integration`, `remove-integration`, `sync-integration` |
+| Integrations | `list-providers`, `list-integrations`, `add-integration`, `update-integration`, `remove-integration`, `copy-integration`, `sync-integration` |
 | Jobs | `list-jobs`, `get-job`, `trigger-job`, `cancel-job` |
 | Audit Logs | `list-audit-logs` |
 

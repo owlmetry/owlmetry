@@ -161,6 +161,31 @@ integrationsCommand
   });
 
 integrationsCommand
+  .command("copy <provider>")
+  .description("Copy an integration's credentials from another project in the same team")
+  .requiredOption("--from <id>", "Source project ID (has an existing integration for <provider>)")
+  .requiredOption("--to <id>", "Target project ID (will receive a copy of the credentials)")
+  .action(async (provider: string, opts: { from: string; to: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    const result = await client.copyIntegration(provider, opts.from, opts.to);
+    output(globals.format, result, () => {
+      const lines = [formatIntegrationDetail(result)];
+      if (result.webhook_setup) {
+        const ws = result.webhook_setup;
+        lines.push("");
+        lines.push(chalk.bold("── Webhook Setup (paste into RevenueCat) ──"));
+        lines.push(`  Webhook URL:     ${ws.webhook_url}`);
+        lines.push(`  Authorization:   ${chalk.yellow(ws.authorization_header)}`);
+        lines.push(`  Environment:     ${ws.environment}`);
+        lines.push(`  Events filter:   ${ws.events_filter}`);
+        lines.push("");
+        lines.push(chalk.dim("A new webhook secret was generated for this project. The source project keeps its own secret."));
+      }
+      return lines.join("\n");
+    });
+  });
+
+integrationsCommand
   .command("sync <provider>")
   .description("Sync user data from an integration provider (revenuecat | apple-search-ads)")
   .requiredOption("--project-id <id>", "Project ID")

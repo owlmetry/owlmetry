@@ -297,6 +297,10 @@ export class OwlMetryClient {
     return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/integrations/${provider}`);
   }
 
+  async copyIntegration(provider: string, sourceProjectId: string, targetProjectId: string): Promise<CreateIntegrationResponse> {
+    return this.request<CreateIntegrationResponse>("POST", `/v1/projects/${targetProjectId}/integrations/copy-from/${sourceProjectId}`, { body: { provider } });
+  }
+
   // RevenueCat Sync
   async syncRevenueCat(projectId: string): Promise<{ syncing: boolean; total: number }> {
     return this.request<{ syncing: boolean; total: number }>("POST", `/v1/projects/${projectId}/integrations/revenuecat/sync`);

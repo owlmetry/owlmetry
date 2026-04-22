@@ -275,6 +275,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`add-integration\` — Add integration (needs \`integrations:write\`): \`project_id\`, \`provider\`, \`config\`
 - \`update-integration\` — Update config or enabled state (needs \`integrations:write\`)
 - \`remove-integration\` — Remove (needs \`integrations:write\`)
+- \`copy-integration\` — Duplicate credentials from one project to another in the same team (needs \`integrations:write\`, admin role). Credentials are **duplicated, not shared** — rotating the source does not update the copy. RevenueCat gets a fresh webhook secret on the target.
 - \`sync-integration\` — Trigger sync: \`provider\` (\`revenuecat\` default, or \`apple-search-ads\`), bulk (omit \`user_id\`, queues job) or single user (with \`user_id\`, synchronous)
 
 ### Jobs
@@ -304,7 +305,7 @@ Your agent key has specific permissions. Common permission sets:
 | \`issues:read\` | list-issues, get-issue, list-issue-comments |
 | \`issues:write\` | resolve-issue, silence-issue, reopen-issue, claim-issue, merge-issues, add-issue-comment |
 | \`integrations:read\` | list-providers, list-integrations |
-| \`integrations:write\` | add-integration, update-integration, remove-integration, sync-integration |
+| \`integrations:write\` | add-integration, update-integration, remove-integration, copy-integration, sync-integration |
 | \`jobs:read\` | list-jobs, get-job |
 | \`jobs:write\` | trigger-job, cancel-job |
 | \`audit_logs:read\` | list-audit-logs |

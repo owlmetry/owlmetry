@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { api, ApiError } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
 
@@ -278,22 +279,30 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
               Connect Apple Search Ads to resolve campaign, ad group, keyword, and ad IDs into
               human-readable names on attributed users.
             </p>
-            <ConfigDialog
-              open={dialogOpen}
-              onOpenChange={setDialogOpen}
-              mode="connect"
-              form={form}
-              setField={setField}
-              onSubmit={handleSave}
-              saving={saving}
-              error={error}
-              trigger={
-                <Button>
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Connect Apple Search Ads
-                </Button>
-              }
-            />
+            <div className="flex items-center justify-center gap-2">
+              <ConfigDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                mode="connect"
+                form={form}
+                setField={setField}
+                onSubmit={handleSave}
+                saving={saving}
+                error={error}
+                trigger={
+                  <Button>
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Connect Apple Search Ads
+                  </Button>
+                }
+              />
+              <CopyIntegrationDialog
+                targetProjectId={projectId}
+                provider="apple-search-ads"
+                providerLabel="Apple Search Ads"
+                onCopied={() => mutate()}
+              />
+            </div>
           </div>
         )}
       </CardContent>

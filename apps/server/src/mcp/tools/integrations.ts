@@ -91,6 +91,49 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
     });
   });
 
+  server.registerTool("copy-integration", {
+    description:
+      "Copy an integration's credentials from one project to another within the same team. Credentials are duplicated (not shared) — rotating the source does not update the copy. For RevenueCat, a fresh webhook_secret is generated on the target. Requires integrations:write permission and admin role on the target team.",
+    inputSchema: {
+      source_project_id: z.string().uuid().describe("Project that already has the integration configured"),
+      target_project_id: z.string().uuid().describe("Project that will receive a copy of the credentials"),
+      provider: providerEnum.describe("Integration provider to copy (revenuecat | apple-search-ads)"),
+    },
+  }, async ({ source_project_id, target_project_id, provider }) => {
+    const { body, error } = await callApiRaw(app, agentKey, {
+      method: "POST",
+      url: `/v1/projects/${target_project_id}/integrations/copy-from/${source_project_id}`,
+      payload: { provider },
+    });
+
+    if (error) return error;
+
+    const content: Array<{ type: "text"; text: string }> = [
+      { type: "text", text: JSON.stringify(body, null, 2) },
+    ];
+
+    const webhookSetup = body.webhook_setup as WebhookSetup | undefined;
+    if (webhookSetup) {
+      content.push({
+        type: "text",
+        text: [
+          "── RevenueCat Webhook Setup (target project) ──",
+          "A fresh webhook secret was generated for the target project. If you want RevenueCat to deliver events here,",
+          "add a separate webhook in RevenueCat with these values:",
+          "",
+          `Webhook URL:     ${webhookSetup.webhook_url}`,
+          `Authorization:   ${webhookSetup.authorization_header}`,
+          `Environment:     ${webhookSetup.environment}`,
+          `Events filter:   ${webhookSetup.events_filter}`,
+          "",
+          "The source project's webhook continues to work unchanged.",
+        ].join("\n"),
+      });
+    }
+
+    return { content };
+  });
+
   server.registerTool("remove-integration", {
     description: "Remove an integration from a project. Requires integrations:write permission.",
     inputSchema: {

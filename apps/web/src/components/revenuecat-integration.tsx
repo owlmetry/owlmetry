@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
+import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { Badge } from "@/components/ui/badge";
 import { api, ApiError, API_URL } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
@@ -170,6 +171,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
             <p className="text-sm text-muted-foreground mb-3">
               Connect RevenueCat to see subscription status and revenue on your users.
             </p>
+            <div className="flex items-center justify-center gap-2">
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -197,6 +199,13 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                 </form>
               </DialogContent>
             </Dialog>
+              <CopyIntegrationDialog
+                targetProjectId={projectId}
+                provider="revenuecat"
+                providerLabel="RevenueCat"
+                onCopied={() => mutate()}
+              />
+            </div>
           </div>
         )}
       </CardContent>
