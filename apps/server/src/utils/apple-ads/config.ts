@@ -24,34 +24,3 @@ export interface AppleAdsConfig extends AppleAdsAuthConfig {
   org_id: string;
   public_key_pem: string;
 }
-
-/**
- * Partial config used while setup is still in progress. The server generates
- * `private_key_pem` + `public_key_pem` when the integration row is first
- * created; the four IDs are filled in incrementally as the user completes
- * steps. All four must be present (and the integration `enabled=true`)
- * before Campaign Management API calls can run.
- */
-export interface PendingAppleAdsConfig {
-  client_id?: string;
-  team_id?: string;
-  key_id?: string;
-  org_id?: string;
-  private_key_pem: string;
-  public_key_pem: string;
-}
-
-/** All four user-supplied ID fields that must be present for the integration to be fully configured. */
-export const APPLE_ADS_USER_CONFIG_KEYS = ["client_id", "team_id", "key_id", "org_id"] as const;
-export type AppleAdsUserConfigKey = (typeof APPLE_ADS_USER_CONFIG_KEYS)[number];
-
-/** True if the given config has all four IDs filled in (i.e. ready for API calls). */
-export function isAppleAdsConfigComplete(config: Record<string, unknown>): boolean {
-  if (typeof config.private_key_pem !== "string" || config.private_key_pem.length === 0) return false;
-  if (typeof config.public_key_pem !== "string" || config.public_key_pem.length === 0) return false;
-  for (const key of APPLE_ADS_USER_CONFIG_KEYS) {
-    const value = config[key];
-    if (typeof value !== "string" || value.length === 0) return false;
-  }
-  return true;
-}

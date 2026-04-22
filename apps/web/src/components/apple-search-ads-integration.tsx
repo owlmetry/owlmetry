@@ -9,11 +9,10 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Copy as CopyIcon,
-  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CopyButton } from "@/components/copy-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -37,6 +36,10 @@ import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
+import {
+  hasAllAppleAdsUserConfigKeys,
+  INTEGRATION_PROVIDER_IDS,
+} from "@owlmetry/shared/integrations";
 
 interface AppleAdsUpdateForm {
   client_id: string;
@@ -73,16 +76,6 @@ interface LastSyncStatus {
   } | null;
 }
 
-const USER_ID_FIELDS = ["client_id", "team_id", "key_id", "org_id"] as const;
-
-function integrationHasAllIds(integration: IntegrationResponse): boolean {
-  for (const key of USER_ID_FIELDS) {
-    const value = integration.config[key];
-    if (typeof value !== "string" || value.length === 0) return false;
-  }
-  return true;
-}
-
 export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) {
   const { data, mutate, isLoading } = useSWR<{ integrations: IntegrationResponse[] }>(
     `/v1/projects/${projectId}/integrations`
@@ -100,8 +93,8 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [connecting, setConnecting] = useState(false);
 
-  const integration = data?.integrations?.find((i) => i.provider === "apple-search-ads");
-  const setupComplete = integration ? integrationHasAllIds(integration) : false;
+  const integration = data?.integrations?.find((i) => i.provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS);
+  const setupComplete = integration ? hasAllAppleAdsUserConfigKeys(integration.config) : false;
 
   function setUpdateField<K extends keyof AppleAdsUpdateForm>(key: K, value: AppleAdsUpdateForm[K]) {
     setUpdateForm((f) => ({ ...f, [key]: value }));
@@ -112,7 +105,7 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
     setConnecting(true);
     try {
       await api.post(`/v1/projects/${projectId}/integrations`, {
-        provider: "apple-search-ads",
+        provider: INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS,
         config: {},
       });
       mutate();
@@ -304,7 +297,7 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
               </Button>
               <CopyIntegrationDialog
                 targetProjectId={projectId}
-                provider="apple-search-ads"
+                provider={INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS}
                 providerLabel="Apple Search Ads"
                 onCopied={() => mutate()}
               />
@@ -365,21 +358,9 @@ function PendingSetup({
 }
 
 function StepOneCopyPublicKey({ publicKey }: { publicKey: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copyToClipboard() {
-    try {
-      await navigator.clipboard.writeText(publicKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard denied — user can still select-copy manually.
-    }
-  }
-
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium">1. Upload your public key to Apple</p>
           <p className="text-xs text-muted-foreground">
@@ -395,10 +376,7 @@ function StepOneCopyPublicKey({ publicKey }: { publicKey: string }) {
             {" "}on an API user (role: <span className="font-mono">API Account Read Only</span>). Apple will respond with three IDs.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={copyToClipboard}>
-          {copied ? <Check className="h-3.5 w-3.5 mr-1.5" /> : <CopyIcon className="h-3.5 w-3.5 mr-1.5" />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
+        <CopyButton text={publicKey} />
       </div>
       <pre className="text-[11px] bg-muted/50 border rounded-md p-3 font-mono overflow-auto max-h-40 whitespace-pre-wrap break-all">
         {publicKey || "(generating...)"}

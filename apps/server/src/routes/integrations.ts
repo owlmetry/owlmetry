@@ -5,16 +5,18 @@ import {
   validateIntegrationConfig,
   redactIntegrationConfig,
   stripServerManagedKeys,
+  hasAllAppleAdsUserConfigKeys,
   SUPPORTED_PROVIDER_IDS,
   INTEGRATION_PROVIDERS,
+  INTEGRATION_PROVIDER_IDS,
   generateWebhookSecret,
+  APPLE_ADS_USER_CONFIG_KEYS,
 } from "@owlmetry/shared";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { config } from "../config.js";
 import { generateAppleAdsKeypair } from "../utils/apple-ads/keypair.js";
-import { isAppleAdsConfigComplete } from "../utils/apple-ads/config.js";
 
 function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   return {
@@ -104,16 +106,16 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       // Provider-specific server-side initialization.
       let enabled = true;
-      if (provider === "revenuecat") {
+      if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
         integrationConfig.webhook_secret = generateWebhookSecret();
-      } else if (provider === "apple-search-ads") {
+      } else if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
         const keypair = generateAppleAdsKeypair();
         integrationConfig.private_key_pem = keypair.private_key_pem;
         integrationConfig.public_key_pem = keypair.public_key_pem;
         // Apple Search Ads setup is multi-step. The integration stays
         // disabled until the user uploads the public key to Apple and fills
         // in client_id, team_id, key_id, and org_id.
-        enabled = isAppleAdsConfigComplete(integrationConfig);
+        enabled = hasAllAppleAdsUserConfigKeys(integrationConfig);
       }
 
       // Check if integration already exists (including soft-deleted)
@@ -161,7 +163,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       const response: Record<string, unknown> = serializeIntegration(created);
 
-      if (provider === "revenuecat") {
+      if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
         response.webhook_setup = buildRevenueCatWebhookSetup(projectId, integrationConfig.webhook_secret as string);
       }
 
@@ -258,9 +260,9 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       const copiedConfig: Record<string, unknown> = { ...(sourceIntegration.config as Record<string, unknown>) };
       let copyEnabled = true;
-      if (provider === "revenuecat") {
+      if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
         copiedConfig.webhook_secret = generateWebhookSecret();
-      } else if (provider === "apple-search-ads") {
+      } else if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
         // Each project gets its own keypair. Reusing the source's private key
         // across projects would let one project's admin impersonate another.
         // The target also goes back to pending state — the user still has
@@ -270,10 +272,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         const keypair = generateAppleAdsKeypair();
         copiedConfig.private_key_pem = keypair.private_key_pem;
         copiedConfig.public_key_pem = keypair.public_key_pem;
-        delete copiedConfig.client_id;
-        delete copiedConfig.team_id;
-        delete copiedConfig.key_id;
-        delete copiedConfig.org_id;
+        for (const key of APPLE_ADS_USER_CONFIG_KEYS) delete copiedConfig[key];
         copyEnabled = false;
       }
 
@@ -320,7 +319,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       const response: Record<string, unknown> = serializeIntegration(created);
 
-      if (provider === "revenuecat") {
+      if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
         response.webhook_setup = buildRevenueCatWebhookSetup(projectId, copiedConfig.webhook_secret as string);
       }
 
@@ -379,8 +378,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
         // Apple Search Ads: auto-toggle enabled based on whether the user
         // has finished filling in the four ID fields. The user never sets
         // enabled manually for this provider — it's derived.
-        if (provider === "apple-search-ads") {
-          updates.enabled = isAppleAdsConfigComplete(mergedConfig);
+        if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
+          updates.enabled = hasAllAppleAdsUserConfigKeys(mergedConfig);
         }
       }
 

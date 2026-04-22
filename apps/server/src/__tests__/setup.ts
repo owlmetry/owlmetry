@@ -705,3 +705,28 @@ export async function addTeamMember(
   `;
   await client.end();
 }
+
+export interface IntegrationRow {
+  id: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  deleted_at: Date | null;
+}
+
+/**
+ * Raw integration lookup for tests that need to inspect `config`, `enabled`,
+ * or soft-delete state directly — e.g. asserting that server-managed keys
+ * were generated/redacted/rotated correctly, bypassing the API's redaction.
+ */
+export async function readIntegration(
+  projectId: string,
+  provider: string,
+): Promise<IntegrationRow | null> {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  const [row] = await client`
+    SELECT id, config, enabled, deleted_at FROM project_integrations
+    WHERE project_id = ${projectId} AND provider = ${provider}
+  `;
+  await client.end();
+  return (row as IntegrationRow | undefined) ?? null;
+}

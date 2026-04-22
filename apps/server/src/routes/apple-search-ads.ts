@@ -5,11 +5,12 @@ import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { findActiveIntegration, formatManualTriggeredBy } from "../utils/integrations.js";
+import { INTEGRATION_PROVIDER_IDS } from "@owlmetry/shared";
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
 import { enrichAppleAdsNames, buildEnrichmentDiagnostic } from "../utils/apple-ads/enrich.js";
 
-const PROVIDER = "apple-search-ads";
+const PROVIDER = INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS;
 
 export async function appleSearchAdsRoutes(app: FastifyInstance) {
   // Status: returns the most recent apple_ads_sync run for this project so the

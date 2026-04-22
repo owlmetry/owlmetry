@@ -1,26 +1,21 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import postgres from "postgres";
 import {
   buildApp,
   truncateAll,
   seedTestData,
-  TEST_DB_URL,
   getTokenAndTeamId,
+  readIntegration,
 } from "./setup.js";
 
 let app: FastifyInstance;
 let token: string;
 let projectId: string;
 
-async function readIntegrationConfig(): Promise<Record<string, unknown>> {
-  const client = postgres(TEST_DB_URL, { max: 1 });
-  const [row] = await client`
-    SELECT config, enabled FROM project_integrations
-    WHERE project_id = ${projectId} AND provider = 'apple-search-ads' AND deleted_at IS NULL
-  `;
-  await client.end();
-  return { ...(row.config as Record<string, unknown>), enabled: row.enabled };
+async function readConfig(): Promise<Record<string, unknown>> {
+  const row = await readIntegration(projectId, "apple-search-ads");
+  if (!row) throw new Error("expected integration row");
+  return { ...row.config, enabled: row.enabled };
 }
 
 beforeAll(async () => {
@@ -57,7 +52,7 @@ describe("Apple Search Ads integration lifecycle", () => {
     // Private key redacted in the API response.
     expect(body.config.private_key_pem).toMatch(/\*{4}$/);
 
-    const stored = await readIntegrationConfig();
+    const stored = await readConfig();
     expect(stored.private_key_pem).toEqual(expect.stringContaining("-----BEGIN PRIVATE KEY-----"));
     expect(stored.public_key_pem).toEqual(expect.stringContaining("-----BEGIN PUBLIC KEY-----"));
     expect(stored.client_id).toBeUndefined();
@@ -79,7 +74,7 @@ describe("Apple Search Ads integration lifecycle", () => {
     });
 
     expect(res.statusCode).toBe(201);
-    const stored = await readIntegrationConfig();
+    const stored = await readConfig();
     expect(stored.private_key_pem).not.toBe("injected-private");
     expect(stored.public_key_pem).not.toBe("injected-public");
     expect(stored.private_key_pem).toEqual(expect.stringContaining("-----BEGIN PRIVATE KEY-----"));
@@ -109,7 +104,7 @@ describe("Apple Search Ads integration lifecycle", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().enabled).toBe(false);
 
-    const stored = await readIntegrationConfig();
+    const stored = await readConfig();
     expect(stored.client_id).toBe("SEARCHADS.c");
     expect(stored.team_id).toBe("SEARCHADS.t");
     expect(stored.key_id).toBe("k");
@@ -143,7 +138,7 @@ describe("Apple Search Ads integration lifecycle", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().enabled).toBe(true);
 
-    const stored = await readIntegrationConfig();
+    const stored = await readConfig();
     expect(stored.enabled).toBe(true);
     expect(stored.org_id).toBe("40669820");
   });
@@ -156,7 +151,7 @@ describe("Apple Search Ads integration lifecycle", () => {
       payload: { provider: "apple-search-ads", config: {} },
     });
     expect(createRes.statusCode).toBe(201);
-    const originalPrivate = (await readIntegrationConfig()).private_key_pem as string;
+    const originalPrivate = (await readConfig()).private_key_pem as string;
 
     const res = await app.inject({
       method: "PATCH",
@@ -171,7 +166,7 @@ describe("Apple Search Ads integration lifecycle", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const stored = await readIntegrationConfig();
+    const stored = await readConfig();
     expect(stored.private_key_pem).toBe(originalPrivate);
     expect(stored.client_id).toBe("SEARCHADS.c");
   });
@@ -193,6 +188,6 @@ describe("Apple Search Ads integration lifecycle", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().enabled).toBe(false);
-    expect((await readIntegrationConfig()).enabled).toBe(false);
+    expect((await readConfig()).enabled).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import {
   getTokenAndTeamId,
   createUserAndGetToken,
   addTeamMember,
+  readIntegration,
 } from "./setup.js";
 
 let app: FastifyInstance;
@@ -41,16 +42,6 @@ async function insertIntegration(projectId: string, provider: string, config: Re
   `;
   await client.end();
   return row;
-}
-
-async function readIntegration(projectId: string, provider: string) {
-  const client = postgres(TEST_DB_URL, { max: 1 });
-  const [row] = await client`
-    SELECT id, config, enabled, deleted_at FROM project_integrations
-    WHERE project_id = ${projectId} AND provider = ${provider}
-  `;
-  await client.end();
-  return row ?? null;
 }
 
 async function getUserIdByEmail(email: string): Promise<string> {

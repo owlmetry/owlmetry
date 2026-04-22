@@ -1,7 +1,11 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import type { IntegrationResponse, CreateIntegrationResponse } from "@owlmetry/shared";
-import { SUPPORTED_PROVIDER_IDS, INTEGRATION_PROVIDERS } from "@owlmetry/shared";
+import {
+  SUPPORTED_PROVIDER_IDS,
+  INTEGRATION_PROVIDERS,
+  INTEGRATION_PROVIDER_IDS,
+} from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
 
@@ -114,7 +118,7 @@ integrationsCommand
         lines.push("");
         lines.push(chalk.dim("The authorization header contains the webhook secret. It will not be shown again."));
       }
-      if (provider === "apple-search-ads") {
+      if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
         const publicKey = typeof result.config.public_key_pem === "string" ? result.config.public_key_pem : "";
         lines.push("");
         lines.push(chalk.bold("── Public Key (upload to Apple) ──"));
@@ -202,7 +206,7 @@ integrationsCommand
   .action(async (provider: string, opts: { projectId: string; user?: string }, cmd) => {
     const { client, globals } = createClient(cmd);
 
-    if (provider === "revenuecat") {
+    if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
       if (opts.user) {
         const result = await client.syncRevenueCatUser(opts.projectId, opts.user);
         output(globals.format, result, () => {
@@ -226,7 +230,7 @@ integrationsCommand
       return;
     }
 
-    if (provider === "apple-search-ads") {
+    if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
       if (opts.user) {
         const result = await client.syncAppleSearchAdsUser(opts.projectId, opts.user);
         output(globals.format, result, () => {
@@ -260,7 +264,7 @@ integrationsCommand
   .action(async (provider: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
 
-    if (provider !== "apple-search-ads") {
+    if (provider !== INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
       throw new Error(`Test is not supported for provider "${provider}". Supported: apple-search-ads`);
     }
 

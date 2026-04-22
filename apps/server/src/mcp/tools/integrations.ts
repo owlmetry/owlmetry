@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { callApi, callApiRaw, buildQuery } from "../helpers.js";
-import { SUPPORTED_PROVIDER_IDS, type WebhookSetup } from "@owlmetry/shared";
+import { SUPPORTED_PROVIDER_IDS, INTEGRATION_PROVIDER_IDS, type WebhookSetup } from "@owlmetry/shared";
 
 const providerEnum = z.enum(SUPPORTED_PROVIDER_IDS as [string, ...string[]]);
 
@@ -72,7 +72,7 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
       });
     }
 
-    if (provider === "apple-search-ads") {
+    if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
       const cfg = (body.config ?? {}) as Record<string, unknown>;
       const publicKey = typeof cfg.public_key_pem === "string" ? cfg.public_key_pem : "";
       content.push({
