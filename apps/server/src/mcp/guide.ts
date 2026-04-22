@@ -115,13 +115,17 @@ Third-party service connections (RevenueCat, Apple Search Ads) that sync data in
 
 **Setting up Apple Search Ads — needed to resolve captured ASA IDs into human-readable names** (campaign name, ad group name, keyword text, ad name). Complementary to RevenueCat: ASA covers every attributed user, RC only subscribers.
 
-1. Walk the user through generating credentials at ads.apple.com:
-   - Account Settings → User Management → Invite Users, assign role \`API Read Only\`.
-   - Generate an EC P-256 keypair: \`openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem\`.
-   - Upload the matching public key at Account Settings → API. Apple returns \`clientId\`, \`teamId\`, \`keyId\`.
-2. Call \`add-integration\` with \`provider: "apple-search-ads"\` and a config containing \`client_id\`, \`team_id\`, \`key_id\`, \`private_key_pem\`, \`org_id\`. The \`org_id\` is shown top-right at ads.apple.com; if the user isn't sure, they can leave a placeholder and fix it after running the test connection below.
-3. The user can validate credentials by hitting the **Test Connection** button in the dashboard (or an equivalent test endpoint the user will ask about). It lists accessible orgs via \`GET /api/v5/acls\` — confirm the configured \`org_id\` matches one.
-4. Call \`sync-integration\` with \`provider: "apple-search-ads"\` to backfill names for users attributed before the integration was connected. New attributions will be enriched automatically via a fire-and-forget hook in the attribution route.
+**IMPORTANT: DO NOT ask the user for a private key or an openssl command.** OwlMetry generates the EC P-256 keypair server-side. The flow is three calls:
+
+1. Call \`add-integration\` with \`provider: "apple-search-ads"\` and an empty config (\`{}\`). The response includes the generated \`public_key_pem\` under \`config.public_key_pem\` and an instructions block. Relay the public key to the user.
+2. Walk the user through uploading it at ads.apple.com:
+   - Account Settings → User Management → Invite (or reuse) an API user with role \`API Account Read Only\`.
+   - On that user's API tab, paste the public key from step 1. Apple returns \`clientId\`, \`teamId\`, \`keyId\`.
+3. Call \`update-integration\` with \`provider: "apple-search-ads"\` and \`config: { client_id, team_id, key_id }\`. The integration is still pending at this point.
+4. Call \`update-integration\` again with \`config: { org_id }\` (the numeric "Account ID" shown in the ads.apple.com profile menu top-right). The integration auto-enables when all four IDs are present — do NOT pass \`enabled\`.
+5. (Optional) Call \`sync-integration\` with \`provider: "apple-search-ads"\` to backfill names for users attributed before the integration was connected. New attributions enrich automatically via a fire-and-forget hook in the attribution route.
+
+The server strips \`private_key_pem\` and \`public_key_pem\` from any user-supplied config on POST/PATCH — it only generates them itself. If the user asks to rotate the keypair, remove the integration and re-add (which creates a new keypair; they'll need to upload the new public key to Apple).
 
 ### Attribution
 

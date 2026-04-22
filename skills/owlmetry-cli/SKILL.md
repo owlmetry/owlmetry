@@ -179,7 +179,9 @@ owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>
 owlmetry integrations providers
 owlmetry integrations list --project-id <id> --format json
 owlmetry integrations add revenuecat --project-id <id> --api-key <key> --format json
-owlmetry integrations add apple-search-ads --project-id <id> --client-id <SEARCHADS.*> --team-id <SEARCHADS.*> --key-id <key-id> --private-key-pem "$(cat private-key.pem)" --org-id <org-id> --format json
+owlmetry integrations add apple-search-ads --project-id <id> --format json  # OwlMetry generates the EC keypair; response's config.public_key_pem is what the user pastes into Apple
+owlmetry integrations update apple-search-ads --project-id <id> --client-id <SEARCHADS.*> --team-id <SEARCHADS.*> --key-id <key-id> --format json  # After the user pastes the public key into ads.apple.com and Apple returns the IDs
+owlmetry integrations update apple-search-ads --project-id <id> --org-id <org-id> --format json  # Finalize — auto-enables once all four IDs are present
 owlmetry integrations update <provider> --project-id <id> [provider-specific flags...] [--enable] [--disable] --format json
 owlmetry integrations test apple-search-ads --project-id <id>  # Verify creds via /api/v5/acls
 owlmetry integrations remove <provider> --project-id <id>
@@ -334,10 +336,11 @@ owlmetry integrations remove revenuecat --project-id <id>
 owlmetry integrations sync revenuecat --project-id <id>                      # Bulk sync (queues background job)
 owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user (synchronous)
 
-# Apple Search Ads
-owlmetry integrations add apple-search-ads --project-id <id> \
-    --client-id <SEARCHADS.*> --team-id <SEARCHADS.*> --key-id <id> \
-    --private-key-pem "$(cat private-key.pem)" --org-id <id>
+# Apple Search Ads — OwlMetry generates the EC P-256 keypair server-side. Three-step setup:
+owlmetry integrations add apple-search-ads --project-id <id>                 # Step 1: server generates keypair, prints public key for user to upload to Apple
+owlmetry integrations update apple-search-ads --project-id <id> \            # Step 2: after user uploads public key and Apple returns IDs
+    --client-id <SEARCHADS.*> --team-id <SEARCHADS.*> --key-id <id>
+owlmetry integrations update apple-search-ads --project-id <id> --org-id <id>  # Step 3: finalize (auto-enables when all 4 IDs set)
 owlmetry integrations test apple-search-ads --project-id <id>                # Validates credentials via /api/v5/acls
 owlmetry integrations sync apple-search-ads --project-id <id>                # Backfill names on existing users
 owlmetry integrations sync apple-search-ads --project-id <id> --user <userId>
@@ -347,11 +350,11 @@ owlmetry integrations copy revenuecat --from <sourceProjectId> --to <targetProje
 owlmetry integrations copy apple-search-ads --from <sourceProjectId> --to <targetProjectId>
 ```
 
-**Copying credentials:** `integrations copy` duplicates a configured provider's credentials from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source API key later means editing both copies. For RevenueCat, a fresh `webhook_secret` is generated on the target (each project has its own webhook URL), so if you want RevenueCat to deliver events to the target project you must add a second webhook in RevenueCat with the returned setup values. The source project's webhook continues to work unchanged. Returns 409 if the target already has an active integration for that provider, 404 if the source has none, 403 if the projects are in different teams or the caller isn't a team admin.
+**Copying credentials:** `integrations copy` duplicates a configured provider's credentials from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source API key later means editing both copies. For RevenueCat, a fresh `webhook_secret` is generated on the target (each project has its own webhook URL), so if you want RevenueCat to deliver events to the target project you must add a second webhook in RevenueCat with the returned setup values. For Apple Search Ads, a fresh keypair is generated on the target and the client/team/key/org IDs are cleared — the target goes into "pending setup" mode and you upload the new public key to Apple (under the destination project's API user) before it enables. Returns 409 if the target already has an active integration for that provider, 404 if the source has none, 403 if the projects are in different teams or the caller isn't a team admin.
 
 **RevenueCat:** `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access. A webhook secret is auto-generated. The output includes a **Webhook Setup** section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook): webhook URL, authorization header, environment, and events filter.
 
-**Apple Search Ads:** the customer generates an EC P-256 keypair locally (`openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem`), invites an API user with role `API Read Only` at ads.apple.com → Account Settings → User Management, uploads the public key at Account Settings → API to receive `clientId`, `teamId`, `keyId`, and grabs the `orgId` from the ads.apple.com UI. After `add`, run `owlmetry integrations test apple-search-ads` to verify credentials — the output lists accessible orgs with a checkmark next to the configured one. The v5 Campaign Management API is sunsetting **Jan 26, 2027** (replaced by a new Platform API Summer 2026) — this path will migrate when Apple publishes the new docs.
+**Apple Search Ads:** **OwlMetry generates the EC P-256 keypair server-side — never ask the user for a private key or an openssl command.** The three-step flow: (1) `integrations add apple-search-ads --project-id <id>` creates the integration and prints a public PEM. (2) The user invites (or reuses) an API user with role `API Account Read Only` at ads.apple.com → Account Settings → User Management, opens the API tab on that user, and pastes the public key there. Apple returns `clientId`, `teamId`, `keyId`. (3) The user runs `integrations update apple-search-ads` with the three IDs, then runs it again with `--org-id` (the numeric "Account ID" shown in the ads.apple.com profile menu). The integration auto-enables when all four IDs are present — do NOT pass `--enable`. To rotate the keypair, remove the integration and re-add; OwlMetry generates a new one and the user uploads the new public key to Apple (replacing the old one on the same API user). The v5 Campaign Management API is sunsetting **Jan 26, 2027** (replaced by a new Platform API Summer 2026) — this path will migrate when Apple publishes the new docs.
 
 Bulk sync creates a tracked background job. The response includes a `job_run_id` you can monitor:
 

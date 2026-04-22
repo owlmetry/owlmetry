@@ -4,6 +4,7 @@ import { projectIntegrations, projects } from "@owlmetry/db";
 import {
   validateIntegrationConfig,
   redactIntegrationConfig,
+  stripServerManagedKeys,
   SUPPORTED_PROVIDER_IDS,
   INTEGRATION_PROVIDERS,
   generateWebhookSecret,
@@ -12,6 +13,8 @@ import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { config } from "../config.js";
+import { generateAppleAdsKeypair } from "../utils/apple-ads/keypair.js";
+import { isAppleAdsConfigComplete } from "../utils/apple-ads/config.js";
 
 function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   return {
@@ -80,24 +83,37 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const { provider, config: integrationConfig } = request.body;
+      const { provider, config: rawConfig } = request.body;
 
       if (!provider || typeof provider !== "string") {
         return reply.code(400).send({ error: "provider is required" });
       }
-      if (!integrationConfig || typeof integrationConfig !== "object") {
+      if (!rawConfig || typeof rawConfig !== "object") {
         return reply.code(400).send({ error: "config is required" });
       }
 
-      // Validate provider and config against the registry
+      // Strip server-managed keys before validation. Callers can't inject
+      // values like a private key or webhook secret — the server generates
+      // those itself.
+      const integrationConfig = stripServerManagedKeys(provider, rawConfig as Record<string, unknown>);
+
       const configError = validateIntegrationConfig(provider, integrationConfig);
       if (configError) {
         return reply.code(400).send({ error: configError });
       }
 
-      // Auto-generate webhook secret for RevenueCat (always)
+      // Provider-specific server-side initialization.
+      let enabled = true;
       if (provider === "revenuecat") {
         integrationConfig.webhook_secret = generateWebhookSecret();
+      } else if (provider === "apple-search-ads") {
+        const keypair = generateAppleAdsKeypair();
+        integrationConfig.private_key_pem = keypair.private_key_pem;
+        integrationConfig.public_key_pem = keypair.public_key_pem;
+        // Apple Search Ads setup is multi-step. The integration stays
+        // disabled until the user uploads the public key to Apple and fills
+        // in client_id, team_id, key_id, and org_id.
+        enabled = isAppleAdsConfigComplete(integrationConfig);
       }
 
       // Check if integration already exists (including soft-deleted)
@@ -123,7 +139,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
           .update(projectIntegrations)
           .set({
             config: integrationConfig,
-            enabled: true,
+            enabled,
             deleted_at: null,
             updated_at: new Date(),
           })
@@ -136,6 +152,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
             project_id: projectId,
             provider,
             config: integrationConfig,
+            enabled,
           })
           .returning();
       }
@@ -240,8 +257,24 @@ export async function integrationsRoutes(app: FastifyInstance) {
       }
 
       const copiedConfig: Record<string, unknown> = { ...(sourceIntegration.config as Record<string, unknown>) };
+      let copyEnabled = true;
       if (provider === "revenuecat") {
         copiedConfig.webhook_secret = generateWebhookSecret();
+      } else if (provider === "apple-search-ads") {
+        // Each project gets its own keypair. Reusing the source's private key
+        // across projects would let one project's admin impersonate another.
+        // The target also goes back to pending state — the user still has
+        // to upload the new public key to Apple under the target's API
+        // user and get fresh client/team/key IDs. Drop the source's IDs so
+        // the dashboard clearly flags the target as needing finish-setup.
+        const keypair = generateAppleAdsKeypair();
+        copiedConfig.private_key_pem = keypair.private_key_pem;
+        copiedConfig.public_key_pem = keypair.public_key_pem;
+        delete copiedConfig.client_id;
+        delete copiedConfig.team_id;
+        delete copiedConfig.key_id;
+        delete copiedConfig.org_id;
+        copyEnabled = false;
       }
 
       const [existingOnTarget] = await app.db
@@ -265,7 +298,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
           .update(projectIntegrations)
           .set({
             config: copiedConfig,
-            enabled: true,
+            enabled: copyEnabled,
             deleted_at: null,
             updated_at: new Date(),
           })
@@ -278,7 +311,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
             project_id: projectId,
             provider,
             config: copiedConfig,
-            enabled: true,
+            enabled: copyEnabled,
           })
           .returning();
       }
@@ -330,19 +363,28 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const updates: Record<string, unknown> = { updated_at: new Date() };
 
       if (request.body.config !== undefined) {
-        // On update, merge new config with existing config so partial updates work
-        // Then validate the merged result (excluding internal fields like webhook_secret)
+        // Strip server-managed keys (private_key_pem, webhook_secret, etc.)
+        // from the inbound patch — those are generated server-side and never
+        // accepted from the client. Then merge into existing config so
+        // blank fields preserve the prior value.
         const existingConfig = (existing.config as Record<string, unknown>) ?? {};
-        const mergedConfig = { ...existingConfig, ...request.body.config };
-        const { webhook_secret, ...configToValidate } = mergedConfig;
-        const configError = validateIntegrationConfig(provider, configToValidate as Record<string, unknown>);
+        const inboundConfig = stripServerManagedKeys(provider, request.body.config);
+        const mergedConfig = { ...existingConfig, ...inboundConfig };
+        const configError = validateIntegrationConfig(provider, mergedConfig);
         if (configError) {
           return reply.code(400).send({ error: configError });
         }
         updates.config = mergedConfig;
+
+        // Apple Search Ads: auto-toggle enabled based on whether the user
+        // has finished filling in the four ID fields. The user never sets
+        // enabled manually for this provider — it's derived.
+        if (provider === "apple-search-ads") {
+          updates.enabled = isAppleAdsConfigComplete(mergedConfig);
+        }
       }
 
-      if (request.body.enabled !== undefined) {
+      if (request.body.enabled !== undefined && provider !== "apple-search-ads") {
         updates.enabled = request.body.enabled;
       }
 

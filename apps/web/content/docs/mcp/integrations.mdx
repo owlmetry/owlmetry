@@ -47,23 +47,21 @@ RevenueCat example:
 
 The `api_key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access.
 
-Apple Search Ads example:
+Apple Search Ads example — **pass an empty config**. OwlMetry generates the EC P-256 keypair server-side, stores the private half, and returns the public half for you to relay to the user:
 
 ```json
 {
   "project_id": "550e8400-...",
   "provider": "apple-search-ads",
-  "config": {
-    "client_id": "SEARCHADS.xxxxxxxx-...",
-    "team_id": "SEARCHADS.xxxxxxxx-...",
-    "key_id": "xxxxxxxx-...",
-    "private_key_pem": "-----BEGIN EC PRIVATE KEY-----\n...",
-    "org_id": "40669820"
-  }
+  "config": {}
 }
 ```
 
-Generate the keypair with `openssl ecparam -genkey -name prime256v1 -noout`, upload the public key at ads.apple.com → Account Settings → API to get the IDs. Use `sync-integration` with `provider: "apple-search-ads"` to backfill names for users already attributed before the integration was connected.
+The response's `config.public_key_pem` contains the public key (PEM). Walk the user through uploading it at ads.apple.com → Account Settings → User Management → (their API user, role "API Account Read Only") → API tab. Apple returns `clientId`, `teamId`, `keyId`. Save those via `update-integration`, then call `update-integration` once more with `org_id` (the numeric "Account ID" shown in the ads.apple.com profile menu) — the integration auto-enables when all four IDs are present.
+
+**Never ask the user for a private key.** OwlMetry always strips `private_key_pem` / `public_key_pem` from inbound configs on `add-integration` and `update-integration` — those are server-managed. To rotate the keypair, remove the integration and re-add.
+
+Use `sync-integration` with `provider: "apple-search-ads"` to backfill names for users already attributed before the integration was connected.
 
 A webhook secret is auto-generated. The creation response includes a `webhook_setup` object with the exact values to paste into RevenueCat's webhook settings (Settings → Webhooks → + New Webhook):
 
@@ -74,18 +72,18 @@ A webhook secret is auto-generated. The creation response includes a `webhook_se
 
 ## update-integration
 
-Update an integration's config or enabled state. Requires `integrations:write` permission.
+Update an integration's config or enabled state. For Apple Search Ads, valid config keys are `client_id`, `team_id`, `key_id`, `org_id` — the integration auto-enables when all four are set, and `enabled` is ignored (derived from config completeness). Server-managed keys (`private_key_pem`, `public_key_pem`, `webhook_secret`) are always stripped from input. Requires `integrations:write` permission.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
 | `provider` | string | Yes | Provider name |
-| `config` | object | No | Updated config fields |
-| `enabled` | boolean | No | Enable or disable the integration |
+| `config` | object | No | Updated config fields (merged with existing; blank = keep existing) |
+| `enabled` | boolean | No | Enable or disable the integration (ignored for `apple-search-ads`) |
 
 ## copy-integration
 
-Copy a configured integration from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source later does not update the copy. For RevenueCat, the API key is copied but a fresh webhook secret is generated on the target. Requires `integrations:write` permission **and** admin role.
+Copy a configured integration from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source later does not update the copy. For RevenueCat, the API key is copied but a fresh webhook secret is generated on the target. For Apple Search Ads, a fresh keypair is generated on the target and the client/team/key/org IDs are cleared — the target goes into "pending setup" mode, and the user has to upload the new public key to Apple (under the destination project's API user) before it enables. Requires `integrations:write` permission **and** admin role.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

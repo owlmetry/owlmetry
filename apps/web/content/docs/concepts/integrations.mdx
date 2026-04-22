@@ -97,26 +97,32 @@ Numeric IDs (`asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_ad_id`
 
 ### Setup
 
-1. **Invite an API user** at ads.apple.com → Account Settings → User Management → Invite Users. Assign role `API Read Only` (or any role starting with "API").
-2. **Generate an EC P-256 keypair** locally:
+OwlMetry generates the EC P-256 keypair on your behalf and keeps the private half server-side — you never handle an openssl command or a `.pem` file. You just copy the public key into Apple's UI, paste back three IDs, and pick an org.
+
+1. **Invite an API user** at ads.apple.com → Account Settings → User Management → Invite Users. Assign role `API Account Read Only` (read access is all OwlMetry needs). If your Apple Ads account already has one API user configured (e.g. for RevenueCat), add a second one — Apple only supports one active public key per user, and sharing a certificate between tools isn't possible.
+2. **Create the integration** (dashboard: Integrations page → Connect Apple Search Ads, or CLI):
    ```bash
-   openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem
-   openssl ec -in private-key.pem -pubout -out public-key.pem
+   owlmetry integrations add apple-search-ads --project-id <id>
    ```
-3. **Upload the public key** at ads.apple.com → Account Settings → API. Apple returns three values: `clientId`, `teamId`, `keyId`.
-4. **Find your `orgId`** — it's shown top-right in ads.apple.com, or you can skip this for now and use the **Test Connection** button after setup to list accessible orgs.
-5. **Connect the integration** via dashboard (Integrations page → Connect Apple Search Ads) or CLI:
+   The response includes a freshly-generated public key (PEM) in `config.public_key_pem`. The dashboard displays it inline in a "Finish setup" card.
+3. **Upload the public key to Apple** at ads.apple.com → Account Settings → User Management → (your API user) → API → paste the key. Apple returns three values: `clientId`, `teamId`, `keyId`.
+4. **Save the three IDs**:
    ```bash
-   owlmetry integrations add apple-search-ads \
+   owlmetry integrations update apple-search-ads \
      --project-id <id> \
      --client-id <SEARCHADS...> \
      --team-id <SEARCHADS...> \
-     --key-id <key-id> \
-     --private-key-pem "$(cat private-key.pem)" \
-     --org-id <org-id>
+     --key-id <key-id>
    ```
-6. **Test connection** (dashboard button or CLI `owlmetry integrations test apple-search-ads`) — validates credentials against `GET /api/v5/acls` and lists the orgs accessible to your credentials.
-7. **Backfill existing users** with `owlmetry integrations sync apple-search-ads --project-id <id>` — sweeps every user with a stored `asa_campaign_id` and resolves names.
+   Dashboard: fill in the three inputs in the "Finish setup" card and click Save IDs.
+5. **Pick the org** — the dashboard automatically lists accessible orgs via `GET /api/v5/acls` once the three IDs are saved; pick from the dropdown. From the CLI, get your `orgId` (shown as "Account ID" in the ads.apple.com profile menu) and run:
+   ```bash
+   owlmetry integrations update apple-search-ads --project-id <id> --org-id <org-id>
+   ```
+   The integration auto-enables as soon as all four IDs (`client_id`, `team_id`, `key_id`, `org_id`) are present.
+6. **Backfill existing users** with `owlmetry integrations sync apple-search-ads --project-id <id>` — sweeps every user with a stored `asa_campaign_id` and resolves names.
+
+To rotate the keypair, remove the integration and reconnect — OwlMetry generates a new keypair, and you upload the new public key to Apple (replacing the old one on the same API user).
 
 ### Data Flow
 
@@ -141,7 +147,7 @@ Open the **Integrations** sidebar entry in the dashboard (`/dashboard/integratio
 
 ### Copy from Another Project
 
-If your team has multiple projects that share the same provider account (e.g., one RevenueCat account used by two apps), you can copy a configured integration between projects rather than re-entering credentials each time. Copies live independently of the source — credentials are **duplicated, not shared**, so rotating the source project's API key or Apple Search Ads private key does **not** propagate to the copy. For RevenueCat specifically, the API key is copied but a fresh webhook secret is generated on the target because each project has its own webhook URL. Copying requires admin role and is only permitted within the same team.
+If your team has multiple projects that share the same provider account (e.g., one RevenueCat account used by two apps), you can copy a configured integration between projects rather than re-entering credentials each time. Copies live independently of the source — credentials are **duplicated, not shared**, so rotating the source project's API key does **not** propagate to the copy. For RevenueCat specifically, the API key is copied but a fresh webhook secret is generated on the target because each project has its own webhook URL. For Apple Search Ads, a fresh keypair is generated on the target and the client/team/key/org IDs are cleared — the target goes back into "pending setup" mode and you upload the new public key to Apple (under the destination project's API user) before it enables. Copying requires admin role and is only permitted within the same team.
 
 ### CLI
 

@@ -5,12 +5,13 @@ import { clearAppleAdsTokenCache } from "../utils/apple-ads/client.js";
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 
 function makeConfig(): AppleAdsConfig {
-  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   return {
     client_id: "SEARCHADS.c",
     team_id: "SEARCHADS.t",
     key_id: "k",
     private_key_pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+    public_key_pem: publicKey.export({ format: "pem", type: "spki" }).toString(),
     org_id: "40669820",
   };
 }

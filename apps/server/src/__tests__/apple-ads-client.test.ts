@@ -9,12 +9,13 @@ import {
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 
 function makeConfig(overrides: Partial<AppleAdsConfig> = {}): AppleAdsConfig {
-  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
   return {
     client_id: "SEARCHADS.test-client",
     team_id: "SEARCHADS.test-team",
     key_id: "test-key-id",
     private_key_pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+    public_key_pem: publicKey.export({ format: "pem", type: "spki" }).toString(),
     org_id: "40669820",
     ...overrides,
   };

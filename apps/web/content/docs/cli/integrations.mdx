@@ -37,17 +37,28 @@ A webhook secret is auto-generated. After creation, the output includes a **Webh
 
 ### Apple Search Ads
 
+Apple Search Ads setup is two-step — OwlMetry generates the EC P-256 keypair server-side, so there's no openssl and no private key file to manage.
+
 ```bash
-owlmetry integrations add apple-search-ads \
+# Step 1 — create the integration. Prints a PEM public key.
+owlmetry integrations add apple-search-ads --project-id <id>
+```
+
+The output includes a "Public Key (upload to Apple)" block. Copy the PEM, paste it into ads.apple.com → Account Settings → User Management → (your API user, role "API Account Read Only") → API tab. Apple returns `clientId`, `teamId`, `keyId`.
+
+```bash
+# Step 2 — save the three IDs Apple returned.
+owlmetry integrations update apple-search-ads \
     --project-id <id> \
     --client-id <SEARCHADS.xxx> \
     --team-id <SEARCHADS.xxx> \
-    --key-id <key-id> \
-    --private-key-pem "$(cat private-key.pem)" \
-    --org-id <org-id>
+    --key-id <key-id>
+
+# Step 3 — pick your org. "Account ID" from the ads.apple.com profile menu.
+owlmetry integrations update apple-search-ads --project-id <id> --org-id <org-id>
 ```
 
-Generate the keypair with `openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem`, upload the matching public key at ads.apple.com → Account Settings → API, and paste the returned IDs plus the private key contents. See [Apple Search Ads integration concepts](/docs/concepts/integrations#apple-search-ads) for the full setup guide.
+The integration auto-enables as soon as all four IDs are present. See [Apple Search Ads integration concepts](/docs/concepts/integrations#apple-search-ads) for the full setup guide.
 
 ## Update Config
 
@@ -56,9 +67,11 @@ owlmetry integrations update revenuecat \
     --project-id <id> \
     --api-key <new-key>
 
+# Rotate Apple Ads IDs (the keypair itself is server-managed — to rotate it,
+# remove the integration and reconnect to generate a new keypair).
 owlmetry integrations update apple-search-ads \
     --project-id <id> \
-    --private-key-pem "$(cat rotated-key.pem)"
+    --client-id <new-client-id>
 ```
 
 Updates are merged with the existing config. Only the fields you pass are changed.
@@ -69,6 +82,8 @@ Toggle enabled/disabled:
 owlmetry integrations update revenuecat --project-id <id> --enable
 owlmetry integrations update revenuecat --project-id <id> --disable
 ```
+
+For `apple-search-ads`, `--enable` / `--disable` are ignored — the integration's enabled state is derived from whether all four IDs (`client_id`, `team_id`, `key_id`, `org_id`) are present.
 
 ## Test Connection (Apple Search Ads only)
 
@@ -86,7 +101,7 @@ owlmetry integrations copy <provider> \
     --to <targetProjectId>
 ```
 
-Copies a configured integration from one project to another within the same team — handy for re-using the same RevenueCat or Apple Search Ads credentials across a multi-project team without retyping them. Credentials are **duplicated, not shared**: rotating the source later does not update the copy. For RevenueCat, the API key is copied but a **fresh webhook secret is generated** on the target (each project has its own webhook URL). Requires admin role and `integrations:write` on the target. Fails with 409 if the target already has a non-deleted integration for that provider, 404 if the source has none, and 403 for cross-team copies.
+Copies a configured integration from one project to another within the same team — handy for re-using the same RevenueCat or Apple Search Ads credentials across a multi-project team without retyping them. Credentials are **duplicated, not shared**: rotating the source later does not update the copy. For RevenueCat, the API key is copied but a **fresh webhook secret is generated** on the target (each project has its own webhook URL). For Apple Search Ads, a **fresh keypair is generated** on the target and the client/team/key/org IDs are cleared — the target goes into "pending setup" mode, and you upload the new public key to Apple (under the destination project's API user) before it enables. Requires admin role and `integrations:write` on the target. Fails with 409 if the target already has a non-deleted integration for that provider, 404 if the source has none, and 403 for cross-team copies.
 
 ## Remove an Integration
 

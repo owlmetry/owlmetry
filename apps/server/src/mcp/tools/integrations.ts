@@ -33,11 +33,11 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
 
   server.registerTool("add-integration", {
     description:
-      "Add an integration to a project. Config fields depend on the provider (use list-providers to see required fields). Requires integrations:write permission.",
+      "Add an integration to a project. For 'revenuecat' pass { api_key }; OwlMetry generates the webhook_secret. For 'apple-search-ads' pass an empty config ({}); OwlMetry generates the EC P-256 keypair, stores the private half server-side, and returns the public key — relay that to the user so they can upload it at ads.apple.com → Account Settings → User Management (on an \"API Account Read Only\" user). DO NOT ask the user for a private key — we never accept one. After the user uploads the public key and Apple returns client_id/team_id/key_id, call update-integration with those three IDs, then update-integration again with org_id to finalize. Use list-providers for field reference. Requires integrations:write permission.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
-      provider: z.string().describe("Provider name (e.g., 'revenuecat')"),
-      config: z.record(z.string(), z.unknown()).describe("Provider-specific configuration (e.g., { api_key, webhook_secret })"),
+      provider: z.string().describe("Provider name ('revenuecat' or 'apple-search-ads')"),
+      config: z.record(z.string(), z.unknown()).describe("Provider config. For revenuecat: { api_key }. For apple-search-ads: {} — server generates the keypair."),
     },
   }, async ({ project_id, provider, config }) => {
     const { body, error } = await callApiRaw(app, agentKey, {
@@ -72,16 +72,37 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
       });
     }
 
+    if (provider === "apple-search-ads") {
+      const cfg = (body.config ?? {}) as Record<string, unknown>;
+      const publicKey = typeof cfg.public_key_pem === "string" ? cfg.public_key_pem : "";
+      content.push({
+        type: "text",
+        text: [
+          "── Apple Search Ads: Public Key (upload to Apple) ──",
+          "Relay this public key to the user — they paste it into ads.apple.com under an \"API Account Read Only\" user.",
+          "",
+          publicKey,
+          "",
+          "Next steps:",
+          "  1. User → ads.apple.com → Account Settings → User Management. Invite (or reuse) an \"API Account Read Only\" user.",
+          "  2. On that user's API tab, paste the public key above. Apple returns client_id, team_id, key_id.",
+          `  3. Call update-integration with { project_id: '${project_id}', provider: 'apple-search-ads', config: { client_id, team_id, key_id } }.`,
+          `  4. Then call update-integration again with { org_id } (the numeric \"Account ID\" shown in the ads.apple.com profile menu) to finalize. The integration enables automatically when all four IDs are set.`,
+        ].join("\n"),
+      });
+    }
+
     return { content };
   });
 
   server.registerTool("update-integration", {
-    description: "Update an integration's config or enabled state. Requires integrations:write permission.",
+    description:
+      "Update an integration's config or enabled state. For apple-search-ads, valid config keys are client_id, team_id, key_id, org_id — the integration auto-enables when all four are present, so do NOT pass enabled. Server-managed keys (private_key_pem, public_key_pem, webhook_secret) are always stripped from input — the server generates and rotates those. Requires integrations:write permission.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       provider: z.string().describe("Provider name"),
-      config: z.record(z.string(), z.unknown()).optional().describe("Updated config fields"),
-      enabled: z.boolean().optional().describe("Enable or disable the integration"),
+      config: z.record(z.string(), z.unknown()).optional().describe("Updated config fields (merged with existing; blank = keep existing)"),
+      enabled: z.boolean().optional().describe("Enable or disable the integration. Ignored for apple-search-ads (derived from config completeness)."),
     },
   }, async ({ project_id, provider, ...body }) => {
     return callApi(app, agentKey, {
@@ -93,7 +114,7 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
 
   server.registerTool("copy-integration", {
     description:
-      "Copy an integration's credentials from one project to another within the same team. Credentials are duplicated (not shared) — rotating the source does not update the copy. For RevenueCat, a fresh webhook_secret is generated on the target. Requires integrations:write permission and admin role on the target team.",
+      "Copy an integration's credentials from one project to another within the same team. Credentials are duplicated (not shared) — rotating the source does not update the copy. For RevenueCat, a fresh webhook_secret is generated on the target. For Apple Search Ads, a fresh EC keypair is generated on the target and the client/team/key/org IDs are cleared — the target goes into pending state, so the user has to upload the new public key to Apple (under the destination project's API user) and paste the returned IDs via update-integration before it can enable. Requires integrations:write permission and admin role on the target team.",
     inputSchema: {
       source_project_id: z.string().uuid().describe("Project that already has the integration configured"),
       target_project_id: z.string().uuid().describe("Project that will receive a copy of the credentials"),

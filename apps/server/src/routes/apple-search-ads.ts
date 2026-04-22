@@ -5,7 +5,7 @@ import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { findActiveIntegration, formatManualTriggeredBy } from "../utils/integrations.js";
-import type { AppleAdsAuthConfig, AppleAdsConfig } from "../utils/apple-ads/config.js";
+import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
 import { enrichAppleAdsNames, buildEnrichmentDiagnostic } from "../utils/apple-ads/enrich.js";
 
@@ -61,20 +61,12 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Discover orgs — called during the connect flow *before* the integration
-  // is saved. Accepts the 4 credential fields (no org_id), mints an access
-  // token, and returns the list of orgs visible to those credentials so the
-  // customer can pick one from a dropdown instead of hunting for the
-  // "Account ID" in ads.apple.com.
-  app.post<{
-    Params: { projectId: string };
-    Body: {
-      client_id?: string;
-      team_id?: string;
-      key_id?: string;
-      private_key_pem?: string;
-    };
-  }>(
+  // Discover orgs — called during the connect flow once the user has pasted
+  // client_id, team_id, and key_id (received from Apple after uploading the
+  // public key OwlMetry generated). Reads the partial integration config,
+  // mints an access token against Apple using the server-held private key,
+  // and returns the list of orgs so the user can pick one from a dropdown.
+  app.post<{ Params: { projectId: string } }>(
     "/projects/:projectId/integrations/apple-search-ads/discover-orgs",
     { preHandler: [requirePermission("integrations:write")] },
     async (request, reply) => {
@@ -85,13 +77,28 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const { client_id, team_id, key_id, private_key_pem } = request.body ?? {};
-      if (!client_id || !team_id || !key_id || !private_key_pem) {
-        return reply.code(400).send({ error: "client_id, team_id, key_id, and private_key_pem are required" });
+      const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
+      if (!integration) {
+        return reply.code(404).send({ error: "Apple Search Ads integration not found. Create it first so the keypair can be generated." });
       }
 
-      const authConfig: AppleAdsAuthConfig = { client_id, team_id, key_id, private_key_pem };
-      const result = await getAppleAdsAcls(authConfig);
+      const cfg = integration.config as Record<string, unknown>;
+      const missing: string[] = [];
+      for (const key of ["client_id", "team_id", "key_id", "private_key_pem"] as const) {
+        if (typeof cfg[key] !== "string" || (cfg[key] as string).length === 0) missing.push(key);
+      }
+      if (missing.length > 0) {
+        return reply.code(400).send({
+          error: `Integration is missing ${missing.join(", ")}. Save those first before discovering orgs.`,
+        });
+      }
+
+      const result = await getAppleAdsAcls({
+        client_id: cfg.client_id as string,
+        team_id: cfg.team_id as string,
+        key_id: cfg.key_id as string,
+        private_key_pem: cfg.private_key_pem as string,
+      });
 
       if (result.status === "auth_error") {
         return reply.code(400).send({ error: result.message });

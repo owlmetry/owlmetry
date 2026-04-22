@@ -20,11 +20,14 @@ let targetProjectId: string;
 
 const RC_API_KEY = "sk_test_copy_rc";
 const RC_WEBHOOK_SECRET = "whsec_source_secret";
+const ASA_SOURCE_PRIVATE_KEY = "-----BEGIN EC PRIVATE KEY-----\nabc\n-----END EC PRIVATE KEY-----";
+const ASA_SOURCE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nsource-public\n-----END PUBLIC KEY-----";
 const ASA_CONFIG = {
   client_id: "SEARCHADS.test-client",
   team_id: "SEARCHADS.test-team",
   key_id: "test-key-id",
-  private_key_pem: "-----BEGIN EC PRIVATE KEY-----\nabc\n-----END EC PRIVATE KEY-----",
+  private_key_pem: ASA_SOURCE_PRIVATE_KEY,
+  public_key_pem: ASA_SOURCE_PUBLIC_KEY,
   org_id: "40669820",
 };
 
@@ -107,7 +110,7 @@ describe("POST /v1/projects/:projectId/integrations/copy-from/:sourceProjectId",
     expect(targetRow!.deleted_at).toBeNull();
   });
 
-  it("copies Apple Search Ads credentials verbatim", async () => {
+  it("copies Apple Search Ads integration in pending state with a fresh keypair", async () => {
     await insertIntegration(sourceProjectId, "apple-search-ads", ASA_CONFIG);
 
     const res = await app.inject({
@@ -121,9 +124,25 @@ describe("POST /v1/projects/:projectId/integrations/copy-from/:sourceProjectId",
     const body = res.json();
     expect(body.provider).toBe("apple-search-ads");
     expect(body.webhook_setup).toBeUndefined();
+    // Target must land in pending state — user still has to upload the new
+    // public key to Apple under the destination project's API user.
+    expect(body.enabled).toBe(false);
 
     const targetRow = await readIntegration(targetProjectId, "apple-search-ads");
-    expect(targetRow!.config).toEqual(ASA_CONFIG);
+    const targetConfig = targetRow!.config as Record<string, string>;
+    // Fresh keypair generated on the target; source's private key must not leak.
+    expect(targetConfig.private_key_pem).toBeDefined();
+    expect(targetConfig.private_key_pem).not.toBe(ASA_SOURCE_PRIVATE_KEY);
+    expect(targetConfig.private_key_pem).toContain("-----BEGIN PRIVATE KEY-----");
+    expect(targetConfig.public_key_pem).toBeDefined();
+    expect(targetConfig.public_key_pem).not.toBe(ASA_SOURCE_PUBLIC_KEY);
+    expect(targetConfig.public_key_pem).toContain("-----BEGIN PUBLIC KEY-----");
+    // IDs are cleared so the target clearly flags as "pending setup".
+    expect(targetConfig.client_id).toBeUndefined();
+    expect(targetConfig.team_id).toBeUndefined();
+    expect(targetConfig.key_id).toBeUndefined();
+    expect(targetConfig.org_id).toBeUndefined();
+    expect(targetRow!.enabled).toBe(false);
   });
 
   it("returns 404 when source project has no active integration", async () => {

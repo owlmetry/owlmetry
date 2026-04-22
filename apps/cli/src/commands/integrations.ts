@@ -78,7 +78,6 @@ interface IntegrationConfigFlags {
   clientId?: string;
   teamId?: string;
   keyId?: string;
-  privateKeyPem?: string;
   orgId?: string;
 }
 
@@ -88,21 +87,15 @@ function collectIntegrationConfig(opts: IntegrationConfigFlags): Record<string, 
   if (opts.clientId) config.client_id = opts.clientId;
   if (opts.teamId) config.team_id = opts.teamId;
   if (opts.keyId) config.key_id = opts.keyId;
-  if (opts.privateKeyPem) config.private_key_pem = opts.privateKeyPem;
   if (opts.orgId) config.org_id = opts.orgId;
   return config;
 }
 
 integrationsCommand
   .command("add <provider>")
-  .description("Add an integration (revenuecat | apple-search-ads)")
+  .description("Add an integration (revenuecat | apple-search-ads). For apple-search-ads, OwlMetry generates the keypair — run without ID flags, upload the printed public key to Apple, then run `integrations update apple-search-ads` with the returned IDs.")
   .requiredOption("--project-id <id>", "Project ID")
   .option("--api-key <key>", "RevenueCat V2 Secret API key")
-  .option("--client-id <id>", "Apple Ads client ID (SEARCHADS.*)")
-  .option("--team-id <id>", "Apple Ads team ID (SEARCHADS.*)")
-  .option("--key-id <id>", "Apple Ads key ID")
-  .option("--private-key-pem <pem>", "Apple Ads private key PEM (use \"$(cat private-key.pem)\")")
-  .option("--org-id <id>", "Apple Ads org ID")
   .action(async (provider: string, opts: { projectId: string } & IntegrationConfigFlags, cmd) => {
     const { client, globals } = createClient(cmd);
     const config = collectIntegrationConfig(opts);
@@ -121,22 +114,38 @@ integrationsCommand
         lines.push("");
         lines.push(chalk.dim("The authorization header contains the webhook secret. It will not be shown again."));
       }
+      if (provider === "apple-search-ads") {
+        const publicKey = typeof result.config.public_key_pem === "string" ? result.config.public_key_pem : "";
+        lines.push("");
+        lines.push(chalk.bold("── Public Key (upload to Apple) ──"));
+        lines.push(publicKey);
+        lines.push("");
+        lines.push(chalk.bold("Next steps:"));
+        lines.push("  1. Go to ads.apple.com → Account Settings → User Management. Invite (or reuse) an API user with role \"API Account Read Only\".");
+        lines.push("  2. On the API tab for that user, paste the public key above.");
+        lines.push("  3. Apple will respond with client_id, team_id, and key_id. Run:");
+        lines.push(chalk.cyan(`     owlmetry integrations update apple-search-ads \\`));
+        lines.push(chalk.cyan(`       --project-id ${opts.projectId} \\`));
+        lines.push(chalk.cyan(`       --client-id <...> --team-id <...> --key-id <...>`));
+        lines.push("  4. Then pick the org:");
+        lines.push(chalk.cyan(`     owlmetry integrations update apple-search-ads --project-id ${opts.projectId} --org-id <orgId>`));
+        lines.push(chalk.dim("     (org_id is the \"Account ID\" shown in the ads.apple.com profile menu)"));
+      }
       return lines.join("\n");
     });
   });
 
 integrationsCommand
   .command("update <provider>")
-  .description("Update an integration's config")
+  .description("Update an integration's config. For apple-search-ads, pass the IDs Apple returned after you uploaded the public key. The integration auto-enables when all four IDs are present.")
   .requiredOption("--project-id <id>", "Project ID")
   .option("--api-key <key>", "RevenueCat V2 Secret API key")
   .option("--client-id <id>", "Apple Ads client ID (SEARCHADS.*)")
   .option("--team-id <id>", "Apple Ads team ID (SEARCHADS.*)")
   .option("--key-id <id>", "Apple Ads key ID")
-  .option("--private-key-pem <pem>", "Apple Ads private key PEM")
-  .option("--org-id <id>", "Apple Ads org ID")
-  .option("--enable", "Enable the integration")
-  .option("--disable", "Disable the integration")
+  .option("--org-id <id>", "Apple Ads org ID (a.k.a. Account ID)")
+  .option("--enable", "Enable the integration (ignored for apple-search-ads — derived from config completeness)")
+  .option("--disable", "Disable the integration (ignored for apple-search-ads — remove the integration instead)")
   .action(async (provider: string, opts: { projectId: string; enable?: boolean; disable?: boolean } & IntegrationConfigFlags, cmd) => {
     const { client, globals } = createClient(cmd);
 
