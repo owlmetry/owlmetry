@@ -352,14 +352,14 @@ function ConfigDialog({
               <>
                 Generate an EC P-256 keypair, upload the public key at{" "}
                 <a
-                  href="https://app.searchads.apple.com/cm/app/settings/api"
+                  href="https://app-ads.apple.com/cm/app/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline underline-offset-2 hover:text-foreground"
                 >
-                  ads.apple.com → Account Settings → API
+                  ads.apple.com
                 </a>
-                , and paste the returned IDs plus your private key below.
+                {" "}→ Account Settings → API, and paste the returned IDs plus your private key below.
               </>
             )}
           </DialogDescription>
