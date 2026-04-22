@@ -11,6 +11,7 @@ import { requirePermission } from "../middleware/auth.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
 import { resolveProjectIdFromApp } from "../utils/project.js";
 import { ATTRIBUTION_RESOLVERS } from "../utils/attribution/index.js";
+import { scheduleAppleAdsEnrichmentForUser } from "./apple-search-ads.js";
 
 function isAttributionNetwork(value: string): value is AttributionNetwork {
   return (ATTRIBUTION_NETWORKS as readonly string[]).includes(value);
@@ -65,6 +66,13 @@ export async function attributionRoutes(app: FastifyInstance) {
       switch (outcome.status) {
         case "resolved": {
           await mergeUserProperties(app.db, project_id, user_id, outcome.properties);
+          // Fire-and-forget: if this project has the Apple Ads integration
+          // configured, resolve IDs → names in the background so the dashboard
+          // shows "Holiday US Campaign" instead of "542370539" within seconds.
+          // Errors are logged inside the helper — never surfaced to the SDK.
+          if (source === "apple-search-ads" && outcome.attributed) {
+            void scheduleAppleAdsEnrichmentForUser(app, project_id, user_id, outcome.properties);
+          }
           const response: SubmitAppleSearchAdsAttributionResponse = {
             attributed: outcome.attributed,
             pending: false,

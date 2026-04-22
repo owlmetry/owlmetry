@@ -178,8 +178,10 @@ owlmetry funnels query <slug> --project-id <id> [--since <time>] [--until <time>
 # Integrations
 owlmetry integrations providers
 owlmetry integrations list --project-id <id> --format json
-owlmetry integrations add <provider> --project-id <id> --api-key <key> [--webhook-secret <secret>] --format json
-owlmetry integrations update <provider> --project-id <id> [--api-key <key>] [--webhook-secret <secret>] [--enable] [--disable] --format json
+owlmetry integrations add revenuecat --project-id <id> --api-key <key> --format json
+owlmetry integrations add apple-search-ads --project-id <id> --client-id <SEARCHADS.*> --team-id <SEARCHADS.*> --key-id <key-id> --private-key-pem "$(cat private-key.pem)" --org-id <org-id> --format json
+owlmetry integrations update <provider> --project-id <id> [provider-specific flags...] [--enable] [--disable] --format json
+owlmetry integrations test apple-search-ads --project-id <id>  # Verify creds via /api/v5/acls
 owlmetry integrations remove <provider> --project-id <id>
 owlmetry integrations sync <provider> --project-id <id> [--user <userId>] --format json
 
@@ -315,21 +317,34 @@ Steps JSON format: `[{"name":"Step Name","event_filter":{"step_name":"step-name"
 
 ### Integrations
 
-Integrations connect third-party services (e.g., RevenueCat) to sync data into user properties. Configured per-project.
+Integrations connect third-party services to sync data into user properties. Configured per-project. Two providers today:
+
+- **RevenueCat** — subscription status, product, entitlements, revenue (properties prefixed `rc_`). Also backfills ASA campaign/ad-group/keyword *names* for paying users as a side effect.
+- **Apple Search Ads** — resolves the numeric ASA IDs the Swift SDK captures at install time (`asa_campaign_id`, etc.) into human-readable names (`asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name`) for *every* attributed user, not just subscribers.
 
 ```bash
 owlmetry integrations providers                                              # List supported providers
 owlmetry integrations list --project-id <id> --format json                   # List configured
+
+# RevenueCat
 owlmetry integrations add revenuecat --project-id <id> --api-key <key> --format json
 owlmetry integrations update revenuecat --project-id <id> --api-key <key> --format json
 owlmetry integrations remove revenuecat --project-id <id>
 owlmetry integrations sync revenuecat --project-id <id>                      # Bulk sync (queues background job)
 owlmetry integrations sync revenuecat --project-id <id> --user <userId>      # Single user (synchronous)
+
+# Apple Search Ads
+owlmetry integrations add apple-search-ads --project-id <id> \
+    --client-id <SEARCHADS.*> --team-id <SEARCHADS.*> --key-id <id> \
+    --private-key-pem "$(cat private-key.pem)" --org-id <id>
+owlmetry integrations test apple-search-ads --project-id <id>                # Validates credentials via /api/v5/acls
+owlmetry integrations sync apple-search-ads --project-id <id>                # Backfill names on existing users
+owlmetry integrations sync apple-search-ads --project-id <id> --user <userId>
 ```
 
-The `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access.
+**RevenueCat:** `--api-key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access. A webhook secret is auto-generated. The output includes a **Webhook Setup** section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook): webhook URL, authorization header, environment, and events filter.
 
-A webhook secret is auto-generated. The output includes a **Webhook Setup** section with the exact values to paste into RevenueCat (Settings → Webhooks → + New Webhook): webhook URL, authorization header, environment, and events filter. The integration syncs subscription status, product, entitlements, and revenue into user properties (prefixed `rc_`).
+**Apple Search Ads:** the customer generates an EC P-256 keypair locally (`openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem`), invites an API user with role `API Read Only` at ads.apple.com → Account Settings → User Management, uploads the public key at Account Settings → API to receive `clientId`, `teamId`, `keyId`, and grabs the `orgId` from the ads.apple.com UI. After `add`, run `owlmetry integrations test apple-search-ads` to verify credentials — the output lists accessible orgs with a checkmark next to the configured one. The v5 Campaign Management API is sunsetting **Jan 26, 2027** (replaced by a new Platform API Summer 2026) — this path will migrate when Apple publishes the new docs.
 
 Bulk sync creates a tracked background job. The response includes a `job_run_id` you can monitor:
 

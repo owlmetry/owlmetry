@@ -1464,9 +1464,11 @@ describe("Integrations CRUD", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().providers).toHaveLength(1);
-    expect(res.json().providers[0].id).toBe("revenuecat");
-    expect(res.json().providers[0].configFields.length).toBeGreaterThan(0);
+    const ids = res.json().providers.map((p: { id: string }) => p.id);
+    expect(ids).toContain("revenuecat");
+    expect(ids).toContain("apple-search-ads");
+    const rc = res.json().providers.find((p: { id: string }) => p.id === "revenuecat");
+    expect(rc.configFields.length).toBeGreaterThan(0);
   });
 
   it("updates integration config (partial update merges)", async () => {

@@ -306,6 +306,24 @@ export class OwlMetryClient {
     return this.request<{ updated: number; properties: Record<string, string> }>("POST", `/v1/projects/${projectId}/integrations/revenuecat/sync/${encodeURIComponent(userId)}`);
   }
 
+  // Apple Search Ads
+  async syncAppleSearchAds(projectId: string): Promise<{ syncing: boolean; total: number; job_run_id?: string }> {
+    return this.request("POST", `/v1/projects/${projectId}/integrations/apple-search-ads/sync`);
+  }
+
+  async syncAppleSearchAdsUser(
+    projectId: string,
+    userId: string,
+  ): Promise<{ updated: number; properties: Record<string, string>; field_errors?: unknown[] }> {
+    return this.request("POST", `/v1/projects/${projectId}/integrations/apple-search-ads/sync/${encodeURIComponent(userId)}`);
+  }
+
+  async testAppleSearchAds(
+    projectId: string,
+  ): Promise<{ ok: boolean; orgs?: Array<{ org_id: number; org_name: string; matches_configured_org_id: boolean }>; message?: string; error?: string }> {
+    return this.request("POST", `/v1/projects/${projectId}/integrations/apple-search-ads/test`);
+  }
+
   // Jobs
   async listJobRuns(teamId: string, params: Partial<JobRunsQueryParams> = {}): Promise<JobRunsResponse> {
     const stringParams: Record<string, string | undefined> = {

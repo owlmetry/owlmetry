@@ -64,8 +64,10 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **User properties** — attach custom key-value metadata to users (subscription status, plan tier, revenue) from SDKs or integrations; filter the Users list by billing tier (paid / trial / free)
 
 ### Integrations
-- **Third-party integrations** — per-project connections with a provider registry. Currently supports **RevenueCat** (subscription status, revenue, entitlements, trial vs paid, cancelled trials, billing period) synced via webhooks and on-demand API sync
-- **Apple Search Ads attribution** — Swift SDK captures AAAttribution tokens on `Owl.configure()`, server resolves them against Apple's Attribution API and writes 7 user properties (`attribution_source`, `asa_campaign_id`, `asa_ad_group_id`, etc.). Pending retries handled across launches; organic/ASA badges visible on user rows
+- **Third-party integrations** — per-project connections with a provider registry. Supports:
+  - **RevenueCat** — subscription status, revenue, entitlements, trial vs paid, cancelled trials, billing period — synced via webhooks and on-demand API sync
+  - **Apple Search Ads** — OAuth integration with Apple's Campaign Management API resolves captured ASA IDs into human-readable names (`asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name`) for every attributed user. Test-connection via `/api/v5/acls`, backfill job for existing users
+- **Apple Search Ads attribution** — Swift SDK captures AAAttribution tokens on `Owl.configure()`, server resolves them against Apple's public Attribution API and writes numeric IDs (`attribution_source`, `asa_campaign_id`, `asa_ad_group_id`, etc.); the Apple Search Ads integration above resolves those to names. Pending retries handled across launches; organic/ASA badges visible on user rows
 
 ### Agent and human interfaces
 - **Agent-native API** — every operation available through `owl_agent_` keys: query events, investigate sessions, read issues, download attachments, drive integrations

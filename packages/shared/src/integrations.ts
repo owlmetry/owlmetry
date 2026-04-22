@@ -32,6 +32,54 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
       },
     ],
   },
+  {
+    id: "apple-search-ads",
+    name: "Apple Search Ads",
+    description:
+      "Resolves Apple Search Ads campaign, ad group, keyword, and ad IDs into human-readable names via Apple's Campaign Management API. Complements the AdServices token capture done by the Swift SDK.",
+    configFields: [
+      {
+        key: "client_id",
+        label: "Client ID",
+        required: true,
+        sensitive: false,
+        placeholder: "SEARCHADS.XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+        description: "Apple Ads API client ID. Generated at ads.apple.com → Account Settings → API after you upload a public key. Starts with \"SEARCHADS.\".",
+      },
+      {
+        key: "team_id",
+        label: "Team ID",
+        required: true,
+        sensitive: false,
+        placeholder: "SEARCHADS.XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+        description: "Apple Ads API team ID. Issued alongside the client ID at ads.apple.com → Account Settings → API. Also prefixed \"SEARCHADS.\".",
+      },
+      {
+        key: "key_id",
+        label: "Key ID",
+        required: true,
+        sensitive: false,
+        placeholder: "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+        description: "Apple Ads API key ID. Issued alongside the client/team IDs when you upload your public key.",
+      },
+      {
+        key: "private_key_pem",
+        label: "Private Key (PEM)",
+        required: true,
+        sensitive: true,
+        placeholder: "-----BEGIN EC PRIVATE KEY-----\n...",
+        description: "EC P-256 private key, PEM-encoded. Generate locally with: openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem. Upload the matching public key at ads.apple.com → Account Settings → API, then paste the private key here.",
+      },
+      {
+        key: "org_id",
+        label: "Org ID",
+        required: true,
+        sensitive: false,
+        placeholder: "40669820",
+        description: "Apple Ads campaign-group ID. Find it in ads.apple.com (top-right account switcher) or by hitting GET /api/v5/acls once your credentials are set up.",
+      },
+    ],
+  },
 ];
 
 export const SUPPORTED_PROVIDER_IDS = INTEGRATION_PROVIDERS.map((p) => p.id);

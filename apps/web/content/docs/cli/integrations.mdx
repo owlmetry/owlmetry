@@ -23,6 +23,8 @@ Lists all configured integrations for a project, showing provider name, enabled 
 
 ## Add an Integration
 
+### RevenueCat
+
 ```bash
 owlmetry integrations add revenuecat \
     --project-id <id> \
@@ -33,12 +35,30 @@ The `--api-key` is a RevenueCat **V2 Secret API key** (generated in RevenueCat �
 
 A webhook secret is auto-generated. After creation, the output includes a **Webhook Setup** section with the exact values to paste into RevenueCat's webhook settings (URL, authorization header, environment, events filter). The authorization header contains the un-redacted secret and is only shown once.
 
+### Apple Search Ads
+
+```bash
+owlmetry integrations add apple-search-ads \
+    --project-id <id> \
+    --client-id <SEARCHADS.xxx> \
+    --team-id <SEARCHADS.xxx> \
+    --key-id <key-id> \
+    --private-key-pem "$(cat private-key.pem)" \
+    --org-id <org-id>
+```
+
+Generate the keypair with `openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem`, upload the matching public key at ads.apple.com → Account Settings → API, and paste the returned IDs plus the private key contents. See [Apple Search Ads integration concepts](/docs/concepts/integrations#apple-search-ads) for the full setup guide.
+
 ## Update Config
 
 ```bash
 owlmetry integrations update revenuecat \
     --project-id <id> \
     --api-key <new-key>
+
+owlmetry integrations update apple-search-ads \
+    --project-id <id> \
+    --private-key-pem "$(cat rotated-key.pem)"
 ```
 
 Updates are merged with the existing config. Only the fields you pass are changed.
@@ -49,6 +69,14 @@ Toggle enabled/disabled:
 owlmetry integrations update revenuecat --project-id <id> --enable
 owlmetry integrations update revenuecat --project-id <id> --disable
 ```
+
+## Test Connection (Apple Search Ads only)
+
+```bash
+owlmetry integrations test apple-search-ads --project-id <id>
+```
+
+Calls Apple's `GET /api/v5/acls` endpoint with the stored credentials. On success, prints the list of orgs accessible to the credentials with a checkmark next to the one currently configured. Use this to validate credentials after setup or after rotating a key.
 
 ## Remove an Integration
 
@@ -66,14 +94,16 @@ Sync pulls data from the integration provider's API and updates user properties 
 
 ```bash
 owlmetry integrations sync revenuecat --project-id <id>
+owlmetry integrations sync apple-search-ads --project-id <id>
 ```
 
-Queues a background sync for all non-anonymous users in the project. Rate-limited to ~180 requests/minute to stay within RevenueCat's API limits.
+Queues a background sync for every user in the project. RevenueCat sweeps non-anonymous users and is rate-limited to ~180 requests/minute. Apple Search Ads sweeps every user with a stored `asa_campaign_id` and resolves any missing names.
 
 ### Sync a single user
 
 ```bash
 owlmetry integrations sync revenuecat --project-id <id> --user <userId>
+owlmetry integrations sync apple-search-ads --project-id <id> --user <userId>
 ```
 
 Immediately fetches and updates properties for one user.

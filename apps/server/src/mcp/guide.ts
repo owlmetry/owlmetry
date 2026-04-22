@@ -89,7 +89,7 @@ Funnel queries can:
 Custom key-value properties stored on project-level users. Users are unique per project, not per app — the same user ID seen from multiple apps (e.g., iOS + backend) is a single user. Each user tracks which apps they've been seen from. Properties are set via SDK (\`setUserProperties()\`) or synced from integrations (e.g., RevenueCat). Properties are shallow-merged on update; empty string values delete keys. Limits: 50 keys max, 50-char keys, 200-char values.
 
 ### Integrations
-Third-party service connections (e.g., RevenueCat) that sync data into user properties. Configured per-project.
+Third-party service connections (RevenueCat, Apple Search Ads) that sync data into user properties. Configured per-project.
 
 **Setting up RevenueCat — the only thing you need from the user is their RevenueCat V2 Secret API key.** Everything else is automatic.
 
@@ -97,6 +97,16 @@ Third-party service connections (e.g., RevenueCat) that sync data into user prop
 2. Call \`add-integration\` with just \`api_key\`. Do NOT ask the user for a webhook secret — one is auto-generated.
 3. The response includes a \`webhook_setup\` section with every value the user needs to paste into RevenueCat's webhook form (Settings → Webhooks → + New Webhook): webhook URL, authorization header (contains the auto-generated secret), environment, and events filter. Present these to the user.
 4. After the user confirms the webhook is saved, run \`sync-integration\` to backfill existing subscriber data.
+
+**Setting up Apple Search Ads — needed to resolve captured ASA IDs into human-readable names** (campaign name, ad group name, keyword text, ad name). Complementary to RevenueCat: ASA covers every attributed user, RC only subscribers.
+
+1. Walk the user through generating credentials at ads.apple.com:
+   - Account Settings → User Management → Invite Users, assign role \`API Read Only\`.
+   - Generate an EC P-256 keypair: \`openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem\`.
+   - Upload the matching public key at Account Settings → API. Apple returns \`clientId\`, \`teamId\`, \`keyId\`.
+2. Call \`add-integration\` with \`provider: "apple-search-ads"\` and a config containing \`client_id\`, \`team_id\`, \`key_id\`, \`private_key_pem\`, \`org_id\`. The \`org_id\` is shown top-right at ads.apple.com; if the user isn't sure, they can leave a placeholder and fix it after running the test connection below.
+3. The user can validate credentials by hitting the **Test Connection** button in the dashboard (or an equivalent test endpoint the user will ask about). It lists accessible orgs via \`GET /api/v5/acls\` — confirm the configured \`org_id\` matches one.
+4. Call \`sync-integration\` with \`provider: "apple-search-ads"\` to backfill names for users attributed before the integration was connected. New attributions will be enriched automatically via a fire-and-forget hook in the attribution route.
 
 ### Issues
 Error events are automatically scanned hourly and grouped into **issues** via fingerprinting (normalized error message + source module). Each issue tracks:
@@ -234,7 +244,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`add-integration\` — Add integration (needs \`integrations:write\`): \`project_id\`, \`provider\`, \`config\`
 - \`update-integration\` — Update config or enabled state (needs \`integrations:write\`)
 - \`remove-integration\` — Remove (needs \`integrations:write\`)
-- \`sync-integration\` — Trigger sync: bulk (omit \`user_id\`, queues job) or single user (with \`user_id\`, synchronous)
+- \`sync-integration\` — Trigger sync: \`provider\` (\`revenuecat\` default, or \`apple-search-ads\`), bulk (omit \`user_id\`, queues job) or single user (with \`user_id\`, synchronous)
 
 ### Jobs
 - \`list-jobs\` — List job runs for a team (filter by type, status, project, date)

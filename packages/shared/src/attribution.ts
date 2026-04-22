@@ -26,10 +26,14 @@ export type AttributionSourceValue =
 
 // Apple Search Ads property keys (namespace: `asa_`).
 // ID fields come from Apple's AdServices API (first-party, live flow). Name
-// fields and the raw search term come from RevenueCat's stored subscriber
-// attributes (backfill path) — Apple's own API only returns numeric IDs, so
-// the names are strictly complementary. A user caught by both sources
-// populates every slot.
+// fields and the raw search term come from two complementary sources:
+//   1. The Apple Ads Campaign Management API (per-project OAuth integration) —
+//      resolves IDs → names directly for any attributed user, subscriber or not.
+//   2. RevenueCat's stored subscriber attributes — fills names as a side-effect
+//      of a subscription event, only for paying users.
+// Apple's AdServices API intentionally returns only numeric IDs; both sources
+// above are additive on top of that. A user caught by both ends up with every
+// slot populated.
 export const ASA_PROPERTY_PREFIX = "asa_";
 export const ASA_PROPERTY_KEYS = [
   "asa_campaign_id",
@@ -41,6 +45,7 @@ export const ASA_PROPERTY_KEYS = [
   "asa_campaign_name",
   "asa_ad_group_name",
   "asa_keyword",
+  "asa_ad_name",
 ] as const;
 export type AsaPropertyKey = (typeof ASA_PROPERTY_KEYS)[number];
 

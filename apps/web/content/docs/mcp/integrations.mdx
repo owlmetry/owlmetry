@@ -3,7 +3,7 @@ title: Integrations
 description: Manage third-party service integrations via MCP tools.
 ---
 
-Integrations connect third-party services (e.g., RevenueCat) to sync data into user properties. Configured per-[project](/docs/mcp/projects). See [Integrations concepts](/docs/concepts/integrations) for details.
+Integrations connect third-party services (RevenueCat, Apple Search Ads) to sync data into user properties. Configured per-[project](/docs/mcp/projects). See [Integrations concepts](/docs/concepts/integrations) for details.
 
 ## list-providers
 
@@ -47,6 +47,24 @@ RevenueCat example:
 
 The `api_key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access.
 
+Apple Search Ads example:
+
+```json
+{
+  "project_id": "550e8400-...",
+  "provider": "apple-search-ads",
+  "config": {
+    "client_id": "SEARCHADS.xxxxxxxx-...",
+    "team_id": "SEARCHADS.xxxxxxxx-...",
+    "key_id": "xxxxxxxx-...",
+    "private_key_pem": "-----BEGIN EC PRIVATE KEY-----\n...",
+    "org_id": "40669820"
+  }
+}
+```
+
+Generate the keypair with `openssl ecparam -genkey -name prime256v1 -noout`, upload the public key at ads.apple.com → Account Settings → API to get the IDs. Use `sync-integration` with `provider: "apple-search-ads"` to backfill names for users already attributed before the integration was connected.
+
 A webhook secret is auto-generated. The creation response includes a `webhook_setup` object with the exact values to paste into RevenueCat's webhook settings (Settings → Webhooks → + New Webhook):
 
 - `webhook_url` — the full webhook endpoint URL
@@ -76,11 +94,12 @@ Remove an integration from a project. Requires `integrations:write` permission.
 
 ## sync-integration
 
-Trigger a data sync for an integration. Currently only supports RevenueCat.
+Trigger a data sync for an integration. Supports `revenuecat` (subscription data + ASA name backfill for subscribers) and `apple-search-ads` (ASA name resolution for every attributed user).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
+| `provider` | enum | No | `revenuecat` (default for backwards compat) or `apple-search-ads` |
 | `user_id` | string | No | Sync a single user (synchronous). Omit for bulk sync (background job). |
 
 Bulk sync (no `user_id`) queues a background job — use [get-job](/docs/mcp/jobs) to monitor progress. Single-user sync is synchronous and returns immediately.

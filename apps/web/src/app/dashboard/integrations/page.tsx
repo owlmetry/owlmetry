@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RevenueCatIntegration } from "@/components/revenuecat-integration";
+import { AppleSearchAdsIntegration } from "@/components/apple-search-ads-integration";
 import { ProjectDot } from "@/lib/project-color";
 
 export default function IntegrationsPage() {
@@ -63,7 +64,10 @@ export default function IntegrationsPage() {
       </div>
 
       {selectedProjectId ? (
-        <RevenueCatIntegration projectId={selectedProjectId} />
+        <div className="space-y-4">
+          <RevenueCatIntegration projectId={selectedProjectId} />
+          <AppleSearchAdsIntegration projectId={selectedProjectId} />
+        </div>
       ) : (
         <p className="text-muted-foreground">Select a project to view integrations.</p>
       )}

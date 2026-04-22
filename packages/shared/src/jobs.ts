@@ -7,6 +7,7 @@ export const JOB_TYPES = [
   "issue_scan",
   "issue_notify",
   "attachment_cleanup",
+  "apple_ads_sync",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -94,6 +95,14 @@ export const JOB_TYPE_META: Record<
       "Removes soft-deleted event attachments, sweeps orphans, and deletes files whose events have been retention-pruned",
     scope: "system",
     default_schedule: "0 5 * * *",
+    params: [],
+  },
+  apple_ads_sync: {
+    label: "Apple Ads Sync",
+    description:
+      "Resolves stored Apple Search Ads IDs to human-readable names via the Apple Ads Campaign Management API",
+    scope: "project",
+    default_schedule: null,
     params: [],
   },
 };

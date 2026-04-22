@@ -78,7 +78,60 @@ Webhooks capture future events, but users who subscribed before the integration 
 - **Bulk sync** — syncs all non-anonymous users in the project (rate-limited to ~180 req/min)
 - **Single-user sync** — fetches one subscriber's data immediately
 
-Sync and webhooks also backfill **Apple Search Ads attribution** from RevenueCat's subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`). RevenueCat populates these for every ASA-attributed subscriber: the Attribution token arrives via the RC SDK, RC resolves it against Apple's AdServices Attribution API to get the numeric campaign/ad-group/keyword IDs, and then — **when the "Advanced" Apple AdServices integration is configured in RevenueCat with ASA Campaign Management API credentials** — RC resolves those IDs to human-readable names via Apple's ASA Campaign Management API. The numeric IDs stay server-side at RC; only the resolved names are exposed as subscriber attributes. The backfill writes `attribution_source`, `asa_campaign_name`, `asa_ad_group_name`, and `asa_keyword` — complementary to the numeric ID fields the Swift SDK's live path writes. See [user properties](/docs/concepts/user-properties#reserved-namespaces) for the full field table. Existing attribution data from the live flow is never overwritten (per-field merge).
+Sync and webhooks also backfill **Apple Search Ads attribution** from RevenueCat's subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`) for paying users. RC populates these names only for subscribers — if you want names for all attributed users (including free ones), connect the **Apple Search Ads integration** below. Existing attribution data written by either path is never overwritten (per-field merge).
+
+## Apple Search Ads
+
+Resolves Apple Search Ads campaign, ad group, keyword, and ad **IDs** — captured at install time by the Swift SDK's AdServices token flow — into human-readable **names** via Apple's [Campaign Management API](https://developer.apple.com/documentation/apple_ads). Complementary to (not dependent on) the RevenueCat integration: ASA resolves names for *every* attributed user, not just subscribers.
+
+### Properties Set
+
+| Property | Description | Example |
+|----------|-------------|---------|
+| `asa_campaign_name` | Human-readable campaign name | `"Holiday US Campaign"` |
+| `asa_ad_group_name` | Ad group name | `"Installs - High Value"` |
+| `asa_keyword` | Keyword text (if keyword-level attribution) | `"photo editor"` |
+| `asa_ad_name` | Ad name (Custom Product Page ads etc.) | `"Ad Seven"` |
+
+Numeric IDs (`asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_ad_id`) are captured separately by the Swift SDK at install time — see [Attribution](/docs/concepts/user-properties#reserved-namespaces). The integration never overwrites existing keys; names are additive.
+
+### Setup
+
+1. **Invite an API user** at ads.apple.com → Account Settings → User Management → Invite Users. Assign role `API Read Only` (or any role starting with "API").
+2. **Generate an EC P-256 keypair** locally:
+   ```bash
+   openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem
+   openssl ec -in private-key.pem -pubout -out public-key.pem
+   ```
+3. **Upload the public key** at ads.apple.com → Account Settings → API. Apple returns three values: `clientId`, `teamId`, `keyId`.
+4. **Find your `orgId`** — it's shown top-right in ads.apple.com, or you can skip this for now and use the **Test Connection** button after setup to list accessible orgs.
+5. **Connect the integration** via dashboard (Integrations page → Connect Apple Search Ads) or CLI:
+   ```bash
+   owlmetry integrations add apple-search-ads \
+     --project-id <id> \
+     --client-id <SEARCHADS...> \
+     --team-id <SEARCHADS...> \
+     --key-id <key-id> \
+     --private-key-pem "$(cat private-key.pem)" \
+     --org-id <org-id>
+   ```
+6. **Test connection** (dashboard button or CLI `owlmetry integrations test apple-search-ads`) — validates credentials against `GET /api/v5/acls` and lists the orgs accessible to your credentials.
+7. **Backfill existing users** with `owlmetry integrations sync apple-search-ads --project-id <id>` — sweeps every user with a stored `asa_campaign_id` and resolves names.
+
+### Data Flow
+
+```
+Swift SDK AdServices capture
+  -> server writes asa_*_id (numeric)
+  -> fire-and-forget: call Apple Ads API to resolve names
+  -> writes asa_campaign_name / asa_ad_group_name / asa_keyword / asa_ad_name
+```
+
+For users attributed before the integration was connected, the bulk sync (`apple_ads_sync` job) handles the backfill. Errors are surfaced on the integrations page via the Test Connection action.
+
+### Heads up: API sunset
+
+Apple has announced the v5 Campaign Management API will be sunset on **January 26, 2027**, replaced by a new **Apple Ads Platform API** shipping Summer 2026. OwlMetry will migrate customers to the Platform API ahead of the sunset.
 
 ## Managing Integrations
 
