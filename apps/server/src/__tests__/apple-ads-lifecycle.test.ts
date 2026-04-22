@@ -190,4 +190,54 @@ describe("Apple Search Ads integration lifecycle", () => {
     expect(res.json().enabled).toBe(false);
     expect((await readConfig()).enabled).toBe(false);
   });
+
+  it("returns 400 from /discover-orgs when the integration is pending and IDs aren't saved yet", async () => {
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "apple-search-ads", config: {} },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations/apple-search-ads/discover-orgs`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
+    const error = res.json().error;
+    expect(error).toContain("client_id");
+    expect(error).toContain("team_id");
+    expect(error).toContain("key_id");
+  });
+
+  it("redacts private_key_pem but exposes public_key_pem in GET /integrations", async () => {
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "apple-search-ads", config: {} },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const integration = res.json().integrations.find(
+      (i: { provider: string }) => i.provider === "apple-search-ads",
+    );
+    expect(integration).toBeDefined();
+    // Private key is sensitive + server-managed → redacted (ends with ****, short).
+    expect(integration.config.private_key_pem).toMatch(/\*{4}$/);
+    expect(integration.config.private_key_pem.length).toBeLessThan(20);
+    // Public key is server-managed but non-sensitive → surfaces unredacted so
+    // the dashboard can re-show it if the user needs to re-upload to Apple.
+    expect(integration.config.public_key_pem).toContain("-----BEGIN PUBLIC KEY-----");
+    expect(integration.config.public_key_pem).toContain("-----END PUBLIC KEY-----");
+  });
 });

@@ -29,6 +29,7 @@ import { userPropertiesRoutes } from "../routes/user-properties.js";
 import { attributionRoutes } from "../routes/attribution.js";
 import { integrationsRoutes } from "../routes/integrations.js";
 import { revenuecatRoutes } from "../routes/revenuecat.js";
+import { appleSearchAdsRoutes } from "../routes/apple-search-ads.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
@@ -393,6 +394,7 @@ export async function buildApp() {
   await app.register(attributionRoutes, { prefix: "/v1" });
   await app.register(integrationsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(revenuecatRoutes, { prefix: "/v1" });
+  await app.register(appleSearchAdsRoutes, { prefix: "/v1" });
   await app.register(jobsRoutes, { prefix: "/v1/teams/:teamId" });
   await app.register(jobsByIdRoutes, { prefix: "/v1" });
   await app.register(issuesRoutes, { prefix: "/v1/projects/:projectId" });

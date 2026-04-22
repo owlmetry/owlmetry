@@ -1406,6 +1406,32 @@ describe("Integrations CRUD", () => {
     expect(body.webhook_setup.authorization_header).toMatch(/^Bearer whsec_/);
   });
 
+  it("redacts webhook_secret in GET /integrations (only webhook_setup on POST exposes the full secret)", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "revenuecat", config: { api_key: "sk_test_key" } },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const fullSecret = createRes.json().webhook_setup.authorization_header.replace(/^Bearer /, "");
+    expect(fullSecret).toMatch(/^whsec_/);
+    expect(fullSecret.length).toBeGreaterThan(20);
+
+    const listRes = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listRes.statusCode).toBe(200);
+    const integration = listRes.json().integrations.find(
+      (i: { provider: string }) => i.provider === "revenuecat",
+    );
+    expect(integration.config.webhook_secret).not.toBe(fullSecret);
+    expect(integration.config.webhook_secret).toMatch(/\*{4}$/);
+    expect(integration.config.webhook_secret.length).toBeLessThan(20);
+  });
+
   it("rejects unsupported provider", async () => {
     const res = await app.inject({
       method: "POST",

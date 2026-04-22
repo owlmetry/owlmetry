@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, desc } from "drizzle-orm";
-import { appUsers, jobRuns } from "@owlmetry/db";
+import { eq, and, desc, isNull } from "drizzle-orm";
+import { appUsers, jobRuns, projectIntegrations } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
@@ -78,7 +78,21 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
+      // Intentionally NOT `findActiveIntegration` — discover-orgs runs *during*
+      // the pending-setup phase (integration exists, keypair generated, user
+      // has just pasted 3 IDs; org_id still missing so enabled=false). We
+      // just skip soft-deleted rows here.
+      const [integration] = await app.db
+        .select()
+        .from(projectIntegrations)
+        .where(
+          and(
+            eq(projectIntegrations.project_id, projectId),
+            eq(projectIntegrations.provider, PROVIDER),
+            isNull(projectIntegrations.deleted_at),
+          ),
+        )
+        .limit(1);
       if (!integration) {
         return reply.code(404).send({ error: "Apple Search Ads integration not found. Create it first so the keypair can be generated." });
       }

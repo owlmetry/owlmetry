@@ -383,7 +383,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
         }
       }
 
-      if (request.body.enabled !== undefined && provider !== "apple-search-ads") {
+      if (request.body.enabled !== undefined && provider !== INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
         updates.enabled = request.body.enabled;
       }
 
