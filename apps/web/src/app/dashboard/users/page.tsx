@@ -49,6 +49,8 @@ import {
 import { ProjectDot } from "@/lib/project-color";
 import { CountryCell } from "@/components/country-flag";
 import { AttributionBadge } from "@/components/attribution-badge";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { TableSkeleton } from "@/components/ui/skeletons";
 
 const BILLING_TIER_LABELS: Record<BillingTier, string> = {
   paid: "💰 Paid",
@@ -194,7 +196,8 @@ export default function UsersPage() {
   }, [projectId, appId, timeRange, sinceInput, untilInput, isAnonymous, billingTiers, search, projects, allApps, filters]);
 
   return (
-    <div className="space-y-4">
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
       {/* Filter bar */}
       <FilterSheet
         hasActiveFilters={filters.hasActiveFilters}
@@ -333,7 +336,9 @@ export default function UsersPage() {
           />
         </div>
       </FilterSheet>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {/* Sort + auto-refresh */}
       <div className="flex items-center justify-between gap-2">
         <Select
@@ -356,10 +361,12 @@ export default function UsersPage() {
           Auto-refreshing every 30s
         </div>
       </div>
+      </StaggerItem>
 
+      <StaggerItem index={2}>
       {/* Users table */}
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading users...</p>
+        <TableSkeleton rows={10} columns={6} />
       ) : users.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No users found</p>
@@ -493,6 +500,7 @@ export default function UsersPage() {
           )}
         </>
       )}
+      </StaggerItem>
 
       <UserDetailSheet
         user={selectedUser}
@@ -502,6 +510,6 @@ export default function UsersPage() {
         projectColorMap={projectColorMap}
         appColorMap={appColorMap}
       />
-    </div>
+    </AnimatedPage>
   );
 }

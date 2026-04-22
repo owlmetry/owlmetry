@@ -33,6 +33,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TIME_RANGES } from "@/lib/time-ranges";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { TableSkeleton } from "@/components/ui/skeletons";
 
 // Mirrors AuditResourceType and AuditAction from @owlmetry/shared (runtime import
 // would pull in node:crypto via the barrel export, which Next.js can't bundle)
@@ -109,7 +111,8 @@ export default function AuditLogPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
       {/* Filter bar */}
       <FilterSheet
         hasActiveFilters={filters.hasActiveFilters}
@@ -216,10 +219,12 @@ export default function AuditLogPage() {
           />
         </div>
       </FilterSheet>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {/* Table */}
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading audit logs...</p>
+        <TableSkeleton rows={10} columns={5} />
       ) : auditLogs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No audit logs found</p>
@@ -289,6 +294,7 @@ export default function AuditLogPage() {
           )}
         </>
       )}
+      </StaggerItem>
 
       {/* Detail sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -353,6 +359,6 @@ export default function AuditLogPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </AnimatedPage>
   );
 }

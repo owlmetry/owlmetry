@@ -36,6 +36,7 @@ import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
 import { BookOpen } from "lucide-react";
+import { AnimatedPage } from "@/components/ui/animated-page";
 
 const METRIC_PHASES: MetricPhase[] = ["start", "complete", "fail", "cancel", "record"];
 
@@ -156,7 +157,7 @@ export default function MetricDetailPage() {
   }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, userIdVal, osVersionVal, filters]);
 
   return (
-    <div className="space-y-6">
+    <AnimatedPage className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -411,7 +412,7 @@ export default function MetricDetailPage() {
           documentation={metricData.documentation}
         />
       )}
-    </div>
+    </AnimatedPage>
   );
 }
 

@@ -19,7 +19,7 @@ import {
 import { CopyButton } from "@/components/copy-button";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError, API_URL } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
 
@@ -115,7 +115,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading && !integration ? (
-          <IntegrationLoadingSkeleton />
+          <DetailSkeleton />
         ) : integration ? (
           <>
             <div className="space-y-2 text-sm">
@@ -216,12 +216,3 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   );
 }
 
-function IntegrationLoadingSkeleton() {
-  return (
-    <div className="space-y-3 py-1">
-      <Skeleton className="h-4 w-3/4" />
-      <Skeleton className="h-4 w-1/2" />
-      <Skeleton className="h-8 w-36" />
-    </div>
-  );
-}

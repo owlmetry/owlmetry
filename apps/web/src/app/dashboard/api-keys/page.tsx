@@ -52,6 +52,8 @@ import {
   type ApiKeyType,
   type Permission,
 } from "@owlmetry/shared/auth";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { TableSkeleton } from "@/components/ui/skeletons";
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -483,7 +485,8 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnimatedPage className="space-y-6">
+      <StaggerItem index={0}>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">API Keys</h1>
         <CreateKeyDialog
@@ -491,9 +494,11 @@ export default function ApiKeysPage() {
           onCreated={() => mutateKeys()}
         />
       </div>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading keys...</p>
+        <TableSkeleton rows={6} columns={6} />
       ) : apiKeys.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No API keys found</p>
@@ -584,6 +589,7 @@ export default function ApiKeysPage() {
           </Table>
         </div>
       )}
-    </div>
+      </StaggerItem>
+    </AnimatedPage>
   );
 }

@@ -29,6 +29,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Filter, Plus, Trash2 } from "lucide-react";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { CardGridSkeleton } from "@/components/ui/skeletons";
 
 interface StepDraft {
   name: string;
@@ -149,7 +151,8 @@ export default function FunnelsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="space-y-1">
@@ -295,13 +298,15 @@ export default function FunnelsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {!selectedProjectId ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">Select a project to view funnels</p>
         </div>
       ) : isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading funnels...</p>
+        <CardGridSkeleton cards={6} />
       ) : funnels.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Filter className="h-10 w-10 mb-3 opacity-40" />
@@ -340,6 +345,7 @@ export default function FunnelsPage() {
           ))}
         </div>
       )}
-    </div>
+      </StaggerItem>
+    </AnimatedPage>
   );
 }

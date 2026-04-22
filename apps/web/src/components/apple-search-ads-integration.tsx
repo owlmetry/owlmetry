@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
-import { Skeleton } from "@/components/ui/skeleton";
+import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
 
@@ -189,11 +189,7 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading && !integration ? (
-          <div className="space-y-3 py-1">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-8 w-36" />
-          </div>
+          <DetailSkeleton />
         ) : integration ? (
           <>
             <div className="space-y-2 text-sm">
@@ -435,7 +431,7 @@ function AppleAdsConfigFormFields({
         </p>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="aa-org-id">Org ID</Label>
+        <Label htmlFor="aa-org-id">Org ID (Account ID)</Label>
         <Input
           id="aa-org-id"
           placeholder="40669820"
@@ -443,6 +439,9 @@ function AppleAdsConfigFormFields({
           onChange={(e) => setField("org_id", e.target.value)}
           required={!updating}
         />
+        <p className="text-xs text-muted-foreground">
+          At ads.apple.com, click your name in the top-right → the number shown as <span className="font-medium">Account ID</span> under your org name. Apple calls this <code className="font-mono">orgId</code> in the API.
+        </p>
       </div>
     </div>
   );

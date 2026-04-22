@@ -22,6 +22,8 @@ import { useTeam } from "@/contexts/team-context";
 import { useUser } from "@/hooks/use-user";
 import { ProjectDot } from "@/lib/project-color";
 import type { AppResponse, ProjectResponse } from "@owlmetry/shared";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { CardGridSkeleton } from "@/components/ui/skeletons";
 
 const PLATFORM_EMOJI: Record<string, string> = {
   apple: "🍎",
@@ -38,7 +40,7 @@ export default function ProjectsPage() {
   const { currentTeam } = useTeam();
   const { isLoading: isUserLoading } = useUser();
   const teamId = currentTeam?.id;
-  const { data, mutate } = useSWR<{ projects: ProjectResponse[] }>(
+  const { data, isLoading, mutate } = useSWR<{ projects: ProjectResponse[] }>(
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
@@ -79,7 +81,8 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnimatedPage className="space-y-6">
+      <StaggerItem index={0}>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Projects</h1>
         <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setName(""); setError(""); } }}>
@@ -118,8 +121,12 @@ export default function ProjectsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      </StaggerItem>
 
-      {projects.length === 0 ? (
+      <StaggerItem index={1}>
+      {isLoading ? (
+        <CardGridSkeleton cards={6} />
+      ) : projects.length === 0 ? (
         <p className="text-muted-foreground">No projects yet. Create one to get started.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -163,6 +170,7 @@ export default function ProjectsPage() {
           })}
         </div>
       )}
-    </div>
+      </StaggerItem>
+    </AnimatedPage>
   );
 }

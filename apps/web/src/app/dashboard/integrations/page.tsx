@@ -15,6 +15,7 @@ import {
 import { RevenueCatIntegration } from "@/components/revenuecat-integration";
 import { AppleSearchAdsIntegration } from "@/components/apple-search-ads-integration";
 import { ProjectDot } from "@/lib/project-color";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -39,38 +40,42 @@ export default function IntegrationsPage() {
   const selectedProjectId = projectId || projects[0]?.id || "";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Project</label>
-            <Select value={selectedProjectId} onValueChange={setProjectId}>
-              <SelectTrigger className="w-[220px] h-8 text-xs">
-                <SelectValue placeholder="Select project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="flex items-center gap-2">
-                      <ProjectDot color={p.color} />
-                      {p.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <AnimatedPage className="space-y-6">
+      <StaggerItem index={0}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Project</label>
+              <Select value={selectedProjectId} onValueChange={setProjectId}>
+                <SelectTrigger className="w-[220px] h-8 text-xs">
+                  <SelectValue placeholder="Select project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="flex items-center gap-2">
+                        <ProjectDot color={p.color} />
+                        {p.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
-      </div>
+      </StaggerItem>
 
-      {selectedProjectId ? (
-        <div className="space-y-4">
-          <RevenueCatIntegration projectId={selectedProjectId} />
-          <AppleSearchAdsIntegration projectId={selectedProjectId} />
-        </div>
-      ) : (
-        <p className="text-muted-foreground">Select a project to view integrations.</p>
-      )}
-    </div>
+      <StaggerItem index={1}>
+        {selectedProjectId ? (
+          <div className="space-y-4">
+            <RevenueCatIntegration projectId={selectedProjectId} />
+            <AppleSearchAdsIntegration projectId={selectedProjectId} />
+          </div>
+        ) : (
+          <p className="text-muted-foreground">Select a project to view integrations.</p>
+        )}
+      </StaggerItem>
+    </AnimatedPage>
   );
 }

@@ -12,6 +12,7 @@ import { AnalyticsFilterBar } from "@/components/analytics-filter-bar";
 import type { FilterChip } from "@/components/filter-sheet";
 import { TIME_RANGES, formatTimeRangeChip } from "@/lib/time-ranges";
 import { FunnelChart } from "@/components/funnels/funnel-chart";
+import { AnimatedPage } from "@/components/ui/animated-page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -121,7 +122,7 @@ export default function FunnelDetailPage() {
   }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, closedMode, filters]);
 
   return (
-    <div className="space-y-6">
+    <AnimatedPage className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold">{funnelData?.name ?? "Loading..."}</h1>
@@ -299,6 +300,6 @@ export default function FunnelDetailPage() {
           )}
         </>
       )}
-    </div>
+    </AnimatedPage>
   );
 }

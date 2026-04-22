@@ -7,23 +7,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api";
 import { useUser } from "@/hooks/use-user";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { DetailSkeleton } from "@/components/ui/skeletons";
 
 export default function ProfilePage() {
   const { user, mutate } = useUser();
 
-  if (!user) {
-    return <p className="text-muted-foreground">Loading...</p>;
-  }
-
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Profile</h1>
-      <ProfileCard
-        name={user.name ?? ""}
-        email={user.email}
-        onSaved={() => mutate()}
-      />
-    </div>
+    <AnimatedPage className="space-y-8">
+      <StaggerItem index={0}>
+        <h1 className="text-2xl font-semibold">Profile</h1>
+      </StaggerItem>
+
+      <StaggerItem index={1}>
+        {!user ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DetailSkeleton />
+            </CardContent>
+          </Card>
+        ) : (
+          <ProfileCard
+            name={user.name ?? ""}
+            email={user.email}
+            onSaved={() => mutate()}
+          />
+        )}
+      </StaggerItem>
+    </AnimatedPage>
   );
 }
 

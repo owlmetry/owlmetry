@@ -59,6 +59,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { TIME_RANGES } from "@/lib/time-ranges";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { TableSkeleton } from "@/components/ui/skeletons";
 
 const PROJECT_JOB_TYPES = Object.entries(JOB_TYPE_META)
   .filter(([, meta]) => meta.scope === "project");
@@ -237,7 +239,8 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
       {/* Header with trigger button */}
       <div className="flex items-center justify-between">
         <div />
@@ -312,7 +315,9 @@ export default function JobsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {/* Filter bar */}
       <FilterSheet
         hasActiveFilters={filters.hasActiveFilters}
@@ -402,10 +407,12 @@ export default function JobsPage() {
           </Select>
         </div>
       </FilterSheet>
+      </StaggerItem>
 
+      <StaggerItem index={2}>
       {/* Table */}
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading jobs...</p>
+        <TableSkeleton rows={10} columns={6} />
       ) : jobRuns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No job runs found</p>
@@ -492,6 +499,7 @@ export default function JobsPage() {
           )}
         </>
       )}
+      </StaggerItem>
 
       {/* Detail sheet */}
       <Sheet open={sheetOpen} onOpenChange={(v) => { if (!v) filters.set("job_id", ""); }}>
@@ -619,6 +627,6 @@ export default function JobsPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
+    </AnimatedPage>
   );
 }

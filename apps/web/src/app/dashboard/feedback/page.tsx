@@ -42,6 +42,8 @@ import {
 import { MessageSquare, ChevronDown, Clock, Mail, User as UserIcon } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 import { ProjectDot } from "@/lib/project-color";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { KanbanSkeleton } from "@/components/ui/skeletons";
 
 const STATUS_CONFIG: Record<FeedbackStatus, { label: string; emoji: string; color: string }> = {
   new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
@@ -344,40 +346,43 @@ export default function FeedbackPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Project</label>
-          <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-[220px] h-8 text-xs">
-              <SelectValue placeholder="All projects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All projects</SelectItem>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="flex items-center gap-2">
-                    <ProjectDot color={p.color} />
-                    {p.name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Project</label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[220px] h-8 text-xs">
+                <SelectValue placeholder="All projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All projects</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <ProjectDot color={p.color} />
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 flex-1 min-w-[200px] max-w-[360px]">
+            <label className="text-xs text-muted-foreground">Search</label>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter by message, name, or email..."
+              className="h-8 text-xs"
+            />
+          </div>
         </div>
-        <div className="space-y-1 flex-1 min-w-[200px] max-w-[360px]">
-          <label className="text-xs text-muted-foreground">Search</label>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter by message, name, or email..."
-            className="h-8 text-xs"
-          />
-        </div>
-      </div>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {isLoading ? (
-        <p className="text-muted-foreground">Loading feedback...</p>
+        <KanbanSkeleton columns={4} />
       ) : feedback.length === 0 ? (
         <div className="text-center py-12">
           <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
@@ -420,6 +425,7 @@ export default function FeedbackPage() {
           })}
         </div>
       )}
+      </StaggerItem>
 
       {selectedFeedbackId && selectedFeedback && (
         <FeedbackDetailModal
@@ -431,6 +437,6 @@ export default function FeedbackPage() {
           onMutate={() => mutate()}
         />
       )}
-    </div>
+    </AnimatedPage>
   );
 }

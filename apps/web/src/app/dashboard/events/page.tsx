@@ -41,6 +41,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { TableSkeleton } from "@/components/ui/skeletons";
 
 export default function EventsPage() {
   const { currentTeam } = useTeam();
@@ -192,7 +194,8 @@ export default function EventsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
       {/* Filter bar */}
       <FilterSheet
         hasActiveFilters={filters.hasActiveFilters}
@@ -375,7 +378,9 @@ export default function EventsPage() {
           </Select>
         </div>
       </FilterSheet>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {/* Auto-refresh indicator */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="relative flex h-2 w-2">
@@ -384,10 +389,12 @@ export default function EventsPage() {
         </span>
         Live — auto-refreshing every 10s
       </div>
+      </StaggerItem>
 
+      <StaggerItem index={2}>
       {/* Events table */}
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading events...</p>
+        <TableSkeleton rows={10} columns={5} />
       ) : events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">No events found</p>
@@ -476,6 +483,7 @@ export default function EventsPage() {
           )}
         </>
       )}
+      </StaggerItem>
 
       <EventDetailSheet
         event={selectedEvent}
@@ -485,6 +493,6 @@ export default function EventsPage() {
         onFilter={handleFilter}
         projectColor={selectedEvent ? appColorMap.get(selectedEvent.app_id) : undefined}
       />
-    </div>
+    </AnimatedPage>
   );
 }

@@ -37,6 +37,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { BarChart3, Plus } from "lucide-react";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { CardGridSkeleton } from "@/components/ui/skeletons";
 
 export default function MetricsPage() {
   const router = useRouter();
@@ -111,7 +113,8 @@ export default function MetricsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="space-y-1">
@@ -197,13 +200,15 @@ export default function MetricsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {!selectedProjectId ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p className="text-sm">Select a project to view metrics</p>
         </div>
       ) : isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading metrics...</p>
+        <CardGridSkeleton cards={6} />
       ) : metrics.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <BarChart3 className="h-10 w-10 mb-3 opacity-40" />
@@ -233,6 +238,7 @@ export default function MetricsPage() {
           ))}
         </div>
       )}
-    </div>
+      </StaggerItem>
+    </AnimatedPage>
   );
 }

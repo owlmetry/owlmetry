@@ -188,6 +188,24 @@ div[id^="__lpform"],
   animation: fade-in 0.3s ease-out both;
 }
 
+/* Dashboard entrance stagger — short delays so the page feels snappy.
+   Indices beyond 5 should reuse stagger-5 (see StaggerItem). */
+.animate-fade-in-up-stagger-1 {
+  animation: fade-in-up 0.4s ease-out 0.05s both;
+}
+.animate-fade-in-up-stagger-2 {
+  animation: fade-in-up 0.4s ease-out 0.12s both;
+}
+.animate-fade-in-up-stagger-3 {
+  animation: fade-in-up 0.4s ease-out 0.19s both;
+}
+.animate-fade-in-up-stagger-4 {
+  animation: fade-in-up 0.4s ease-out 0.26s both;
+}
+.animate-fade-in-up-stagger-5 {
+  animation: fade-in-up 0.4s ease-out 0.33s both;
+}
+
 /* Filter chip animations */
 @keyframes chip-in {
   from {

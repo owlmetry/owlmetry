@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AnimatedPage } from "@/components/ui/animated-page";
+import { DetailSkeleton } from "@/components/ui/skeletons";
 import {
   Dialog,
   DialogContent,
@@ -72,7 +74,11 @@ export default function ProjectDetailPage() {
   const [deleteError, setDeleteError] = useState("");
 
   if (!project) {
-    return <p className="text-muted-foreground">Loading...</p>;
+    return (
+      <AnimatedPage className="space-y-6">
+        <DetailSkeleton />
+      </AnimatedPage>
+    );
   }
 
   async function handleRename(e: React.FormEvent) {
@@ -133,7 +139,7 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <AnimatedPage className="space-y-6">
       <div className="flex items-center gap-4">
         {editing ? (
           <form onSubmit={handleRename} className="flex items-center gap-2">
@@ -283,7 +289,7 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-    </div>
+    </AnimatedPage>
   );
 }
 

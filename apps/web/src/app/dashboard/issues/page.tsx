@@ -46,6 +46,8 @@ import {
 import { Bug, ChevronDown, Clock, Users } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 import { ProjectDot } from "@/lib/project-color";
+import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { KanbanSkeleton } from "@/components/ui/skeletons";
 
 const STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: string; color: string }> = {
   new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
@@ -443,31 +445,34 @@ export default function IssuesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Project</label>
-          <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className="w-[220px] h-8 text-xs">
-              <SelectValue placeholder="All projects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All projects</SelectItem>
-              {projects.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="flex items-center gap-2">
-                    <ProjectDot color={p.color} />
-                    {p.name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <AnimatedPage className="space-y-4">
+      <StaggerItem index={0}>
+        <div className="flex items-center gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Project</label>
+            <Select value={projectId} onValueChange={setProjectId}>
+              <SelectTrigger className="w-[220px] h-8 text-xs">
+                <SelectValue placeholder="All projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All projects</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <ProjectDot color={p.color} />
+                      {p.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      </StaggerItem>
 
+      <StaggerItem index={1}>
       {isLoading ? (
-        <p className="text-muted-foreground">Loading issues...</p>
+        <KanbanSkeleton columns={5} />
       ) : issues.length === 0 ? (
         <div className="text-center py-12">
           <Bug className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
@@ -510,6 +515,7 @@ export default function IssuesPage() {
           })}
         </div>
       )}
+      </StaggerItem>
 
       {selectedIssueId && selectedIssue && (
         <IssueDetailModal
@@ -522,6 +528,6 @@ export default function IssuesPage() {
           allIssues={issues}
         />
       )}
-    </div>
+    </AnimatedPage>
   );
 }
