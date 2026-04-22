@@ -70,5 +70,5 @@ export function AttributionBadge({ properties }: AttributionBadgeProps) {
   }
 
   // Future source we don't recognize — render the raw value rather than hide it.
-  return <Badge variant="outline" className="text-xs">{source}</Badge>;
+  return <Badge variant="outline" className="text-xs">🏷️ {source}</Badge>;
 }

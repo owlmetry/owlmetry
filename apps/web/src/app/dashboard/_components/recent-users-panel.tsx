@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import type { TeamAppUsersQueryParams } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
@@ -12,7 +11,7 @@ import { useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { ProjectDot } from "@/lib/project-color";
 import { CountryEmoji } from "@/components/country-flag";
 import { AttributionBadge } from "@/components/attribution-badge";
-import { getBillingBadgeState } from "@/lib/billing-badge";
+import { BillingBadge } from "@/components/billing-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
@@ -52,7 +51,6 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
           const firstApp = user.apps?.[0];
           const extraApps = Math.max(0, (user.apps?.length ?? 0) - 1);
           const project = !firstApp ? projectInfoMap.get(user.project_id) : null;
-          const badge = getBillingBadgeState(user.properties);
           return (
             <Link
               key={user.id}
@@ -86,32 +84,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
                 ) : null}
               </div>
               <div className="shrink-0 flex items-center gap-1">
-                {badge.primaryTooltip && (badge.isCancelledTrial || badge.isTrial || badge.isPaid) && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        {badge.isCancelledTrial && (
-                          <Badge variant="default" className="text-[10px] h-5 bg-red-600">🎁 Trial</Badge>
-                        )}
-                        {badge.isTrial && (
-                          <Badge variant="default" className="text-[10px] h-5 bg-sky-600">🎁 Trial</Badge>
-                        )}
-                        {badge.isPaid && (
-                          <Badge variant="default" className="text-[10px] h-5 bg-green-600">💰 Paid</Badge>
-                        )}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">{badge.primaryTooltip}</TooltipContent>
-                  </Tooltip>
-                )}
-                {badge.cancelledTooltip && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="secondary" className="text-[10px] h-5">Cancelled</Badge>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">{badge.cancelledTooltip}</TooltipContent>
-                  </Tooltip>
-                )}
+                <BillingBadge properties={user.properties} size="sm" />
                 <AttributionBadge properties={user.properties} />
               </div>
               <CountryEmoji code={user.last_country_code} />

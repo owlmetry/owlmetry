@@ -22,7 +22,7 @@ import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
 import { formatDateTime } from "@/lib/format-date";
 import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
-import { getBillingBadgeState } from "@/lib/billing-badge";
+import { BillingBadge } from "@/components/billing-badge";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useProjectColorMap, useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
@@ -439,47 +439,29 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="py-1.5">
                       {user.properties ? (() => {
-                        const badge = getBillingBadgeState(user.properties);
+                        const otherEntries = Object.entries(user.properties)
+                          .filter(([k]) => !k.startsWith("rc_") && !k.startsWith("asa_") && !k.startsWith("_") && k !== "attribution_source");
                         return (
-                        <div className="flex flex-wrap items-center gap-1">
-                          {badge.primaryTooltip && (badge.isCancelledTrial || badge.isTrial || badge.isPaid) && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span>
-                                  {badge.isCancelledTrial && <Badge variant="default" className="text-xs bg-red-600">🎁 Trial</Badge>}
-                                  {badge.isTrial && <Badge variant="default" className="text-xs bg-sky-600">🎁 Trial</Badge>}
-                                  {badge.isPaid && <Badge variant="default" className="text-xs bg-green-600">💰 Paid</Badge>}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">{badge.primaryTooltip}</TooltipContent>
-                            </Tooltip>
-                          )}
-                          {badge.cancelledTooltip && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge variant="secondary" className="text-xs">Cancelled</Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">{badge.cancelledTooltip}</TooltipContent>
-                            </Tooltip>
-                          )}
-                          <AttributionBadge properties={user.properties} />
-                          {user.properties.rc_last_purchase && (
-                            <span className="text-xs text-muted-foreground">
-                              {user.properties.rc_last_purchase}
-                              {user.properties.rc_billing_period && (
-                                <> · {user.properties.rc_billing_period.replace(/_/g, " ")}</>
-                              )}
-                            </span>
-                          )}
-                          {Object.entries(user.properties)
-                            .filter(([k]) => !k.startsWith("rc_") && !k.startsWith("asa_") && !k.startsWith("_") && k !== "attribution_source")
-                            .slice(0, 3)
-                            .map(([k, v]) => (
-                              <Badge key={k} variant="outline" className="text-xs">
-                                {k}: {v}
-                              </Badge>
-                            ))}
-                        </div>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <BillingBadge properties={user.properties} />
+                            <AttributionBadge properties={user.properties} />
+                            {otherEntries.length > 0 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-xs">🏷️ +{otherEntries.length}</Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <div className="space-y-0.5 text-xs">
+                                    {otherEntries.map(([k, v]) => (
+                                      <div key={k}>
+                                        <span className="text-muted-foreground">{k}:</span> {v}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
                         );
                       })() : (
                         <span className="text-xs text-muted-foreground">-</span>
