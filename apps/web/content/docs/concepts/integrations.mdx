@@ -78,11 +78,11 @@ Webhooks capture future events, but users who subscribed before the integration 
 - **Bulk sync** — syncs all non-anonymous users in the project (rate-limited to ~180 req/min)
 - **Single-user sync** — fetches one subscriber's data immediately
 
-Sync and webhooks also backfill **Apple Search Ads attribution** from RevenueCat's subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`) for paying users. RC populates these names only for subscribers — if you want names for all attributed users (including free ones), connect the **Apple Search Ads integration** below. Existing attribution data written by either path is never overwritten (per-field merge).
+Sync and webhooks also backfill **Apple Search Ads attribution** from RevenueCat's subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$ad`, `$keyword`). RC populates these attributes server-side on AdServices token receipt for *every* attributed user — subscribers and free users alike — so a bulk sync enriches your whole attributed population, not just paying users. Only the webhook *delivery* path is subscriber-gated: RC fires webhooks on subscription events (INITIAL_PURCHASE, RENEWAL, CANCELLATION, etc.) but never for free users, so non-subscribers only get name enrichment via a bulk sync run. If you'd rather not depend on RC having the Advanced ASA integration configured, the **Apple Search Ads integration** below resolves the same names directly from Apple for every attributed user. Existing attribution data written by either path is never overwritten (per-field merge).
 
 ## Apple Search Ads
 
-Resolves Apple Search Ads campaign, ad group, keyword, and ad **IDs** — captured at install time by the Swift SDK's AdServices token flow — into human-readable **names** via Apple's [Campaign Management API](https://developer.apple.com/documentation/apple_ads). Complementary to (not dependent on) the RevenueCat integration: ASA resolves names for *every* attributed user, not just subscribers.
+Resolves Apple Search Ads campaign, ad group, keyword, and ad **IDs** — captured at install time by the Swift SDK's AdServices token flow — into human-readable **names** via Apple's [Campaign Management API](https://developer.apple.com/documentation/apple_ads). Complementary to (not dependent on) the RevenueCat integration: both sources resolve names for every attributed user, but the ASA integration works without RC's SDK in the app and without RC's Advanced ASA integration being configured — it's the self-contained path.
 
 ### Properties Set
 

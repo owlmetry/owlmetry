@@ -15,6 +15,7 @@ describe("mapRevenueCatAttributesToAttributionProperties", () => {
       attr("$mediaSource", "Apple Search Ads"),
       attr("$campaign", "USA_main_keyword"),
       attr("$adGroup", "USA_broad_match"),
+      attr("$ad", "Ad Seven"),
       attr("$keyword", "mockup creator"),
       attr("$attConsentStatus", "restricted"),
     ];
@@ -22,6 +23,7 @@ describe("mapRevenueCatAttributesToAttributionProperties", () => {
       attribution_source: "apple_search_ads",
       asa_campaign_name: "USA_main_keyword",
       asa_ad_group_name: "USA_broad_match",
+      asa_ad_name: "Ad Seven",
       asa_keyword: "mockup creator",
     });
   });

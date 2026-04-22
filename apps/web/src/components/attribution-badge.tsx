@@ -14,7 +14,8 @@ const ASA_TOOLTIP_FIELDS: Array<{ key: string; label: string }> = [
   { key: "asa_ad_group_id", label: "Ad group ID" },
   { key: "asa_keyword", label: "Keyword" },
   { key: "asa_keyword_id", label: "Keyword ID" },
-  { key: "asa_ad_id", label: "Ad" },
+  { key: "asa_ad_name", label: "Ad" },
+  { key: "asa_ad_id", label: "Ad ID" },
   { key: "asa_creative_set_id", label: "Creative" },
   { key: "asa_claim_type", label: "Claim type" },
 ];

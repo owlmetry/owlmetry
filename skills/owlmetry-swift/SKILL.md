@@ -475,7 +475,7 @@ On successful attribution the user picks up:
 
 An install Apple did not attribute gets `attribution_source = "none"` and nothing else.
 
-Human-readable names (`asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name`) come from either the **Apple Search Ads integration** (first-party, resolves every attributed user via Apple's Campaign Management API — configured per-project in the dashboard with OAuth credentials) or the **RevenueCat integration** (names fall out of RC's subscriber attributes, paying users only). Both are complementary and never overwrite each other or the numeric IDs the SDK writes.
+Human-readable names (`asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name`) come from either the **Apple Search Ads integration** (first-party; OwlMetry resolves every attributed user via Apple's Campaign Management API — configured per-project in the dashboard with OAuth credentials) or the **RevenueCat integration** (RC resolves the same names server-side and exposes them as subscriber attributes; bulk sync enriches every attributed user in RC, while RC's webhook delivery only fires on subscription events so free users only get enrichment through sync). Both sources are per-field merged — they never overwrite each other or the numeric IDs the SDK writes.
 
 **Opt-out:** set `attributionEnabled: false` when configuring:
 

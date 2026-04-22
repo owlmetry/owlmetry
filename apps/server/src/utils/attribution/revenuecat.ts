@@ -6,21 +6,28 @@ import type { RevenueCatV2Attribute } from "../revenuecat.js";
 
 /**
  * RevenueCat exposes generic attribution attributes (`$mediaSource`,
- * `$campaign`, `$adGroup`, `$keyword`) on every ASA-attributed customer.
- * RC fills these server-side: it receives the AdServices token via its
- * SDK, resolves the numeric campaign/ad-group/keyword IDs from Apple's
+ * `$campaign`, `$adGroup`, `$ad`, `$keyword`) on every ASA-attributed
+ * customer — verified empirically for a non-subscribing user, so this is
+ * not subscriber-gated. RC fills these server-side: it receives the
+ * AdServices token via its SDK, resolves the numeric IDs from Apple's
  * AdServices Attribution API, then — when the project has RC's "Advanced"
- * Apple AdServices integration configured with ASA Campaign Management API
- * credentials — resolves those IDs to human-readable names via the ASA
- * Campaign Management API. Only the names surface as subscriber
+ * Apple AdServices integration configured with ASA Campaign Management
+ * API credentials — resolves those IDs to human-readable names via the
+ * ASA Campaign Management API. Only the names surface as subscriber
  * attributes; the numeric IDs stay server-side at RC (confirmed via the
  * `ReservedSubscriberAttributes` enum in RC's purchases-ios source — no
  * `$iad*` keys exist).
  *
- * So RC's names are complementary to the numeric ids the Swift SDK writes
- * via its live AdServices capture: same Apple entity, different
+ * So RC's names are complementary to the numeric IDs the Swift SDK writes
+ * via its live AdServices capture — same Apple entity, different
  * representation. Users caught by both sources end up with every `asa_*`
  * slot populated.
+ *
+ * Parity with our Apple Search Ads integration (per-project OAuth path):
+ * the ASA integration resolves the same four name fields directly from
+ * Apple's Campaign Management API. Either source is sufficient; both are
+ * per-field-merged into `app_users.properties` without overwriting data
+ * already there.
  *
  * This mapper only recognises Apple Search Ads for now. Adding Meta/Google
  * is a case of matching additional `$mediaSource` values and mapping to
@@ -53,6 +60,9 @@ export function mapRevenueCatAttributesToAttributionProperties(
 
   const adGroup = findValue(attrs, "$adGroup");
   if (adGroup) props.asa_ad_group_name = adGroup;
+
+  const ad = findValue(attrs, "$ad");
+  if (ad) props.asa_ad_name = ad;
 
   const keyword = findValue(attrs, "$keyword");
   if (keyword) props.asa_keyword = keyword;

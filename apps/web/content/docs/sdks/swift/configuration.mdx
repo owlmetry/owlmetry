@@ -109,7 +109,10 @@ The SDK writes one of:
 - `attribution_source = "apple_search_ads"` plus `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` when Apple attributes the install.
 - `attribution_source = "none"` when Apple responds but the install is not attributed, or after `ASA_MAX_PENDING_ATTEMPTS` (5) failed retries.
 
-The SDK's live path only populates numeric IDs — Apple's AdServices Attribution API doesn't return human-readable names. If a project has the [RevenueCat integration](/docs/concepts/integrations) enabled **and** RC's Advanced Apple AdServices integration is configured with ASA Campaign Management API credentials, RC resolves those IDs to names server-side and exposes them as subscriber attributes. OwlMetry's RC sync and webhook paths then fill `asa_campaign_name`, `asa_ad_group_name`, and the literal `asa_keyword` search term on top of the numeric IDs. Those fields are additive — the live SDK flow and the RC backfill never overwrite each other.
+The SDK's live path only populates numeric IDs — Apple's AdServices Attribution API doesn't return human-readable names. Name fields (`asa_campaign_name`, `asa_ad_group_name`, `asa_ad_name`, `asa_keyword`) are populated by one of two server-side integrations, both of which cover every attributed user and are per-field merged so the live SDK's numeric IDs are never overwritten:
+
+- **[Apple Search Ads integration](/docs/concepts/integrations#apple-search-ads)** (recommended, self-contained) — OwlMetry calls Apple's Campaign Management API directly to resolve IDs → names.
+- **[RevenueCat integration](/docs/concepts/integrations)** with RC's Advanced Apple AdServices integration configured — RC resolves the names server-side on AdServices token receipt; OwlMetry pulls them via RC sync and webhooks.
 
 Capture runs once per anonymous ID and is idempotent — the SDK records completion in `UserDefaults` and skips on subsequent launches. If Apple's attribution record isn't ready yet (HTTP 404), the server returns `pending: true` and the SDK retries on the next launch, up to 5 attempts across ~24h.
 

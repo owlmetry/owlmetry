@@ -26,11 +26,16 @@ export type AttributionSourceValue =
 
 // Apple Search Ads property keys (namespace: `asa_`).
 // ID fields come from Apple's AdServices API (first-party, live flow). Name
-// fields and the raw search term come from two complementary sources:
+// fields and the raw search term come from two complementary sources, both
+// covering every attributed user (subscriber or free):
 //   1. The Apple Ads Campaign Management API (per-project OAuth integration) —
-//      resolves IDs → names directly for any attributed user, subscriber or not.
-//   2. RevenueCat's stored subscriber attributes — fills names as a side-effect
-//      of a subscription event, only for paying users.
+//      OwlMetry resolves IDs → names directly. Self-contained, no RC needed.
+//   2. RevenueCat's stored subscriber attributes — RC does the same ID → name
+//      resolution server-side on AdServices token receipt (not gated on a
+//      subscription event; verified empirically for a non-subscribing user),
+//      and we pull the resolved names via V2 customer attributes during sync
+//      and off incoming webhooks. Webhook *delivery* is subscription-gated by
+//      RC, so free users only receive enrichment via bulk sync.
 // Apple's AdServices API intentionally returns only numeric IDs; both sources
 // above are additive on top of that. A user caught by both ends up with every
 // slot populated.
