@@ -2,7 +2,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { callApi, callApiRaw, buildQuery } from "../helpers.js";
-import type { WebhookSetup } from "@owlmetry/shared";
+import { SUPPORTED_PROVIDER_IDS, type WebhookSetup } from "@owlmetry/shared";
+
+const providerEnum = z.enum(SUPPORTED_PROVIDER_IDS as [string, ...string[]]);
 
 export function registerIntegrationsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-providers", {
@@ -107,7 +109,7 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
       "Trigger a sync for an integration. Bulk sync (no user_id) queues a background job. Single-user sync (with user_id) is synchronous. Supports providers: 'revenuecat' (subscription data + attribution backfill), 'apple-search-ads' (resolves ASA IDs to campaign/ad group/keyword/ad names).",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
-      provider: z.enum(["revenuecat", "apple-search-ads"]).optional().default("revenuecat").describe("Integration provider to sync. Defaults to 'revenuecat' for backwards compatibility."),
+      provider: providerEnum.optional().default("revenuecat").describe("Integration provider to sync. Defaults to 'revenuecat' for backwards compatibility."),
       user_id: z.string().optional().describe("Sync a single user (synchronous). Omit for bulk sync (background job)."),
     },
   }, async ({ project_id, provider, user_id }) => {

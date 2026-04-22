@@ -29,7 +29,7 @@ export function signAppleAdsClientAssertion(
     exp,
   };
 
-  const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
+  const signingInput = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
 
   const key = createPrivateKey({ key: config.private_key_pem, format: "pem" });
   const signature = cryptoSign("sha256", Buffer.from(signingInput), {
@@ -37,13 +37,9 @@ export function signAppleAdsClientAssertion(
     dsaEncoding: "ieee-p1363",
   });
 
-  return `${signingInput}.${base64UrlFromBuffer(signature)}`;
+  return `${signingInput}.${signature.toString("base64url")}`;
 }
 
-function base64UrlEncode(value: string): string {
-  return base64UrlFromBuffer(Buffer.from(value, "utf8"));
-}
-
-function base64UrlFromBuffer(buf: Buffer): string {
-  return buf.toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+function base64Url(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64url");
 }

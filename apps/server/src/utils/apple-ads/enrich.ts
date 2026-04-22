@@ -1,3 +1,4 @@
+import { ASA_ID_NAME_PAIRS } from "@owlmetry/shared";
 import type { AppleAdsConfig } from "./config.js";
 import {
   getAppleAdsCampaign,
@@ -5,6 +6,10 @@ import {
   getAppleAdsTargetingKeyword,
   getAppleAdsAd,
   type AppleAdsResult,
+  type AppleAdsCampaign,
+  type AppleAdsAdGroup,
+  type AppleAdsTargetingKeyword,
+  type AppleAdsAd,
 } from "./client.js";
 
 /**
@@ -19,64 +24,134 @@ import {
  * campaign still exists, we return `asa_campaign_name` and skip ad group.
  * Auth errors propagate so the caller can surface them in the UI.
  */
+export type EnrichmentField = "campaign" | "ad_group" | "keyword" | "ad";
+
 export interface EnrichmentOutcome {
   props: Record<string, string>;
   /** First auth/config error encountered, if any — aborts the rest of the call. */
   authError?: string;
   /** Non-fatal per-field errors (5xx, network), for telemetry. */
-  fieldErrors: Array<{ field: "campaign" | "ad_group" | "keyword" | "ad"; statusCode: number; message: string }>;
+  fieldErrors: Array<{ field: EnrichmentField; statusCode: number; message: string }>;
+}
+
+/**
+ * Per-run memoization for the four Campaign Management API endpoints. A single
+ * bulk sync over 10k users attributed to the same 3 campaigns collapses from
+ * 40k API calls to ~30. Pass an instance into `enrichAppleAdsNames` from a
+ * bulk loop; omit it for single-user enrichment.
+ *
+ * Only `found` and `not_found` results are cached — transient 5xx/network
+ * errors should be retried on the next user.
+ */
+export class AppleAdsLookupCache {
+  private campaigns = new Map<string, AppleAdsResult<AppleAdsCampaign>>();
+  private adGroups = new Map<string, AppleAdsResult<AppleAdsAdGroup>>();
+  private keywords = new Map<string, AppleAdsResult<AppleAdsTargetingKeyword>>();
+  private ads = new Map<string, AppleAdsResult<AppleAdsAd>>();
+
+  async getCampaign(config: AppleAdsConfig, id: string) {
+    return this.memoize(this.campaigns, id, () => getAppleAdsCampaign(config, id));
+  }
+  async getAdGroup(config: AppleAdsConfig, campaignId: string, adGroupId: string) {
+    return this.memoize(this.adGroups, `${campaignId}:${adGroupId}`, () =>
+      getAppleAdsAdGroup(config, campaignId, adGroupId),
+    );
+  }
+  async getKeyword(config: AppleAdsConfig, campaignId: string, adGroupId: string, keywordId: string) {
+    return this.memoize(this.keywords, `${campaignId}:${adGroupId}:${keywordId}`, () =>
+      getAppleAdsTargetingKeyword(config, campaignId, adGroupId, keywordId),
+    );
+  }
+  async getAd(config: AppleAdsConfig, campaignId: string, adGroupId: string, adId: string) {
+    return this.memoize(this.ads, `${campaignId}:${adGroupId}:${adId}`, () =>
+      getAppleAdsAd(config, campaignId, adGroupId, adId),
+    );
+  }
+
+  private async memoize<T>(
+    cache: Map<string, AppleAdsResult<T>>,
+    key: string,
+    fetch: () => Promise<AppleAdsResult<T>>,
+  ): Promise<AppleAdsResult<T>> {
+    const hit = cache.get(key);
+    if (hit) return hit;
+    const result = await fetch();
+    if (result.status === "found" || result.status === "not_found") {
+      cache.set(key, result);
+    }
+    return result;
+  }
 }
 
 export async function enrichAppleAdsNames(
   config: AppleAdsConfig,
   existingProps: Record<string, unknown>,
+  cache?: AppleAdsLookupCache,
 ): Promise<EnrichmentOutcome> {
-  const props: Record<string, string> = {};
-  const fieldErrors: EnrichmentOutcome["fieldErrors"] = [];
-
   const campaignId = pickIdString(existingProps, "asa_campaign_id");
+  if (!campaignId) {
+    return { props: {}, fieldErrors: [] };
+  }
+
   const adGroupId = pickIdString(existingProps, "asa_ad_group_id");
   const keywordId = pickIdString(existingProps, "asa_keyword_id");
   const adId = pickIdString(existingProps, "asa_ad_id");
 
-  if (!campaignId) {
-    return { props, fieldErrors };
+  // Run the campaign call first — it acts as an auth gate. If credentials are
+  // bad we return immediately without wasting three parallel calls on the
+  // same 403.
+  const campaignRes = cache
+    ? await cache.getCampaign(config, campaignId)
+    : await getAppleAdsCampaign(config, campaignId);
+  if (campaignRes.status === "auth_error") {
+    return { props: {}, authError: campaignRes.message, fieldErrors: [] };
   }
 
-  const campaignRes = await getAppleAdsCampaign(config, campaignId);
-  const authError = firstAuthError(campaignRes);
-  if (authError) return { props, authError, fieldErrors };
-  captureName(props, "asa_campaign_name", campaignRes, (d) => d.name);
+  // Ad group / keyword / ad lookups all take params we already have and don't
+  // depend on the campaign response — run them concurrently.
+  const [adGroupRes, keywordRes, adRes] = await Promise.all([
+    adGroupId
+      ? (cache ? cache.getAdGroup(config, campaignId, adGroupId) : getAppleAdsAdGroup(config, campaignId, adGroupId))
+      : Promise.resolve(null),
+    adGroupId && keywordId
+      ? (cache
+          ? cache.getKeyword(config, campaignId, adGroupId, keywordId)
+          : getAppleAdsTargetingKeyword(config, campaignId, adGroupId, keywordId))
+      : Promise.resolve(null),
+    adGroupId && adId
+      ? (cache ? cache.getAd(config, campaignId, adGroupId, adId) : getAppleAdsAd(config, campaignId, adGroupId, adId))
+      : Promise.resolve(null),
+  ]);
+
+  const props: Record<string, string> = {};
+  const fieldErrors: EnrichmentOutcome["fieldErrors"] = [];
+
+  captureName(props, nameKeyFor("asa_campaign_id"), campaignRes, (d) => d.name);
   captureFieldError(fieldErrors, "campaign", campaignRes);
 
-  // Ad group, keyword, and ad all require campaign scoping — they're all
-  // nested under `/campaigns/{cid}/...`. If campaign was deleted we skip them
-  // (Apple will return 404 anyway, so this is just an optimization).
-  if (adGroupId) {
-    const agRes = await getAppleAdsAdGroup(config, campaignId, adGroupId);
-    const agAuthError = firstAuthError(agRes);
-    if (agAuthError) return { props, authError: agAuthError, fieldErrors };
-    captureName(props, "asa_ad_group_name", agRes, (d) => d.name);
-    captureFieldError(fieldErrors, "ad_group", agRes);
+  if (adGroupRes) {
+    if (adGroupRes.status === "auth_error") return { props, authError: adGroupRes.message, fieldErrors };
+    captureName(props, nameKeyFor("asa_ad_group_id"), adGroupRes, (d) => d.name);
+    captureFieldError(fieldErrors, "ad_group", adGroupRes);
   }
-
-  if (adGroupId && keywordId) {
-    const kwRes = await getAppleAdsTargetingKeyword(config, campaignId, adGroupId, keywordId);
-    const kwAuthError = firstAuthError(kwRes);
-    if (kwAuthError) return { props, authError: kwAuthError, fieldErrors };
-    captureName(props, "asa_keyword", kwRes, (d) => d.text);
-    captureFieldError(fieldErrors, "keyword", kwRes);
+  if (keywordRes) {
+    if (keywordRes.status === "auth_error") return { props, authError: keywordRes.message, fieldErrors };
+    captureName(props, nameKeyFor("asa_keyword_id"), keywordRes, (d) => d.text);
+    captureFieldError(fieldErrors, "keyword", keywordRes);
   }
-
-  if (adGroupId && adId) {
-    const adRes = await getAppleAdsAd(config, campaignId, adGroupId, adId);
-    const adAuthError = firstAuthError(adRes);
-    if (adAuthError) return { props, authError: adAuthError, fieldErrors };
-    captureName(props, "asa_ad_name", adRes, (d) => d.name);
+  if (adRes) {
+    if (adRes.status === "auth_error") return { props, authError: adRes.message, fieldErrors };
+    captureName(props, nameKeyFor("asa_ad_id"), adRes, (d) => d.name);
     captureFieldError(fieldErrors, "ad", adRes);
   }
 
   return { props, fieldErrors };
+}
+
+function nameKeyFor(idKey: string): string {
+  const pair = ASA_ID_NAME_PAIRS.find((p) => p.idKey === idKey);
+  if (!pair) throw new Error(`no name key mapping for ${idKey}`);
+  return pair.nameKey;
 }
 
 function pickIdString(props: Record<string, unknown>, key: string): string | null {
@@ -101,14 +176,10 @@ function captureName<T>(
 
 function captureFieldError<T>(
   errors: EnrichmentOutcome["fieldErrors"],
-  field: EnrichmentOutcome["fieldErrors"][number]["field"],
+  field: EnrichmentField,
   result: AppleAdsResult<T>,
 ): void {
   if (result.status === "error") {
     errors.push({ field, statusCode: result.statusCode, message: result.message });
   }
-}
-
-function firstAuthError<T>(result: AppleAdsResult<T>): string | undefined {
-  return result.status === "auth_error" ? result.message : undefined;
 }

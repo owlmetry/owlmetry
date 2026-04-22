@@ -1,29 +1,15 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, isNull } from "drizzle-orm";
-import { projectIntegrations, appUsers } from "@owlmetry/db";
-import type { Db } from "@owlmetry/db";
+import { eq, and } from "drizzle-orm";
+import { appUsers } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
+import { findActiveIntegration, formatManualTriggeredBy } from "../utils/integrations.js";
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
 import { enrichAppleAdsNames } from "../utils/apple-ads/enrich.js";
 
-async function findActiveAppleAdsIntegration(db: Db, projectId: string) {
-  const [integration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.project_id, projectId),
-        eq(projectIntegrations.provider, "apple-search-ads"),
-        isNull(projectIntegrations.deleted_at),
-        eq(projectIntegrations.enabled, true),
-      ),
-    )
-    .limit(1);
-  return integration ?? null;
-}
+const PROVIDER = "apple-search-ads";
 
 export async function appleSearchAdsRoutes(app: FastifyInstance) {
   // Test connection — validates credentials by calling GET /api/v5/acls.
@@ -41,18 +27,13 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const integration = await findActiveAppleAdsIntegration(app.db, projectId);
+      const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
       if (!integration) {
         return reply.code(404).send({ error: "Apple Search Ads integration not found or disabled" });
       }
 
       const adsConfig = integration.config as unknown as AppleAdsConfig;
-      const result = await getAppleAdsAcls({
-        client_id: adsConfig.client_id,
-        team_id: adsConfig.team_id,
-        key_id: adsConfig.key_id,
-        private_key_pem: adsConfig.private_key_pem,
-      });
+      const result = await getAppleAdsAcls(adsConfig);
 
       if (result.status === "auth_error") {
         return reply.code(400).send({ ok: false, error: "auth_error", message: result.message });
@@ -86,7 +67,7 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const integration = await findActiveAppleAdsIntegration(app.db, projectId);
+      const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
       if (!integration) {
         return reply.code(404).send({ error: "Apple Search Ads integration not found or disabled" });
       }
@@ -100,13 +81,8 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
         return { syncing: false, total: 0 };
       }
 
-      const triggeredBy =
-        request.auth.type === "user"
-          ? `manual:user:${request.auth.user_id}`
-          : `manual:api_key:${request.auth.key_id}`;
-
       const run = await app.jobRunner.trigger("apple_ads_sync", {
-        triggeredBy,
+        triggeredBy: formatManualTriggeredBy(request.auth),
         teamId: project.team_id,
         projectId,
         params: { project_id: projectId },
@@ -130,7 +106,7 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
 
-      const integration = await findActiveAppleAdsIntegration(app.db, projectId);
+      const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
       if (!integration) {
         return reply.code(404).send({ error: "Apple Search Ads integration not found or disabled" });
       }
@@ -178,7 +154,11 @@ export async function scheduleAppleAdsEnrichmentForUser(
   knownProps: Record<string, string>,
 ): Promise<void> {
   try {
-    const integration = await findActiveAppleAdsIntegration(app.db, projectId);
+    // Short-circuit before any DB work when there's no campaign id to resolve —
+    // unattributed installs are the common case and shouldn't pay for a lookup.
+    if (!knownProps.asa_campaign_id) return;
+
+    const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
     if (!integration) return;
 
     const [userRow] = await app.db
@@ -187,19 +167,16 @@ export async function scheduleAppleAdsEnrichmentForUser(
       .where(and(eq(appUsers.project_id, projectId), eq(appUsers.user_id, userId)))
       .limit(1);
 
-    // Merge what we just wrote with what's already stored — the JSONB merge is
-    // async-safe but by reading once here we avoid re-fetching inside
-    // enrichAppleAdsNames.
-    const currentProps: Record<string, unknown> = {
+    // Read existing props so we don't overwrite names a prior enrichment or
+    // the RevenueCat backfill has already set.
+    const existingProps: Record<string, unknown> = {
       ...((userRow?.properties ?? {}) as Record<string, unknown>),
       ...knownProps,
     };
 
-    if (!currentProps.asa_campaign_id) return;
-
     const outcome = await enrichAppleAdsNames(
       integration.config as unknown as AppleAdsConfig,
-      currentProps,
+      existingProps,
     );
 
     if (outcome.authError) {
@@ -217,7 +194,7 @@ export async function scheduleAppleAdsEnrichmentForUser(
       );
     }
 
-    const unsetProps = selectUnsetProps(outcome.props, currentProps);
+    const unsetProps = selectUnsetProps(outcome.props, existingProps);
     if (Object.keys(unsetProps).length > 0) {
       await mergeUserProperties(app.db, projectId, userId, unsetProps);
     }

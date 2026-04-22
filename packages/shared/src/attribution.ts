@@ -49,6 +49,18 @@ export const ASA_PROPERTY_KEYS = [
 ] as const;
 export type AsaPropertyKey = (typeof ASA_PROPERTY_KEYS)[number];
 
+// Pairs `asa_*_id` (set by the Swift SDK at install time) with the
+// corresponding `asa_*_name` key filled by the Campaign Management API
+// integration. Single source of truth shared by the enrichment resolver and
+// the sync job — adding a new ID type means adding one row here and nothing
+// else.
+export const ASA_ID_NAME_PAIRS = [
+  { idKey: "asa_campaign_id", nameKey: "asa_campaign_name" },
+  { idKey: "asa_ad_group_id", nameKey: "asa_ad_group_name" },
+  { idKey: "asa_keyword_id", nameKey: "asa_keyword" },
+  { idKey: "asa_ad_id", nameKey: "asa_ad_name" },
+] as const;
+
 // All property keys the attribution subsystem may write for a user. Useful
 // for UI filters that need to distinguish attribution props from custom ones.
 export const ATTRIBUTION_RESERVED_KEYS: readonly string[] = [

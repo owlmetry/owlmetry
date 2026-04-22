@@ -66,13 +66,11 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
     setError("");
     setSaving(true);
     try {
-      // On update, send only the fields the user filled in (blank = don't change).
-      // On create, all required fields must be set — the server validates.
-      const config: Partial<AppleAdsConfigForm> = {};
-      for (const key of Object.keys(form) as Array<keyof AppleAdsConfigForm>) {
-        const value = form[key];
-        if (value && value.length > 0) config[key] = value;
-      }
+      // Update: drop blank fields (blank = keep existing). Create: send form
+      // as-is and let the server validate required fields.
+      const config = integration
+        ? Object.fromEntries(Object.entries(form).filter(([, v]) => v.length > 0))
+        : form;
 
       if (integration) {
         await api.patch(`/v1/projects/${projectId}/integrations/apple-search-ads`, { config });
@@ -218,27 +216,22 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
             )}
 
             <div className="flex gap-2 flex-wrap">
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
+              <ConfigDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                mode="update"
+                form={form}
+                setField={setField}
+                onSubmit={handleSave}
+                saving={saving}
+                error={error}
+                trigger={
                   <Button variant="outline" size="sm">
                     <Pencil className="h-3.5 w-3.5 mr-1.5" />
                     Update Config
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Update Apple Search Ads</DialogTitle>
-                    <DialogDescription>
-                      Leave a field blank to keep the existing value. Paste a new private key to rotate.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <AppleAdsConfigFormFields form={form} setField={setField} updating />
-                  {error && <p className="text-sm text-destructive">{error}</p>}
-                  <DialogFooter>
-                    <Button onClick={handleSave} disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                }
+              />
 
               <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={testing || !integration.enabled}>
                 <CheckCircle2 className={`h-3.5 w-3.5 mr-1.5 ${testing ? "animate-spin" : ""}`} />
@@ -261,34 +254,74 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
               Connect Apple Search Ads to resolve campaign, ad group, keyword, and ad IDs into
               human-readable names on attributed users.
             </p>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
+            <ConfigDialog
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+              mode="connect"
+              form={form}
+              setField={setField}
+              onSubmit={handleSave}
+              saving={saving}
+              error={error}
+              trigger={
                 <Button>
                   <Plus className="h-4 w-4 mr-1.5" />
                   Connect Apple Search Ads
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Connect Apple Search Ads</DialogTitle>
-                  <DialogDescription>
-                    Generate an EC P-256 keypair, upload the public key at ads.apple.com → Account
-                    Settings → API, and paste the returned IDs plus your private key below.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSave} className="space-y-4">
-                  <AppleAdsConfigFormFields form={form} setField={setField} updating={false} />
-                  {error && <p className="text-sm text-destructive">{error}</p>}
-                  <DialogFooter>
-                    <Button type="submit" disabled={saving}>{saving ? "Connecting..." : "Connect"}</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+              }
+            />
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ConfigDialog({
+  open,
+  onOpenChange,
+  mode,
+  form,
+  setField,
+  onSubmit,
+  saving,
+  error,
+  trigger,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  mode: "connect" | "update";
+  form: AppleAdsConfigForm;
+  setField: <K extends keyof AppleAdsConfigForm>(key: K, value: AppleAdsConfigForm[K]) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  saving: boolean;
+  error: string;
+  trigger: React.ReactNode;
+}) {
+  const isUpdate = mode === "update";
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{isUpdate ? "Update Apple Search Ads" : "Connect Apple Search Ads"}</DialogTitle>
+          <DialogDescription>
+            {isUpdate
+              ? "Leave a field blank to keep the existing value. Paste a new private key to rotate."
+              : "Generate an EC P-256 keypair, upload the public key at ads.apple.com → Account Settings → API, and paste the returned IDs plus your private key below."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <AppleAdsConfigFormFields form={form} setField={setField} updating={isUpdate} />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={saving}>
+              {saving ? (isUpdate ? "Saving..." : "Connecting...") : isUpdate ? "Save" : "Connect"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -342,6 +375,7 @@ function AppleAdsConfigFormFields({
           value={form.private_key_pem}
           onChange={(e) => setField("private_key_pem", e.target.value)}
           required={!updating}
+          className="font-mono"
         />
         <p className="text-xs text-muted-foreground">
           Generate with: <code className="font-mono">openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem</code>

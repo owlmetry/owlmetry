@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, isNull } from "drizzle-orm";
-import { projectIntegrations, appUsers } from "@owlmetry/db";
+import { eq, and } from "drizzle-orm";
+import { appUsers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
+import { findActiveIntegration, formatManualTriggeredBy } from "../utils/integrations.js";
 import {
   mapRevenueCatAttributesToAttributionProperties,
   normalizeWebhookSubscriberAttributes,
@@ -52,20 +53,8 @@ interface RevenueCatWebhookPayload {
   event: RevenueCatWebhookEvent;
 }
 
-async function findActiveRevenueCatIntegration(db: Db, projectId: string) {
-  const [integration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.project_id, projectId),
-        eq(projectIntegrations.provider, "revenuecat"),
-        isNull(projectIntegrations.deleted_at),
-        eq(projectIntegrations.enabled, true),
-      )
-    )
-    .limit(1);
-  return integration ?? null;
+function findActiveRevenueCatIntegration(db: Db, projectId: string) {
+  return findActiveIntegration(db, projectId, "revenuecat");
 }
 
 
@@ -248,13 +237,8 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       const totalUsers = users.length;
 
-      const triggeredBy =
-        request.auth.type === "user"
-          ? `manual:user:${request.auth.user_id}`
-          : `manual:api_key:${request.auth.key_id}`;
-
       const run = await app.jobRunner.trigger("revenuecat_sync", {
-        triggeredBy,
+        triggeredBy: formatManualTriggeredBy(request.auth),
         teamId: project.team_id,
         projectId,
         params: { project_id: projectId },

@@ -1,9 +1,10 @@
-import type { AppleAdsConfig } from "./config.js";
+import type { AppleAdsAuthConfig, AppleAdsConfig } from "./config.js";
 import { signAppleAdsClientAssertion } from "./jwt.js";
 
 const TOKEN_ENDPOINT = "https://appleid.apple.com/auth/oauth2/token";
 const CAMPAIGN_MANAGEMENT_BASE = "https://api.searchads.apple.com/api/v5";
 const TOKEN_SAFETY_MARGIN_SECONDS = 60;
+const REQUEST_TIMEOUT_MS = 10_000;
 
 /**
  * Result wrapper for a single campaign-management lookup. `not_found` is
@@ -40,8 +41,6 @@ export interface AppleAdsAd {
 export interface AppleAdsAcl {
   orgId: number;
   orgName: string;
-  currency?: string;
-  roleNames?: string[];
 }
 
 interface TokenBundle {
@@ -59,7 +58,7 @@ export function clearAppleAdsTokenCache(): void {
 }
 
 async function mintAccessToken(
-  config: AppleAdsConfig,
+  config: AppleAdsAuthConfig,
 ): Promise<AppleAdsResult<TokenBundle>> {
   let clientAssertion: string;
   try {
@@ -83,13 +82,10 @@ async function mintAccessToken(
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (err) {
-    return {
-      status: "error",
-      statusCode: 0,
-      message: err instanceof Error ? err.message : "network error minting Apple Ads access token",
-    };
+    return networkError(err, "minting Apple Ads access token");
   }
 
   const bodyText = await response.text().catch(() => "");
@@ -136,7 +132,7 @@ async function mintAccessToken(
 }
 
 async function getAccessToken(
-  config: AppleAdsConfig,
+  config: AppleAdsAuthConfig,
   opts: { forceRefresh?: boolean } = {},
 ): Promise<AppleAdsResult<TokenBundle>> {
   if (!opts.forceRefresh) {
@@ -149,14 +145,13 @@ async function getAccessToken(
 }
 
 async function appleAdsGet<T>(
-  config: AppleAdsConfig,
+  authConfig: AppleAdsAuthConfig,
+  orgId: string | null,
   path: string,
-  opts: { includeOrgContext?: boolean } = {},
 ): Promise<AppleAdsResult<T>> {
   const url = `${CAMPAIGN_MANAGEMENT_BASE}${path}`;
-  const includeOrgContext = opts.includeOrgContext !== false;
 
-  const tokenResult = await getAccessToken(config);
+  const tokenResult = await getAccessToken(authConfig);
   if (tokenResult.status !== "found") return tokenResult;
 
   const doRequest = async (accessToken: string) => {
@@ -164,36 +159,32 @@ async function appleAdsGet<T>(
       Authorization: `Bearer ${accessToken}`,
       Accept: "application/json",
     };
-    if (includeOrgContext) {
-      headers["X-AP-Context"] = `orgId=${config.org_id}`;
+    if (orgId) {
+      headers["X-AP-Context"] = `orgId=${orgId}`;
     }
-    return fetch(url, { method: "GET", headers });
+    return fetch(url, {
+      method: "GET",
+      headers,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
   };
 
   let response: Response;
   try {
     response = await doRequest(tokenResult.data.accessToken);
   } catch (err) {
-    return {
-      status: "error",
-      statusCode: 0,
-      message: err instanceof Error ? err.message : "network error calling Apple Ads API",
-    };
+    return networkError(err, "calling Apple Ads API");
   }
 
   // 401 → token may have been revoked server-side. Re-mint once, then retry.
   if (response.status === 401) {
-    tokenCache.delete(config.client_id);
-    const refreshed = await getAccessToken(config, { forceRefresh: true });
+    tokenCache.delete(authConfig.client_id);
+    const refreshed = await getAccessToken(authConfig, { forceRefresh: true });
     if (refreshed.status !== "found") return refreshed;
     try {
       response = await doRequest(refreshed.data.accessToken);
     } catch (err) {
-      return {
-        status: "error",
-        statusCode: 0,
-        message: err instanceof Error ? err.message : "network error on Apple Ads retry",
-      };
+      return networkError(err, "on Apple Ads retry");
     }
     if (response.status === 401) {
       const body = await response.text().catch(() => "");
@@ -233,6 +224,14 @@ async function appleAdsGet<T>(
   return { status: "found", data: payload.data };
 }
 
+function networkError(err: unknown, context: string): AppleAdsResult<never> {
+  return {
+    status: "error",
+    statusCode: 0,
+    message: err instanceof Error ? err.message : `network error ${context}`,
+  };
+}
+
 /** Resolve a campaign id → `{ id, name, status }`. */
 export function getAppleAdsCampaign(
   config: AppleAdsConfig,
@@ -240,6 +239,7 @@ export function getAppleAdsCampaign(
 ): Promise<AppleAdsResult<AppleAdsCampaign>> {
   return appleAdsGet<AppleAdsCampaign>(
     config,
+    config.org_id,
     `/campaigns/${encodeURIComponent(String(campaignId))}?fields=id,name,status`,
   );
 }
@@ -252,6 +252,7 @@ export function getAppleAdsAdGroup(
 ): Promise<AppleAdsResult<AppleAdsAdGroup>> {
   return appleAdsGet<AppleAdsAdGroup>(
     config,
+    config.org_id,
     `/campaigns/${encodeURIComponent(String(campaignId))}/adgroups/${encodeURIComponent(String(adGroupId))}?fields=id,name,status`,
   );
 }
@@ -265,6 +266,7 @@ export function getAppleAdsTargetingKeyword(
 ): Promise<AppleAdsResult<AppleAdsTargetingKeyword>> {
   return appleAdsGet<AppleAdsTargetingKeyword>(
     config,
+    config.org_id,
     `/campaigns/${encodeURIComponent(String(campaignId))}/adgroups/${encodeURIComponent(String(adGroupId))}/targetingkeywords/${encodeURIComponent(String(keywordId))}?fields=id,text,status`,
   );
 }
@@ -278,19 +280,19 @@ export function getAppleAdsAd(
 ): Promise<AppleAdsResult<AppleAdsAd>> {
   return appleAdsGet<AppleAdsAd>(
     config,
+    config.org_id,
     `/campaigns/${encodeURIComponent(String(campaignId))}/adgroups/${encodeURIComponent(String(adGroupId))}/ads/${encodeURIComponent(String(adId))}?fields=id,name,status`,
   );
 }
 
 /**
  * List the orgs (campaign groups) the credentials can access. Used by the
- * "Test connection" flow on the integrations page to validate credentials and
- * help customers pick the right org_id. Unlike the other endpoints, /acls is
- * scoped by credentials only — we skip the X-AP-Context header.
+ * "Test connection" flow on the integrations page to validate credentials
+ * and help customers pick the right org_id. `/acls` is scoped by credentials
+ * only — no `X-AP-Context` header.
  */
 export function getAppleAdsAcls(
-  config: Omit<AppleAdsConfig, "org_id">,
+  config: AppleAdsAuthConfig,
 ): Promise<AppleAdsResult<AppleAdsAcl[]>> {
-  const tempConfig: AppleAdsConfig = { ...config, org_id: "" };
-  return appleAdsGet<AppleAdsAcl[]>(tempConfig, "/acls", { includeOrgContext: false });
+  return appleAdsGet<AppleAdsAcl[]>(config, null, "/acls");
 }
