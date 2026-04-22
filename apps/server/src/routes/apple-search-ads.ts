@@ -1,17 +1,66 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and } from "drizzle-orm";
-import { appUsers } from "@owlmetry/db";
+import { eq, and, desc } from "drizzle-orm";
+import { appUsers, jobRuns } from "@owlmetry/db";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { findActiveIntegration, formatManualTriggeredBy } from "../utils/integrations.js";
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
-import { enrichAppleAdsNames } from "../utils/apple-ads/enrich.js";
+import { enrichAppleAdsNames, buildEnrichmentDiagnostic } from "../utils/apple-ads/enrich.js";
 
 const PROVIDER = "apple-search-ads";
 
 export async function appleSearchAdsRoutes(app: FastifyInstance) {
+  // Status: returns the most recent apple_ads_sync run for this project so the
+  // dashboard can surface "last sync aborted — bad credentials" inline without
+  // requiring the user to dig through the Jobs list.
+  app.get<{ Params: { projectId: string } }>(
+    "/projects/:projectId/integrations/apple-search-ads/status",
+    { preHandler: [requirePermission("integrations:read")] },
+    async (request, reply) => {
+      const { projectId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const [lastRun] = await app.db
+        .select()
+        .from(jobRuns)
+        .where(
+          and(
+            eq(jobRuns.project_id, projectId),
+            eq(jobRuns.job_type, "apple_ads_sync"),
+          ),
+        )
+        .orderBy(desc(jobRuns.created_at))
+        .limit(1);
+
+      if (!lastRun) {
+        return { last_sync: null };
+      }
+
+      const result = (lastRun.result ?? {}) as Record<string, unknown>;
+      const aborted = result.aborted === true;
+      const abortReason = typeof result.abort_reason === "string" ? result.abort_reason : null;
+      const errorStatusCounts = (result.error_status_counts ?? {}) as Record<string, number>;
+
+      return {
+        last_sync: {
+          id: lastRun.id,
+          status: lastRun.status,
+          created_at: lastRun.created_at.toISOString(),
+          completed_at: lastRun.completed_at?.toISOString() ?? null,
+          aborted,
+          abort_reason: abortReason,
+          enriched: typeof result.enriched === "number" ? result.enriched : 0,
+          examined: typeof result.examined === "number" ? result.examined : 0,
+          errors: typeof result.errors === "number" ? result.errors : 0,
+          error_status_counts: errorStatusCounts,
+        },
+      };
+    },
+  );
+
   // Test connection — validates credentials by calling GET /api/v5/acls.
   // Lets the UI surface "signature invalid" / "Apple rejected credentials"
   // errors inline, and returns the list of orgs so the customer can confirm
@@ -126,15 +175,15 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const outcome = await enrichAppleAdsNames(adsConfig, currentProps);
 
       if (outcome.authError) {
+        // Stamp the failure on the user for debugability, then surface to the caller.
+        const diagnostic = buildEnrichmentDiagnostic(outcome, 0);
+        await mergeUserProperties(app.db, projectId, userId, diagnostic);
         return reply.code(400).send({ error: "auth_error", message: outcome.authError });
       }
 
       const unsetProps = selectUnsetProps(outcome.props, currentProps);
-      if (Object.keys(unsetProps).length === 0) {
-        return { updated: 0, properties: {}, field_errors: outcome.fieldErrors };
-      }
-
-      await mergeUserProperties(app.db, projectId, userId, unsetProps);
+      const diagnostic = buildEnrichmentDiagnostic(outcome, Object.keys(unsetProps).length);
+      await mergeUserProperties(app.db, projectId, userId, { ...unsetProps, ...diagnostic });
       return { updated: Object.keys(unsetProps).length, properties: unsetProps, field_errors: outcome.fieldErrors };
     },
   );
@@ -184,7 +233,6 @@ export async function scheduleAppleAdsEnrichmentForUser(
         { projectId, userId, message: outcome.authError },
         "Apple Ads enrichment skipped — auth error. Surface via integrations page.",
       );
-      return;
     }
 
     for (const fe of outcome.fieldErrors) {
@@ -194,10 +242,9 @@ export async function scheduleAppleAdsEnrichmentForUser(
       );
     }
 
-    const unsetProps = selectUnsetProps(outcome.props, existingProps);
-    if (Object.keys(unsetProps).length > 0) {
-      await mergeUserProperties(app.db, projectId, userId, unsetProps);
-    }
+    const unsetProps = outcome.authError ? {} : selectUnsetProps(outcome.props, existingProps);
+    const diagnostic = buildEnrichmentDiagnostic(outcome, Object.keys(unsetProps).length);
+    await mergeUserProperties(app.db, projectId, userId, { ...unsetProps, ...diagnostic });
   } catch (err) {
     app.log.warn({ err, projectId, userId }, "Apple Ads enrichment failed (fire-and-forget)");
   }

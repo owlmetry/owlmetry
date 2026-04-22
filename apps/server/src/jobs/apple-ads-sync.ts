@@ -4,7 +4,7 @@ import { ASA_ID_NAME_PAIRS } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { findActiveIntegration } from "../utils/integrations.js";
-import { AppleAdsLookupCache, enrichAppleAdsNames } from "../utils/apple-ads/enrich.js";
+import { AppleAdsLookupCache, enrichAppleAdsNames, buildEnrichmentDiagnostic } from "../utils/apple-ads/enrich.js";
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 
 /**
@@ -104,6 +104,10 @@ export const appleAdsSyncHandler: JobHandler = async (ctx, params) => {
           { message: outcome.authError },
           "Apple Ads sync aborting — auth error",
         );
+        // Stamp the current user before returning so at least one user reflects
+        // the failure. The remaining users keep their previous diagnostic.
+        const diagnostic = buildEnrichmentDiagnostic(outcome, 0);
+        await mergeUserProperties(ctx.db, projectId, user.user_id, diagnostic);
         return buildResult({
           aborted: true,
           abort_reason: `Apple Ads API rejected the credentials: ${outcome.authError}`,
@@ -121,10 +125,11 @@ export const appleAdsSyncHandler: JobHandler = async (ctx, params) => {
       }
 
       const unsetProps = selectUnsetProps(outcome.props, currentProps);
+      const diagnostic = buildEnrichmentDiagnostic(outcome, Object.keys(unsetProps).length);
+      await mergeUserProperties(ctx.db, projectId, user.user_id, { ...unsetProps, ...diagnostic });
       if (Object.keys(unsetProps).length === 0) {
         skippedNoNewNames++;
       } else {
-        await mergeUserProperties(ctx.db, projectId, user.user_id, unsetProps);
         enriched++;
       }
     } catch (err) {

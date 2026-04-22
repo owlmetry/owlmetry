@@ -43,9 +43,28 @@ interface TestResult {
   orgs?: Array<{ org_id: number; org_name: string; matches_configured_org_id: boolean }>;
 }
 
+interface LastSyncStatus {
+  last_sync: {
+    id: string;
+    status: string;
+    created_at: string;
+    completed_at: string | null;
+    aborted: boolean;
+    abort_reason: string | null;
+    enriched: number;
+    examined: number;
+    errors: number;
+    error_status_counts: Record<string, number>;
+  } | null;
+}
+
 export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) {
   const { data, mutate } = useSWR<{ integrations: IntegrationResponse[] }>(
     `/v1/projects/${projectId}/integrations`
+  );
+  const { data: statusData, mutate: mutateStatus } = useSWR<LastSyncStatus>(
+    `/v1/projects/${projectId}/integrations/apple-search-ads/status`,
+    { refreshInterval: 15_000 },
   );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<AppleAdsConfigForm>(EMPTY_FORM);
@@ -126,6 +145,9 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
     setError("");
     try {
       await api.post(`/v1/projects/${projectId}/integrations/apple-search-ads/sync`, {});
+      // Nudge the status fetch so the strip reflects the new run sooner than
+      // the 15s refresh tick.
+      setTimeout(() => mutateStatus(), 1000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to sync");
     } finally {
@@ -188,6 +210,8 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
                 <span className="font-mono text-xs">{integration.config.org_id ?? "Not set"}</span>
               </div>
             </div>
+
+            <LastSyncStrip status={statusData?.last_sync ?? null} />
 
             {testResult && (
               <div
@@ -390,6 +414,61 @@ function AppleAdsConfigFormFields({
           onChange={(e) => setField("org_id", e.target.value)}
           required={!updating}
         />
+      </div>
+    </div>
+  );
+}
+
+function LastSyncStrip({ status }: { status: LastSyncStatus["last_sync"] }) {
+  if (!status) {
+    return (
+      <div className="rounded-md border border-muted-foreground/20 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        No syncs run yet — trigger one to backfill names on existing attributed users.
+      </div>
+    );
+  }
+
+  const when = new Date(status.completed_at ?? status.created_at).toLocaleString();
+  const variant = status.aborted || status.status === "failed"
+    ? "error"
+    : status.status === "running" || status.status === "pending"
+      ? "running"
+      : status.errors > 0
+        ? "warn"
+        : "success";
+
+  const classes = {
+    error: "border-destructive/30 bg-destructive/10 text-destructive",
+    warn: "border-amber-600/30 bg-amber-950/20 text-amber-300",
+    success: "border-emerald-600/30 bg-emerald-950/20 text-emerald-300",
+    running: "border-muted-foreground/20 bg-muted/30 text-muted-foreground",
+  }[variant];
+
+  return (
+    <div className={`rounded-md border px-3 py-2 text-xs flex items-start gap-2 ${classes}`}>
+      {variant === "error" ? (
+        <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      ) : variant === "running" ? (
+        <RefreshCw className="h-3.5 w-3.5 mt-0.5 shrink-0 animate-spin" />
+      ) : (
+        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+      )}
+      <div className="space-y-1 min-w-0">
+        <div className="font-medium">
+          {variant === "running" && `Sync ${status.status} — started ${when}`}
+          {variant === "error" && `Last sync aborted — ${when}`}
+          {variant === "warn" && `Last sync finished with ${status.errors} field error${status.errors === 1 ? "" : "s"} — ${when}`}
+          {variant === "success" && `Last sync OK — ${when}`}
+        </div>
+        {status.aborted && status.abort_reason && (
+          <div className="font-mono break-all opacity-90">{status.abort_reason}</div>
+        )}
+        {!status.aborted && status.examined > 0 && (
+          <div className="opacity-80">
+            Enriched {status.enriched} of {status.examined} users examined
+            {status.errors > 0 && ` — ${JSON.stringify(status.error_status_counts)}`}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -65,10 +65,15 @@ function humanizeAttributionKey(key: string): string {
 function PropertiesPanel({ properties }: { properties: Record<string, string> }) {
   const attribution: Array<[string, string]> = [];
   const subscription: Array<[string, string]> = [];
+  const diagnostics: Array<[string, string]> = [];
   const other: Array<[string, string]> = [];
 
   for (const [k, v] of Object.entries(properties)) {
-    if (isAttributionKey(k)) attribution.push([k, v]);
+    // Underscore-prefixed keys are server-stamped diagnostics (e.g.
+    // `_asa_enrichment_last_outcome`). Hide them from the main properties
+    // list and render in a separate, collapsed-feel Diagnostics section.
+    if (k.startsWith("_")) diagnostics.push([k, v]);
+    else if (isAttributionKey(k)) attribution.push([k, v]);
     else if (isSubscriptionKey(k)) subscription.push([k, v]);
     else other.push([k, v]);
   }
@@ -122,6 +127,22 @@ function PropertiesPanel({ properties }: { properties: Record<string, string> })
               <DetailRow key={k} label={k} value={v} />
             ))}
           </div>
+        </>
+      )}
+      {diagnostics.length > 0 && (
+        <>
+          <Separator className="my-4" />
+          <details className="group">
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 list-none flex items-center gap-1">
+              <span>Diagnostics ({diagnostics.length})</span>
+              <span className="text-[10px] opacity-60">(click to expand)</span>
+            </summary>
+            <div className="space-y-1">
+              {diagnostics.map(([k, v]) => (
+                <DetailRow key={k} label={k.replace(/^_/, "")} value={v || "—"} />
+              ))}
+            </div>
+          </details>
         </>
       )}
     </>

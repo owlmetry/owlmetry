@@ -148,6 +148,67 @@ export async function enrichAppleAdsNames(
   return { props, fieldErrors };
 }
 
+/**
+ * Build a diagnostic patch recording the last enrichment outcome on the
+ * user's properties. Stored under a `_asa_enrichment_*` namespace so it's
+ * easy to find for one user but easy to filter out of the main UI. Complements
+ * the `job_runs` aggregate counters and the pm2 server logs — makes "why
+ * doesn't user X have a campaign name?" a one-row answer.
+ *
+ * Callers pass `unsetPropsAboutToWrite` so `success` vs `no_changes` can be
+ * distinguished (the enrichment helper returns the same `props` shape whether
+ * or not the DB already had those names).
+ */
+export type EnrichmentDiagnosticStatus =
+  | "success"
+  | "no_changes"
+  | "not_found"
+  | "upstream_error"
+  | "auth_error";
+
+export function buildEnrichmentDiagnostic(
+  outcome: EnrichmentOutcome,
+  unsetPropsAboutToWrite: number,
+): Record<string, string> {
+  const now = new Date().toISOString();
+  // Always clear the error slot unless we have a new one — otherwise stale
+  // error text would outlive the problem.
+  const base: Record<string, string> = {
+    _asa_enrichment_last_at: now,
+    _asa_enrichment_last_error: "",
+  };
+
+  if (outcome.authError) {
+    return {
+      ...base,
+      _asa_enrichment_last_outcome: "auth_error",
+      _asa_enrichment_last_error: truncate(outcome.authError, 200),
+    };
+  }
+  if (outcome.fieldErrors.length > 0) {
+    const fe = outcome.fieldErrors[0];
+    return {
+      ...base,
+      _asa_enrichment_last_outcome: "upstream_error",
+      _asa_enrichment_last_error: truncate(`${fe.field} ${fe.statusCode}: ${fe.message}`, 200),
+    };
+  }
+  if (unsetPropsAboutToWrite > 0) {
+    return { ...base, _asa_enrichment_last_outcome: "success" };
+  }
+  if (Object.keys(outcome.props).length === 0) {
+    // Enrichment ran but Apple returned no name for any of the IDs — either
+    // the campaign/ad group/etc. has been archived or we're looking up IDs
+    // from a different Apple org than the one the credentials own.
+    return { ...base, _asa_enrichment_last_outcome: "not_found" };
+  }
+  return { ...base, _asa_enrichment_last_outcome: "no_changes" };
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 3)}...` : s;
+}
+
 function nameKeyFor(idKey: string): string {
   const pair = ASA_ID_NAME_PAIRS.find((p) => p.idKey === idKey);
   if (!pair) throw new Error(`no name key mapping for ${idKey}`);

@@ -472,7 +472,7 @@ export default function UsersPage() {
                             </span>
                           )}
                           {Object.entries(user.properties)
-                            .filter(([k]) => !k.startsWith("rc_") && !k.startsWith("asa_") && k !== "attribution_source")
+                            .filter(([k]) => !k.startsWith("rc_") && !k.startsWith("asa_") && !k.startsWith("_") && k !== "attribution_source")
                             .slice(0, 3)
                             .map(([k, v]) => (
                               <Badge key={k} variant="outline" className="text-xs">
