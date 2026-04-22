@@ -187,10 +187,23 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
                 <DetailRow label="Last Country" value={`${f.emoji} ${f.name} (${f.code})`} />
               ) : null;
             })()}
-            {user.claimed_from && user.claimed_from.length > 0 && (
-              <DetailRow label="Claimed From" value={user.claimed_from.join(", ")} />
-            )}
           </div>
+
+          {user.claimed_from && user.claimed_from.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <h3 className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Claims ({user.claimed_from.length})
+              </h3>
+              <div className="space-y-1">
+                {user.claimed_from.map((id) => (
+                  <div key={id} className="font-mono text-xs break-all py-1.5">
+                    {id}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {user.apps && user.apps.length > 0 && (
             <>

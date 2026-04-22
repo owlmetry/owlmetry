@@ -378,7 +378,6 @@ export default function UsersPage() {
                   <TableHead>User ID</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
                   <TableHead className="w-[180px]">Apps</TableHead>
-                  <TableHead className="w-[80px]">Claims</TableHead>
                   <TableHead className="w-[200px]">Properties</TableHead>
                   <TableHead className="w-[160px]">First Seen</TableHead>
                   <TableHead className="w-[160px]">Last Seen</TableHead>
@@ -433,9 +432,6 @@ export default function UsersPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-xs py-1.5">
-                      {user.claimed_from?.length ?? 0}
                     </TableCell>
                     <TableCell className="py-1.5">
                       {user.properties ? (() => {
