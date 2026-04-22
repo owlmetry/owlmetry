@@ -29,9 +29,17 @@ import type { RevenueCatV2Attribute } from "../revenuecat.js";
  * per-field-merged into `app_users.properties` without overwriting data
  * already there.
  *
- * This mapper only recognises Apple Search Ads for now. Adding Meta/Google
- * is a case of matching additional `$mediaSource` values and mapping to
- * their own property prefixes.
+ * Three-way mapping of `$mediaSource`:
+ *   - `"Apple Search Ads"` → full ASA attribution (source + names).
+ *   - absent → `attribution_source = "none"`. Mirrors the Swift SDK's
+ *     "non-attributed install" contract so RC-known organic users show
+ *     a concrete label in the dashboard instead of blank.
+ *   - any other value (e.g. `"Facebook Ads"`) → empty map. User was
+ *     attributed via a network we don't track yet; marking them as
+ *     organic would be lying, so leave `attribution_source` unset.
+ *
+ * Adding Meta/Google later: match additional `$mediaSource` values and
+ * map to their own property prefixes (`meta_*`, `google_*`).
  */
 
 const RC_MEDIA_SOURCE_APPLE_SEARCH_ADS = "Apple Search Ads";
@@ -47,6 +55,16 @@ export function mapRevenueCatAttributesToAttributionProperties(
   attrs: RevenueCatV2Attribute[],
 ): Record<string, string> {
   const mediaSource = findValue(attrs, "$mediaSource");
+
+  // No `$mediaSource` on record → treat as organic. Callers pass this
+  // through `selectUnsetProps` so an existing SDK-captured attribution is
+  // never overwritten.
+  if (mediaSource === undefined) {
+    return { [ATTRIBUTION_SOURCE_PROPERTY]: ATTRIBUTION_SOURCE_VALUES.none };
+  }
+
+  // Known networks we don't track yet (Facebook Ads, etc.) — leave slot
+  // empty so the user isn't misattributed as organic.
   if (mediaSource !== RC_MEDIA_SOURCE_APPLE_SEARCH_ADS) {
     return {};
   }

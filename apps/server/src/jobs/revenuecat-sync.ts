@@ -1,6 +1,6 @@
 import { eq, and, isNull } from "drizzle-orm";
 import { projectIntegrations, appUsers } from "@owlmetry/db";
-import { ATTRIBUTION_SOURCE_PROPERTY } from "@owlmetry/shared";
+import { ATTRIBUTION_SOURCE_PROPERTY, ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { mapRevenueCatAttributesToAttributionProperties } from "../utils/attribution/revenuecat.js";
@@ -99,6 +99,7 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   // see at a glance how much of the backfill actually landed.
   let attributionSynced = 0;
   let attributionEnrichedExisting = 0;
+  let attributionMarkedOrganic = 0;
   let attributionSkippedNoAsa = 0;
   const notFoundUsers: string[] = [];
   const errorUsers: string[] = [];
@@ -120,6 +121,7 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       errors,
       attribution_synced: attributionSynced,
       attribution_enriched_existing: attributionEnrichedExisting,
+      attribution_marked_organic: attributionMarkedOrganic,
       attribution_skipped_no_asa: attributionSkippedNoAsa,
       ...extra,
     };
@@ -176,7 +178,10 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
             const currentProps = (user.properties ?? {}) as Record<string, unknown>;
             attributionProps = selectUnsetProps(mapped, currentProps);
             if (Object.keys(attributionProps).length > 0) {
-              if (currentProps[ATTRIBUTION_SOURCE_PROPERTY] !== undefined) {
+              const isOrganic = mapped[ATTRIBUTION_SOURCE_PROPERTY] === ATTRIBUTION_SOURCE_VALUES.none;
+              if (isOrganic) {
+                attributionMarkedOrganic++;
+              } else if (currentProps[ATTRIBUTION_SOURCE_PROPERTY] !== undefined) {
                 attributionEnrichedExisting++;
               } else {
                 attributionSynced++;
@@ -247,7 +252,8 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   ctx.log.info(
     `RevenueCat sync complete: ${synced}/${total} synced (${active} active, ${inactive} inactive), ` +
     `${notFound} not found, ${errors} errors. Attribution: ${attributionSynced} filled, ` +
-    `${attributionEnrichedExisting} enriched, ${attributionSkippedNoAsa} non-ASA.`,
+    `${attributionEnrichedExisting} enriched, ${attributionMarkedOrganic} marked organic, ` +
+    `${attributionSkippedNoAsa} non-ASA.`,
   );
   return buildResult();
 };
