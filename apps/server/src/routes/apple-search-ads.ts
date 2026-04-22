@@ -5,7 +5,7 @@ import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
 import { findActiveIntegration, formatManualTriggeredBy } from "../utils/integrations.js";
-import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
+import type { AppleAdsAuthConfig, AppleAdsConfig } from "../utils/apple-ads/config.js";
 import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
 import { enrichAppleAdsNames, buildEnrichmentDiagnostic } from "../utils/apple-ads/enrich.js";
 
@@ -57,6 +57,59 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
           errors: typeof result.errors === "number" ? result.errors : 0,
           error_status_counts: errorStatusCounts,
         },
+      };
+    },
+  );
+
+  // Discover orgs — called during the connect flow *before* the integration
+  // is saved. Accepts the 4 credential fields (no org_id), mints an access
+  // token, and returns the list of orgs visible to those credentials so the
+  // customer can pick one from a dropdown instead of hunting for the
+  // "Account ID" in ads.apple.com.
+  app.post<{
+    Params: { projectId: string };
+    Body: {
+      client_id?: string;
+      team_id?: string;
+      key_id?: string;
+      private_key_pem?: string;
+    };
+  }>(
+    "/projects/:projectId/integrations/apple-search-ads/discover-orgs",
+    { preHandler: [requirePermission("integrations:write")] },
+    async (request, reply) => {
+      const { projectId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const roleError = assertTeamRole(request.auth, project.team_id, "admin");
+      if (roleError) return reply.code(403).send({ error: roleError });
+
+      const { client_id, team_id, key_id, private_key_pem } = request.body ?? {};
+      if (!client_id || !team_id || !key_id || !private_key_pem) {
+        return reply.code(400).send({
+          ok: false,
+          error: "missing_fields",
+          message: "client_id, team_id, key_id, and private_key_pem are required",
+        });
+      }
+
+      const authConfig: AppleAdsAuthConfig = { client_id, team_id, key_id, private_key_pem };
+      const result = await getAppleAdsAcls(authConfig);
+
+      if (result.status === "auth_error") {
+        return reply.code(400).send({ ok: false, error: "auth_error", message: result.message });
+      }
+      if (result.status === "error") {
+        return reply.code(502).send({ ok: false, error: "upstream_error", statusCode: result.statusCode, message: result.message });
+      }
+      if (result.status === "not_found" || result.data.length === 0) {
+        return reply.code(404).send({ ok: false, error: "no_orgs", message: "Apple Ads returned no accessible orgs for these credentials" });
+      }
+
+      return {
+        ok: true,
+        orgs: result.data.map((o) => ({ org_id: o.orgId, org_name: o.orgName })),
       };
     },
   );

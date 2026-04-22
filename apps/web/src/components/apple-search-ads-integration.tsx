@@ -17,6 +17,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { DetailSkeleton } from "@/components/ui/skeletons";
@@ -84,23 +91,13 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!integration) return;
     setError("");
     setSaving(true);
     try {
-      // Update: drop blank fields (blank = keep existing). Create: send form
-      // as-is and let the server validate required fields.
-      const config = integration
-        ? Object.fromEntries(Object.entries(form).filter(([, v]) => v.length > 0))
-        : form;
-
-      if (integration) {
-        await api.patch(`/v1/projects/${projectId}/integrations/apple-search-ads`, { config });
-      } else {
-        await api.post(`/v1/projects/${projectId}/integrations`, {
-          provider: "apple-search-ads",
-          config,
-        });
-      }
+      // Drop blank fields (blank = keep existing).
+      const config = Object.fromEntries(Object.entries(form).filter(([, v]) => v.length > 0));
+      await api.patch(`/v1/projects/${projectId}/integrations/apple-search-ads`, { config });
       setDialogOpen(false);
       setForm(EMPTY_FORM);
       setTestResult(null);
@@ -247,7 +244,6 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
               <ConfigDialog
                 open={dialogOpen}
                 onOpenChange={setDialogOpen}
-                mode="update"
                 form={form}
                 setField={setField}
                 onSubmit={handleSave}
@@ -283,22 +279,7 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
               human-readable names on attributed users.
             </p>
             <div className="flex items-center justify-center gap-2">
-              <ConfigDialog
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                mode="connect"
-                form={form}
-                setField={setField}
-                onSubmit={handleSave}
-                saving={saving}
-                error={error}
-                trigger={
-                  <Button>
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    Connect Apple Search Ads
-                  </Button>
-                }
-              />
+              <ConnectDialog projectId={projectId} onConnected={() => mutate()} />
               <CopyIntegrationDialog
                 targetProjectId={projectId}
                 provider="apple-search-ads"
@@ -316,7 +297,6 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
 function ConfigDialog({
   open,
   onOpenChange,
-  mode,
   form,
   setField,
   onSubmit,
@@ -326,7 +306,6 @@ function ConfigDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  mode: "connect" | "update";
   form: AppleAdsConfigForm;
   setField: <K extends keyof AppleAdsConfigForm>(key: K, value: AppleAdsConfigForm[K]) => void;
   onSubmit: (e: React.FormEvent) => void;
@@ -334,17 +313,141 @@ function ConfigDialog({
   error: string;
   trigger: React.ReactNode;
 }) {
-  const isUpdate = mode === "update";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isUpdate ? "Update Apple Search Ads" : "Connect Apple Search Ads"}</DialogTitle>
+          <DialogTitle>Update Apple Search Ads</DialogTitle>
           <DialogDescription>
-            {isUpdate ? (
-              "Leave a field blank to keep the existing value. Paste a new private key to rotate."
-            ) : (
+            Leave a field blank to keep the existing value. Paste a new private key to rotate.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <AppleAdsConfigFormFields form={form} setField={setField} updating />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface DiscoveredOrg {
+  org_id: number;
+  org_name: string;
+}
+
+interface Credentials {
+  client_id: string;
+  team_id: string;
+  key_id: string;
+  private_key_pem: string;
+}
+
+const EMPTY_CREDENTIALS: Credentials = {
+  client_id: "",
+  team_id: "",
+  key_id: "",
+  private_key_pem: "",
+};
+
+function ConnectDialog({
+  projectId,
+  onConnected,
+}: {
+  projectId: string;
+  onConnected: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"credentials" | "pick-org">("credentials");
+  const [credentials, setCredentials] = useState<Credentials>(EMPTY_CREDENTIALS);
+  const [orgs, setOrgs] = useState<DiscoveredOrg[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>("");
+  const [error, setError] = useState("");
+  const [discovering, setDiscovering] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  function setField<K extends keyof Credentials>(key: K, value: Credentials[K]) {
+    setCredentials((c) => ({ ...c, [key]: value }));
+  }
+
+  function reset() {
+    setStep("credentials");
+    setCredentials(EMPTY_CREDENTIALS);
+    setOrgs([]);
+    setSelectedOrgId("");
+    setError("");
+    setDiscovering(false);
+    setConnecting(false);
+  }
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) reset();
+  }
+
+  async function handleDiscoverOrgs(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setDiscovering(true);
+    try {
+      const res = await api.post<{ ok: true; orgs: DiscoveredOrg[] }>(
+        `/v1/projects/${projectId}/integrations/apple-search-ads/discover-orgs`,
+        credentials,
+      );
+      setOrgs(res.orgs);
+      // Auto-select when there's only one — the common case.
+      if (res.orgs.length === 1) {
+        setSelectedOrgId(String(res.orgs[0].org_id));
+      }
+      setStep("pick-org");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to reach Apple Ads");
+    } finally {
+      setDiscovering(false);
+    }
+  }
+
+  async function handleConnect(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedOrgId) {
+      setError("Pick an account to continue.");
+      return;
+    }
+    setError("");
+    setConnecting(true);
+    try {
+      await api.post(`/v1/projects/${projectId}/integrations`, {
+        provider: "apple-search-ads",
+        config: { ...credentials, org_id: selectedOrgId },
+      });
+      handleOpenChange(false);
+      onConnected();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="h-4 w-4 mr-1.5" />
+          Connect Apple Search Ads
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect Apple Search Ads</DialogTitle>
+          <DialogDescription>
+            {step === "credentials" ? (
               <>
                 Generate an EC P-256 keypair, upload the public key at{" "}
                 <a
@@ -357,18 +460,107 @@ function ConfigDialog({
                 </a>
                 {" "}→ Account Settings → API, and paste the returned IDs plus your private key below.
               </>
+            ) : (
+              "Pick which Apple Ads account to connect. We found these from your credentials."
             )}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <AppleAdsConfigFormFields form={form} setField={setField} updating={isUpdate} />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <DialogFooter>
-            <Button type="submit" disabled={saving}>
-              {saving ? (isUpdate ? "Saving..." : "Connecting...") : isUpdate ? "Save" : "Connect"}
-            </Button>
-          </DialogFooter>
-        </form>
+
+        {step === "credentials" ? (
+          <form onSubmit={handleDiscoverOrgs} className="space-y-4">
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="cx-client-id">Client ID</Label>
+                <Input
+                  id="cx-client-id"
+                  placeholder="SEARCHADS.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  value={credentials.client_id}
+                  onChange={(e) => setField("client_id", e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cx-team-id">Team ID</Label>
+                <Input
+                  id="cx-team-id"
+                  placeholder="SEARCHADS.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  value={credentials.team_id}
+                  onChange={(e) => setField("team_id", e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cx-key-id">Key ID</Label>
+                <Input
+                  id="cx-key-id"
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  value={credentials.key_id}
+                  onChange={(e) => setField("key_id", e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cx-private-key">Private Key (PEM)</Label>
+                <Textarea
+                  id="cx-private-key"
+                  rows={6}
+                  placeholder="-----BEGIN EC PRIVATE KEY-----&#10;...&#10;-----END EC PRIVATE KEY-----"
+                  value={credentials.private_key_pem}
+                  onChange={(e) => setField("private_key_pem", e.target.value)}
+                  required
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Generate with: <code className="font-mono">openssl ecparam -genkey -name prime256v1 -noout -out private-key.pem</code>
+                </p>
+              </div>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <DialogFooter>
+              <Button type="submit" disabled={discovering}>
+                {discovering ? "Checking credentials..." : "Continue"}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <form onSubmit={handleConnect} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cx-org">Account</Label>
+              <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+                <SelectTrigger id="cx-org">
+                  <SelectValue placeholder="Select an account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {orgs.map((o) => (
+                    <SelectItem key={o.org_id} value={String(o.org_id)}>
+                      {o.org_name} — {o.org_id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Apple calls this <code className="font-mono">orgId</code> in the API (shown as "Account ID" in ads.apple.com).
+              </p>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setStep("credentials");
+                  setError("");
+                }}
+                disabled={connecting}
+              >
+                Back
+              </Button>
+              <Button type="submit" disabled={connecting || !selectedOrgId}>
+                {connecting ? "Connecting..." : "Connect"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

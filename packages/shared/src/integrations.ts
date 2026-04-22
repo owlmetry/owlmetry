@@ -72,11 +72,11 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
       },
       {
         key: "org_id",
-        label: "Org ID",
+        label: "Org ID (Account ID)",
         required: true,
         sensitive: false,
         placeholder: "40669820",
-        description: "Apple Ads campaign-group ID. Find it in ads.apple.com (top-right account switcher) or by hitting GET /api/v5/acls once your credentials are set up.",
+        description: "Apple Ads campaign-group ID — shown as \"Account ID\" in ads.apple.com (click your name in the top-right, the number under your org). Apple calls this orgId in the API. Also retrievable via GET /api/v5/acls once credentials are set up.",
       },
     ],
   },
