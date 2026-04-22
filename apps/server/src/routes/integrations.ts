@@ -10,13 +10,14 @@ import {
   INTEGRATION_PROVIDERS,
   INTEGRATION_PROVIDER_IDS,
   generateWebhookSecret,
-  APPLE_ADS_USER_CONFIG_KEYS,
 } from "@owlmetry/shared";
 import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { config } from "../config.js";
 import { generateAppleAdsKeypair } from "../utils/apple-ads/keypair.js";
+import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
+import type { AppleAdsAuthConfig } from "../utils/apple-ads/config.js";
 
 function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   return {
@@ -259,22 +260,18 @@ export async function integrationsRoutes(app: FastifyInstance) {
       }
 
       const copiedConfig: Record<string, unknown> = { ...(sourceIntegration.config as Record<string, unknown>) };
-      let copyEnabled = true;
+      const copyEnabled = true;
       if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
+        // Webhook URLs are per-project, so each project gets its own secret.
         copiedConfig.webhook_secret = generateWebhookSecret();
-      } else if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
-        // Each project gets its own keypair. Reusing the source's private key
-        // across projects would let one project's admin impersonate another.
-        // The target also goes back to pending state — the user still has
-        // to upload the new public key to Apple under the target's API
-        // user and get fresh client/team/key IDs. Drop the source's IDs so
-        // the dashboard clearly flags the target as needing finish-setup.
-        const keypair = generateAppleAdsKeypair();
-        copiedConfig.private_key_pem = keypair.private_key_pem;
-        copiedConfig.public_key_pem = keypair.public_key_pem;
-        for (const key of APPLE_ADS_USER_CONFIG_KEYS) delete copiedConfig[key];
-        copyEnabled = false;
       }
+      // Apple Search Ads: copy the full config verbatim (including the
+      // keypair and all four IDs). Apple only allows one active cert per
+      // API user, so regenerating per project would force the user to
+      // set up 1 API user per OwlMetry project. Within a team, sharing
+      // the private key is safe — team admins already have access to all
+      // projects. Same trust model as RevenueCat's api_key, which is also
+      // copied verbatim.
 
       const [existingOnTarget] = await app.db
         .select()
@@ -321,6 +318,27 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
       if (provider === INTEGRATION_PROVIDER_IDS.REVENUECAT) {
         response.webhook_setup = buildRevenueCatWebhookSetup(projectId, copiedConfig.webhook_secret as string);
+      }
+
+      if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
+        // One-step copy: run a live `/acls` call against Apple with the
+        // duplicated credentials so the caller can confirm the clone
+        // actually works end-to-end. No separate "Test Connection"
+        // round-trip needed. Failures don't roll back the copy — the row
+        // is already written and the user can debug via the dashboard.
+        const aclsResult = await getAppleAdsAcls(copiedConfig as unknown as AppleAdsAuthConfig);
+        if (aclsResult.status === "found") {
+          response.connection_test = {
+            ok: true,
+            orgs: aclsResult.data.map((o) => ({ org_id: o.orgId, org_name: o.orgName })),
+          };
+        } else if (aclsResult.status === "auth_error") {
+          response.connection_test = { ok: false, error: "auth_error", message: aclsResult.message };
+        } else if (aclsResult.status === "not_found") {
+          response.connection_test = { ok: false, error: "no_orgs", message: "Apple Ads returned no accessible orgs." };
+        } else {
+          response.connection_test = { ok: false, error: "upstream_error", message: aclsResult.message };
+        }
       }
 
       return reply.code(201).send(response);

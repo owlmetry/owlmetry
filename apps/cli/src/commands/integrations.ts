@@ -194,6 +194,21 @@ integrationsCommand
         lines.push("");
         lines.push(chalk.dim("A new webhook secret was generated for this project. The source project keeps its own secret."));
       }
+      const test = (result as { connection_test?: { ok: boolean; orgs?: Array<{ org_id: number; org_name: string }>; error?: string; message?: string } }).connection_test;
+      if (test) {
+        lines.push("");
+        if (test.ok) {
+          lines.push(chalk.bold("── Apple Search Ads connection test: OK ──"));
+          lines.push(chalk.dim("Apple accepted the copied credentials. Integration is active on the target — no further setup needed."));
+          for (const o of test.orgs ?? []) {
+            lines.push(`  ${o.org_name} (orgId ${o.org_id})`);
+          }
+        } else {
+          lines.push(chalk.bold(chalk.red("── Apple Search Ads connection test: FAILED ──")));
+          lines.push(`  ${test.error}: ${test.message}`);
+          lines.push(chalk.dim("Copy is saved; debug via Test Connection once the underlying issue is resolved."));
+        }
+      }
       return lines.join("\n");
     });
   });

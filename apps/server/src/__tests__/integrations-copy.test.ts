@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import postgres from "postgres";
+import { generateKeyPairSync } from "node:crypto";
+import { clearAppleAdsTokenCache } from "../utils/apple-ads/client.js";
 import {
   buildApp,
   truncateAll,
@@ -21,16 +23,44 @@ let targetProjectId: string;
 
 const RC_API_KEY = "sk_test_copy_rc";
 const RC_WEBHOOK_SECRET = "whsec_source_secret";
-const ASA_SOURCE_PRIVATE_KEY = "-----BEGIN EC PRIVATE KEY-----\nabc\n-----END EC PRIVATE KEY-----";
-const ASA_SOURCE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nsource-public\n-----END PUBLIC KEY-----";
-const ASA_CONFIG = {
-  client_id: "SEARCHADS.test-client",
-  team_id: "SEARCHADS.test-team",
-  key_id: "test-key-id",
-  private_key_pem: ASA_SOURCE_PRIVATE_KEY,
-  public_key_pem: ASA_SOURCE_PUBLIC_KEY,
-  org_id: "40669820",
-};
+
+function makeAsaConfig() {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  return {
+    client_id: "SEARCHADS.test-client",
+    team_id: "SEARCHADS.test-team",
+    key_id: "test-key-id",
+    private_key_pem: privateKey.export({ format: "pem", type: "pkcs8" }).toString(),
+    public_key_pem: publicKey.export({ format: "pem", type: "spki" }).toString(),
+    org_id: "40669820",
+  };
+}
+
+/**
+ * Stand in for Apple's token + /acls endpoints so the copy route's end-to-end
+ * connection test can run in-process. Returns a `{ restore }` handle; tests
+ * must call it to put the real `fetch` back.
+ */
+function installAppleAdsMock(opts: { tokenStatus?: number; aclsStatus?: number; aclsBody?: unknown } = {}) {
+  const { tokenStatus = 200, aclsStatus = 200, aclsBody } = opts;
+  const defaultAcls = [{ orgId: 40669820, orgName: "Test Org", currency: "USD", roleNames: ["API Account Read Only"] }];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = vi.fn(async (input: string | URL | Request) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("appleid.apple.com")) {
+      return new Response(JSON.stringify({ access_token: "tok-copy", expires_in: 3600 }), { status: tokenStatus, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.includes("api.searchads.apple.com") && url.endsWith("/acls")) {
+      return new Response(JSON.stringify({ data: aclsBody ?? defaultAcls }), { status: aclsStatus, headers: { "Content-Type": "application/json" } });
+    }
+    throw new Error(`Unexpected URL: ${url}`);
+  }) as typeof fetch;
+  return {
+    restore: () => {
+      globalThis.fetch = originalFetch;
+    },
+  };
+}
 
 async function insertIntegration(projectId: string, provider: string, config: Record<string, unknown>, opts?: { enabled?: boolean; softDeleted?: boolean }) {
   const client = postgres(TEST_DB_URL, { max: 1 });
@@ -101,39 +131,73 @@ describe("POST /v1/projects/:projectId/integrations/copy-from/:sourceProjectId",
     expect(targetRow!.deleted_at).toBeNull();
   });
 
-  it("copies Apple Search Ads integration in pending state with a fresh keypair", async () => {
-    await insertIntegration(sourceProjectId, "apple-search-ads", ASA_CONFIG);
+  it("copies Apple Search Ads config verbatim, enables the target, and confirms connection to Apple in one step", async () => {
+    const sourceConfig = makeAsaConfig();
+    await insertIntegration(sourceProjectId, "apple-search-ads", sourceConfig);
+    const mock = installAppleAdsMock();
+    clearAppleAdsTokenCache();
 
-    const res = await app.inject({
-      method: "POST",
-      url: `/v1/projects/${targetProjectId}/integrations/copy-from/${sourceProjectId}`,
-      headers: { authorization: `Bearer ${token}` },
-      payload: { provider: "apple-search-ads" },
-    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${targetProjectId}/integrations/copy-from/${sourceProjectId}`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { provider: "apple-search-ads" },
+      });
 
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.provider).toBe("apple-search-ads");
-    expect(body.webhook_setup).toBeUndefined();
-    // Target must land in pending state — user still has to upload the new
-    // public key to Apple under the destination project's API user.
-    expect(body.enabled).toBe(false);
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.provider).toBe("apple-search-ads");
+      expect(body.webhook_setup).toBeUndefined();
+      expect(body.enabled).toBe(true);
 
-    const targetRow = await readIntegration(targetProjectId, "apple-search-ads");
-    const targetConfig = targetRow!.config as Record<string, string>;
-    // Fresh keypair generated on the target; source's private key must not leak.
-    expect(targetConfig.private_key_pem).toBeDefined();
-    expect(targetConfig.private_key_pem).not.toBe(ASA_SOURCE_PRIVATE_KEY);
-    expect(targetConfig.private_key_pem).toContain("-----BEGIN PRIVATE KEY-----");
-    expect(targetConfig.public_key_pem).toBeDefined();
-    expect(targetConfig.public_key_pem).not.toBe(ASA_SOURCE_PUBLIC_KEY);
-    expect(targetConfig.public_key_pem).toContain("-----BEGIN PUBLIC KEY-----");
-    // IDs are cleared so the target clearly flags as "pending setup".
-    expect(targetConfig.client_id).toBeUndefined();
-    expect(targetConfig.team_id).toBeUndefined();
-    expect(targetConfig.key_id).toBeUndefined();
-    expect(targetConfig.org_id).toBeUndefined();
-    expect(targetRow!.enabled).toBe(false);
+      // Live /acls round-trip confirms the copied creds still work against
+      // Apple — no second "Test Connection" click required.
+      expect(body.connection_test).toEqual({
+        ok: true,
+        orgs: [{ org_id: 40669820, org_name: "Test Org" }],
+      });
+
+      const targetRow = await readIntegration(targetProjectId, "apple-search-ads");
+      const targetConfig = targetRow!.config as Record<string, string>;
+      // Verbatim — keypair, IDs, org all identical to source.
+      expect(targetConfig.private_key_pem).toBe(sourceConfig.private_key_pem);
+      expect(targetConfig.public_key_pem).toBe(sourceConfig.public_key_pem);
+      expect(targetConfig.client_id).toBe(sourceConfig.client_id);
+      expect(targetConfig.team_id).toBe(sourceConfig.team_id);
+      expect(targetConfig.key_id).toBe(sourceConfig.key_id);
+      expect(targetConfig.org_id).toBe(sourceConfig.org_id);
+      expect(targetRow!.enabled).toBe(true);
+    } finally {
+      mock.restore();
+      clearAppleAdsTokenCache();
+    }
+  });
+
+  it("still saves the Apple Search Ads copy but reports the failure when Apple rejects the credentials", async () => {
+    const sourceConfig = makeAsaConfig();
+    await insertIntegration(sourceProjectId, "apple-search-ads", sourceConfig);
+    const mock = installAppleAdsMock({ tokenStatus: 401 });
+    clearAppleAdsTokenCache();
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${targetProjectId}/integrations/copy-from/${sourceProjectId}`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { provider: "apple-search-ads" },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      // Copy is persisted regardless — the user can debug via Test Connection.
+      expect(body.enabled).toBe(true);
+      expect(body.connection_test.ok).toBe(false);
+      expect(body.connection_test.error).toBe("auth_error");
+    } finally {
+      mock.restore();
+      clearAppleAdsTokenCache();
+    }
   });
 
   it("returns 404 when source project has no active integration", async () => {

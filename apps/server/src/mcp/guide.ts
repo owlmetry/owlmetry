@@ -279,7 +279,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`add-integration\` — Add integration (needs \`integrations:write\`): \`project_id\`, \`provider\`, \`config\`
 - \`update-integration\` — Update config or enabled state (needs \`integrations:write\`)
 - \`remove-integration\` — Remove (needs \`integrations:write\`)
-- \`copy-integration\` — Duplicate credentials from one project to another in the same team (needs \`integrations:write\`, admin role). Credentials are **duplicated, not shared** — rotating the source does not update the copy. RevenueCat gets a fresh webhook secret on the target.
+- \`copy-integration\` — One-step clone of a configured integration to another project in the same team (needs \`integrations:write\`, admin role). **Apple Search Ads**: full config (keypair + client/team/key/org IDs) is duplicated verbatim, target enables immediately, and the response includes a \`connection_test\` field from a live Apple \`/acls\` call confirming the clone works end-to-end — no Apple-side setup or separate test required. **RevenueCat**: api_key is copied verbatim; a fresh webhook_secret is generated on the target and returned in \`webhook_setup\` for the user to paste into RC. Credentials are **duplicated, not shared** — rotating the source does not update copies.
 - \`sync-integration\` — Trigger sync: \`provider\` (\`revenuecat\` default, or \`apple-search-ads\`), bulk (omit \`user_id\`, queues job) or single user (with \`user_id\`, synchronous)
 
 ### Jobs

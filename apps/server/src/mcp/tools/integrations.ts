@@ -114,7 +114,7 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
 
   server.registerTool("copy-integration", {
     description:
-      "Copy an integration's credentials from one project to another within the same team. Credentials are duplicated (not shared) — rotating the source does not update the copy. For RevenueCat, a fresh webhook_secret is generated on the target. For Apple Search Ads, a fresh EC keypair is generated on the target and the client/team/key/org IDs are cleared — the target goes into pending state, so the user has to upload the new public key to Apple (under the destination project's API user) and paste the returned IDs via update-integration before it can enable. Requires integrations:write permission and admin role on the target team.",
+      "Copy an integration from one project to another within the same team — one-step clone, no manual setup on the target. For apple-search-ads the full config (keypair + client/team/key/org IDs) is duplicated verbatim and the response includes a live connection_test result confirming Apple still accepts the credentials. Target is enabled immediately, no Apple-side work needed. For revenuecat the api_key is copied verbatim but a fresh webhook_secret is generated on the target (returned in webhook_setup — paste into RevenueCat if you want webhooks delivered to the copy's project). Credentials are duplicated (not shared) — rotating the source does not update copies. Requires integrations:write permission and admin role on the target team.",
     inputSchema: {
       source_project_id: z.string().uuid().describe("Project that already has the integration configured"),
       target_project_id: z.string().uuid().describe("Project that will receive a copy of the credentials"),
@@ -150,6 +150,37 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
           "The source project's webhook continues to work unchanged.",
         ].join("\n"),
       });
+    }
+
+    const connectionTest = body.connection_test as
+      | { ok: true; orgs: Array<{ org_id: number; org_name: string }> }
+      | { ok: false; error: string; message: string }
+      | undefined;
+    if (connectionTest) {
+      if (connectionTest.ok) {
+        const orgsList = connectionTest.orgs.map((o) => `  ${o.org_name} (orgId ${o.org_id})`).join("\n");
+        content.push({
+          type: "text",
+          text: [
+            "── Apple Search Ads connection test: OK ──",
+            "Apple accepted the copied credentials. The integration is active on the target project — no further setup needed.",
+            "",
+            "Accessible orgs:",
+            orgsList,
+          ].join("\n"),
+        });
+      } else {
+        content.push({
+          type: "text",
+          text: [
+            "── Apple Search Ads connection test: FAILED ──",
+            `Error: ${connectionTest.error}`,
+            `Message: ${connectionTest.message}`,
+            "",
+            "The copy is saved but Apple rejected the credentials. Likely causes: source project's API user was revoked, or Apple's token endpoint is transiently down. Rerun `test-connection` (via the dashboard) once resolved.",
+          ].join("\n"),
+        });
+      }
     }
 
     return { content };

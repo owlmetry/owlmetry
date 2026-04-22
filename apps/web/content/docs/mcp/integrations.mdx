@@ -83,7 +83,7 @@ Update an integration's config or enabled state. For Apple Search Ads, valid con
 
 ## copy-integration
 
-Copy a configured integration from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source later does not update the copy. For RevenueCat, the API key is copied but a fresh webhook secret is generated on the target. For Apple Search Ads, a fresh keypair is generated on the target and the client/team/key/org IDs are cleared — the target goes into "pending setup" mode, and the user has to upload the new public key to Apple (under the destination project's API user) before it enables. Requires `integrations:write` permission **and** admin role.
+One-step clone of a configured integration to another project in the same team. For **Apple Search Ads**, the full config (keypair + client/team/key/org IDs) is duplicated verbatim and the response's `connection_test` field comes from a live Apple `/acls` call — confirming the clone works end-to-end. Target is enabled immediately, no Apple-side setup required. For **RevenueCat**, the API key is copied verbatim but a fresh webhook secret is generated on the target (returned in `webhook_setup` — paste into RC if you want webhooks delivered to the copy). Credentials are **duplicated, not shared** — rotating the source does not update copies. Requires `integrations:write` permission **and** admin role.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
