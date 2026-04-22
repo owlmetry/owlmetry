@@ -87,24 +87,20 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
 
       const { client_id, team_id, key_id, private_key_pem } = request.body ?? {};
       if (!client_id || !team_id || !key_id || !private_key_pem) {
-        return reply.code(400).send({
-          ok: false,
-          error: "missing_fields",
-          message: "client_id, team_id, key_id, and private_key_pem are required",
-        });
+        return reply.code(400).send({ error: "client_id, team_id, key_id, and private_key_pem are required" });
       }
 
       const authConfig: AppleAdsAuthConfig = { client_id, team_id, key_id, private_key_pem };
       const result = await getAppleAdsAcls(authConfig);
 
       if (result.status === "auth_error") {
-        return reply.code(400).send({ ok: false, error: "auth_error", message: result.message });
+        return reply.code(400).send({ error: result.message });
       }
       if (result.status === "error") {
-        return reply.code(502).send({ ok: false, error: "upstream_error", statusCode: result.statusCode, message: result.message });
+        return reply.code(502).send({ error: `Apple Ads returned ${result.statusCode}: ${result.message}` });
       }
       if (result.status === "not_found" || result.data.length === 0) {
-        return reply.code(404).send({ ok: false, error: "no_orgs", message: "Apple Ads returned no accessible orgs for these credentials" });
+        return reply.code(404).send({ error: "Apple Ads returned no accessible orgs for these credentials" });
       }
 
       return {
@@ -138,13 +134,13 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
       const result = await getAppleAdsAcls(adsConfig);
 
       if (result.status === "auth_error") {
-        return reply.code(400).send({ ok: false, error: "auth_error", message: result.message });
+        return reply.code(400).send({ error: result.message });
       }
       if (result.status === "error") {
-        return reply.code(502).send({ ok: false, error: "upstream_error", statusCode: result.statusCode, message: result.message });
+        return reply.code(502).send({ error: `Apple Ads returned ${result.statusCode}: ${result.message}` });
       }
       if (result.status === "not_found") {
-        return reply.code(404).send({ ok: false, error: "no_orgs", message: "Apple Ads returned no accessible orgs for these credentials" });
+        return reply.code(404).send({ error: "Apple Ads returned no accessible orgs for these credentials" });
       }
 
       const orgs = result.data.map((o) => ({
