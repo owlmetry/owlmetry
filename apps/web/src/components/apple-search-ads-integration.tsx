@@ -330,9 +330,22 @@ function ConfigDialog({
         <DialogHeader>
           <DialogTitle>{isUpdate ? "Update Apple Search Ads" : "Connect Apple Search Ads"}</DialogTitle>
           <DialogDescription>
-            {isUpdate
-              ? "Leave a field blank to keep the existing value. Paste a new private key to rotate."
-              : "Generate an EC P-256 keypair, upload the public key at ads.apple.com → Account Settings → API, and paste the returned IDs plus your private key below."}
+            {isUpdate ? (
+              "Leave a field blank to keep the existing value. Paste a new private key to rotate."
+            ) : (
+              <>
+                Generate an EC P-256 keypair, upload the public key at{" "}
+                <a
+                  href="https://app.searchads.apple.com/cm/app/settings/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  ads.apple.com → Account Settings → API
+                </a>
+                , and paste the returned IDs plus your private key below.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
