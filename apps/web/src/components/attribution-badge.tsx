@@ -7,18 +7,49 @@ interface AttributionBadgeProps {
   properties: Record<string, string> | null | undefined;
 }
 
-const ASA_TOOLTIP_FIELDS: Array<{ key: string; label: string }> = [
-  { key: "asa_campaign_name", label: "Campaign" },
-  { key: "asa_campaign_id", label: "Campaign ID" },
-  { key: "asa_ad_group_name", label: "Ad group" },
-  { key: "asa_ad_group_id", label: "Ad group ID" },
-  { key: "asa_keyword", label: "Keyword" },
-  { key: "asa_keyword_id", label: "Keyword ID" },
-  { key: "asa_ad_name", label: "Ad" },
-  { key: "asa_ad_id", label: "Ad ID" },
-  { key: "asa_creative_set_id", label: "Creative" },
-  { key: "asa_claim_type", label: "Claim type" },
+// Ordered list of known ASA keys with human-readable labels. Any asa_* key
+// not in this list is still shown in the tooltip with a humanized fallback
+// label so future additions surface automatically.
+const ASA_LABELS: Array<[key: string, label: string]> = [
+  ["asa_campaign_name", "Campaign"],
+  ["asa_campaign_id", "Campaign ID"],
+  ["asa_ad_group_name", "Ad group"],
+  ["asa_ad_group_id", "Ad group ID"],
+  ["asa_keyword", "Keyword"],
+  ["asa_keyword_id", "Keyword ID"],
+  ["asa_ad_name", "Ad"],
+  ["asa_ad_id", "Ad ID"],
+  ["asa_creative_set_id", "Creative"],
+  ["asa_claim_type", "Claim type"],
 ];
+
+function humanizeAsaKey(key: string): string {
+  const stripped = key.startsWith("asa_") ? key.slice(4) : key;
+  const words = stripped.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function orderedAsaEntries(properties: Record<string, string>): Array<[string, string]> {
+  const ordered: Array<[string, string]> = [];
+  const seen = new Set<string>();
+  for (const [key] of ASA_LABELS) {
+    const v = properties[key];
+    if (v) {
+      ordered.push([key, v]);
+      seen.add(key);
+    }
+  }
+  // Surface any future asa_* keys we don't yet have a curated label for.
+  for (const [k, v] of Object.entries(properties)) {
+    if (k.startsWith("asa_") && !seen.has(k) && v) ordered.push([k, v]);
+  }
+  return ordered;
+}
+
+function labelFor(key: string): string {
+  const known = ASA_LABELS.find(([k]) => k === key);
+  return known ? known[1] : humanizeAsaKey(key);
+}
 
 /**
  * Small badge rendering the user's acquisition source. Emits a tooltip with
@@ -32,7 +63,7 @@ export function AttributionBadge({ properties }: AttributionBadgeProps) {
   if (!source) return null;
 
   if (source === "apple_search_ads") {
-    const rows = ASA_TOOLTIP_FIELDS.filter(({ key }) => properties[key]);
+    const rows = orderedAsaEntries(properties);
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -44,9 +75,9 @@ export function AttributionBadge({ properties }: AttributionBadgeProps) {
             {rows.length === 0 ? (
               <div className="text-muted-foreground">No ad-level detail returned</div>
             ) : (
-              rows.map(({ key, label }) => (
+              rows.map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-muted-foreground">{label}:</span> {properties[key]}
+                  <span className="text-muted-foreground">{labelFor(key)}:</span> {value}
                 </div>
               ))
             )}

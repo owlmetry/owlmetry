@@ -10,6 +10,41 @@ interface BillingBadgeProps {
   size?: "default" | "sm";
 }
 
+function humanizeRcKey(key: string): string {
+  const stripped = key.startsWith("rc_") ? key.slice(3) : key;
+  const words = stripped.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function SubscriptionTooltipBody({
+  description,
+  properties,
+}: {
+  description: string | null;
+  properties: Record<string, string> | null | undefined;
+}) {
+  const rcEntries = properties
+    ? Object.entries(properties)
+        .filter(([k]) => k.startsWith("rc_"))
+        .sort(([a], [b]) => a.localeCompare(b))
+    : [];
+
+  return (
+    <div className="space-y-1.5 text-xs">
+      {description && <div>{description}</div>}
+      {rcEntries.length > 0 && (
+        <div className="space-y-0.5 border-t border-border pt-1.5">
+          {rcEntries.map(([k, v]) => (
+            <div key={k}>
+              <span className="text-muted-foreground">{humanizeRcKey(k)}:</span> {v}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Renders at most one subscription-state badge. Cancellation takes
  * precedence over the active Paid color so a cancelled paying user isn't
@@ -20,20 +55,20 @@ export function BillingBadge({ properties, size = "default" }: BillingBadgeProps
   const cls = size === "sm" ? "text-[10px] h-5" : "text-xs";
 
   let badge: ReactNode = null;
-  let tooltip: string | null = null;
+  let description: string | null = null;
 
   if (state.isCancelledTrial) {
     badge = <Badge variant="default" className={`${cls} bg-red-600`}>🎁 Trial</Badge>;
-    tooltip = state.primaryTooltip;
+    description = state.primaryTooltip;
   } else if (state.showCancelledBadge) {
     badge = <Badge variant="secondary" className={cls}>🚫 Cancelled</Badge>;
-    tooltip = state.cancelledTooltip;
+    description = state.cancelledTooltip;
   } else if (state.isTrial) {
     badge = <Badge variant="default" className={`${cls} bg-sky-600`}>🎁 Trial</Badge>;
-    tooltip = state.primaryTooltip;
+    description = state.primaryTooltip;
   } else if (state.isPaid) {
     badge = <Badge variant="default" className={`${cls} bg-green-600`}>💰 Paid</Badge>;
-    tooltip = state.primaryTooltip;
+    description = state.primaryTooltip;
   }
 
   if (!badge) return null;
@@ -43,7 +78,9 @@ export function BillingBadge({ properties, size = "default" }: BillingBadgeProps
       <TooltipTrigger asChild>
         <span>{badge}</span>
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
+      <TooltipContent className="max-w-xs">
+        <SubscriptionTooltipBody description={description} properties={properties} />
+      </TooltipContent>
     </Tooltip>
   );
 }
