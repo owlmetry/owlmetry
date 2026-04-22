@@ -137,7 +137,11 @@ Apple has announced the v5 Campaign Management API will be sunset on **January 2
 
 ### Dashboard
 
-Open the **Integrations** sidebar entry in the dashboard (`/dashboard/integrations`). The page lists every project and its configured integrations, with per-integration controls to update config, toggle enabled/disabled, sync users, or remove.
+Open the **Integrations** sidebar entry in the dashboard (`/dashboard/integrations`). The page lists every project and its configured integrations, with per-integration controls to update config, toggle enabled/disabled, sync users, or remove. When a project has no integration for a given provider but another project in the same team does, the card shows a **Copy from another project** button so you can reuse the credentials without retyping them.
+
+### Copy from Another Project
+
+If your team has multiple projects that share the same provider account (e.g., one RevenueCat account used by two apps), you can copy a configured integration between projects rather than re-entering credentials each time. Copies live independently of the source — credentials are **duplicated, not shared**, so rotating the source project's API key or Apple Search Ads private key does **not** propagate to the copy. For RevenueCat specifically, the API key is copied but a fresh webhook secret is generated on the target because each project has its own webhook URL. Copying requires admin role and is only permitted within the same team.
 
 ### CLI
 
@@ -147,6 +151,7 @@ owlmetry integrations list --project-id <id>       # List configured integration
 owlmetry integrations add <provider> --project-id <id> --api-key <key>
 owlmetry integrations update <provider> --project-id <id> --api-key <new-key>
 owlmetry integrations remove <provider> --project-id <id>
+owlmetry integrations copy <provider> --from <sourceProjectId> --to <targetProjectId>
 owlmetry integrations sync <provider> --project-id <id>
 owlmetry integrations sync <provider> --project-id <id> --user <userId>
 ```

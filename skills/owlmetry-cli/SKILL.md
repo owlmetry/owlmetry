@@ -514,7 +514,7 @@ Add this to your MCP client configuration (Claude Desktop, Cursor, VS Code, etc.
 
 For self-hosted instances, replace `api.owlmetry.com` with your server's domain. The endpoint is at `/mcp` on the same Fastify server.
 
-### Available Tools (46)
+### Available Tools (47)
 
 | Domain | Tools |
 |--------|-------|

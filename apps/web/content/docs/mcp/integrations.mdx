@@ -83,6 +83,18 @@ Update an integration's config or enabled state. Requires `integrations:write` p
 | `config` | object | No | Updated config fields |
 | `enabled` | boolean | No | Enable or disable the integration |
 
+## copy-integration
+
+Copy a configured integration from one project to another within the same team. Credentials are **duplicated, not shared** — rotating the source later does not update the copy. For RevenueCat, the API key is copied but a fresh webhook secret is generated on the target. Requires `integrations:write` permission **and** admin role.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source_project_id` | UUID | Yes | Project to copy the integration from |
+| `target_project_id` | UUID | Yes | Project to copy the integration to |
+| `provider` | string | Yes | Provider name (e.g., `revenuecat`, `apple-search-ads`) |
+
+Errors: `409` if the target already has a non-deleted integration for that provider, `404` if the source has none, `403` for cross-team copies or callers without admin role.
+
 ## remove-integration
 
 Remove an integration from a project. Requires `integrations:write` permission.

@@ -78,6 +78,16 @@ owlmetry integrations test apple-search-ads --project-id <id>
 
 Calls Apple's `GET /api/v5/acls` endpoint with the stored credentials. On success, prints the list of orgs accessible to the credentials with a checkmark next to the one currently configured. Use this to validate credentials after setup or after rotating a key.
 
+## Copy from Another Project
+
+```bash
+owlmetry integrations copy <provider> \
+    --from <sourceProjectId> \
+    --to <targetProjectId>
+```
+
+Copies a configured integration from one project to another within the same team — handy for re-using the same RevenueCat or Apple Search Ads credentials across a multi-project team without retyping them. Credentials are **duplicated, not shared**: rotating the source later does not update the copy. For RevenueCat, the API key is copied but a **fresh webhook secret is generated** on the target (each project has its own webhook URL). Requires admin role and `integrations:write` on the target. Fails with 409 if the target already has a non-deleted integration for that provider, 404 if the source has none, and 403 for cross-team copies.
+
 ## Remove an Integration
 
 ```bash
