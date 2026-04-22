@@ -50,6 +50,13 @@ async function readIntegration(projectId: string, provider: string) {
   return row ?? null;
 }
 
+async function getUserIdByEmail(email: string): Promise<string> {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  const [row] = await client`SELECT id FROM users WHERE email = ${email}`;
+  await client.end();
+  return row.id;
+}
+
 beforeAll(async () => {
   app = await buildApp();
 });
@@ -237,12 +244,8 @@ describe("POST /v1/projects/:projectId/integrations/copy-from/:sourceProjectId",
 
     // If a user somehow has access to both projects but they're in different teams,
     // the same-team check must kick in. Add our seeded user to the other team and retry.
-    await addTeamMember(other.teamId, (await (async () => {
-      const c = postgres(TEST_DB_URL, { max: 1 });
-      const [u] = await c`SELECT id FROM users WHERE email = ${TEST_USER.email}`;
-      await c.end();
-      return u.id;
-    })()), "admin");
+    const seededUserId = await getUserIdByEmail(TEST_USER.email);
+    await addTeamMember(other.teamId, seededUserId, "admin");
 
     const resCrossTeam = await app.inject({
       method: "POST",

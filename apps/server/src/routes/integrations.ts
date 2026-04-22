@@ -25,6 +25,15 @@ function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   };
 }
 
+function buildRevenueCatWebhookSetup(projectId: string, webhookSecret: string) {
+  return {
+    webhook_url: `${config.publicUrl}/v1/webhooks/revenuecat/${projectId}`,
+    authorization_header: `Bearer ${webhookSecret}`,
+    environment: "Both Production and Sandbox",
+    events_filter: "All apps, All events",
+  };
+}
+
 /** Routes nested under /v1/projects/:projectId */
 export async function integrationsRoutes(app: FastifyInstance) {
   // List supported providers
@@ -136,12 +145,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const response: Record<string, unknown> = serializeIntegration(created);
 
       if (provider === "revenuecat") {
-        response.webhook_setup = {
-          webhook_url: `${config.publicUrl}/v1/webhooks/revenuecat/${projectId}`,
-          authorization_header: `Bearer ${integrationConfig.webhook_secret as string}`,
-          environment: "Both Production and Sandbox",
-          events_filter: "All apps, All events",
-        };
+        response.webhook_setup = buildRevenueCatWebhookSetup(projectId, integrationConfig.webhook_secret as string);
       }
 
       return reply.code(201).send(response);
@@ -206,10 +210,11 @@ export async function integrationsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: `Unsupported provider: "${provider}". Supported: ${SUPPORTED_PROVIDER_IDS.join(", ")}` });
       }
 
-      const target = await resolveProject(app, projectId, request.auth, reply);
-      if (!target) return;
-      const source = await resolveProject(app, sourceProjectId, request.auth, reply);
-      if (!source) return;
+      const [target, source] = await Promise.all([
+        resolveProject(app, projectId, request.auth, reply),
+        resolveProject(app, sourceProjectId, request.auth, reply),
+      ]);
+      if (!target || !source) return;
 
       if (source.team_id !== target.team_id) {
         return reply.code(403).send({ error: "source and target projects must belong to the same team" });
@@ -283,12 +288,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
       const response: Record<string, unknown> = serializeIntegration(created);
 
       if (provider === "revenuecat") {
-        response.webhook_setup = {
-          webhook_url: `${config.publicUrl}/v1/webhooks/revenuecat/${projectId}`,
-          authorization_header: `Bearer ${copiedConfig.webhook_secret as string}`,
-          environment: "Both Production and Sandbox",
-          events_filter: "All apps, All events",
-        };
+        response.webhook_setup = buildRevenueCatWebhookSetup(projectId, copiedConfig.webhook_secret as string);
       }
 
       return reply.code(201).send(response);
