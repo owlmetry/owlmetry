@@ -44,6 +44,8 @@ import { VisuallyHidden } from "radix-ui";
 import { ProjectDot } from "@/lib/project-color";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { KanbanSkeleton } from "@/components/ui/skeletons";
+import { BillingBadge } from "@/components/billing-badge";
+import { AttributionBadge } from "@/components/attribution-badge";
 
 const STATUS_CONFIG: Record<FeedbackStatus, { label: string; emoji: string; color: string }> = {
   new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
@@ -96,6 +98,8 @@ function FeedbackCard({
               🛠️ dev
             </Badge>
           )}
+          <BillingBadge properties={feedback.user_properties} size="sm" />
+          <AttributionBadge properties={feedback.user_properties} size="sm" />
         </div>
       </CardContent>
     </Card>
@@ -170,12 +174,14 @@ function FeedbackDetailModal({
         ) : (
           <>
             <DialogHeader>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <ProjectDot color={projectColor} />
                 <Badge className={config?.color}>
                   {config?.emoji} {config?.label}
                 </Badge>
                 {feedback.is_dev && <Badge variant="secondary">🛠️ dev</Badge>}
+                <BillingBadge properties={feedback.user_properties} />
+                <AttributionBadge properties={feedback.user_properties} />
               </div>
               <DialogTitle className="text-base leading-snug mt-2">
                 Feedback from {feedback.submitter_name ?? feedback.submitter_email ?? (feedback.user_id ? feedback.user_id.slice(0, 12) + "…" : "anonymous user")}

@@ -62,6 +62,12 @@ export interface FeedbackResponse {
   updated_at: string;
   app_name?: string;
   project_name?: string;
+  /**
+   * The associated app_user's user_properties (RevenueCat subscription state,
+   * ASA attribution, etc.). Null when the feedback has no user_id or the user
+   * row can't be found. Undefined when the endpoint doesn't populate it.
+   */
+  user_properties?: Record<string, string> | null;
 }
 
 export interface FeedbackDetailResponse extends FeedbackResponse {

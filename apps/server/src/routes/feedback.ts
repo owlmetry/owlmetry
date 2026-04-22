@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, isNull, or, sql, desc } from "drizzle-orm";
 import {
   feedback,
   feedbackComments,
   apps,
   projects,
+  appUsers,
 } from "@owlmetry/db";
 import {
   DEFAULT_PAGE_SIZE,
@@ -29,6 +30,7 @@ function serializeFeedback(
   row: typeof feedback.$inferSelect,
   appName?: string,
   projectName?: string,
+  userProperties?: Record<string, string> | null,
 ) {
   return {
     id: row.id,
@@ -50,7 +52,52 @@ function serializeFeedback(
     updated_at: row.updated_at.toISOString(),
     ...(appName !== undefined ? { app_name: appName } : {}),
     ...(projectName !== undefined ? { project_name: projectName } : {}),
+    ...(userProperties !== undefined ? { user_properties: userProperties } : {}),
   };
+}
+
+/**
+ * Batch-fetch `app_users.properties` for every distinct (project_id, user_id)
+ * referenced by a page of feedback rows. Single OR-of-ANDs query so even
+ * cross-project team listings don't N+1. The map key is `${project_id}:${user_id}`.
+ */
+async function loadUserPropertiesForFeedback(
+  db: FastifyInstance["db"],
+  rows: Array<{ project_id: string; user_id: string | null }>,
+): Promise<Map<string, Record<string, string> | null>> {
+  const byProject = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!row.user_id) continue;
+    let set = byProject.get(row.project_id);
+    if (!set) {
+      set = new Set();
+      byProject.set(row.project_id, set);
+    }
+    set.add(row.user_id);
+  }
+  if (byProject.size === 0) return new Map();
+
+  const conditions = [...byProject.entries()].map(([projectId, userIds]) =>
+    and(
+      eq(appUsers.project_id, projectId),
+      inArray(appUsers.user_id, [...userIds]),
+    ),
+  );
+
+  const found = await db
+    .select({
+      project_id: appUsers.project_id,
+      user_id: appUsers.user_id,
+      properties: appUsers.properties,
+    })
+    .from(appUsers)
+    .where(or(...conditions));
+
+  const map = new Map<string, Record<string, string> | null>();
+  for (const u of found) {
+    map.set(`${u.project_id}:${u.user_id}`, u.properties ?? null);
+  }
+  return map;
 }
 
 function serializeFeedbackComment(row: typeof feedbackComments.$inferSelect) {
@@ -115,14 +162,24 @@ export async function feedbackRoutes(app: FastifyInstance) {
       const page = hasMore ? rows.slice(0, limit) : rows;
 
       const appIds = [...new Set(page.map((r) => r.app_id))];
-      const appRows = appIds.length > 0
-        ? await app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
-        : [];
+      const [appRows, userPropsMap] = await Promise.all([
+        appIds.length > 0
+          ? app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
+          : Promise.resolve([] as Array<{ id: string; name: string }>),
+        loadUserPropertiesForFeedback(app.db, page),
+      ]);
       const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
 
       const lastItem = page[page.length - 1];
       return {
-        feedback: page.map((r) => serializeFeedback(r, appNameMap.get(r.app_id))),
+        feedback: page.map((r) =>
+          serializeFeedback(
+            r,
+            appNameMap.get(r.app_id),
+            undefined,
+            r.user_id ? userPropsMap.get(`${r.project_id}:${r.user_id}`) ?? null : null,
+          ),
+        ),
         cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
         has_more: hasMore,
       };
@@ -153,7 +210,7 @@ export async function feedbackRoutes(app: FastifyInstance) {
         return reply.code(404).send({ error: "Feedback not found" });
       }
 
-      const [[appRow], commentRows] = await Promise.all([
+      const [[appRow], commentRows, userPropsMap] = await Promise.all([
         app.db.select({ name: apps.name }).from(apps).where(eq(apps.id, row.app_id)).limit(1),
         app.db
           .select()
@@ -165,10 +222,16 @@ export async function feedbackRoutes(app: FastifyInstance) {
             )
           )
           .orderBy(feedbackComments.created_at),
+        loadUserPropertiesForFeedback(app.db, [row]),
       ]);
 
       return {
-        ...serializeFeedback(row, appRow?.name),
+        ...serializeFeedback(
+          row,
+          appRow?.name,
+          undefined,
+          row.user_id ? userPropsMap.get(`${row.project_id}:${row.user_id}`) ?? null : null,
+        ),
         comments: commentRows.map(serializeFeedbackComment),
       };
     }
@@ -489,15 +552,23 @@ export async function teamFeedbackRoutes(app: FastifyInstance) {
       const page = hasMore ? rows.slice(0, limit) : rows;
 
       const appIds = [...new Set(page.map((r) => r.app_id))];
-      const appRows = appIds.length > 0
-        ? await app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
-        : [];
+      const [appRows, userPropsMap] = await Promise.all([
+        appIds.length > 0
+          ? app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
+          : Promise.resolve([] as Array<{ id: string; name: string }>),
+        loadUserPropertiesForFeedback(app.db, page),
+      ]);
       const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
 
       const lastItem = page[page.length - 1];
       return {
         feedback: page.map((r) =>
-          serializeFeedback(r, appNameMap.get(r.app_id), projectNameMap.get(r.project_id))
+          serializeFeedback(
+            r,
+            appNameMap.get(r.app_id),
+            projectNameMap.get(r.project_id),
+            r.user_id ? userPropsMap.get(`${r.project_id}:${r.user_id}`) ?? null : null,
+          ),
         ),
         cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
         has_more: hasMore,

@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 interface AttributionBadgeProps {
   properties: Record<string, string> | null | undefined;
+  size?: "default" | "sm";
 }
 
 // Ordered list of known ASA keys with human-readable labels. Any asa_* key
@@ -57,17 +58,19 @@ function labelFor(key: string): string {
  * "Organic install" note for `attribution_source=none`. Returns null when no
  * attribution property is set (never captured / disabled / still pending).
  */
-export function AttributionBadge({ properties }: AttributionBadgeProps) {
+export function AttributionBadge({ properties, size = "default" }: AttributionBadgeProps) {
   if (!properties) return null;
   const source = properties.attribution_source;
   if (!source) return null;
+
+  const cls = size === "sm" ? "text-[10px] h-5" : "text-xs";
 
   if (source === "apple_search_ads") {
     const rows = orderedAsaEntries(properties);
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline" className="text-xs">🎯 ASA</Badge>
+          <Badge variant="outline" className={cls}>🎯 ASA</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           <div className="space-y-0.5 text-xs">
@@ -91,7 +94,7 @@ export function AttributionBadge({ properties }: AttributionBadgeProps) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline" className="text-xs">🌱 Organic</Badge>
+          <Badge variant="outline" className={cls}>🌱 Organic</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           Organic install — Apple returned no ad attribution for this user.
@@ -101,5 +104,5 @@ export function AttributionBadge({ properties }: AttributionBadgeProps) {
   }
 
   // Future source we don't recognize — render the raw value rather than hide it.
-  return <Badge variant="outline" className="text-xs">🏷️ {source}</Badge>;
+  return <Badge variant="outline" className={cls}>🏷️ {source}</Badge>;
 }
