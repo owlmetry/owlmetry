@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
 
@@ -60,7 +61,7 @@ interface LastSyncStatus {
 }
 
 export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) {
-  const { data, mutate } = useSWR<{ integrations: IntegrationResponse[] }>(
+  const { data, mutate, isLoading } = useSWR<{ integrations: IntegrationResponse[] }>(
     `/v1/projects/${projectId}/integrations`
   );
   const { data: statusData, mutate: mutateStatus } = useSWR<LastSyncStatus>(
@@ -187,7 +188,13 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {integration ? (
+        {isLoading && !integration ? (
+          <div className="space-y-3 py-1">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-8 w-36" />
+          </div>
+        ) : integration ? (
           <>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">

@@ -19,11 +19,12 @@ import {
 import { CopyButton } from "@/components/copy-button";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { api, ApiError, API_URL } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
 
 export function RevenueCatIntegration({ projectId }: { projectId: string }) {
-  const { data, mutate } = useSWR<{ integrations: IntegrationResponse[] }>(
+  const { data, mutate, isLoading } = useSWR<{ integrations: IntegrationResponse[] }>(
     `/v1/projects/${projectId}/integrations`
   );
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -113,7 +114,9 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {integration ? (
+        {isLoading && !integration ? (
+          <IntegrationLoadingSkeleton />
+        ) : integration ? (
           <>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -210,5 +213,15 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function IntegrationLoadingSkeleton() {
+  return (
+    <div className="space-y-3 py-1">
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-1/2" />
+      <Skeleton className="h-8 w-36" />
+    </div>
   );
 }
