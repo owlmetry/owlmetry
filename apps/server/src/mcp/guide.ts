@@ -31,7 +31,7 @@ All list tools support an optional \`team_id\` parameter to scope results.
 Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error()\`, \`Owl.step()\`, etc. Each event has:
 - **level**: \`info\`, \`debug\`, \`warn\`, \`error\`
 - **message**: the log message or event name
-- **session_id**: unique per SDK \`configure()\` call, groups events in a session. The Node SDK also supports a per-request override (\`Owl.withSession(sessionId)\` or \`options.sessionId\`) — a common pattern is for a Swift client to read its \`Owl.sessionId\` and forward it to the backend in an \`X-Owl-Session-Id\` header so backend events are linked to the client session
+- **session_id**: unique per SDK \`configure()\` call, groups events in a session. See **Cross-SDK Session Correlation** below for the iOS-to-Node pattern.
 - **user_id**: optional, set via identity claim
 - **screen_name**: optional, from SDK screen tracking
 - **environment**: the runtime — \`ios\`, \`ipados\`, \`macos\`, \`android\`, \`web\`, \`backend\`
@@ -39,6 +39,21 @@ Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error
 - **experiments**: A/B variant assignments active at the time
 
 Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window. Default range is last 24 hours.
+
+### Cross-SDK Session Correlation
+
+Every SDK emits events under a \`session_id\`. By default the Node SDK's session is **per-process** — shared across every request the process handles — which is almost never what you want for a multi-client backend. To make client and backend events show up together under one session, forward the client's session id with each request.
+
+The pattern (iOS → Node):
+
+1. **Client (Swift)**: read \`Owl.sessionId\` and attach it to outgoing requests as an \`X-Owl-Session-Id\` header.
+2. **Backend (Node)**: pull the header off the request and either wrap the handler in \`Owl.withSession(sessionId)\` (all events inside that scope pick it up) or pass \`{ sessionId }\` to each individual log call.
+
+**Precedence**: per-call \`options.sessionId\` > \`withSession(...)\` scope > default session from \`configure()\`. Non-UUID values are silently ignored, so it is safe to forward the header unconditionally.
+
+Result: one logical user interaction (tap → API call → DB query → response → UI update) lands under a single \`session_id\`. \`investigate-event\` and \`query-events\` with \`session_id\` filters then return the full cross-app timeline automatically. Wire this up on any project that has both a Swift app and a Node backend in the same project — it is the whole point of grouping them under one project.
+
+Full setup snippets (Fastify/Express hook + Swift \`URLSession\` interceptor): \`owlmetry://skills/node\` → "Per-Request Session Scoping".
 
 ### Structured Metrics
 Metrics are project-scoped definitions that tell OwlMetry what structured data to expect. Two kinds:
@@ -107,6 +122,22 @@ Third-party service connections (RevenueCat, Apple Search Ads) that sync data in
 2. Call \`add-integration\` with \`provider: "apple-search-ads"\` and a config containing \`client_id\`, \`team_id\`, \`key_id\`, \`private_key_pem\`, \`org_id\`. The \`org_id\` is shown top-right at ads.apple.com; if the user isn't sure, they can leave a placeholder and fix it after running the test connection below.
 3. The user can validate credentials by hitting the **Test Connection** button in the dashboard (or an equivalent test endpoint the user will ask about). It lists accessible orgs via \`GET /api/v5/acls\` — confirm the configured \`org_id\` matches one.
 4. Call \`sync-integration\` with \`provider: "apple-search-ads"\` to backfill names for users attributed before the integration was connected. New attributions will be enriched automatically via a fire-and-forget hook in the attribution route.
+
+### Attribution
+
+Where a user came from, stored as user properties on \`app_users\`. Today only **Apple Search Ads** is implemented — future Meta / Google Ads support will write into the same keys.
+
+**Auto-captured by the Swift SDK** on \`Owl.configure()\` (iOS / iPadOS / macOS). No code required. The SDK fetches the AdServices attribution token, posts it to OwlMetry, and writes the resolved attribution onto the user's properties.
+
+User properties written:
+- \`attribution_source\` — \`apple_search_ads\` on a successful attribution, \`none\` when the install came from organic / another source. Query/group on this key rather than a network-specific flag; future networks will reuse it.
+- On successful ASA attribution, additional ASA-specific IDs are written: \`asa_campaign_id\`, \`asa_ad_group_id\`, \`asa_keyword_id\`, \`asa_claim_type\`, \`asa_ad_id\`, \`asa_creative_set_id\`. Human-readable names (campaign name, keyword text, etc.) are resolved into extra properties when the Apple Search Ads integration is configured for the project (see **Integrations** above).
+
+**Opt out**: pass \`attributionEnabled: false\` to \`Owl.configure()\` on the Swift SDK. Full setup, opt-out, and manual-submit APIs: \`owlmetry://skills/swift\` → "Apple Search Ads Attribution".
+
+**RevenueCat backfill**: when the RevenueCat integration is enabled, \`sync-integration\` (or per-user sync on webhook events) also pulls ASA attribution out of RevenueCat's subscriber attributes and writes the same properties. This is how users who onboarded **before** the app shipped SDK-side attribution capture get attributed — no extra setup, happens automatically during any RevenueCat sync.
+
+**Debugging "none"**: the SDK emits \`sdk:attribution_capture\` events for each capture attempt with outcomes (\`success\`, \`pending\`, \`gave_up\`, \`token_fetch_failed\`, \`invalid_token\`, \`transport_failure\`). When a specific install shows \`attribution_source = "none"\` and you need to know why, \`query-events\` with \`message: "sdk:attribution_capture"\` and the user's \`user_id\` (or their session) will show the outcome and retry history.
 
 ### Issues
 Error events are automatically scanned hourly and grouped into **issues** via fingerprinting (normalized error message + source module). Each issue tracks:
@@ -327,7 +358,10 @@ This MCP server provides SDK integration guides as resources. Read the relevant 
 | \`owlmetry://skills/swift\` | Swift SDK | Instrumenting iOS, iPadOS, or macOS apps (SwiftUI or UIKit) |
 | \`owlmetry://skills/node\` | Node.js SDK | Instrumenting backend services (Express, Fastify, serverless, etc.) |
 
-Each guide covers: package installation, \`configure()\` setup, event logging, screen tracking (Swift), structured metrics, funnel tracking, A/B experiments, user identity, and user properties.
+Each guide covers the full SDK surface. Summary:
+
+- **Swift** — package installation, \`Owl.configure()\`, event logging, automatic screen tracking, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback collection** (drop-in \`OwlFeedbackView\` or programmatic \`Owl.sendFeedback\`), **Apple Search Ads attribution** (auto-capture, opt-out, manual submission), and reading \`Owl.sessionId\` to forward to a backend for session correlation.
+- **Node** — package installation, \`Owl.configure()\`, event logging, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback forwarding** (when the team collects feedback through their own frontend and wants it pushed to OwlMetry with \`Owl.sendFeedback\`), and **per-request session/user scoping** (\`Owl.withSession(...)\` / \`Owl.withUser(...)\` / per-call \`options.sessionId\`) for linking backend events to a client session via the \`X-Owl-Session-Id\` header.
 
 **Note:** The guides reference CLI commands for creating metrics and funnels. You can use the equivalent MCP tools instead (\`create-metric\`, \`create-funnel\`).
 
