@@ -412,6 +412,7 @@ export default function EventsPage() {
                   <TableHead className="w-[90px]">Level</TableHead>
                   <TableHead>Message</TableHead>
                   <TableHead className="w-[140px]">App</TableHead>
+                  <TableHead className="w-[90px]">Version</TableHead>
                   <TableHead className="w-[100px]">Environment</TableHead>
                   <TableHead className="w-[80px]">Country</TableHead>
                   <TableHead className="w-[140px]">User ID</TableHead>
@@ -449,6 +450,9 @@ export default function EventsPage() {
                           <ProjectDot color={appColorMap.get(event.app_id)} size={6} />
                           <span className="truncate">{appNameMap.get(event.app_id) ?? event.app_id}</span>
                         </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs py-1.5 truncate max-w-[90px]">
+                        {event.app_version ?? "—"}
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {event.environment ?? "—"}
