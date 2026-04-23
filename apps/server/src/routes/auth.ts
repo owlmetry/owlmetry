@@ -13,6 +13,7 @@ import type {
   Permission,
   UserPreferences,
 } from "@owlmetry/shared";
+import { mergeUserPreferences } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 import { serializeApiKey } from "../utils/serialize.js";
@@ -74,27 +75,6 @@ function sanitizeUserPreferences(input: unknown): Partial<UserPreferences> {
     if (Object.keys(nextUi).length > 0) out.ui = nextUi;
   }
   return out;
-}
-
-/**
- * Shallow-merge at the top level, deep-replace any nested object the caller
- * provides. Two tabs editing different sub-objects (e.g. events vs users
- * column layout) don't clobber each other; same-page last-write-wins.
- */
-function mergePreferences(
-  existing: UserPreferences | null | undefined,
-  patch: Partial<UserPreferences>,
-): UserPreferences {
-  const base = existing ?? {};
-  const merged: UserPreferences = { ...base };
-  if (patch.version !== undefined) merged.version = patch.version;
-  if (patch.ui !== undefined) {
-    merged.ui = { ...base.ui };
-    if (patch.ui.columns !== undefined) {
-      merged.ui.columns = { ...base.ui?.columns, ...patch.ui.columns };
-    }
-  }
-  return merged;
 }
 
 function generateSlugFromName(name: string): string {
@@ -366,29 +346,16 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
+      const [current] = await app.db
+        .select({ name: users.name, preferences: users.preferences })
+        .from(users)
+        .where(eq(users.id, auth.user_id))
+        .limit(1);
+
       const updates: Record<string, unknown> = {};
-
-      if (name !== undefined) {
-        updates.name = name;
-      }
-
-      let nameBefore: string | undefined;
+      if (name !== undefined) updates.name = name;
       if (preferences !== undefined) {
-        const sanitized = sanitizeUserPreferences(preferences);
-        const [current] = await app.db
-          .select({ preferences: users.preferences, name: users.name })
-          .from(users)
-          .where(eq(users.id, auth.user_id))
-          .limit(1);
-        nameBefore = current?.name;
-        updates.preferences = mergePreferences(current?.preferences, sanitized);
-      } else if (name !== undefined) {
-        const [current] = await app.db
-          .select({ name: users.name })
-          .from(users)
-          .where(eq(users.id, auth.user_id))
-          .limit(1);
-        nameBefore = current?.name;
+        updates.preferences = mergeUserPreferences(current?.preferences, sanitizeUserPreferences(preferences));
       }
 
       const [updated] = await app.db
@@ -410,7 +377,7 @@ export async function authRoutes(app: FastifyInstance) {
           action: "update",
           resource_type: "user",
           resource_id: auth.user_id,
-          changes: { name: { before: nameBefore, after: name } },
+          changes: { name: { before: current?.name, after: name } },
         });
       }
 

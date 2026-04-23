@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import type { MeResponse, UserPreferences } from "@owlmetry/shared";
+import { mergeUserPreferences } from "@owlmetry/shared";
 import { useUser } from "./use-user";
 import { api } from "@/lib/api";
 
@@ -60,7 +61,7 @@ export function useUpdateUserPreferences() {
       await mutate(
         (prev?: MeResponse) => {
           if (!prev) return prev;
-          const nextPrefs = mergePrefs(prev.user.preferences, patch);
+          const nextPrefs = mergeUserPreferences(prev.user.preferences, patch);
           writeCache(nextPrefs);
           return { ...prev, user: { ...prev.user, preferences: nextPrefs } };
         },
@@ -77,17 +78,4 @@ export function useUpdateUserPreferences() {
     },
     [mutate],
   );
-}
-
-function mergePrefs(existing: UserPreferences | undefined, patch: Partial<UserPreferences>): UserPreferences {
-  const base = existing ?? {};
-  const merged: UserPreferences = { ...base };
-  if (patch.version !== undefined) merged.version = patch.version;
-  if (patch.ui !== undefined) {
-    merged.ui = { ...base.ui };
-    if (patch.ui.columns !== undefined) {
-      merged.ui.columns = { ...base.ui?.columns, ...patch.ui.columns };
-    }
-  }
-  return merged;
 }

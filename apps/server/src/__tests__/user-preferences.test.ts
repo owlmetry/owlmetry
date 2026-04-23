@@ -112,7 +112,6 @@ describe("PATCH /v1/auth/me — preferences", () => {
       payload: {
         preferences: {
           ui: { columns: { events: { order: ["timestamp"] } } },
-          // @ts-expect-error unknown top-level key — must be stripped.
           evil: "ignored",
         },
       },
