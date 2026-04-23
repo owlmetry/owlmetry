@@ -426,7 +426,7 @@ Output is a single chronological `events` array with `target_event_id` flagging 
 owlmetry users <app-id> [--anonymous] [--real] [--search <query>] [--billing <tiers>] [--limit <n>] --format json
 ```
 
-`--anonymous` and `--real` are mutually exclusive. `--billing` takes a comma-separated list of tiers (`paid`, `trial`, `free`) derived from RevenueCat-synced user properties — e.g. `--billing paid,trial` returns subscribers and trialists, omitting free users. Omitting the flag (or listing all three tiers) returns every tier. User rows include a `last_country_code` (most recent ingest country) rendered as a Country column.
+`--anonymous` and `--real` are mutually exclusive. `--billing` takes a comma-separated list of tiers (`paid`, `trial`, `free`) derived from RevenueCat-synced user properties — e.g. `--billing paid,trial` returns subscribers and trialists, omitting free users. Omitting the flag (or listing all three tiers) returns every tier. User rows include a `last_country_code` (most recent ingest country) rendered as a Country column and a `last_app_version` (most recent app version seen from that user) rendered as a Version column.
 
 ### Metric Events & Aggregation
 
