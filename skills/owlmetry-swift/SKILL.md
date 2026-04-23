@@ -33,13 +33,22 @@ If the user doesn't have these yet, follow the `/owlmetry-cli` skill first — i
 
 **Minimum platforms:** iOS 16.0, macOS 13.0. Zero external dependencies.
 
+**First, fetch the latest SDK release tag** — pin to a version so builds are reproducible:
+
+```bash
+curl -sf https://api.github.com/repos/owlmetry/owlmetry-swift/releases/latest | jq -r .tag_name
+# e.g. "v0.1.0" → strip the leading "v" → use "0.1.0" in the snippets below.
+```
+
+If the GitHub API call fails or returns no tags (early alpha may have none), fall back to `branch: "main"` / `Branch > main` in the snippets below.
+
 ### Option A — Package.swift projects
 
-If the project has a `Package.swift`, add the dependency there:
+If the project has a `Package.swift`, add the dependency there (replace `0.1.0` with the tag you fetched above):
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/owlmetry/owlmetry-swift.git", branch: "main")
+    .package(url: "https://github.com/owlmetry/owlmetry-swift.git", from: "0.1.0")
 ]
 ```
 Add to your target:
@@ -53,7 +62,7 @@ Then run `swift package resolve` to fetch the dependency.
 
 ### Option B — Xcode projects (.xcodeproj)
 
-For `.xcodeproj`-based projects with no `Package.swift`, add the OwlMetry Swift package by editing `<Project>.xcodeproj/project.pbxproj` directly to add a remote Swift package reference for `https://github.com/owlmetry/owlmetry-swift.git` (branch: `main`, product: `OwlMetry`). Do not ask the user to add it manually in Xcode.
+For `.xcodeproj`-based projects with no `Package.swift`, add the OwlMetry Swift package by editing `<Project>.xcodeproj/project.pbxproj` directly to add a remote Swift package reference for `https://github.com/owlmetry/owlmetry-swift.git` pinning `kind = upToNextMajorVersion` from the tag you fetched (e.g. `minimumVersion = 0.1.0`), product: `OwlMetry`. Do not ask the user to add it manually in Xcode.
 
 ### Option C — Ask the user (last resort)
 
@@ -61,7 +70,7 @@ If pbxproj editing fails or the project structure is too complex, ask the user t
 
 1. File > Add Package Dependencies
 2. Enter URL: `https://github.com/owlmetry/owlmetry-swift.git`
-3. Set rule to **Branch** > `main`
+3. Set rule to **Up to Next Major Version** starting at the tag from the fetch above (e.g. `0.1.0`)
 4. Add **OwlMetry** to the app target
 
 ## Verify Package Integration
