@@ -181,6 +181,9 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
             />
             <DetailRow label="First Seen" value={formatDateTime(user.first_seen_at)} />
             <DetailRow label="Last Seen" value={formatDateTime(user.last_seen_at)} />
+            {user.last_app_version && (
+              <DetailRow label="Last App Version" value={user.last_app_version} />
+            )}
             {(() => {
               const f = countryFlag(user.last_country_code);
               return f.emoji ? (

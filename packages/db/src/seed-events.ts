@@ -429,7 +429,7 @@ async function main() {
   for (const a of allApps) appProjectMap.set(a.id, a.project_id);
 
   // Collect per-project user info and per-app user sightings
-  const projectUserPairs = new Map<string, { projectId: string; isAnon: boolean; earliest: Date; latest: Date }>();
+  const projectUserPairs = new Map<string, { projectId: string; isAnon: boolean; earliest: Date; latest: Date; lastAppVersion: string | null }>();
   const appUserSightings = new Map<string, { appId: string; earliest: Date; latest: Date }>();
 
   for (const row of [...rows, ...funnelStepRows]) {
@@ -443,13 +443,17 @@ async function main() {
     const existing = projectUserPairs.get(projKey);
     if (existing) {
       if (ts < existing.earliest) existing.earliest = ts;
-      if (ts > existing.latest) existing.latest = ts;
+      if (ts > existing.latest) {
+        existing.latest = ts;
+        existing.lastAppVersion = (row as { app_version?: string | null }).app_version ?? existing.lastAppVersion;
+      }
     } else {
       projectUserPairs.set(projKey, {
         projectId,
         isAnon: row.user_id.startsWith("owl_anon_"),
         earliest: ts,
         latest: ts,
+        lastAppVersion: (row as { app_version?: string | null }).app_version ?? null,
       });
     }
 
@@ -483,6 +487,7 @@ async function main() {
         is_anonymous: val.isAnon,
         first_seen_at: val.earliest,
         last_seen_at: val.latest,
+        last_app_version: val.lastAppVersion,
       })
       .onConflictDoNothing()
       .returning({ id: appUsers.id });

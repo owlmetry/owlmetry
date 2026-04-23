@@ -129,6 +129,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
           first_seen_at: appUsers.first_seen_at,
           last_seen_at: appUsers.last_seen_at,
           last_country_code: appUsers.last_country_code,
+          last_app_version: appUsers.last_app_version,
         })
         .from(appUsers)
         .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))

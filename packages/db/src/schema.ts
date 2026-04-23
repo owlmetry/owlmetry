@@ -258,6 +258,7 @@ export const appUsers = pgTable(
       .notNull()
       .defaultNow(),
     last_country_code: varchar("last_country_code", { length: 2 }),
+    last_app_version: varchar("last_app_version", { length: 50 }),
   },
   (table) => [
     uniqueIndex("app_users_project_user_idx").on(table.project_id, table.user_id),

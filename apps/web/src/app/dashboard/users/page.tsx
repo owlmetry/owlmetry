@@ -385,6 +385,7 @@ export default function UsersPage() {
                   <TableHead>User ID</TableHead>
                   <TableHead className="w-[100px]">Type</TableHead>
                   <TableHead className="w-[180px]">Apps</TableHead>
+                  <TableHead className="w-[90px]">Version</TableHead>
                   <TableHead className="w-[200px]">Properties</TableHead>
                   <TableHead className="w-[160px]">First Seen</TableHead>
                   <TableHead className="w-[160px]">Last Seen</TableHead>
@@ -439,6 +440,9 @@ export default function UsersPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs py-1.5 truncate max-w-[90px]">
+                      {user.last_app_version ?? "—"}
                     </TableCell>
                     <TableCell className="py-1.5">
                       {user.properties ? (() => {

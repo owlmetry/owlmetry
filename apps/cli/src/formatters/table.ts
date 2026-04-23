@@ -64,7 +64,7 @@ export function formatAppDetail(app: AppResponse): string {
 
 export function formatAppUsersTable(users: AppUserResponse[]): string {
   const table = new Table({
-    head: [chalk.bold("User ID"), chalk.bold("Type"), chalk.bold("Apps"), chalk.bold("Claims"), chalk.bold("Country"), chalk.bold("First Seen"), chalk.bold("Last Seen")],
+    head: [chalk.bold("User ID"), chalk.bold("Type"), chalk.bold("Apps"), chalk.bold("Claims"), chalk.bold("Version"), chalk.bold("Country"), chalk.bold("First Seen"), chalk.bold("Last Seen")],
   });
   for (const u of users) {
     const appNames = u.apps?.map((a) => a.app_name).join(", ") || "-";
@@ -73,6 +73,7 @@ export function formatAppUsersTable(users: AppUserResponse[]): string {
       u.is_anonymous ? "anon" : "real",
       appNames,
       String(u.claimed_from?.length ?? 0),
+      u.last_app_version ?? "",
       u.last_country_code ?? "",
       u.first_seen_at,
       u.last_seen_at,

@@ -221,14 +221,16 @@ export function upsertAppUsers(
   if (uniqueUserIds.length === 0) return;
 
   const countryCode = validEvents.find((e) => e.country_code)?.country_code ?? null;
+  const appVersion = validEvents.find((e) => e.app_version)?.app_version ?? null;
 
   const userRows = uniqueUserIds.map((uid) => ({
     project_id,
     user_id: uid,
     is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
     last_country_code: countryCode,
+    last_app_version: appVersion,
   }));
-  // Don't wipe a previously-resolved country when this batch came without a header.
+  // Don't wipe a previously-resolved country/version when this batch came without one.
   db.insert(appUsers)
     .values(userRows)
     .onConflictDoUpdate({
@@ -236,6 +238,7 @@ export function upsertAppUsers(
       set: {
         last_seen_at: sql`NOW()`,
         ...(countryCode ? { last_country_code: countryCode } : {}),
+        ...(appVersion ? { last_app_version: appVersion } : {}),
       },
     })
     .returning({ id: appUsers.id, user_id: appUsers.user_id })

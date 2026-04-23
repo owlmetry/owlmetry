@@ -1,0 +1,1 @@
+ALTER TABLE "app_users" ADD COLUMN "last_app_version" varchar(50);
