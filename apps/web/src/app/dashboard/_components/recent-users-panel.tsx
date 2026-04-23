@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import useSWR from "swr";
 import { Users } from "lucide-react";
-import type { TeamAppUsersQueryParams } from "@owlmetry/shared";
+import type { AppResponse, TeamAppUsersQueryParams } from "@owlmetry/shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
@@ -12,6 +14,7 @@ import { CountryEmoji } from "@/components/country-flag";
 import { AttributionBadge } from "@/components/attribution-badge";
 import { BillingBadge } from "@/components/billing-badge";
 import { UserTypeBadge } from "@/components/badges/user-type-badge";
+import { VersionBadge, pickLatestForUser } from "@/components/version-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
@@ -30,6 +33,14 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
   const { users, isLoading } = useTeamAppUsers(filters);
   const appColorMap = useAppColorMap(teamId);
   const projectInfoMap = useProjectInfoMap(teamId);
+  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
+    teamId ? `/v1/apps?team_id=${teamId}` : null,
+  );
+  const appLatestVersionMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const a of appsData?.apps ?? []) m.set(a.id, a.latest_app_version ?? null);
+    return m;
+  }, [appsData]);
 
   const title = mode === "new" ? "Recently Added Users" : "Recently Active Users";
   const emptyTitle = mode === "new" ? "No new users" : "No recent users";
@@ -82,6 +93,10 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
               <div className="shrink-0 flex items-center gap-1">
                 <BillingBadge properties={user.properties} size="sm" />
                 <AttributionBadge properties={user.properties} size="sm" />
+                <VersionBadge
+                  version={user.last_app_version}
+                  latestVersion={pickLatestForUser(user.apps ?? [], appLatestVersionMap)}
+                />
               </div>
               <CountryEmoji code={user.last_country_code} />
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
