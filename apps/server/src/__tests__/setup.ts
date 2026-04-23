@@ -191,6 +191,11 @@ export async function setupTestDb() {
   }
 
   if (result.length === 0 || result[0].relkind !== "p") {
+    // Schema mirrors packages/db/src/schema.ts events table. When a column is
+    // added in schema.ts + a drizzle migration, add it here too — on a fresh
+    // DB the migration applies to a regular events table, and then this
+    // DROP+CREATE recreates it as partitioned, so any column not listed here
+    // is silently lost.
     await migrationClient.unsafe(`
       CREATE TABLE IF NOT EXISTS events (
         id UUID DEFAULT gen_random_uuid(),
@@ -210,6 +215,7 @@ export async function setupTestDb() {
         device_model VARCHAR(100),
         build_number VARCHAR(50),
         locale VARCHAR(20),
+        country_code VARCHAR(2),
         is_dev BOOLEAN NOT NULL DEFAULT FALSE,
         experiments JSONB,
         "timestamp" TIMESTAMPTZ NOT NULL,
@@ -249,6 +255,7 @@ export async function setupTestDb() {
   }
 
   if (meResult.length === 0 || meResult[0].relkind !== "p") {
+    // Keep column list aligned with packages/db/src/schema.ts metric_events.
     await migrationClient.unsafe(`
       CREATE TABLE IF NOT EXISTS metric_events (
         id UUID DEFAULT gen_random_uuid(),
@@ -267,6 +274,7 @@ export async function setupTestDb() {
         app_version VARCHAR(50),
         device_model VARCHAR(100),
         build_number VARCHAR(50),
+        country_code VARCHAR(2),
         is_dev BOOLEAN NOT NULL DEFAULT FALSE,
         client_event_id UUID,
         "timestamp" TIMESTAMPTZ NOT NULL,
@@ -301,6 +309,7 @@ export async function setupTestDb() {
   }
 
   if (feResult.length === 0 || feResult[0].relkind !== "p") {
+    // Keep column list aligned with packages/db/src/schema.ts funnel_events.
     await migrationClient.unsafe(`
       CREATE TABLE IF NOT EXISTS funnel_events (
         id UUID DEFAULT gen_random_uuid(),
@@ -318,6 +327,7 @@ export async function setupTestDb() {
         app_version VARCHAR(50),
         device_model VARCHAR(100),
         build_number VARCHAR(50),
+        country_code VARCHAR(2),
         is_dev BOOLEAN NOT NULL DEFAULT FALSE,
         client_event_id UUID,
         "timestamp" TIMESTAMPTZ NOT NULL,
