@@ -445,7 +445,7 @@ async function main() {
       if (ts < existing.earliest) existing.earliest = ts;
       if (ts > existing.latest) {
         existing.latest = ts;
-        existing.lastAppVersion = (row as { app_version?: string | null }).app_version ?? existing.lastAppVersion;
+        existing.lastAppVersion = row.app_version ?? existing.lastAppVersion;
       }
     } else {
       projectUserPairs.set(projKey, {
@@ -453,7 +453,7 @@ async function main() {
         isAnon: row.user_id.startsWith("owl_anon_"),
         earliest: ts,
         latest: ts,
-        lastAppVersion: (row as { app_version?: string | null }).app_version ?? null,
+        lastAppVersion: row.app_version ?? null,
       });
     }
 
