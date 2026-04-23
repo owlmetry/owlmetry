@@ -10,7 +10,7 @@ Step-by-step guide to installing OwlMetry on a fresh Ubuntu 24.04 VPS. Estimated
 SSH into your VPS as root and run the setup script. It installs Node.js 22, PostgreSQL 16, nginx, pm2, pnpm, and creates the database.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/deploy/setup-ubuntu-vps.sh -o setup-ubuntu-vps.sh
+curl -fsSL https://raw.githubusercontent.com/owlmetry/owlmetry/main/deploy/setup-ubuntu-vps.sh -o setup-ubuntu-vps.sh
 bash setup-ubuntu-vps.sh
 ```
 
@@ -24,7 +24,7 @@ The setup script creates `/opt/owlmetry` as an empty directory. Clone the repo i
 
 ```bash
 cd /opt/owlmetry
-git clone https://github.com/Jasonvdb/owlmetry.git .
+git clone https://github.com/owlmetry/owlmetry.git .
 pnpm install
 pnpm build
 ```

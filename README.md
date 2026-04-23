@@ -92,7 +92,6 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 apps/server        Fastify API server (port 4000) — the core of OwlMetry
 apps/cli           CLI for agents and humans (agent key auth)
 apps/web           Next.js dashboard + Fumadocs documentation site (port 3000)
-sdks/swift         Swift SDK (Swift Package) — iOS, iPadOS, macOS
 sdks/node          Node.js Server SDK (zero runtime dependencies)
 packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed, partition utilities
@@ -101,6 +100,8 @@ demos/ios          iOS demo app
 demos/node         Node.js demo server
 deploy/            VPS deployment scripts (Ubuntu 24.04)
 ```
+
+The Swift SDK lives in its own repo: **[owlmetry/owlmetry-swift](https://github.com/owlmetry/owlmetry-swift)** — iOS, iPadOS, and macOS instrumentation as a standalone Swift Package.
 
 The API server is the product. Everything else — the dashboard, the CLI, the MCP server, the SDKs — is a client of that API. This means your agent has the same capabilities as the web UI. Nothing is dashboard-only.
 
@@ -128,10 +129,9 @@ pnpm dev:seed
 # Start the API server
 pnpm dev:server
 
-# Run tests (requires owlmetry_test database + Swift toolchain)
+# Run tests (requires owlmetry_test database)
 createdb owlmetry_test
-pnpm test              # Vitest + Swift SDK + Node SDK + CLI integration tests
-pnpm test:swift-sdk    # Swift SDK integration tests only
+pnpm test              # Vitest + Node SDK + CLI integration tests
 pnpm test:node-sdk     # Node SDK integration tests only
 pnpm test:cli          # CLI tests (unit + formatter + integration)
 pnpm test:coverage     # Server tests with code coverage reporting

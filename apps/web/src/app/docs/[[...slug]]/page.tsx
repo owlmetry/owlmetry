@@ -93,7 +93,7 @@ export default async function Page(props: {
                 Get Started
               </Link>
               <Link
-                href="https://github.com/Jasonvdb/owlmetry"
+                href="https://github.com/owlmetry/owlmetry"
                 className="inline-flex h-9 items-center rounded-md border border-fd-border px-4 text-sm font-medium text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
               >
                 GitHub

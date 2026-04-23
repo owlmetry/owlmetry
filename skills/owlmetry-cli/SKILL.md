@@ -22,7 +22,7 @@ The **CLI** is the management and query tool — it does not ingest events. You 
 
 Run these checks silently. Only inform the user if updates are available.
 
-1. **Skill version**: `curl -sf https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/skills/owlmetry-cli/SKILL.md | head -5` — compare the remote `version:` field to this file's `version:` frontmatter above. If the remote version is newer, ask the user if they want to update the local skill file.
+1. **Skill version**: `curl -sf https://raw.githubusercontent.com/owlmetry/owlmetry/main/skills/owlmetry-cli/SKILL.md | head -5` — compare the remote `version:` field to this file's `version:` frontmatter above. If the remote version is newer, ask the user if they want to update the local skill file.
 2. **CLI version** (if installed): compare `owlmetry --version` to `npm view @owlmetry/cli version 2>/dev/null`. If a newer version exists, offer `npm install -g @owlmetry/cli@latest`.
 
 If everything is current or the remote is unreachable, continue silently.

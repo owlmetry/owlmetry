@@ -11,7 +11,7 @@ The OwlMetry Swift SDK is distributed as a Swift Package. It has zero external d
 2. Go to **File > Add Package Dependencies**.
 3. Enter the repository URL:
    ```
-   https://github.com/Jasonvdb/owlmetry.git
+   https://github.com/owlmetry/owlmetry-swift.git
    ```
 4. Set the dependency rule to **Branch** and enter `main`.
 5. Click **Add Package**.
@@ -23,7 +23,7 @@ If you manage dependencies through a `Package.swift` file, add OwlMetry to the `
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Jasonvdb/owlmetry.git", branch: "main")
+    .package(url: "https://github.com/owlmetry/owlmetry-swift.git", branch: "main")
 ]
 ```
 
@@ -33,7 +33,7 @@ Then add the product to your target's `dependencies`:
 .target(
     name: "YourApp",
     dependencies: [
-        .product(name: "OwlMetry", package: "owlmetry")
+        .product(name: "OwlMetry", package: "owlmetry-swift")
     ]
 )
 ```

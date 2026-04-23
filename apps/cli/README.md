@@ -41,4 +41,4 @@ This prints the absolute paths to each skill file. Point your agent to these fil
 ## Links
 
 - [Website](https://owlmetry.com)
-- [GitHub](https://github.com/Jasonvdb/owlmetry)
+- [GitHub](https://github.com/owlmetry/owlmetry)

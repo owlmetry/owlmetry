@@ -117,7 +117,7 @@ Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/Jasonvdb/owlmetry.git", branch: "main")
+    .package(url: "https://github.com/owlmetry/owlmetry-swift.git", branch: "main")
 ]
 ```
 
@@ -125,7 +125,7 @@ Add to your target:
 
 ```swift
 .target(name: "YourApp", dependencies: [
-    .product(name: "OwlMetry", package: "owlmetry")
+    .product(name: "OwlMetry", package: "owlmetry-swift")
 ])
 ```
 

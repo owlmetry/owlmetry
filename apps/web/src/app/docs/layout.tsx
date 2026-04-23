@@ -32,7 +32,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             { text: "Dashboard", url: "/dashboard", icon: <LayoutDashboard /> },
             {
               text: "GitHub",
-              url: "https://github.com/Jasonvdb/owlmetry",
+              url: "https://github.com/owlmetry/owlmetry",
               external: true,
               icon: <Github />,
             },

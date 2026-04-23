@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jasonvdb/owlmetry.git",
+    "url": "git+https://github.com/owlmetry/owlmetry.git",
     "directory": "apps/cli"
   },
   "homepage": "https://owlmetry.com",
-  "bugs": "https://github.com/nicktechnolog/owlmetry/issues",
+  "bugs": "https://github.com/owlmetry/owlmetry/issues",
   "keywords": [
     "owlmetry",
     "analytics",

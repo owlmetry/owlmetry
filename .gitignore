@@ -34,10 +34,6 @@ out/
 # Fumadocs (auto-generated)
 .source/
 
-# Swift
-.build/
-sdks/swift/.build/
-
 # Attachments storage (dev/test)
 data/
 apps/server/data/

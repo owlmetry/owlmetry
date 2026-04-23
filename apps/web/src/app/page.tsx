@@ -156,7 +156,7 @@ export default function LandingPage() {
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </a>
               <a
-                href="https://github.com/Jasonvdb/owlmetry"
+                href="https://github.com/owlmetry/owlmetry"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/15 px-8 text-sm font-medium text-white/70 transition-all duration-200 hover:border-white/30 hover:bg-white/5 hover:text-white"
@@ -592,7 +592,7 @@ export default function LandingPage() {
               </ul>
 
               <a
-                href="https://github.com/Jasonvdb/owlmetry"
+                href="https://github.com/owlmetry/owlmetry"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group mt-8 inline-flex h-11 w-full items-center justify-center rounded-lg border border-border text-sm font-medium text-muted-foreground transition-all duration-200 hover:border-foreground/30 hover:bg-muted hover:text-foreground"
@@ -652,7 +652,7 @@ export default function LandingPage() {
                 url: "https://owlmetry.com",
                 logo: "https://owlmetry.com/owl-logo.png",
                 email: "jason@owlmetry.com",
-                sameAs: ["https://github.com/Jasonvdb/owlmetry"],
+                sameAs: ["https://github.com/owlmetry/owlmetry"],
               },
               offers: [
                 {
