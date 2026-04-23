@@ -1,0 +1,75 @@
+---
+title: Latest Version Detection
+description: How OwlMetry knows which version of your app is the current release, and how that powers the green/amber version badges shown across the dashboard, CLI, and MCP.
+---
+
+Every event, user, and issue in OwlMetry carries an `app_version` string captured by the SDK at the moment the data was recorded. To make those versions actionable -- "is this user on the current release?", "is this issue still happening on the latest build?" -- OwlMetry tracks a single source of truth per app and renders coloured badges:
+
+- 🟢 **Green** -- the version matches the app's known latest release.
+- 🟡 **Amber** -- the version is older than the latest release.
+- _Plain_ -- the latest version is not yet known (no badge shown).
+
+## How the latest version is determined
+
+OwlMetry uses a hybrid source-of-truth that picks the most reliable signal available per platform:
+
+| Platform | Source | Notes |
+|---|---|---|
+| `apple` | iTunes Lookup API | Free, unauthenticated public endpoint. Pulls the live App Store version, immune to TestFlight pollution. |
+| `android` / `web` / `backend` | Computed from production events | Highest `app_version` seen in `is_dev = false` events. Compared semver-aware so `1.10.0 > 1.9.0`. |
+
+The provenance is exposed on every app response as `latest_app_version_source` (`"app_store"` or `"computed"`).
+
+## When the detection runs
+
+- **Hourly**, at `:15` past the hour, by the `app_version_sync` system job. Iterates every active app.
+- **Immediately on Apple app create** -- a fire-and-forget sync runs as soon as a new app is added so the badge appears without waiting for the next scheduled run.
+- **On demand** -- trigger the job manually via the dashboard Jobs page, the CLI, or MCP. Pass an `app_id` parameter to refresh just one app instead of the whole system.
+
+```bash
+# Refresh every app
+owlmetry jobs trigger app_version_sync --team-id <id>
+
+# Refresh just one app
+owlmetry jobs trigger app_version_sync --team-id <id> --param app_id=<appId>
+```
+
+## The fields on the app response
+
+```json
+{
+  "id": "...",
+  "name": "Lofi iOS",
+  "platform": "apple",
+  "bundle_id": "com.example.lofi",
+  "latest_app_version": "1.4.2",
+  "latest_app_version_updated_at": "2026-04-23T06:15:00.000Z",
+  "latest_app_version_source": "app_store"
+}
+```
+
+`latest_app_version` is `null` until the first sync runs (or when the iTunes lookup returns no results and there are no production events to compute from).
+
+## Issues "is on latest" semantics
+
+Issues carry `first_seen_app_version` and `last_seen_app_version`, denormalised onto the issue row by the hourly issue scan. To decide whether an issue is _still happening on the current release_:
+
+```
+issue.last_seen_app_version === app.latest_app_version
+```
+
+If the issue's most recent occurrence was on the latest release, the badge is green. If it only ever happened on older versions, the badge is amber -- the issue may already be fixed (or simply hasn't been triggered yet on the current release).
+
+## Where the badge shows up
+
+| Surface | Where |
+|---|---|
+| Dashboard | Events table, users list, user/event detail sheets, issue kanban cards, issue detail (occurrences + summary) |
+| CLI | `users list`, `events view`, `issues list`, `issues view`, `apps show` |
+| MCP | All app/event/issue/user responses include the raw fields; agents do their own equality check |
+
+## Caveats
+
+- App Store lookups default to the `us` storefront. Apps not published in the US may return no results -- the job falls through to the computed-from-events path.
+- The computed fallback uses production events only (`is_dev = false`). If your SDK never marks builds as dev (e.g. you ship release builds with no `is_dev` override), TestFlight builds may inflate the computed "latest" ahead of the App Store release. Apple apps avoid this entirely via the iTunes API.
+- Versions are compared with a semver-aware comparator that handles standard formats (`1.2.3`), build-number suffixes (`1.2.3 (456)`), and date-style versions (`2024.10.15`).

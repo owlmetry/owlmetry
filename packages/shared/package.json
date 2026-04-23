@@ -32,14 +32,20 @@
     "./integrations": {
       "types": "./dist/integrations.d.ts",
       "import": "./dist/integrations.js"
+    },
+    "./version": {
+      "types": "./dist/version.d.ts",
+      "import": "./dist/version.js"
     }
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run --dir src"
   },
   "devDependencies": {
     "@types/node": "^25.4.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
   }
 }

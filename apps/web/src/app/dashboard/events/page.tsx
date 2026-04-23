@@ -21,6 +21,7 @@ import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { EventLevelBadge } from "@/components/event-level-badge";
+import { VersionBadge } from "@/components/version-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
 import { ProjectDot } from "@/lib/project-color";
 import { CountryCell } from "@/components/country-flag";
@@ -144,6 +145,11 @@ export default function EventsPage() {
   const appProjectMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const a of allApps) map.set(a.id, a.project_id);
+    return map;
+  }, [allApps]);
+  const appLatestVersionMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const a of allApps) map.set(a.id, a.latest_app_version ?? null);
     return map;
   }, [allApps]);
   const projectColorMap = useProjectColorMap(teamId);
@@ -451,8 +457,11 @@ export default function EventsPage() {
                           <span className="truncate">{appNameMap.get(event.app_id) ?? event.app_id}</span>
                         </span>
                       </TableCell>
-                      <TableCell className="font-mono text-xs py-1.5 truncate max-w-[90px]">
-                        {event.app_version ?? "—"}
+                      <TableCell className="text-xs py-1.5 truncate max-w-[110px]">
+                        <VersionBadge
+                          version={event.app_version}
+                          latestVersion={appLatestVersionMap.get(event.app_id)}
+                        />
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {event.environment ?? "—"}
@@ -496,6 +505,7 @@ export default function EventsPage() {
         onEventSelect={handleEventSelect}
         onFilter={handleFilter}
         projectColor={selectedEvent ? appColorMap.get(selectedEvent.app_id) : undefined}
+        latestAppVersion={selectedEvent ? appLatestVersionMap.get(selectedEvent.app_id) : undefined}
       />
     </AnimatedPage>
   );

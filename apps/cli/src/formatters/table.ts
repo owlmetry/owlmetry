@@ -2,6 +2,7 @@ import Table from "cli-table3";
 import chalk from "chalk";
 import type { ProjectResponse, ProjectDetailResponse, AppResponse, AppUserResponse, StoredEventResponse, StoredMetricEventResponse } from "@owlmetry/shared";
 import { truncate, getTerminalWidth } from "../utils/truncate.js";
+import { formatVersion } from "./version.js";
 
 export function formatProjectsTable(projects: ProjectResponse[]): string {
   const table = new Table({
@@ -42,27 +43,34 @@ export function formatProjectDetail(project: ProjectDetailResponse): string {
 
 export function formatAppsTable(apps: AppResponse[]): string {
   const table = new Table({
-    head: [chalk.bold("ID"), chalk.bold("Name"), chalk.bold("Platform"), chalk.bold("Bundle ID"), chalk.bold("Project ID"), chalk.bold("Created")],
+    head: [chalk.bold("ID"), chalk.bold("Name"), chalk.bold("Platform"), chalk.bold("Bundle ID"), chalk.bold("Latest Version"), chalk.bold("Project ID"), chalk.bold("Created")],
   });
   for (const a of apps) {
-    table.push([a.id, a.name, a.platform, a.bundle_id, a.project_id, a.created_at]);
+    const latestCol = a.latest_app_version
+      ? `${chalk.green(a.latest_app_version)} ${chalk.dim(`(${a.latest_app_version_source ?? "unknown"})`)}`
+      : "";
+    table.push([a.id, a.name, a.platform, a.bundle_id, latestCol, a.project_id, a.created_at]);
   }
   return table.toString();
 }
 
 export function formatAppDetail(app: AppResponse): string {
-  return [
-    `${chalk.bold("ID:")}          ${app.id}`,
-    `${chalk.bold("Name:")}        ${app.name}`,
-    `${chalk.bold("Platform:")}    ${app.platform}`,
-    `${chalk.bold("Bundle ID:")}   ${app.bundle_id}`,
-    `${chalk.bold("Project ID:")}  ${app.project_id}`,
-    `${chalk.bold("Team ID:")}     ${app.team_id}`,
-    `${chalk.bold("Created:")}     ${app.created_at}`,
-  ].join("\n");
+  const lines = [
+    `${chalk.bold("ID:")}                  ${app.id}`,
+    `${chalk.bold("Name:")}                ${app.name}`,
+    `${chalk.bold("Platform:")}            ${app.platform}`,
+    `${chalk.bold("Bundle ID:")}           ${app.bundle_id}`,
+    `${chalk.bold("Project ID:")}          ${app.project_id}`,
+    `${chalk.bold("Team ID:")}             ${app.team_id}`,
+    `${chalk.bold("Latest Version:")}      ${app.latest_app_version ? chalk.green(app.latest_app_version) : chalk.dim("not yet detected")}`,
+    `${chalk.bold("Latest Version From:")} ${app.latest_app_version_source ?? "—"}`,
+    `${chalk.bold("Latest Version At:")}   ${app.latest_app_version_updated_at ?? "—"}`,
+    `${chalk.bold("Created:")}             ${app.created_at}`,
+  ];
+  return lines.join("\n");
 }
 
-export function formatAppUsersTable(users: AppUserResponse[]): string {
+export function formatAppUsersTable(users: AppUserResponse[], latestAppVersion: string | null = null): string {
   const table = new Table({
     head: [chalk.bold("User ID"), chalk.bold("Type"), chalk.bold("Apps"), chalk.bold("Claims"), chalk.bold("Version"), chalk.bold("Country"), chalk.bold("First Seen"), chalk.bold("Last Seen")],
   });
@@ -73,7 +81,7 @@ export function formatAppUsersTable(users: AppUserResponse[]): string {
       u.is_anonymous ? "anon" : "real",
       appNames,
       String(u.claimed_from?.length ?? 0),
-      u.last_app_version ?? "",
+      formatVersion(u.last_app_version, latestAppVersion),
       u.last_country_code ?? "",
       u.first_seen_at,
       u.last_seen_at,
@@ -100,7 +108,7 @@ export function formatEventsTable(events: StoredEventResponse[]): string {
   return table.toString();
 }
 
-export function formatEventDetail(event: StoredEventResponse): string {
+export function formatEventDetail(event: StoredEventResponse, latestAppVersion: string | null = null): string {
   const lines = [
     `${chalk.bold("ID:")}              ${event.id}`,
     `${chalk.bold("App ID:")}          ${event.app_id}`,
@@ -114,7 +122,7 @@ export function formatEventDetail(event: StoredEventResponse): string {
     `${chalk.bold("Source Module:")}   ${event.source_module ?? "—"}`,
     `${chalk.bold("Environment:")}     ${event.environment ?? "—"}`,
     `${chalk.bold("OS Version:")}      ${event.os_version ?? "—"}`,
-    `${chalk.bold("App Version:")}     ${event.app_version ?? "—"}`,
+    `${chalk.bold("App Version:")}     ${event.app_version ? formatVersion(event.app_version, latestAppVersion) : "—"}`,
     `${chalk.bold("Build Number:")}    ${event.build_number ?? "—"}`,
     `${chalk.bold("Device Model:")}    ${event.device_model ?? "—"}`,
     `${chalk.bold("Locale:")}          ${event.locale ?? "—"}`,

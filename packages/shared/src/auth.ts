@@ -165,6 +165,8 @@ export interface Project {
   deleted_at: Date | null;
 }
 
+export type AppVersionSource = "app_store" | "computed";
+
 export interface App {
   id: string;
   team_id: string;
@@ -172,6 +174,9 @@ export interface App {
   name: string;
   platform: AppPlatform;
   bundle_id: string | null;
+  latest_app_version: string | null;
+  latest_app_version_updated_at: Date | null;
+  latest_app_version_source: AppVersionSource | null;
   created_at: Date;
   deleted_at: Date | null;
 }

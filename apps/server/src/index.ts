@@ -97,6 +97,12 @@ jobRunner.schedule({
   enabled: () => true,
   params: () => ({}),
 });
+jobRunner.schedule({
+  jobType: "app_version_sync",
+  cron: isDev ? "*/5 * * * *" : "15 * * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
 
 // Decorators
 app.decorate("db", db);

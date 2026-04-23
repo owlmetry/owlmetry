@@ -145,6 +145,9 @@ export async function getClientSecretMap(db: Db, appIds: string[]): Promise<Map<
 export function serializeApp(a: {
   id: string; team_id: string; project_id: string;
   name: string; platform: string; bundle_id: string | null;
+  latest_app_version?: string | null;
+  latest_app_version_updated_at?: Date | null;
+  latest_app_version_source?: string | null;
   client_secret?: string | null;
   created_at: Date; deleted_at: Date | null;
 }) {
@@ -155,6 +158,9 @@ export function serializeApp(a: {
     name: a.name,
     platform: a.platform,
     bundle_id: a.bundle_id,
+    latest_app_version: a.latest_app_version ?? null,
+    latest_app_version_updated_at: a.latest_app_version_updated_at?.toISOString() ?? null,
+    latest_app_version_source: (a.latest_app_version_source ?? null) as "app_store" | "computed" | null,
     client_secret: a.client_secret ?? null,
     created_at: a.created_at.toISOString(),
   };

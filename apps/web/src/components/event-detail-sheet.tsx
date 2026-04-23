@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { EventLevelBadge } from "@/components/event-level-badge";
+import { VersionBadge } from "@/components/version-badge";
 import { InvestigateTimeline } from "@/components/investigate-timeline";
 import { DetailRow } from "@/components/detail-row";
 import {
@@ -38,9 +39,10 @@ interface EventDetailSheetProps {
   onEventSelect: (event: StoredEventResponse) => void;
   onFilter?: (key: string, value: string) => void;
   projectColor?: string;
+  latestAppVersion?: string | null;
 }
 
-export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onFilter, projectColor }: EventDetailSheetProps) {
+export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onFilter, projectColor, latestAppVersion }: EventDetailSheetProps) {
   const [showTimeline, setShowTimeline] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentSummary[]>([]);
 
@@ -104,7 +106,12 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
             <DetailRow label="Source Module" value={event.source_module} />
             <DetailRow label="Environment" value={event.environment} onFilter={onFilter && event.environment ? () => onFilter("environment", event.environment!) : undefined} />
             <DetailRow label="OS Version" value={event.os_version} />
-            <DetailRow label="App Version" value={event.app_version} />
+            {event.app_version && (
+              <div className="group flex justify-between gap-4 py-1.5">
+                <span className="shrink-0 text-xs text-muted-foreground">App Version</span>
+                <VersionBadge version={event.app_version} latestVersion={latestAppVersion} />
+              </div>
+            )}
             <DetailRow label="Build Number" value={event.build_number} />
             <DetailRow label="Device Model" value={event.device_model} />
             <DetailRow label="Locale" value={event.locale} />

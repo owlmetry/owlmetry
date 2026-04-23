@@ -19,6 +19,8 @@ export interface IssueResponse {
   occurrence_count: number;
   unique_user_count: number;
   resolved_at_version: string | null;
+  first_seen_app_version: string | null;
+  last_seen_app_version: string | null;
   first_seen_at: string;
   last_seen_at: string;
   last_notified_at: string | null;

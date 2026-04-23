@@ -1,6 +1,6 @@
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { projects, apps, jobRuns } from "@owlmetry/db";
-import { generateIssueFingerprint } from "@owlmetry/shared";
+import { generateIssueFingerprint, compareVersions } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 
 interface ErrorEvent {
@@ -137,7 +137,7 @@ export const issueScanHandler: JobHandler = async (ctx) => {
                 (g) =>
                   g.event.app_version &&
                   issue.resolved_at_version &&
-                  g.event.app_version > issue.resolved_at_version
+                  compareVersions(g.event.app_version, issue.resolved_at_version) > 0
               );
 
               if (newerVersion) {
@@ -197,6 +197,17 @@ export const issueScanHandler: JobHandler = async (ctx) => {
             occurrence_count = (SELECT COUNT(*) FROM issue_occurrences WHERE issue_id = issues.id),
             unique_user_count = (SELECT COUNT(DISTINCT user_id) FROM issue_occurrences WHERE issue_id = issues.id AND user_id IS NOT NULL),
             last_seen_at = GREATEST(issues.last_seen_at, (SELECT MAX("timestamp") FROM issue_occurrences WHERE issue_id = issues.id)),
+            last_seen_app_version = (
+              SELECT app_version FROM issue_occurrences
+              WHERE issue_id = issues.id AND app_version IS NOT NULL
+              ORDER BY "timestamp" DESC LIMIT 1
+            ),
+            first_seen_app_version = COALESCE(
+              issues.first_seen_app_version,
+              (SELECT app_version FROM issue_occurrences
+               WHERE issue_id = issues.id AND app_version IS NOT NULL
+               ORDER BY "timestamp" ASC LIMIT 1)
+            ),
             updated_at = NOW()
           WHERE id = ANY(${ids}::uuid[])
         `;

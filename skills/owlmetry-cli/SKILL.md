@@ -379,6 +379,12 @@ Issues are automatically created by an hourly background scan that detects error
 
 **Status lifecycle:** `new` → `in_progress` (claimed by agent/user) → `resolved` (optionally with version) → may `regress` if the error reappears in a newer app version. Issues can be `silenced` to stop notifications while still tracking occurrences.
 
+**Latest version flag:** Each issue includes `last_seen_app_version` and `first_seen_app_version` (denormalised from occurrences). To tell whether an issue is still happening on the current release, compare `last_seen_app_version` against the corresponding app's `latest_app_version` (string equality). The CLI's `issues list` and `issues view` colour the version green when it matches the app's latest, yellow when older.
+
+### Apps & latest versions
+
+Every app row carries `latest_app_version`, `latest_app_version_updated_at`, and `latest_app_version_source` (`"app_store"` for Apple apps resolved via the iTunes Lookup API; `"computed"` for Android/web/backend, derived from the highest `app_version` seen in production events). The `app_version_sync` system job refreshes this hourly; new Apple apps are also synced immediately on create. Trigger a single-app refresh with `owlmetry jobs trigger app_version_sync --team-id <id> --param app_id=<appId>`. CLI surfaces (`apps show`, `users list`, `events view`, `issues list`/`view`) colour app versions green if they match the app's latest, yellow if older.
+
 ```bash
 owlmetry issues list --project-id <id> [--status new] [--app-id <id>] [--dev] --format json
 owlmetry issues view <issueId> --project-id <id> --format json              # Detail with occurrences + comments

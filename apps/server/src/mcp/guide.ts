@@ -229,6 +229,9 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`update-app\` — Update app name (needs \`apps:write\`)
 - \`list-app-users\` — List users for an app (search, anonymous filter, billing tier filter, pagination)
 
+#### Latest version detection
+Every app response includes \`latest_app_version\`, \`latest_app_version_updated_at\`, and \`latest_app_version_source\` (\`"app_store"\` for Apple apps resolved via the iTunes Lookup API; \`"computed"\` for everything else, derived from the highest \`app_version\` seen in production events). Refreshed hourly by the \`app_version_sync\` system job, and immediately on Apple app create. To compare a user/event/issue version against the latest, use string equality with the app's \`latest_app_version\` (semver-aware comparison only matters for ordering — equality is enough to flag "on latest"). Trigger \`app_version_sync\` with \`{ app_id }\` to refresh a single app on demand.
+
 ### Events
 - \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`order: "asc"\` to walk events chronologically (default \`desc\`/newest-first) — use ascending for session timelines and breadcrumb investigations. Pass \`compact: true\` to drop verbose fields.
 - \`get-event\` — Get full event details by ID
@@ -252,7 +255,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 - \`query-funnel\` — Conversion analytics with mode (open/closed) and grouping
 
 ### Issues
-- \`list-issues\` — List issues for a project (filter by status, app, dev/prod)
+- \`list-issues\` — List issues for a project (filter by status, app, dev/prod). Each issue includes \`first_seen_app_version\` / \`last_seen_app_version\` (denormalised from occurrences) — compare \`last_seen_app_version\` against the app's \`latest_app_version\` to tell whether the issue is still happening on the current release.
 - \`get-issue\` — Get issue detail with occurrences, comments, fingerprints, and linked attachments
 - \`resolve-issue\` — Mark resolved, optionally with the fix version
 - \`silence-issue\` — Silence notifications (still tracks occurrences)

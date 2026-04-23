@@ -181,9 +181,13 @@ export interface UpdateAppRequest {
   name?: string;
 }
 
-export type AppResponse = Omit<App, "created_at" | "deleted_at"> & {
+export type AppResponse = Omit<
+  App,
+  "created_at" | "deleted_at" | "latest_app_version_updated_at"
+> & {
   created_at: string;
   client_secret: string | null;
+  latest_app_version_updated_at: string | null;
 };
 
 // Projects (serialized)

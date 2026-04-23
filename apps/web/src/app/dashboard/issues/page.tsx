@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { ProjectResponse, IssueResponse, IssueStatus } from "@owlmetry/shared";
+import type { ProjectResponse, IssueResponse, IssueStatus, AppResponse } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
@@ -46,6 +46,7 @@ import {
 import { Bug, ChevronDown, Clock, Users } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
 import { ProjectDot } from "@/lib/project-color";
+import { VersionBadge } from "@/components/version-badge";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { KanbanSkeleton } from "@/components/ui/skeletons";
 
@@ -69,7 +70,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-function IssueCard({ issue, projectColor, onClick }: { issue: IssueResponse; projectColor: string | undefined; onClick: () => void }) {
+function IssueCard({ issue, projectColor, latestAppVersion, onClick }: { issue: IssueResponse; projectColor: string | undefined; latestAppVersion: string | null | undefined; onClick: () => void }) {
   return (
     <Card
       className="cursor-pointer hover:border-primary/30 transition-colors"
@@ -98,6 +99,9 @@ function IssueCard({ issue, projectColor, onClick }: { issue: IssueResponse; pro
               {issue.app_name}
             </Badge>
           )}
+          {issue.last_seen_app_version && (
+            <VersionBadge version={issue.last_seen_app_version} latestVersion={latestAppVersion} />
+          )}
           {issue.is_dev && (
             <Badge variant="secondary" className="text-[10px] h-5">
               🛠️ dev
@@ -117,6 +121,7 @@ function IssueDetailModal({
   onClose,
   onMutate,
   allIssues,
+  latestAppVersion,
 }: {
   projectId: string;
   projectColor: string | undefined;
@@ -125,6 +130,7 @@ function IssueDetailModal({
   onClose: () => void;
   onMutate: () => void;
   allIssues: IssueResponse[];
+  latestAppVersion: string | null | undefined;
 }) {
   const { issue, isLoading, mutate: mutateIssue } = useIssue(projectId, issueId);
   const [resolveVersion, setResolveVersion] = useState("");
@@ -192,6 +198,12 @@ function IssueDetailModal({
               <div><span className="text-muted-foreground">Unique Users:</span> {issue.unique_user_count}</div>
               <div><span className="text-muted-foreground">First Seen:</span> {formatDateTime(issue.first_seen_at)}</div>
               <div><span className="text-muted-foreground">Last Seen:</span> {formatDateTime(issue.last_seen_at)}</div>
+              {issue.first_seen_app_version && (
+                <div className="flex items-center gap-2"><span className="text-muted-foreground">First Seen In:</span> <VersionBadge version={issue.first_seen_app_version} latestVersion={latestAppVersion} /></div>
+              )}
+              {issue.last_seen_app_version && (
+                <div className="flex items-center gap-2"><span className="text-muted-foreground">Last Seen In:</span> <VersionBadge version={issue.last_seen_app_version} latestVersion={latestAppVersion} /></div>
+              )}
               {issue.resolved_at_version && (
                 <div className="col-span-2"><span className="text-muted-foreground">Resolved In:</span> v{issue.resolved_at_version}</div>
               )}
@@ -330,7 +342,7 @@ function IssueDetailModal({
                         <CountryEmoji code={occ.country_code} />
                         {occ.user_id ?? <span className="text-muted-foreground">anon</span>}
                       </span>
-                      <span>{occ.app_version ?? "—"}</span>
+                      <span><VersionBadge version={occ.app_version} latestVersion={latestAppVersion} /></span>
                       <span>{occ.environment ?? "—"}</span>
                     </div>
                   ))}
@@ -390,7 +402,13 @@ export default function IssuesPage() {
   const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
     teamId ? `/v1/projects?team_id=${teamId}` : null
   );
+  const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
+    teamId ? `/v1/apps?team_id=${teamId}` : null
+  );
   const projects = projectsData?.projects ?? [];
+  const allApps = appsData?.apps ?? [];
+  const appLatestVersionMap = new Map<string, string | null>();
+  for (const a of allApps) appLatestVersionMap.set(a.id, a.latest_app_version ?? null);
   const projectColorMap = useProjectColorMap(teamId);
 
   const ALL = "__all__";
@@ -501,6 +519,7 @@ export default function IssuesPage() {
                       key={issue.id}
                       issue={issue}
                       projectColor={projectColorMap.get(issue.project_id)}
+                      latestAppVersion={appLatestVersionMap.get(issue.app_id)}
                       onClick={() => openIssue(issue.id)}
                     />
                   ))}
@@ -526,6 +545,7 @@ export default function IssuesPage() {
           onClose={closeIssue}
           onMutate={() => mutate()}
           allIssues={issues}
+          latestAppVersion={appLatestVersionMap.get(selectedIssue.app_id)}
         />
       )}
     </AnimatedPage>

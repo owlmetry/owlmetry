@@ -90,6 +90,7 @@ async function ingestEvents(events: Array<{
   source_module?: string;
   app_version?: string;
   is_dev?: boolean;
+  timestamp?: string;
 }>) {
   const res = await app.inject({
     method: "POST",
@@ -1084,6 +1085,60 @@ describe("Issues API", () => {
       const body = JSON.parse(res.body);
       expect(body.status).toBe("silenced");
       expect(body.occurrence_count).toBeGreaterThanOrEqual(1);
+    });
+
+    it("regresses a resolved issue when a newer version reports the same error (semver-aware)", async () => {
+      // Specifically guards against the lexicographic comparison bug where "1.10.0" < "1.9.0" as strings.
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const message = "Crash on launch GHIJ";
+      const fp = await generateIssueFingerprint(message, null);
+
+      const [issue] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, is_dev, resolved_at_version, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'resolved', ${message}, false, '1.9.0', NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`
+        INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fp}, ${appId}, false, ${issue.id})
+      `;
+
+      await ingestEvents([
+        { level: "error", message, app_version: "1.10.0", session_id: "00000000-0000-0000-0000-e00000000001" },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${issue.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("regressed");
+      expect(body.resolved_at_version).toBeNull();
+    });
+
+    it("populates first/last_seen_app_version on the issue from occurrences", async () => {
+      await ingestEvents([
+        { level: "error", message: "Versioned error LMNO", app_version: "1.0.0", session_id: "00000000-0000-0000-0000-e10000000001", timestamp: new Date(Date.now() - 60_000).toISOString() },
+        { level: "error", message: "Versioned error LMNO", app_version: "1.2.0", session_id: "00000000-0000-0000-0000-e10000000002", timestamp: new Date(Date.now() - 30_000).toISOString() },
+        { level: "error", message: "Versioned error LMNO", app_version: "1.3.0", session_id: "00000000-0000-0000-0000-e10000000003" },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      const issue = body.issues.find((i: any) => i.title === "Versioned error LMNO");
+      expect(issue).toBeTruthy();
+      expect(issue.first_seen_app_version).toBe("1.0.0");
+      expect(issue.last_seen_app_version).toBe("1.3.0");
     });
 
     it("merged issue routes new events to surviving issue", async () => {

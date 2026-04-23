@@ -8,6 +8,7 @@ export const JOB_TYPES = [
   "issue_notify",
   "attachment_cleanup",
   "apple_ads_sync",
+  "app_version_sync",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -104,6 +105,21 @@ export const JOB_TYPE_META: Record<
     scope: "project",
     default_schedule: null,
     params: [],
+  },
+  app_version_sync: {
+    label: "App Version Sync",
+    description:
+      "Refreshes latest_app_version per app from the Apple App Store (for Apple apps with a bundle_id) or computes it from production events (Android/Web/Backend)",
+    scope: "system",
+    default_schedule: "15 * * * *",
+    params: [
+      {
+        name: "app_id",
+        description: "Sync only the given app instead of all apps",
+        type: "string",
+        required: false,
+      },
+    ],
   },
 };
 

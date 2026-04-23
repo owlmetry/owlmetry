@@ -16,6 +16,7 @@ import {
   type BillingTier,
 } from "@owlmetry/shared/billing";
 import { UserDetailSheet } from "@/components/user-detail-sheet";
+import { VersionBadge, pickLatestForUser } from "@/components/version-badge";
 import { TIME_RANGES } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
@@ -92,6 +93,11 @@ export default function UsersPage() {
   const appProjectMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const a of allApps) m.set(a.id, a.project_id);
+    return m;
+  }, [allApps]);
+  const appLatestVersionMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const a of allApps) m.set(a.id, a.latest_app_version ?? null);
     return m;
   }, [allApps]);
   const projectColorMap = useProjectColorMap(teamId);
@@ -441,8 +447,11 @@ export default function UsersPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs py-1.5 truncate max-w-[90px]">
-                      {user.last_app_version ?? "—"}
+                    <TableCell className="text-xs py-1.5 truncate max-w-[110px]">
+                      <VersionBadge
+                        version={user.last_app_version}
+                        latestVersion={pickLatestForUser(user.apps, appLatestVersionMap)}
+                      />
                     </TableCell>
                     <TableCell className="py-1.5">
                       {user.properties ? (() => {
@@ -513,6 +522,7 @@ export default function UsersPage() {
         onFilter={handleSheetFilter}
         projectColorMap={projectColorMap}
         appColorMap={appColorMap}
+        appLatestVersionMap={appLatestVersionMap}
       />
     </AnimatedPage>
   );

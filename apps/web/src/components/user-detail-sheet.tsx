@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
+import { VersionBadge, pickLatestForUser } from "@/components/version-badge";
 import { ArrowRight } from "lucide-react";
 import { formatDateTime } from "@/lib/format-date";
 import { ProjectDot } from "@/lib/project-color";
@@ -25,6 +26,7 @@ interface UserDetailSheetProps {
   onFilter?: (key: string, value: string) => void;
   projectColorMap?: Map<string, string>;
   appColorMap?: Map<string, string>;
+  appLatestVersionMap?: Map<string, string | null>;
 }
 
 // Prefix-based grouping. Adding a future ad network (e.g. "meta_") is a
@@ -149,7 +151,7 @@ function PropertiesPanel({ properties }: { properties: Record<string, string> })
   );
 }
 
-export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectColorMap, appColorMap }: UserDetailSheetProps) {
+export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectColorMap, appColorMap, appLatestVersionMap }: UserDetailSheetProps) {
   if (!user) return null;
 
   return (
@@ -182,7 +184,13 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
             <DetailRow label="First Seen" value={formatDateTime(user.first_seen_at)} />
             <DetailRow label="Last Seen" value={formatDateTime(user.last_seen_at)} />
             {user.last_app_version && (
-              <DetailRow label="Last App Version" value={user.last_app_version} />
+              <div className="group flex justify-between gap-4 py-1.5">
+                <span className="shrink-0 text-xs text-muted-foreground">Last App Version</span>
+                <VersionBadge
+                  version={user.last_app_version}
+                  latestVersion={appLatestVersionMap ? pickLatestForUser(user.apps, appLatestVersionMap) : null}
+                />
+              </div>
             )}
             {(() => {
               const f = countryFlag(user.last_country_code);

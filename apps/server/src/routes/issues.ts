@@ -28,6 +28,8 @@ function serializeIssue(
     occurrence_count: row.occurrence_count,
     unique_user_count: row.unique_user_count,
     resolved_at_version: row.resolved_at_version,
+    first_seen_app_version: row.first_seen_app_version,
+    last_seen_app_version: row.last_seen_app_version,
     first_seen_at: row.first_seen_at.toISOString(),
     last_seen_at: row.last_seen_at.toISOString(),
     last_notified_at: row.last_notified_at?.toISOString() ?? null,

@@ -139,6 +139,9 @@ export const apps = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     platform: appPlatformEnum("platform").notNull(),
     bundle_id: varchar("bundle_id", { length: 255 }),
+    latest_app_version: varchar("latest_app_version", { length: 50 }),
+    latest_app_version_updated_at: timestamp("latest_app_version_updated_at", { withTimezone: true }),
+    latest_app_version_source: varchar("latest_app_version_source", { length: 20 }),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -551,6 +554,8 @@ export const issues = pgTable(
     occurrence_count: integer("occurrence_count").notNull().default(0),
     unique_user_count: integer("unique_user_count").notNull().default(0),
     resolved_at_version: varchar("resolved_at_version", { length: 50 }),
+    first_seen_app_version: varchar("first_seen_app_version", { length: 50 }),
+    last_seen_app_version: varchar("last_seen_app_version", { length: 50 }),
     first_seen_at: timestamp("first_seen_at", { withTimezone: true }).notNull(),
     last_seen_at: timestamp("last_seen_at", { withTimezone: true }).notNull(),
     last_notified_at: timestamp("last_notified_at", { withTimezone: true }),

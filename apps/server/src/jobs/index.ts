@@ -8,6 +8,7 @@ import { issueScanHandler } from "./issue-scan.js";
 import { issueNotifyHandler } from "./issue-notify.js";
 import { attachmentCleanupHandler } from "./attachment-cleanup.js";
 import { appleAdsSyncHandler } from "./apple-ads-sync.js";
+import { appVersionSyncHandler } from "./app-version-sync.js";
 
 export function registerAllJobs(runner: JobRunner): void {
   runner.register("db_pruning", dbPruningHandler);
@@ -19,4 +20,5 @@ export function registerAllJobs(runner: JobRunner): void {
   runner.register("issue_notify", issueNotifyHandler);
   runner.register("attachment_cleanup", attachmentCleanupHandler);
   runner.register("apple_ads_sync", appleAdsSyncHandler);
+  runner.register("app_version_sync", appVersionSyncHandler);
 }

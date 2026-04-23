@@ -6,6 +6,7 @@ import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
 import { paginationHint } from "../utils/pagination.js";
+import { formatVersion } from "../formatters/version.js";
 
 function statusBadge(status: string): string {
   switch (status) {
@@ -18,7 +19,10 @@ function statusBadge(status: string): string {
   }
 }
 
-function formatIssuesTable(issues: IssueResponse[]): string {
+function formatIssuesTable(
+  issues: IssueResponse[],
+  appLatestVersionMap: Map<string, string | null> = new Map(),
+): string {
   if (issues.length === 0) return chalk.dim("No issues found");
 
   const lines = [
@@ -27,9 +31,10 @@ function formatIssuesTable(issues: IssueResponse[]): string {
       "Users".padEnd(7) +
       "Occ".padEnd(7) +
       "App".padEnd(16) +
+      "Last Ver".padEnd(12) +
       "Title",
     ),
-    "─".repeat(90),
+    "─".repeat(102),
   ];
 
   for (const issue of issues) {
@@ -40,11 +45,17 @@ function formatIssuesTable(issues: IssueResponse[]): string {
     const badgeVisLen = badge.replace(/\x1b\[[0-9;]*m/g, "").length;
     const badgePad = badge + " ".repeat(Math.max(0, 18 - badgeVisLen));
 
+    const latest = appLatestVersionMap.get(issue.app_id);
+    const versionColored = formatVersion(issue.last_seen_app_version, latest ?? null);
+    const versionVisLen = (issue.last_seen_app_version ?? "").length;
+    const versionPad = versionColored + " ".repeat(Math.max(0, 12 - versionVisLen));
+
     lines.push(
       `${badgePad}` +
       `${String(issue.unique_user_count).padEnd(7)}` +
       `${String(issue.occurrence_count).padEnd(7)}` +
       `${appName.padEnd(16)}` +
+      `${versionPad}` +
       `${title}`,
     );
   }
@@ -52,7 +63,7 @@ function formatIssuesTable(issues: IssueResponse[]): string {
   return lines.join("\n");
 }
 
-function formatIssueDetail(issue: IssueDetailResponse): string {
+function formatIssueDetail(issue: IssueDetailResponse, latestAppVersion: string | null = null): string {
   const lines = [
     chalk.bold(issue.title),
     "",
@@ -67,6 +78,12 @@ function formatIssueDetail(issue: IssueDetailResponse): string {
     `  Last Seen:     ${new Date(issue.last_seen_at).toLocaleString()}`,
   ];
 
+  if (issue.first_seen_app_version) {
+    lines.push(`  First Seen In: ${formatVersion(issue.first_seen_app_version, latestAppVersion)}`);
+  }
+  if (issue.last_seen_app_version) {
+    lines.push(`  Last Seen In:  ${formatVersion(issue.last_seen_app_version, latestAppVersion)}`);
+  }
   if (issue.resolved_at_version) {
     lines.push(`  Resolved In:   v${issue.resolved_at_version}`);
   }
@@ -83,7 +100,7 @@ function formatIssueDetail(issue: IssueDetailResponse): string {
     for (const occ of issue.occurrences.slice(0, 10)) {
       const ts = new Date(occ.timestamp).toLocaleString();
       const user = occ.user_id ?? chalk.dim("anonymous");
-      const version = occ.app_version ? `v${occ.app_version}` : "";
+      const version = occ.app_version ? formatVersion(occ.app_version, latestAppVersion) : "";
       lines.push(`    ${ts}  ${user}  ${version}  session:${occ.session_id.slice(0, 8)}…`);
     }
     if (issue.occurrence_has_more) {
@@ -132,18 +149,24 @@ issuesCommand
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
-    const result = await client.listIssues(opts.projectId, {
-      status: opts.status,
-      app_id: opts.appId,
-      is_dev: opts.dev ? "true" : undefined,
-      limit: opts.limit?.toString(),
-      cursor: opts.cursor,
-    });
+    const [result, allApps] = await Promise.all([
+      client.listIssues(opts.projectId, {
+        status: opts.status,
+        app_id: opts.appId,
+        is_dev: opts.dev ? "true" : undefined,
+        limit: opts.limit?.toString(),
+        cursor: opts.cursor,
+      }),
+      client.listApps().catch(() => []),
+    ]);
+
+    const appLatestVersionMap = new Map<string, string | null>();
+    for (const a of allApps) appLatestVersionMap.set(a.id, a.latest_app_version ?? null);
 
     output(
       globals.format as OutputFormat,
       result,
-      () => formatIssuesTable(result.issues) + paginationHint(result),
+      () => formatIssuesTable(result.issues, appLatestVersionMap) + paginationHint(result),
     );
   });
 
@@ -154,7 +177,8 @@ issuesCommand
   .action(async (issueId: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     const result = await client.getIssue(opts.projectId, issueId);
-    output(globals.format as OutputFormat, result, () => formatIssueDetail(result));
+    const app = await client.getApp(result.app_id).catch(() => null);
+    output(globals.format as OutputFormat, result, () => formatIssueDetail(result, app?.latest_app_version ?? null));
   });
 
 issuesCommand

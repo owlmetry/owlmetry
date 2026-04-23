@@ -150,6 +150,19 @@ export async function appsRoutes(app: FastifyInstance) {
         metadata: { name, platform, bundle_id: bundle_id || null },
       });
 
+      // Fire-and-forget: refresh latest_app_version immediately for Apple apps
+      // so the new app shows a version badge without waiting for the next hourly run.
+      if (platform === "apple" && bundle_id) {
+        app.jobRunner
+          .trigger("app_version_sync", {
+            triggeredBy: "system:on-app-create",
+            params: { app_id: created.id },
+          })
+          .catch((err) => {
+            app.log.warn({ err, app_id: created.id }, "app_version_sync on-create failed (fire-and-forget)");
+          });
+      }
+
       return reply.code(201).send(serializeApp(created));
     }
   );

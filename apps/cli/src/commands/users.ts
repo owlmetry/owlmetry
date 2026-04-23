@@ -47,18 +47,21 @@ export const usersCommand = new Command("users")
 
     const is_anonymous = opts.anonymous ? "true" : opts.real ? "false" : undefined;
 
-    const result = await client.listAppUsers(appId, {
-      is_anonymous,
-      search: opts.search,
-      billing_status: opts.billing || undefined,
-      limit: opts.limit,
-      cursor: opts.cursor,
-    });
+    const [result, app] = await Promise.all([
+      client.listAppUsers(appId, {
+        is_anonymous,
+        search: opts.search,
+        billing_status: opts.billing || undefined,
+        limit: opts.limit,
+        cursor: opts.cursor,
+      }),
+      client.getApp(appId).catch(() => null),
+    ]);
 
     const hint = paginationHint(result);
     output(
       globals.format,
       result,
-      () => formatAppUsersTable(result.users) + hint,
+      () => formatAppUsersTable(result.users, app?.latest_app_version ?? null) + hint,
     );
   });
