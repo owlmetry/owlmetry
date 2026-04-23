@@ -155,9 +155,19 @@ async function resolveFromApple(token: string): Promise<AttributionResolveOutcom
     return { status: "pending", retryAfterSeconds: PENDING_RETRY_SECONDS };
   }
 
+  // Apple returns 400 for apps that aren't registered with any Apple Search
+  // Ads campaigns. For our analytics purposes that's indistinguishable from
+  // "organic install" — same bucket as a 200-OK `attribution: false`. Warn-log
+  // the upstream body so a sustained pattern (bundle-ID mismatch, real
+  // malformation) is still spottable in server logs.
   if (response.status === 400) {
     const body = await response.text().catch(() => "");
-    return { status: "invalid", reason: body || "bad request" };
+    console.warn(`[attribution/apple-search-ads] Apple /v1/ returned 400, treating as organic install. Body: ${body || "(empty)"}`);
+    return {
+      status: "resolved",
+      attributed: false,
+      properties: mapAppleAttributionToProperties({ attribution: false }),
+    };
   }
 
   if (!response.ok) {

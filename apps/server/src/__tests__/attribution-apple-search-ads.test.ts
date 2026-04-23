@@ -199,17 +199,49 @@ describe("POST /v1/identity/attribution/apple-search-ads", () => {
     }
   });
 
-  it("returns 400 when Apple rejects the token as invalid (400)", async () => {
+  it("treats Apple 400 as organic install (attribution_source=none)", async () => {
+    // Apps not registered with any Apple Search Ads campaigns get every token
+    // rejected with 400. That's semantically indistinguishable from a real
+    // attribution:false response, so we bucket it as organic instead of
+    // surfacing it as an SDK-level error.
     const mock = mockAppleAttribution({ status: 400, bodyText: "invalid token" });
     try {
       const res = await app.inject({
         method: "POST",
         url: ASA_ROUTE,
         headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-        payload: { user_id: "user-attrib-invalid", attribution_token: "bad" },
+        payload: { user_id: "user-attrib-no-asa-app", attribution_token: FAKE_TOKEN },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.attributed).toBe(false);
+      expect(body.pending).toBe(false);
+      expect(body.properties[ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.none);
+      expect(Object.keys(body.properties).filter((k) => k.startsWith("asa_"))).toEqual([]);
+
+      const stored = await getUserProperties("user-attrib-no-asa-app");
+      expect(stored![ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.none);
+      expect(Object.keys(stored!).filter((k) => k.startsWith("asa_"))).toEqual([]);
+    } finally {
+      mock.cleanup();
+    }
+  });
+
+  it("returns 400 for empty attribution_token without calling Apple", async () => {
+    // Empty string passes the route-level `typeof === "string"` guard, so the
+    // resolver's own guard is what catches genuine caller bugs (e.g. dev code
+    // passing an empty string into sendAppleSearchAdsAttributionToken).
+    const mock = mockAppleAttribution({ body: {} });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: ASA_ROUTE,
+        headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+        payload: { user_id: "user-attrib-empty-token", attribution_token: "" },
       });
       expect(res.statusCode).toBe(400);
-      const stored = await getUserProperties("user-attrib-invalid");
+      expect(mock.fetchCalled()).toBe(0);
+      const stored = await getUserProperties("user-attrib-empty-token");
       expect(stored).toBeNull();
     } finally {
       mock.cleanup();
