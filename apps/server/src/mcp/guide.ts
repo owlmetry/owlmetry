@@ -136,6 +136,7 @@ Where a user came from, stored as user properties on \`app_users\`. Today only *
 User properties written:
 - \`attribution_source\` — \`apple_search_ads\` on a successful attribution, \`none\` when the install came from organic / another source. Query/group on this key rather than a network-specific flag; future networks will reuse it.
 - On successful ASA attribution, additional ASA-specific IDs are written: \`asa_campaign_id\`, \`asa_ad_group_id\`, \`asa_keyword_id\`, \`asa_claim_type\`, \`asa_ad_id\`, \`asa_creative_set_id\`. Human-readable names (campaign name, keyword text, etc.) are resolved into extra properties when the Apple Search Ads integration is configured for the project (see **Integrations** above).
+- \`likely_app_reviewer = "true"\` when Apple returns its App Store review sandbox fixture (same numeric ID across campaign, ad group, and ad). Traceable numeric IDs are still stored, but exclude these users when reporting on paid acquisition.
 
 **Opt out**: pass \`attributionEnabled: false\` to \`Owl.configure()\` on the Swift SDK. Full setup, opt-out, and manual-submit APIs: \`owlmetry://skills/swift\` → "Apple Search Ads Attribution".
 

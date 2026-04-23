@@ -2,6 +2,7 @@ import {
   ASA_PROPERTY_PREFIX,
   ATTRIBUTION_SOURCE_PROPERTY,
   ATTRIBUTION_SOURCE_VALUES,
+  LIKELY_APP_REVIEWER_PROPERTY,
   type AttributionDevMock,
 } from "@owlmetry/shared";
 import type { AttributionResolveOutcome, AttributionResolver } from "./types.js";
@@ -26,6 +27,33 @@ interface AppleAdsAttributionResponse {
   claimType?: string;
   countryOrRegion?: string;
   clickDate?: string | null;
+}
+
+/**
+ * Detect Apple's App Store review sandbox attribution fixture. Observed in
+ * production on 2026-04-22 across three apps submitted for review on the same
+ * day — installs from reviewer devices resolved with `campaignId == adGroupId
+ * == adId` (all three equal to 1234567890), `keywordId = 12323222`, and
+ * `claimType = "Click"` (Apple's real responses use lowercase `"click"`).
+ * Three distinct Apple entities can't share an ID in production data, so the
+ * equality check is a safe tell even if Apple changes the exact numbers.
+ */
+export function isLikelyAppReviewerFixture(
+  response: AppleAdsAttributionResponse,
+): boolean {
+  if (!response.attribution) return false;
+  const { campaignId, adGroupId, adId } = response;
+  if (
+    typeof campaignId === "number" &&
+    typeof adGroupId === "number" &&
+    typeof adId === "number" &&
+    campaignId > 0 &&
+    campaignId === adGroupId &&
+    campaignId === adId
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -62,6 +90,10 @@ export function mapAppleAttributionToProperties(
 
   if (response.claimType && response.claimType.length > 0) {
     props[`${ASA_PROPERTY_PREFIX}claim_type`] = response.claimType;
+  }
+
+  if (isLikelyAppReviewerFixture(response)) {
+    props[LIKELY_APP_REVIEWER_PROPERTY] = "true";
   }
 
   return props;

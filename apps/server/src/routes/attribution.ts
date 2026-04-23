@@ -10,6 +10,7 @@ import {
 import { requirePermission } from "../middleware/auth.js";
 import { mergeUserProperties } from "../utils/user-properties.js";
 import { resolveProjectIdFromApp } from "../utils/project.js";
+import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
 import { ATTRIBUTION_RESOLVERS } from "../utils/attribution/index.js";
 import { scheduleAppleAdsEnrichmentForUser } from "./apple-search-ads.js";
 
@@ -63,15 +64,22 @@ export async function attributionRoutes(app: FastifyInstance) {
 
       const outcome = await resolver.resolve(attribution_token, { devMock });
 
+      // If the SDK's in-flight attribution capture raced the setUser/claim
+      // flow, it may POST with a now-stale anon id. Redirect the write to the
+      // real user so properties land on the merged row instead of orphaning a
+      // new anon row the claim will never touch again.
+      const claimMap = await resolveClaimedUserIds(app.db, project_id, [user_id]);
+      const resolved_user_id = claimMap.get(user_id) ?? user_id;
+
       switch (outcome.status) {
         case "resolved": {
-          await mergeUserProperties(app.db, project_id, user_id, outcome.properties);
+          await mergeUserProperties(app.db, project_id, resolved_user_id, outcome.properties);
           // Fire-and-forget: if this project has the Apple Ads integration
           // configured, resolve IDs → names in the background so the dashboard
           // shows "Holiday US Campaign" instead of "542370539" within seconds.
           // Errors are logged inside the helper — never surfaced to the SDK.
           if (source === "apple-search-ads" && outcome.attributed) {
-            void scheduleAppleAdsEnrichmentForUser(app, project_id, user_id, outcome.properties);
+            void scheduleAppleAdsEnrichmentForUser(app, project_id, resolved_user_id, outcome.properties);
           }
           const response: SubmitAppleSearchAdsAttributionResponse = {
             attributed: outcome.attributed,

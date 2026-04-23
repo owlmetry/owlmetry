@@ -66,10 +66,18 @@ export const ASA_ID_NAME_PAIRS = [
   { idKey: "asa_ad_id", nameKey: "asa_ad_name" },
 ] as const;
 
+// Set to "true" when Apple's AdServices Attribution API returns the sandbox
+// fixture we've seen used for App Store review installs (same ID repeated
+// across campaign/ad_group/ad, keyword_id "12323222", claim_type "Click").
+// Lets the team filter reviewer sessions out of real ASA dashboards without
+// dropping the attribution row entirely.
+export const LIKELY_APP_REVIEWER_PROPERTY = "likely_app_reviewer";
+
 // All property keys the attribution subsystem may write for a user. Useful
 // for UI filters that need to distinguish attribution props from custom ones.
 export const ATTRIBUTION_RESERVED_KEYS: readonly string[] = [
   ATTRIBUTION_SOURCE_PROPERTY,
+  LIKELY_APP_REVIEWER_PROPERTY,
   ...ASA_PROPERTY_KEYS,
 ];
 

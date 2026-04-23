@@ -4,6 +4,7 @@ import postgres from "postgres";
 import {
   ATTRIBUTION_SOURCE_PROPERTY,
   ATTRIBUTION_SOURCE_VALUES,
+  LIKELY_APP_REVIEWER_PROPERTY,
 } from "@owlmetry/shared";
 import {
   buildApp,
@@ -286,6 +287,113 @@ describe("POST /v1/identity/attribution/apple-search-ads", () => {
       payload: { user_id: "whatever", attribution_token: "whatever" },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("flags likely_app_reviewer when Apple returns the App Review sandbox fixture", async () => {
+    // Pattern observed 2026-04-22 across three App-Review installs: the same
+    // numeric ID shows up on campaign, ad_group, and ad — which can't happen
+    // for real Apple entities.
+    const reviewerResponse = {
+      attribution: true,
+      orgId: 40669820,
+      campaignId: 1234567890,
+      adGroupId: 1234567890,
+      adId: 1234567890,
+      keywordId: 12323222,
+      conversionType: "Download",
+      claimType: "Click",
+    };
+    const mock = mockAppleAttribution({ body: reviewerResponse });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: ASA_ROUTE,
+        headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+        payload: { user_id: "user-reviewer-fixture", attribution_token: FAKE_TOKEN },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.attributed).toBe(true);
+      expect(body.properties[LIKELY_APP_REVIEWER_PROPERTY]).toBe("true");
+      // Numeric IDs are still written so the row is traceable.
+      expect(body.properties.asa_campaign_id).toBe("1234567890");
+      expect(body.properties.asa_ad_group_id).toBe("1234567890");
+      expect(body.properties.asa_ad_id).toBe("1234567890");
+
+      const stored = await getUserProperties("user-reviewer-fixture");
+      expect(stored![LIKELY_APP_REVIEWER_PROPERTY]).toBe("true");
+    } finally {
+      mock.cleanup();
+    }
+  });
+
+  it("does NOT flag likely_app_reviewer when Apple returns distinct IDs", async () => {
+    const mock = mockAppleAttribution({ body: ATTRIBUTED_RESPONSE });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: ASA_ROUTE,
+        headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+        payload: { user_id: "user-real-attribution", attribution_token: FAKE_TOKEN },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.properties[LIKELY_APP_REVIEWER_PROPERTY]).toBeUndefined();
+
+      const stored = await getUserProperties("user-real-attribution");
+      expect(stored![LIKELY_APP_REVIEWER_PROPERTY]).toBeUndefined();
+    } finally {
+      mock.cleanup();
+    }
+  });
+
+  it("redirects attribution writes to the real user when the SDK POSTs a stale anon id after claim", async () => {
+    // Reproduces the MockupCreator reviewer case: Firebase auth resolves
+    // between Owl.configure() and the attribution POST, so claim lands first
+    // and then the in-flight attribution hits us with an already-merged
+    // anon id. Pre-fix this created an orphan anon row.
+    const anonId = "owl_anon_raceflow_1";
+    const realId = "real-user-raceflow-1";
+
+    // Seed: anon user exists, claim consumed it into real user.
+    await ingestEvent(anonId);
+    const claimRes = await app.inject({
+      method: "POST",
+      url: "/v1/identity/claim",
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { anonymous_id: anonId, user_id: realId },
+    });
+    expect(claimRes.statusCode).toBe(200);
+
+    // Confirm the real user row has claimed_from set.
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    const [realRow] = await client`
+      SELECT claimed_from FROM app_users WHERE project_id = ${projectId} AND user_id = ${realId}
+    `;
+    await client.end();
+    expect(realRow?.claimed_from).toContain(anonId);
+
+    // Late-arriving attribution POST uses the stale anon id.
+    const mock = mockAppleAttribution({ body: {} });
+    try {
+      const attribRes = await app.inject({
+        method: "POST",
+        url: ASA_ROUTE,
+        headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+        payload: { user_id: anonId, attribution_token: "ignored", dev_mock: "attributed" },
+      });
+      expect(attribRes.statusCode).toBe(200);
+    } finally {
+      mock.cleanup();
+    }
+
+    // Real user picked up the properties, no orphan anon row exists.
+    const realProps = await getUserProperties(realId);
+    expect(realProps).not.toBeNull();
+    expect(realProps![ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.appleSearchAds);
+    expect(realProps!.asa_campaign_id).toBeTruthy();
+    const anonProps = await getUserProperties(anonId);
+    expect(anonProps).toBeNull();
   });
 
   it("identity claim carries asa_* + attribution_source from anon to real user", async () => {

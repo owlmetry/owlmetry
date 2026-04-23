@@ -108,6 +108,7 @@ The SDK writes one of:
 
 - `attribution_source = "apple_search_ads"` plus `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` when Apple attributes the install.
 - `attribution_source = "none"` when Apple responds but the install is not attributed, or after `ASA_MAX_PENDING_ATTEMPTS` (5) failed retries.
+- `likely_app_reviewer = "true"` when Apple's response carries its App Store review sandbox fixture (same numeric ID across campaign, ad group, and ad). The numeric IDs are still stored so the row is traceable, but you'll want to filter these sessions out of acquisition dashboards to avoid counting Apple's reviewer devices as paid installs.
 
 The SDK's live path only populates numeric IDs — Apple's AdServices Attribution API doesn't return human-readable names. Name fields (`asa_campaign_name`, `asa_ad_group_name`, `asa_ad_name`, `asa_keyword`) are populated by one of two server-side integrations, both of which cover every attributed user and are per-field merged so the live SDK's numeric IDs are never overwritten:
 

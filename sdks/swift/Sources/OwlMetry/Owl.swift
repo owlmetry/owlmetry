@@ -133,11 +133,16 @@ public enum Owl {
         // `attributionEnabled: false`. Fully self-contained: honors the
         // per-install captured flag, handles simulator/non-iOS gracefully,
         // and retries across launches on transient failures.
+        //
+        // The userId read is deferred into a closure so a `setUser(...)` call
+        // that arrives during token fetch (common with async auth flows) is
+        // picked up before we POST — otherwise a stale anon id lands on a row
+        // the claim merge has already consumed.
         if config.attributionEnabled {
             Task.detached(priority: .background) {
                 await AppleSearchAdsAttribution.captureIfNeeded(
                     anonymousId: anonId,
-                    userId: userId,
+                    currentUserId: { Owl.currentUserId ?? anonId },
                     transport: transport
                 )
             }

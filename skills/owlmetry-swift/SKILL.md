@@ -472,6 +472,7 @@ OwlMetry auto-captures Apple Search Ads attribution on `Owl.configure()` — no 
 On successful attribution the user picks up:
 - `attribution_source = "apple_search_ads"` (cross-network — future Meta/Google support writes `meta`/`google_ads` into the same key)
 - `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id`
+- `likely_app_reviewer = "true"` when Apple returns its App Store review sandbox fixture (same numeric ID across campaign, ad group, and ad). The numeric IDs are still stored so the row is traceable — filter this flag out of acquisition dashboards so Apple's reviewer devices don't inflate paid-install counts.
 
 An install Apple did not attribute gets `attribution_source = "none"` and nothing else.
 

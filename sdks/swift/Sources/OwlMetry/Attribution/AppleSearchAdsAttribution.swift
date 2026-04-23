@@ -35,7 +35,18 @@ enum AppleSearchAdsAttribution {
 
     /// Attempt to capture attribution for the current install if not already
     /// captured. No-op if already done, disabled, or unsupported on this OS.
-    static func captureIfNeeded(anonymousId: String, userId: String, transport: EventTransport) async {
+    ///
+    /// `currentUserId` is a closure rather than a snapshot so callers can defer
+    /// the read until after the token fetch completes — Firebase/auth flows
+    /// commonly resolve during that window and call `Owl.setUser(...)`, which
+    /// shifts `defaultUserId` from the anon id to the real id. Submitting with
+    /// the stale anon id used to orphan the attribution props on a row the
+    /// claim merge had already rewritten.
+    static func captureIfNeeded(
+        anonymousId: String,
+        currentUserId: @escaping @Sendable () -> String,
+        transport: EventTransport
+    ) async {
         guard !State.isCaptured(anonymousId: anonymousId) else {
             logger.debug("Attribution already captured for \(anonymousId, privacy: .public); skipping.")
             return
@@ -47,7 +58,7 @@ enum AppleSearchAdsAttribution {
             return
         }
 
-        await submit(token: token, anonymousId: anonymousId, userId: userId, transport: transport)
+        await submit(token: token, anonymousId: anonymousId, userId: currentUserId(), transport: transport)
     }
 
     /// Submit a caller-supplied token. Used by `Owl.sendAppleSearchAdsAttributionToken(_:)`
