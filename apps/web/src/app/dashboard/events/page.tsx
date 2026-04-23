@@ -18,6 +18,7 @@ import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
+import { isDefaultColumnOrder } from "@owlmetry/shared";
 import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
@@ -227,7 +228,7 @@ export default function EventsPage() {
           <ColumnPicker
             allColumns={pickerItems}
             order={columnOrder}
-            defaultOrder={DEFAULT_EVENT_COLUMN_ORDER}
+            canReset={!isDefaultColumnOrder(columnOrder, DEFAULT_EVENT_COLUMN_ORDER)}
             onChange={(next) => updatePrefs({ ui: { columns: { events: { order: next } } } })}
             onReset={() => updatePrefs({ ui: { columns: { events: { order: DEFAULT_EVENT_COLUMN_ORDER } } } })}
           />

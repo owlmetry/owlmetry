@@ -22,6 +22,7 @@ import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
+import { isDefaultColumnOrder } from "@owlmetry/shared";
 import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useProjectColorMap, useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { Button } from "@/components/ui/button";
@@ -228,7 +229,7 @@ export default function UsersPage() {
           <ColumnPicker
             allColumns={pickerItems}
             order={columnOrder}
-            defaultOrder={DEFAULT_USER_COLUMN_ORDER}
+            canReset={!isDefaultColumnOrder(columnOrder, DEFAULT_USER_COLUMN_ORDER)}
             onChange={(next) => updatePrefs({ ui: { columns: { users: { order: next } } } })}
             onReset={() => updatePrefs({ ui: { columns: { users: { order: DEFAULT_USER_COLUMN_ORDER } } } })}
           />

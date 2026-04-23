@@ -48,3 +48,12 @@ export function mergeUserPreferences(
   }
   return merged;
 }
+
+/** True iff `order` is element-by-element identical to `defaultOrder`. */
+export function isDefaultColumnOrder(order: string[], defaultOrder: string[]): boolean {
+  if (order.length !== defaultOrder.length) return false;
+  for (let i = 0; i < order.length; i++) {
+    if (order[i] !== defaultOrder[i]) return false;
+  }
+  return true;
+}

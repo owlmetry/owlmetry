@@ -36,8 +36,8 @@ interface ColumnPickerProps {
   allColumns: ColumnPickerItem[];
   /** Currently visible ids, in display order. */
   order: string[];
-  /** Default order — used to detect whether the user has customized. */
-  defaultOrder: string[];
+  /** When true the Reset affordance is shown; callers own the "is this the default?" comparison. */
+  canReset: boolean;
   onChange: (nextOrder: string[]) => void;
   onReset: () => void;
   /** Shown as the trigger button label. */
@@ -47,7 +47,7 @@ interface ColumnPickerProps {
 export function ColumnPicker({
   allColumns,
   order,
-  defaultOrder,
+  canReset,
   onChange,
   onReset,
   triggerLabel = "Columns",
@@ -91,10 +91,6 @@ export function ColumnPicker({
     onChange(arrayMove(order, oldIndex, newIndex));
   }
 
-  const hasCustomization =
-    order.length !== defaultOrder.length ||
-    order.some((id, i) => defaultOrder[i] !== id);
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -106,7 +102,7 @@ export function ColumnPicker({
       <PopoverContent className="w-80 p-0" align="end">
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <span className="text-xs font-medium">Columns</span>
-          {hasCustomization && (
+          {canReset && (
             <Button
               variant="ghost"
               size="sm"
