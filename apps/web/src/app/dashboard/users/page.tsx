@@ -16,19 +16,14 @@ import {
   type BillingTier,
 } from "@owlmetry/shared/billing";
 import { UserDetailSheet } from "@/components/user-detail-sheet";
-import { VersionBadge, pickLatestForUser } from "@/components/version-badge";
 import { TIME_RANGES } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
-import { formatDateTime } from "@/lib/format-date";
-import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
-import { BillingBadge } from "@/components/billing-badge";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
+import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useProjectColorMap, useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -39,19 +34,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { ProjectDot } from "@/lib/project-color";
-import { CountryCell } from "@/components/country-flag";
-import { AttributionBadge } from "@/components/attribution-badge";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { TableSkeleton } from "@/components/ui/skeletons";
+import { ConfigurableTable } from "@/components/configurable-table";
+import { ColumnPicker } from "@/components/column-picker";
+import {
+  USER_COLUMN_REGISTRY,
+  DEFAULT_USER_COLUMN_ORDER,
+  type UserColumnHelpers,
+} from "@/lib/user-columns";
 
 const BILLING_TIER_LABELS: Record<BillingTier, string> = {
   paid: "💰 Paid",
@@ -103,6 +95,19 @@ export default function UsersPage() {
   const projectColorMap = useProjectColorMap(teamId);
   const appColorMap = useAppColorMap(teamId);
   const projectInfoMap = useProjectInfoMap(teamId);
+
+  // Column preferences
+  const prefs = useUserPreferences();
+  const updatePrefs = useUpdateUserPreferences();
+  const columnOrder = prefs.ui?.columns?.users?.order ?? DEFAULT_USER_COLUMN_ORDER;
+  const visibleColumns = useMemo(
+    () => columnOrder.map((id) => USER_COLUMN_REGISTRY[id]).filter(Boolean),
+    [columnOrder],
+  );
+  const pickerItems = useMemo(
+    () => Object.values(USER_COLUMN_REGISTRY).map((c) => ({ id: c.id, label: c.label, group: c.group })),
+    [],
+  );
 
   const projectId = filters.get("project_id");
   const appId = filters.get("app_id");
@@ -165,6 +170,16 @@ export default function UsersPage() {
     filters.setMany({ [key]: value, app_user_id: "" });
   }
 
+  const columnHelpers: UserColumnHelpers = useMemo(
+    () => ({
+      appColorMap,
+      appLatestVersionMap,
+      projectInfoMap,
+      onFilterClick: (key, value) => filters.set(key, value),
+    }),
+    [appColorMap, appLatestVersionMap, projectInfoMap, filters],
+  );
+
   function toggleBillingTier(tier: BillingTier, checked: boolean) {
     const next = new Set(billingTiers);
     if (checked) next.add(tier);
@@ -209,6 +224,15 @@ export default function UsersPage() {
         hasActiveFilters={filters.hasActiveFilters}
         onClear={filters.clearFilters}
         chips={chips}
+        extraActions={
+          <ColumnPicker
+            allColumns={pickerItems}
+            order={columnOrder}
+            defaultOrder={DEFAULT_USER_COLUMN_ORDER}
+            onChange={(next) => updatePrefs({ ui: { columns: { users: { order: next } } } })}
+            onReset={() => updatePrefs({ ui: { columns: { users: { order: DEFAULT_USER_COLUMN_ORDER } } } })}
+          />
+        }
       >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
@@ -384,120 +408,13 @@ export default function UsersPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User ID</TableHead>
-                  <TableHead className="w-[100px]">Type</TableHead>
-                  <TableHead className="w-[180px]">Apps</TableHead>
-                  <TableHead className="w-[90px]">Version</TableHead>
-                  <TableHead className="w-[200px]">Properties</TableHead>
-                  <TableHead className="w-[160px]">First Seen</TableHead>
-                  <TableHead className="w-[160px]">Last Seen</TableHead>
-                  <TableHead className="w-[80px]">Country</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => {
-                  const userProject = !user.apps?.length ? projectInfoMap.get(user.project_id) : null;
-                  return (
-                  <TableRow key={user.id} className="cursor-pointer hover:bg-muted/50" onClick={() => handleRowClick(user)}>
-                    <TableCell className="font-mono text-xs py-1.5">
-                      {user.user_id}
-                    </TableCell>
-                    <TableCell className="py-1.5">
-                      {user.is_anonymous ? (
-                        <Badge variant="secondary" className="text-xs">👻 anon</Badge>
-                      ) : (
-                        <Badge variant="default" className="text-xs">👤 real</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs py-1.5 max-w-[180px]">
-                      <div className="flex flex-wrap gap-1">
-                        {user.apps && user.apps.length > 0 ? (
-                          user.apps.map((a) => (
-                            <Badge
-                              key={a.app_id}
-                              variant="outline"
-                              className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                filters.set("app_id", a.app_id);
-                              }}
-                            >
-                              <ProjectDot color={appColorMap.get(a.app_id)} size={6} />
-                              {a.app_name}
-                            </Badge>
-                          ))
-                        ) : userProject ? (
-                          <Badge
-                            variant="outline"
-                            className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              filters.set("project_id", user.project_id);
-                            }}
-                          >
-                            <ProjectDot color={userProject.color} size={6} />
-                            {userProject.name}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs py-1.5 truncate max-w-[110px]">
-                      <VersionBadge
-                        version={user.last_app_version}
-                        latestVersion={pickLatestForUser(user.apps, appLatestVersionMap)}
-                      />
-                    </TableCell>
-                    <TableCell className="py-1.5">
-                      {user.properties ? (() => {
-                        const otherEntries = Object.entries(user.properties)
-                          .filter(([k]) => !k.startsWith("rc_") && !k.startsWith("asa_") && !k.startsWith("_") && k !== "attribution_source");
-                        return (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <BillingBadge properties={user.properties} />
-                            <AttributionBadge properties={user.properties} />
-                            {otherEntries.length > 0 && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="outline" className="text-xs">🏷️ +{otherEntries.length}</Badge>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs">
-                                  <div className="space-y-0.5 text-xs">
-                                    {otherEntries.map(([k, v]) => (
-                                      <div key={k}>
-                                        <span className="text-muted-foreground">{k}:</span> {v}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </div>
-                        );
-                      })() : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs py-1.5" title={formatDateTime(user.first_seen_at)}>
-                      {timeAgoOrDate(user.first_seen_at, formatDateTime)}
-                    </TableCell>
-                    <TableCell className="text-xs py-1.5" title={formatDateTime(user.last_seen_at)}>
-                      {timeAgoOrDate(user.last_seen_at, formatDateTime)}
-                    </TableCell>
-                    <TableCell className="text-xs py-1.5">
-                      <CountryCell code={user.last_country_code} />
-                    </TableCell>
-                  </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <ConfigurableTable
+            columns={visibleColumns}
+            rows={users}
+            helpers={columnHelpers}
+            rowKey={(u) => u.id}
+            onRowClick={handleRowClick}
+          />
 
           {hasMore && (
             <div className="flex justify-center pt-2">

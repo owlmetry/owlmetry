@@ -81,6 +81,34 @@ export const ATTRIBUTION_RESERVED_KEYS: readonly string[] = [
   ...ASA_PROPERTY_KEYS,
 ];
 
+/**
+ * Property keys surfaceable as dashboard columns on the Users page.
+ *
+ * Keep this list short and focused on human-readable values (names, not
+ * numeric IDs) — the goal is to let a team see their acquisition mix in the
+ * users table without opening every user sheet.
+ *
+ * Adding a new ad network: append rows with a new `source` label. The
+ * column registry in `apps/web/src/lib/user-columns.tsx` picks them up
+ * automatically and the picker groups them under the `source` heading.
+ */
+export interface AttributionColumnKey {
+  /** Key in `app_users.properties`. */
+  propertyKey: string;
+  /** Header label + picker label. */
+  label: string;
+  /** Group shown in the picker (e.g. "Apple Search Ads"). */
+  source: string;
+}
+
+export const ATTRIBUTION_COLUMN_KEYS: AttributionColumnKey[] = [
+  { propertyKey: ATTRIBUTION_SOURCE_PROPERTY, label: "Attribution Source", source: "Attribution" },
+  { propertyKey: "asa_campaign_name", label: "Campaign", source: "Apple Search Ads" },
+  { propertyKey: "asa_ad_group_name", label: "Ad Group", source: "Apple Search Ads" },
+  { propertyKey: "asa_keyword", label: "Keyword", source: "Apple Search Ads" },
+  { propertyKey: "asa_ad_name", label: "Ad", source: "Apple Search Ads" },
+];
+
 // Maximum number of "pending" responses the SDK will follow before giving up
 // and writing `attribution_source="none"`. Apple's attribution record can
 // take up to ~24h to populate, so 5 launches covers ~1–2 days of normal use.

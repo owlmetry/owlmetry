@@ -126,6 +126,7 @@ export interface MeResponse {
 
 export interface UpdateMeRequest {
   name?: string;
+  preferences?: Partial<import("./preferences.js").UserPreferences>;
 }
 
 export interface UpdateApiKeyRequest {

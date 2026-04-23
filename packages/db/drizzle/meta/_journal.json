@@ -281,6 +281,13 @@
       "when": 1776931886811,
       "tag": "0039_cheerful_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1776940465296,
+      "tag": "0040_smart_silver_surfer",
+      "breakpoints": true
     }
   ]
 }

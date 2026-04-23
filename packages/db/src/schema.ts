@@ -36,6 +36,10 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
+  preferences: jsonb("preferences")
+    .$type<import("@owlmetry/shared").UserPreferences>()
+    .notNull()
+    .default({}),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

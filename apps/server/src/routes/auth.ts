@@ -11,6 +11,7 @@ import type {
   UpdateApiKeyRequest,
   UpdateMeRequest,
   Permission,
+  UserPreferences,
 } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
@@ -27,14 +28,73 @@ const COOKIE_OPTIONS = {
   ...(config.cookieDomain ? { domain: config.cookieDomain } : {}),
 };
 
-function serializeUser(user: { id: string; email: string; name: string; created_at: Date; updated_at: Date }) {
+function serializeUser(user: {
+  id: string;
+  email: string;
+  name: string;
+  preferences: UserPreferences | null;
+  created_at: Date;
+  updated_at: Date;
+}) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
+    preferences: user.preferences ?? {},
     created_at: user.created_at.toISOString(),
     updated_at: user.updated_at.toISOString(),
   };
+}
+
+/**
+ * Accept only known top-level keys under `preferences`. Anything else is
+ * stripped so a compromised or buggy client can't write garbage into the
+ * JSONB blob.
+ */
+function sanitizeUserPreferences(input: unknown): Partial<UserPreferences> {
+  if (!input || typeof input !== "object") return {};
+  const src = input as Record<string, unknown>;
+  const out: Partial<UserPreferences> = {};
+  if (typeof src.version === "number") out.version = src.version as 1;
+  if (src.ui && typeof src.ui === "object") {
+    const ui = src.ui as Record<string, unknown>;
+    const nextUi: NonNullable<UserPreferences["ui"]> = {};
+    if (ui.columns && typeof ui.columns === "object") {
+      const cols = ui.columns as Record<string, unknown>;
+      const nextCols: NonNullable<NonNullable<UserPreferences["ui"]>["columns"]> = {};
+      for (const key of ["events", "users"] as const) {
+        const cfg = cols[key];
+        if (cfg && typeof cfg === "object" && Array.isArray((cfg as { order?: unknown }).order)) {
+          const order = ((cfg as { order: unknown[] }).order).filter((v): v is string => typeof v === "string");
+          nextCols[key] = { order };
+        }
+      }
+      if (Object.keys(nextCols).length > 0) nextUi.columns = nextCols;
+    }
+    if (Object.keys(nextUi).length > 0) out.ui = nextUi;
+  }
+  return out;
+}
+
+/**
+ * Shallow-merge at the top level, deep-replace any nested object the caller
+ * provides. Two tabs editing different sub-objects (e.g. events vs users
+ * column layout) don't clobber each other; same-page last-write-wins.
+ */
+function mergePreferences(
+  existing: UserPreferences | null | undefined,
+  patch: Partial<UserPreferences>,
+): UserPreferences {
+  const base = existing ?? {};
+  const merged: UserPreferences = { ...base };
+  if (patch.version !== undefined) merged.version = patch.version;
+  if (patch.ui !== undefined) {
+    merged.ui = { ...base.ui };
+    if (patch.ui.columns !== undefined) {
+      merged.ui.columns = { ...base.ui?.columns, ...patch.ui.columns };
+    }
+  }
+  return merged;
 }
 
 function generateSlugFromName(name: string): string {
@@ -75,7 +135,7 @@ type MembershipTeam = Awaited<ReturnType<typeof getUserTeamMemberships>>[0];
 
 /** Find existing user or create new user + default team. Returns user, whether new, and team memberships. */
 async function findOrCreateUser(db: Parameters<typeof getUserTeamMemberships>[0], email: string): Promise<{
-  user: { id: string; email: string; name: string; created_at: Date; updated_at: Date };
+  user: { id: string; email: string; name: string; preferences: UserPreferences | null; created_at: Date; updated_at: Date };
   isNewUser: boolean;
   membershipTeams: MembershipTeam[];
 }> {
@@ -271,6 +331,7 @@ export async function authRoutes(app: FastifyInstance) {
           id: users.id,
           email: users.email,
           name: users.name,
+          preferences: users.preferences,
           created_at: users.created_at,
           updated_at: users.updated_at,
         })
@@ -299,38 +360,57 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only users can update their profile" });
       }
 
-      const { name } = request.body;
+      const { name, preferences } = request.body;
 
-      if (!name) {
+      if (name === undefined && preferences === undefined) {
         return reply.code(400).send({ error: "At least one field to update is required" });
       }
 
-      // Fetch current name for audit diff
-      const [current] = await app.db
-        .select({ name: users.name })
-        .from(users)
-        .where(eq(users.id, auth.user_id))
-        .limit(1);
+      const updates: Record<string, unknown> = {};
+
+      if (name !== undefined) {
+        updates.name = name;
+      }
+
+      let nameBefore: string | undefined;
+      if (preferences !== undefined) {
+        const sanitized = sanitizeUserPreferences(preferences);
+        const [current] = await app.db
+          .select({ preferences: users.preferences, name: users.name })
+          .from(users)
+          .where(eq(users.id, auth.user_id))
+          .limit(1);
+        nameBefore = current?.name;
+        updates.preferences = mergePreferences(current?.preferences, sanitized);
+      } else if (name !== undefined) {
+        const [current] = await app.db
+          .select({ name: users.name })
+          .from(users)
+          .where(eq(users.id, auth.user_id))
+          .limit(1);
+        nameBefore = current?.name;
+      }
 
       const [updated] = await app.db
         .update(users)
-        .set({ name })
+        .set(updates)
         .where(eq(users.id, auth.user_id))
         .returning({
           id: users.id,
           email: users.email,
           name: users.name,
+          preferences: users.preferences,
           created_at: users.created_at,
           updated_at: users.updated_at,
         });
 
-      if (auth.team_memberships.length > 0) {
+      if (name !== undefined && auth.team_memberships.length > 0) {
         logAuditEvent(app.db, auth, {
           team_id: auth.team_memberships[0].team_id,
           action: "update",
           resource_type: "user",
           resource_id: auth.user_id,
-          changes: { name: { before: current?.name, after: name } },
+          changes: { name: { before: nameBefore, after: name } },
         });
       }
 

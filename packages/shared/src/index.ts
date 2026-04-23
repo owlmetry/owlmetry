@@ -17,3 +17,4 @@ export * from "./billing.js";
 export * from "./attachments.js";
 export * from "./attribution.js";
 export * from "./version.js";
+export * from "./preferences.js";

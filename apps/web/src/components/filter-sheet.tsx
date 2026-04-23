@@ -38,6 +38,8 @@ interface FilterSheetProps {
   onClear: () => void;
   chips: FilterChip[];
   children: ReactNode;
+  /** Extra toolbar controls (e.g. column picker) rendered to the left of the Filters trigger. */
+  extraActions?: ReactNode;
 }
 
 const MAX_VISIBLE_CHIPS = 5;
@@ -48,6 +50,7 @@ export function FilterSheet({
   onClear,
   chips,
   children,
+  extraActions,
 }: FilterSheetProps) {
   const [open, setOpen] = useState(false);
   const [dismissing, setDismissing] = useState<Set<string>>(new Set());
@@ -126,6 +129,8 @@ export function FilterSheet({
             <span>Clear</span>
           </button>
         )}
+
+        {extraActions}
 
         <Button
           variant="outline"

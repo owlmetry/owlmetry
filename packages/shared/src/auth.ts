@@ -114,6 +114,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  preferences: import("./preferences.js").UserPreferences;
   created_at: Date;
   updated_at: Date;
 }

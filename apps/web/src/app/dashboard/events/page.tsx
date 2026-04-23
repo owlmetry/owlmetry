@@ -12,19 +12,16 @@ import type {
 import { TIME_RANGES, ENVIRONMENTS } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
-import { formatDateTime, formatTime, formatShortDate } from "@/lib/format-date";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
+import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
-import { EventLevelBadge } from "@/components/event-level-badge";
-import { VersionBadge } from "@/components/version-badge";
 import { EventDetailSheet } from "@/components/event-detail-sheet";
 import { ProjectDot } from "@/lib/project-color";
-import { CountryCell } from "@/components/country-flag";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,16 +31,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { TableSkeleton } from "@/components/ui/skeletons";
+import { ConfigurableTable } from "@/components/configurable-table";
+import { ColumnPicker } from "@/components/column-picker";
+import {
+  EVENT_COLUMN_REGISTRY,
+  DEFAULT_EVENT_COLUMN_ORDER,
+  type EventColumnHelpers,
+} from "@/lib/event-columns";
 
 export default function EventsPage() {
   const { currentTeam } = useTeam();
@@ -155,6 +151,26 @@ export default function EventsPage() {
   const projectColorMap = useProjectColorMap(teamId);
   const appColorMap = useAppColorMap(teamId);
 
+  // Column preferences
+  const prefs = useUserPreferences();
+  const updatePrefs = useUpdateUserPreferences();
+  const columnOrder = prefs.ui?.columns?.events?.order ?? DEFAULT_EVENT_COLUMN_ORDER;
+  const visibleColumns = useMemo(
+    () => columnOrder.map((id) => EVENT_COLUMN_REGISTRY[id]).filter(Boolean),
+    [columnOrder],
+  );
+  const pickerItems = useMemo(
+    () => DEFAULT_EVENT_COLUMN_ORDER.map((id) => {
+      const c = EVENT_COLUMN_REGISTRY[id];
+      return { id: c.id, label: c.label, group: c.group };
+    }),
+    [],
+  );
+  const columnHelpers: EventColumnHelpers = useMemo(
+    () => ({ appNameMap, appColorMap, appLatestVersionMap }),
+    [appNameMap, appColorMap, appLatestVersionMap],
+  );
+
   // Clear app filter if it doesn't belong to selected project
   useEffect(() => {
     if (projectId && appId) {
@@ -207,6 +223,15 @@ export default function EventsPage() {
         hasActiveFilters={filters.hasActiveFilters}
         onClear={filters.clearFilters}
         chips={chips}
+        extraActions={
+          <ColumnPicker
+            allColumns={pickerItems}
+            order={columnOrder}
+            defaultOrder={DEFAULT_EVENT_COLUMN_ORDER}
+            onChange={(next) => updatePrefs({ ui: { columns: { events: { order: next } } } })}
+            onReset={() => updatePrefs({ ui: { columns: { events: { order: DEFAULT_EVENT_COLUMN_ORDER } } } })}
+          />
+        }
       >
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Project</label>
@@ -410,77 +435,14 @@ export default function EventsPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Time</TableHead>
-                  <TableHead className="w-[90px]">Level</TableHead>
-                  <TableHead>Message</TableHead>
-                  <TableHead className="w-[140px]">App</TableHead>
-                  <TableHead className="w-[90px]">Version</TableHead>
-                  <TableHead className="w-[100px]">Environment</TableHead>
-                  <TableHead className="w-[80px]">Country</TableHead>
-                  <TableHead className="w-[140px]">User ID</TableHead>
-                  <TableHead className="w-[120px]">Screen</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {events.map((event) => {
-                  const ts = new Date(event.timestamp);
-                  const date = formatShortDate(ts);
-                  const time = formatTime(ts);
-                  const fullDate = formatDateTime(ts);
-                  const isSelected = selectedEvent?.id === event.id;
-
-                  return (
-                    <TableRow
-                      key={event.id}
-                      onClick={() => handleRowClick(event)}
-                      className={`cursor-pointer ${isSelected ? "bg-muted/50" : ""}`}
-                    >
-                      <TableCell
-                        className="font-mono text-xs py-1.5"
-                        title={fullDate}
-                      >
-                        {time} {date}
-                      </TableCell>
-                      <TableCell className="py-1.5">
-                        <EventLevelBadge level={event.level as LogLevel} />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs py-1.5 truncate">
-                        {event.message}
-                      </TableCell>
-                      <TableCell className="text-xs py-1.5 truncate max-w-[140px]">
-                        <span className="flex items-center gap-1.5">
-                          <ProjectDot color={appColorMap.get(event.app_id)} size={6} />
-                          <span className="truncate">{appNameMap.get(event.app_id) ?? event.app_id}</span>
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs py-1.5 truncate max-w-[110px]">
-                        <VersionBadge
-                          version={event.app_version}
-                          latestVersion={appLatestVersionMap.get(event.app_id)}
-                        />
-                      </TableCell>
-                      <TableCell className="text-xs py-1.5">
-                        {event.environment ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-xs py-1.5">
-                        <CountryCell code={event.country_code} />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs py-1.5 truncate max-w-[140px]">
-                        {event.user_id ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-xs py-1.5 truncate max-w-[120px]">
-                        {event.screen_name ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+          <ConfigurableTable
+            columns={visibleColumns}
+            rows={events}
+            helpers={columnHelpers}
+            rowKey={(e) => e.id}
+            onRowClick={handleRowClick}
+            isRowSelected={(e) => e.id === selectedEvent?.id}
+          />
 
           {hasMore && (
             <div className="flex justify-center pt-2">
