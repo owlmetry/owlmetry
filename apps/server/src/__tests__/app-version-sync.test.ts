@@ -108,6 +108,34 @@ describe("app_version_sync", () => {
     vi.unstubAllGlobals();
   });
 
+  it("counts an error and falls back to computed when iTunes throws", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network unreachable");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Seed a production event so the computed fallback has something to find
+    const sessionId = "00000000-0000-0000-0000-cccccccc0001";
+    const now = new Date();
+    await dbClient`
+      INSERT INTO events (app_id, session_id, level, message, app_version, is_dev, "timestamp")
+      VALUES (${appleAppId}, ${sessionId}, 'info', 'test', '7.0.0', false, ${now.toISOString()}::timestamptz)
+    `;
+
+    const { appVersionSyncHandler } = await import("../jobs/app-version-sync.js");
+    const result = await appVersionSyncHandler(jobCtx(), { app_id: appleAppId });
+
+    expect(result.errors).toBe(1);
+    expect(result.app_store_synced).toBe(0);
+    expect(result.computed_synced).toBe(1);
+
+    const [row] = await db.select().from(apps).where(eq(apps.id, appleAppId));
+    expect(row.latest_app_version).toBe("7.0.0");
+    expect(row.latest_app_version_source).toBe("computed");
+
+    vi.unstubAllGlobals();
+  });
+
   it("computes from production events for non-Apple apps using semver-aware max", async () => {
     // Insert a backend event with multiple versions, including the lexicographic-trap pair 1.10.0 vs 1.9.0
     const sessionId = "00000000-0000-0000-0000-bbbbbbbbb001";

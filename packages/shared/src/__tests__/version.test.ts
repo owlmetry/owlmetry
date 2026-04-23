@@ -34,11 +34,11 @@ describe("compareVersions", () => {
     expect(compareVersions("2", "1.99.99")).toBe(1);
   });
 
-  it("compares mixed numeric / alpha segments lexicographically", () => {
-    // "1.0.0" > "1.0.0-beta" because "0" is numeric while "0-beta" is alpha
-    // (and the first non-equal segment decides). This isn't strict semver
-    // pre-release ordering, but it gives sensible ordering for app versions.
-    expect(compareVersions("1.0.0", "1.0.0-beta")).not.toBe(0);
+  it("orders pre-releases below their base release (semver §11)", () => {
+    expect(compareVersions("1.0.0", "1.0.0-beta")).toBe(1);
+    expect(compareVersions("1.0.0-beta", "1.0.0")).toBe(-1);
+    expect(compareVersions("1.0.0-beta", "1.0.0-rc.1")).toBe(-1);
+    expect(compareVersions("1.0.0-rc.1", "1.0.0-rc.1")).toBe(0);
   });
 
   it("handles date-style versions", () => {

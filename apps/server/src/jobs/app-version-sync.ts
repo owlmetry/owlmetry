@@ -36,14 +36,20 @@ async function lookupAppleAppVersion(bundleId: string): Promise<LookupResult> {
   }
 }
 
+// 90-day window keeps partition pruning effective and matches the cadence at
+// which apps actually release. Anything older is irrelevant for "latest".
+const EVENTS_LOOKBACK_DAYS = 90;
+
 async function computeLatestFromEvents(
   client: postgres.Sql,
   appId: string,
 ): Promise<string | null> {
   const rows = await client<{ app_version: string }[]>`
     SELECT DISTINCT app_version FROM events
-    WHERE app_id = ${appId} AND is_dev = false AND app_version IS NOT NULL
-    LIMIT 200
+    WHERE app_id = ${appId}
+      AND is_dev = false
+      AND app_version IS NOT NULL
+      AND "timestamp" > NOW() - (${EVENTS_LOOKBACK_DAYS} || ' days')::interval
   `;
   if (rows.length === 0) return null;
   let max = rows[0].app_version;
