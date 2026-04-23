@@ -18,7 +18,7 @@ The SDK has zero runtime dependencies. All calls are non-blocking — events are
 
 Run these checks silently. Only inform the user if updates are available.
 
-1. **Skill version**: `curl -sf https://raw.githubusercontent.com/Jasonvdb/owlmetry/main/skills/owlmetry-node/SKILL.md | head -5` — compare the remote `version:` field to this file's `version:` frontmatter above. If the remote version is newer, ask the user if they want to update.
+1. **Skill version**: `curl -sf https://raw.githubusercontent.com/owlmetry/owlmetry/main/skills/owlmetry-node/SKILL.md | head -5` — compare the remote `version:` field to this file's `version:` frontmatter above. If the remote version is newer, ask the user if they want to update.
 2. **SDK version**: `npm ls @owlmetry/node --json 2>/dev/null` for current version, `npm view @owlmetry/node version 2>/dev/null` for latest. If newer, offer `npm install @owlmetry/node@latest`.
 
 ## Prerequisite

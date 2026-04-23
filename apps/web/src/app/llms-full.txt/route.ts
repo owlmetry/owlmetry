@@ -33,7 +33,7 @@ export function GET() {
     "- **Self-hosted**: Single Postgres database, deploy on your own infrastructure",
     "",
     "- Docs: https://owlmetry.com/docs",
-    "- GitHub: https://github.com/Jasonvdb/owlmetry",
+    "- GitHub: https://github.com/owlmetry/owlmetry",
     "- Dashboard: https://owlmetry.com/dashboard",
     "",
     "## Pricing",

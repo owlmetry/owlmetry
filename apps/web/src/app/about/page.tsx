@@ -57,7 +57,7 @@ export default function AboutPage() {
 						<p>
 							The entire platform is{" "}
 							<a
-								href="https://github.com/Jasonvdb/owlmetry"
+								href="https://github.com/owlmetry/owlmetry"
 								target="_blank"
 								rel="noopener noreferrer"
 							>

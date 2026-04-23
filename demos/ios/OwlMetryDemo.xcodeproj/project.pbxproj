@@ -108,7 +108,7 @@
 			);
 			mainGroup = A40001;
 			packageReferences = (
-				A90001 /* XCLocalSwiftPackageReference "../../sdks/swift" */,
+				A90001 /* XCRemoteSwiftPackageReference "owlmetry-swift" */,
 			);
 			productRefGroup = A40003 /* Products */;
 			projectDirPath = "";
@@ -338,12 +338,16 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		A90001 /* XCLocalSwiftPackageReference "../../sdks/swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../sdks/swift";
+/* Begin XCRemoteSwiftPackageReference section */
+		A90001 /* XCRemoteSwiftPackageReference "owlmetry-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/owlmetry/owlmetry-swift.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		A80001 /* OwlMetry */ = {

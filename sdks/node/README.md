@@ -52,5 +52,5 @@ export default Owl.wrapHandler(async (req, res) => {
 ## Links
 
 - [Website](https://owlmetry.com)
-- [GitHub](https://github.com/Jasonvdb/owlmetry)
+- [GitHub](https://github.com/owlmetry/owlmetry)
 - [CLI with AI skills](https://www.npmjs.com/package/@owlmetry/cli) — install the CLI and run `owlmetry skills` to get AI agent skill files

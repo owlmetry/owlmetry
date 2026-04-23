@@ -19,7 +19,7 @@ const columns = [
       { label: "Node.js SDK", href: "/docs/sdks/node" },
       { label: "CLI", href: "/docs/cli" },
       { label: "API Reference", href: "/docs/api-reference" },
-      { label: "GitHub", href: "https://github.com/Jasonvdb/owlmetry" },
+      { label: "GitHub", href: "https://github.com/owlmetry/owlmetry" },
     ],
   },
   {
