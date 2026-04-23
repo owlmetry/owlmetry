@@ -1141,6 +1141,381 @@ describe("Issues API", () => {
       expect(issue.last_seen_app_version).toBe("1.3.0");
     });
 
+    // ── Session-burst aliasing ──────────────────────────────────────
+    //
+    // Errors fired in the same session within BURST_WINDOW_MS (5s) of each
+    // other are aliased onto a single issue. The policy is conservative: two
+    // pre-existing issues never merge, only newly-seen fingerprints get
+    // attached to an existing neighbor in a burst.
+
+    it("burst: aliases co-occurring fingerprints in the same session to one issue", async () => {
+      const session = "00000000-0000-0000-0000-b11100000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: "Model file not found BURST1", source_module: "ModelLoader.swift:46", session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: "metric:model-load:fail", source_module: "ModelDocument.swift:73", session_id: session, timestamp: new Date(base + 100).toISOString() },
+        { level: "error", message: "model-load-failed BURST1", source_module: "ModelDocument.swift:78", session_id: session, timestamp: new Date(base + 200).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      const ours = body.issues.filter((i: any) =>
+        i.title === "Model file not found BURST1" ||
+        i.title === "metric:model-load:fail" ||
+        i.title === "model-load-failed BURST1"
+      );
+      expect(ours).toHaveLength(1);
+      // Title prefers the non-metric:/step:/track: event
+      expect(ours[0].title).toBe("Model file not found BURST1");
+      expect(ours[0].fingerprints.length).toBe(3);
+      // All three events share a session → one occurrence
+      expect(ours[0].occurrence_count).toBe(1);
+    });
+
+    it("burst: events >5s apart in the same session create separate issues", async () => {
+      const session = "00000000-0000-0000-0000-b22200000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: "Network error BURST2", source_module: "NetA.swift:10", session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: "Cache miss BURST2", source_module: "CacheB.swift:20", session_id: session, timestamp: new Date(base + 6000).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      const ours = body.issues.filter((i: any) =>
+        i.title === "Network error BURST2" || i.title === "Cache miss BURST2"
+      );
+      expect(ours).toHaveLength(2);
+      for (const issue of ours) {
+        expect(issue.fingerprints.length).toBe(1);
+      }
+    });
+
+    it("burst: conservative — new fingerprint aliases to a co-occurring existing issue", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const existingMessage = "Existing issue BURST3";
+      const existingModule = "Existing.swift:1";
+      const newMessage = "New cooccurring error BURST3";
+      const newModule = "NewCo.swift:2";
+      const fpExisting = await generateIssueFingerprint(existingMessage, existingModule);
+
+      const [existing] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'new', ${existingMessage}, ${existingModule}, false, NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`
+        INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+        VALUES (${fpExisting}, ${appId}, false, ${existing.id})
+      `;
+
+      const session = "00000000-0000-0000-0000-b33300000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: existingMessage, source_module: existingModule, session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: newMessage, source_module: newModule, session_id: session, timestamp: new Date(base + 200).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${existing.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.fingerprints.length).toBe(2);
+      expect(body.occurrence_count).toBe(1);
+
+      // No orphan issue for the new message
+      const listRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const orphan = JSON.parse(listRes.body).issues.find((i: any) => i.title === newMessage);
+      expect(orphan).toBeUndefined();
+    });
+
+    it("burst: conservative — two pre-existing issues co-occurring do NOT merge", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const messageA = "Pre-existing A BURST4";
+      const moduleA = "PreA.swift:1";
+      const messageB = "Pre-existing B BURST4";
+      const moduleB = "PreB.swift:2";
+      const fpA = await generateIssueFingerprint(messageA, moduleA);
+      const fpB = await generateIssueFingerprint(messageB, moduleB);
+
+      const [issueA] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'new', ${messageA}, ${moduleA}, false, NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      const [issueB] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'new', ${messageB}, ${moduleB}, false, NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fpA}, ${appId}, false, ${issueA.id})`;
+      await dbClient`INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fpB}, ${appId}, false, ${issueB.id})`;
+
+      const session = "00000000-0000-0000-0000-b44400000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: messageA, source_module: moduleA, session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: messageB, source_module: moduleB, session_id: session, timestamp: new Date(base + 500).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const resA = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${issueA.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const bodyA = JSON.parse(resA.body);
+      expect(bodyA.fingerprints.length).toBe(1);
+      expect(bodyA.occurrence_count).toBe(1);
+
+      const resB = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${issueB.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const bodyB = JSON.parse(resB.body);
+      expect(bodyB.fingerprints.length).toBe(1);
+      expect(bodyB.occurrence_count).toBe(1);
+    });
+
+    it("burst: title prefers the first non-specialized message even when a metric:*:fail event fires first", async () => {
+      const session = "00000000-0000-0000-0000-b66600000001";
+      const base = Date.now() - 60_000;
+      // metric:*:fail fires first in time — the non-specialized event lands later.
+      // The title preference rule should still pick the non-specialized message.
+      await ingestEvents([
+        { level: "error", message: "metric:model-load:fail", source_module: "Doc.swift:10", session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: "Recovery failed BURST6", source_module: "Doc.swift:20", session_id: session, timestamp: new Date(base + 500).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const ours = JSON.parse(res.body).issues.filter((i: any) =>
+        i.title === "metric:model-load:fail" || i.title === "Recovery failed BURST6"
+      );
+      expect(ours).toHaveLength(1);
+      expect(ours[0].title).toBe("Recovery failed BURST6");
+      expect(ours[0].fingerprints.length).toBe(2);
+    });
+
+    it("burst: all-specialized burst falls back to the chronologically first event for the title", async () => {
+      const session = "00000000-0000-0000-0000-b77700000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: "metric:a-flow:fail", source_module: "A.swift:1", session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: "metric:b-flow:fail", source_module: "B.swift:2", session_id: session, timestamp: new Date(base + 500).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const ours = JSON.parse(res.body).issues.filter((i: any) =>
+        i.title === "metric:a-flow:fail" || i.title === "metric:b-flow:fail"
+      );
+      expect(ours).toHaveLength(1);
+      expect(ours[0].title).toBe("metric:a-flow:fail");
+      expect(ours[0].fingerprints.length).toBe(2);
+    });
+
+    it("burst: multiple non-overlapping bursts in the same session create separate issues", async () => {
+      const session = "00000000-0000-0000-0000-b88800000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: "Early error A BURST8", source_module: "A.swift:1", session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: "Early error B BURST8", source_module: "B.swift:2", session_id: session, timestamp: new Date(base + 100).toISOString() },
+        // 10s gap — starts a new burst
+        { level: "error", message: "Late error C BURST8", source_module: "C.swift:3", session_id: session, timestamp: new Date(base + 10_000).toISOString() },
+        { level: "error", message: "Late error D BURST8", source_module: "D.swift:4", session_id: session, timestamp: new Date(base + 10_100).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const ours = JSON.parse(res.body).issues.filter((i: any) => i.title.includes("BURST8"));
+      expect(ours).toHaveLength(2);
+      // Each burst-issue should carry both of its burst's fingerprints
+      for (const issue of ours) {
+        expect(issue.fingerprints.length).toBe(2);
+      }
+    });
+
+    it("burst: regression fires when a resolved issue's fingerprint co-occurs with a new fp at a newer app_version", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const resolvedMessage = "Pre-resolved error BURST9";
+      const resolvedModule = "Resolved.swift:1";
+      const newCoMessage = "Burst companion BURST9";
+      const newCoModule = "Companion.swift:2";
+      const fpResolved = await generateIssueFingerprint(resolvedMessage, resolvedModule);
+
+      const [issue] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, resolved_at_version, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'resolved', ${resolvedMessage}, ${resolvedModule}, false, '1.0.0', NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`
+        INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+        VALUES (${fpResolved}, ${appId}, false, ${issue.id})
+      `;
+
+      const session = "00000000-0000-0000-0000-b99900000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: resolvedMessage, source_module: resolvedModule, app_version: "1.1.0", session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: newCoMessage, source_module: newCoModule, app_version: "1.1.0", session_id: session, timestamp: new Date(base + 200).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${issue.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("regressed");
+      expect(body.resolved_at_version).toBeNull();
+      // And the new fingerprint aliased onto the same issue
+      expect(body.fingerprints.length).toBe(2);
+    });
+
+    it("burst: new fingerprint in a burst with two pre-existing issues aliases to the oldest", async () => {
+      const { generateIssueFingerprint } = await import("@owlmetry/shared");
+      const olderMessage = "Older issue BURST10";
+      const olderModule = "Older.swift:1";
+      const newerMessage = "Newer issue BURST10";
+      const newerModule = "Newer.swift:2";
+      const unseenMessage = "Unseen companion BURST10";
+      const unseenModule = "Unseen.swift:3";
+      const fpOlder = await generateIssueFingerprint(olderMessage, olderModule);
+      const fpNewer = await generateIssueFingerprint(newerMessage, newerModule);
+
+      // Create the older issue first (earlier created_at).
+      const [olderIssue] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count, created_at)
+        VALUES (${appId}, ${projectId}, 'new', ${olderMessage}, ${olderModule}, false, NOW(), NOW(), 0, 0, NOW() - INTERVAL '1 hour')
+        RETURNING id
+      `;
+      const [newerIssue] = await dbClient`
+        INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at, occurrence_count, unique_user_count)
+        VALUES (${appId}, ${projectId}, 'new', ${newerMessage}, ${newerModule}, false, NOW(), NOW(), 0, 0)
+        RETURNING id
+      `;
+      await dbClient`INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fpOlder}, ${appId}, false, ${olderIssue.id})`;
+      await dbClient`INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id) VALUES (${fpNewer}, ${appId}, false, ${newerIssue.id})`;
+
+      const session = "00000000-0000-0000-0000-c11100000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: olderMessage, source_module: olderModule, session_id: session, timestamp: new Date(base).toISOString() },
+        { level: "error", message: newerMessage, source_module: newerModule, session_id: session, timestamp: new Date(base + 200).toISOString() },
+        { level: "error", message: unseenMessage, source_module: unseenModule, session_id: session, timestamp: new Date(base + 400).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      // Older issue gains the unseen fingerprint
+      const olderRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${olderIssue.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const olderBody = JSON.parse(olderRes.body);
+      expect(olderBody.fingerprints.length).toBe(2);
+
+      // Newer issue stays alone
+      const newerRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues/${newerIssue.id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const newerBody = JSON.parse(newerRes.body);
+      expect(newerBody.fingerprints.length).toBe(1);
+
+      // No orphan issue created for the unseen message
+      const listRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const orphan = JSON.parse(listRes.body).issues.find((i: any) => i.title === unseenMessage);
+      expect(orphan).toBeUndefined();
+    });
+
+    it("burst: does not cross-alias dev and prod events in the same session", async () => {
+      const session = "00000000-0000-0000-0000-b55500000001";
+      const base = Date.now() - 60_000;
+      await ingestEvents([
+        { level: "error", message: "Dev-only error BURST5", source_module: "DevOnly.swift:1", session_id: session, is_dev: true, timestamp: new Date(base).toISOString() },
+        { level: "error", message: "Prod-only error BURST5", source_module: "ProdOnly.swift:2", session_id: session, is_dev: false, timestamp: new Date(base + 500).toISOString() },
+      ]);
+
+      const { issueScanHandler } = await import("../jobs/issue-scan.js");
+      await issueScanHandler(createJobContext(), {});
+
+      const devRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues?is_dev=true`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const dev = JSON.parse(devRes.body).issues.filter((i: any) => i.title.includes("BURST5"));
+      expect(dev).toHaveLength(1);
+      expect(dev[0].title).toBe("Dev-only error BURST5");
+      expect(dev[0].fingerprints.length).toBe(1);
+
+      const prodRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues?is_dev=false`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const prod = JSON.parse(prodRes.body).issues.filter((i: any) => i.title.includes("BURST5"));
+      expect(prod).toHaveLength(1);
+      expect(prod[0].title).toBe("Prod-only error BURST5");
+      expect(prod[0].fingerprints.length).toBe(1);
+    });
+
     it("merged issue routes new events to surviving issue", async () => {
       const { generateIssueFingerprint } = await import("@owlmetry/shared");
       const messageA = "Surviving issue CCCC";

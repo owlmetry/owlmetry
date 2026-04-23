@@ -153,6 +153,8 @@ Error events are automatically scanned hourly and grouped into **issues** via fi
 - **Merge**: if two issues turn out to be the same problem, merge them — all fingerprints, occurrences, and comments move to the target.
 - **Notifications**: per-project configurable email digest (none/hourly/6-hourly/daily/weekly). Only non-dev, new/regressed issues with activity since last notification are included.
 
+**Session-burst aliasing**: when multiple error events fire in the same session within 5 seconds, the scan aliases their fingerprints onto a single issue — a loader throwing + a caller logging + an \`op.fail()\` all collapse into one. Conservative: two pre-existing issues never auto-merge, only newly-seen fingerprints attach to a co-occurring existing issue. Dev and prod remain separate.
+
 Dev events (\`is_dev = true\`) create separate issues — they are tracked but never trigger notifications.
 
 #### Investigating an issue

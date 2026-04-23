@@ -12,9 +12,9 @@ The **issue scan** job runs hourly (system job, `issue_scan`). It:
 1. Queries all error-level events (`level = 'error'`) received since the last scan.
 2. Normalizes each error message by stripping variable parts (UUIDs, numbers, quoted strings) and lowercasing.
 3. Generates a SHA-256 fingerprint from the normalized message + source module.
-4. Looks up the fingerprint in the `issue_fingerprints` table to find an existing issue.
-5. If no match: creates a new issue with status `new`.
-6. If a match exists: records a new occurrence (one per session per issue).
+4. Groups events by session and clusters them into 5-second **bursts** (see below).
+5. For each burst: looks up each fingerprint in `issue_fingerprints`; aliases new fingerprints onto a co-occurring issue when one exists, or creates a single new issue for the whole burst when none do.
+6. Records a new occurrence (one per session per issue).
 
 This means the scan has **zero impact on event ingestion** — the ingest endpoint is never slowed down.
 
@@ -30,6 +30,22 @@ The normalization strips:
 - UUIDs (e.g., `550e8400-...` becomes `<uuid>`)
 - Numbers (e.g., `404` becomes `<n>`)
 - Quoted strings (e.g., `"username"` becomes `"<s>"`)
+
+## Session-burst aliasing
+
+A single logical failure often produces multiple error events — a loader throws, a caller catches and logs, an `OwlOperation.fail(error:)` emits `metric:X:fail`. Each has its own `(message, source_module)`, so each hashes to a distinct fingerprint. Without aliasing, a single failure would create many separate issues.
+
+To avoid that, the scan clusters events by session and time. Within one session, any set of error events whose timestamps all fall within **5 seconds** of the burst's first event is treated as one logical failure.
+
+Rules:
+
+- **No existing issue in the burst** → create one issue for the entire burst; alias every distinct fingerprint in the burst onto it. The title is picked from the first event whose message does **not** begin with `metric:`, `step:`, or `track:` (lifecycle prefixes are less human-readable as titles).
+- **Some fingerprints already have an issue** → pick the **oldest** existing issue as the alias target and attach only *previously-unseen* fingerprints to it. Pre-existing issues are never merged by the scan — if two already-distinct issues happen to co-occur in a burst, each keeps its own fingerprints and receives only its own events.
+- **Dev and prod never cross-alias** — `is_dev=true` and `is_dev=false` are partitioned independently inside a burst.
+
+Once a fingerprint is aliased onto an issue, future events of that fingerprint route to that issue regardless of whether they appear in a burst.
+
+**Known limitation**: the burst is computed only over events returned by the current scan's `received_at > last_scan_time` filter. If a session's burst spans a scan boundary (e.g., a delayed retry flush causes one event to arrive in a later scan), those events may not be aliased together. In practice the scan is hourly and the burst window is 5s, so this is rare.
 
 ## Occurrences
 

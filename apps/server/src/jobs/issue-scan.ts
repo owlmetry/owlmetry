@@ -18,6 +18,29 @@ interface ErrorEvent {
   timestamp: Date;
 }
 
+interface FingerprintedEvent {
+  event: ErrorEvent;
+  fingerprint: string;
+}
+
+// Errors in the same session whose timestamps all fall within this window from
+// the burst's first event are aliased onto a single issue. See also
+// apps/web/content/docs/concepts/issues.mdx.
+const BURST_WINDOW_MS = 5000;
+
+// When creating a new issue from a burst, prefer a message that isn't one of
+// these lifecycle-marker prefixes so the issue title is human-readable.
+const SPECIALIZED_MESSAGE_PREFIXES = ["metric:", "step:", "track:"];
+
+function isSpecializedMessage(message: string): boolean {
+  return SPECIALIZED_MESSAGE_PREFIXES.some((p) => message.startsWith(p));
+}
+
+function pickTitleEvent(items: FingerprintedEvent[]): ErrorEvent {
+  const nonSpecialized = items.find((i) => !isSpecializedMessage(i.event.message));
+  return (nonSpecialized ?? items[0]).event;
+}
+
 export const issueScanHandler: JobHandler = async (ctx) => {
   // 1. Find the last successful scan time
   const [lastRun] = await ctx.db
@@ -75,121 +98,206 @@ export const issueScanHandler: JobHandler = async (ctx) => {
         continue;
       }
 
-      // 4. Group events by fingerprint
-      const eventsByKey = new Map<string, { event: ErrorEvent; fingerprint: string }[]>();
-      for (const event of errorEvents) {
-        const fingerprint = await generateIssueFingerprint(event.message, event.source_module);
-        const key = `${fingerprint}:${event.is_dev}`;
-        const group = eventsByKey.get(key) ?? [];
-        group.push({ event, fingerprint });
-        eventsByKey.set(key, group);
+      // 4. Compute fingerprint once per event
+      const fingerprinted: FingerprintedEvent[] = await Promise.all(
+        errorEvents.map(async (event) => ({
+          event,
+          fingerprint: await generateIssueFingerprint(event.message, event.source_module),
+        }))
+      );
+
+      // 5. Group by session_id
+      const bySession = new Map<string, FingerprintedEvent[]>();
+      for (const item of fingerprinted) {
+        const arr = bySession.get(item.event.session_id) ?? [];
+        arr.push(item);
+        bySession.set(item.event.session_id, arr);
       }
 
-      // 5. Process each fingerprint group
+      // 6. Cluster each session's events into bursts. A burst contains events
+      // whose timestamps fall within BURST_WINDOW_MS of the burst's first event.
+      const bursts: FingerprintedEvent[][] = [];
+      for (const [, items] of bySession) {
+        items.sort(
+          (a, b) => new Date(a.event.timestamp).getTime() - new Date(b.event.timestamp).getTime()
+        );
+        let current: FingerprintedEvent[] = [];
+        let burstStartMs = 0;
+        for (const item of items) {
+          const t = new Date(item.event.timestamp).getTime();
+          if (current.length === 0) {
+            current = [item];
+            burstStartMs = t;
+          } else if (t - burstStartMs <= BURST_WINDOW_MS) {
+            current.push(item);
+          } else {
+            bursts.push(current);
+            current = [item];
+            burstStartMs = t;
+          }
+        }
+        if (current.length > 0) bursts.push(current);
+      }
+
+      // 7. Process each burst. Collect affected issues for count/regression updates.
       const affectedIssueIds = new Set<string>();
+      const regressionCandidates = new Map<string, ErrorEvent[]>();
 
-      for (const [, group] of eventsByKey) {
-        const { fingerprint } = group[0];
-        const isDev = group[0].event.is_dev;
+      for (const burst of bursts) {
+        // Partition by is_dev so dev and prod never cross-alias.
+        const byDev = new Map<boolean, FingerprintedEvent[]>();
+        for (const item of burst) {
+          const arr = byDev.get(item.event.is_dev) ?? [];
+          arr.push(item);
+          byDev.set(item.event.is_dev, arr);
+        }
 
-        // Look up existing issue via fingerprint table
-        const fpRows = await client<{ issue_id: string }[]>`
-          SELECT issue_id FROM issue_fingerprints
-          WHERE fingerprint = ${fingerprint} AND app_id = ${appRow.id} AND is_dev = ${isDev}
-        `;
+        for (const [isDev, partitionItems] of byDev) {
+          const distinctFps = Array.from(new Set(partitionItems.map((i) => i.fingerprint)));
 
-        let issueId: string;
-
-        if (fpRows.length === 0) {
-          // Create new issue
-          const firstEvent = group[0].event;
-          const timestamps = group.map((g) => new Date(g.event.timestamp).getTime());
-          const firstSeen = new Date(Math.min(...timestamps));
-          const lastSeen = new Date(Math.max(...timestamps));
-
-          const [inserted] = await client<{ id: string }[]>`
-            INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at)
-            VALUES (${appRow.id}, ${appRow.project_id}, 'new', ${firstEvent.message}, ${firstEvent.source_module}, ${isDev}, ${firstSeen.toISOString()}::timestamptz, ${lastSeen.toISOString()}::timestamptz)
-            RETURNING id
+          // Look up which of these fingerprints are already mapped.
+          const fpRows = await client<{ fingerprint: string; issue_id: string }[]>`
+            SELECT fingerprint, issue_id FROM issue_fingerprints
+            WHERE app_id = ${appRow.id}
+              AND is_dev = ${isDev}
+              AND fingerprint = ANY(${distinctFps}::text[])
           `;
+          const fpToIssue = new Map(fpRows.map((r) => [r.fingerprint, r.issue_id]));
+          const existingIssueIds = Array.from(new Set(fpToIssue.values()));
 
-          issueId = inserted.id;
+          if (existingIssueIds.length === 0) {
+            // No existing issue in this burst — create one and alias all fingerprints.
+            const titleEvent = pickTitleEvent(partitionItems);
+            const timestamps = partitionItems.map((i) => new Date(i.event.timestamp).getTime());
+            const firstSeen = new Date(Math.min(...timestamps));
+            const lastSeen = new Date(Math.max(...timestamps));
 
-          // Insert fingerprint mapping
-          await client`
-            INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
-            VALUES (${fingerprint}, ${appRow.id}, ${isDev}, ${issueId})
-          `;
+            const [inserted] = await client<{ id: string }[]>`
+              INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at)
+              VALUES (${appRow.id}, ${appRow.project_id}, 'new', ${titleEvent.message}, ${titleEvent.source_module}, ${isDev}, ${firstSeen.toISOString()}::timestamptz, ${lastSeen.toISOString()}::timestamptz)
+              RETURNING id
+            `;
+            const newIssueId = inserted.id;
+            issuesCreated++;
 
-          issuesCreated++;
-        } else {
-          issueId = fpRows[0].issue_id;
+            for (const fp of distinctFps) {
+              await client`
+                INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+                VALUES (${fp}, ${appRow.id}, ${isDev}, ${newIssueId})
+                ON CONFLICT (fingerprint, app_id, is_dev) DO NOTHING
+              `;
+              fpToIssue.set(fp, newIssueId);
+            }
+          } else {
+            // At least one fingerprint in the burst already has an issue.
+            // Conservative rule: never merge two pre-existing issues; only
+            // alias previously-unseen fingerprints to the oldest existing issue.
+            const [oldest] = await client<{ id: string }[]>`
+              SELECT id FROM issues
+              WHERE id = ANY(${existingIssueIds}::uuid[])
+              ORDER BY created_at ASC
+              LIMIT 1
+            `;
+            const aliasTarget = oldest.id;
 
-          // Check for regression
-          const issueRows = await client<{ status: string; resolved_at_version: string | null }[]>`
-            SELECT status, resolved_at_version FROM issues WHERE id = ${issueId}
-          `;
-
-          if (issueRows.length > 0) {
-            const issue = issueRows[0];
-            if (issue.status === "resolved") {
-              const newerVersion = group.find(
-                (g) =>
-                  g.event.app_version &&
-                  issue.resolved_at_version &&
-                  compareVersions(g.event.app_version, issue.resolved_at_version) > 0
-              );
-
-              if (newerVersion) {
+            for (const fp of distinctFps) {
+              if (!fpToIssue.has(fp)) {
                 await client`
-                  UPDATE issues SET status = 'regressed', resolved_at_version = NULL, updated_at = NOW() WHERE id = ${issueId}
+                  INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+                  VALUES (${fp}, ${appRow.id}, ${isDev}, ${aliasTarget})
+                  ON CONFLICT (fingerprint, app_id, is_dev) DO NOTHING
                 `;
-                issuesRegressed++;
+                fpToIssue.set(fp, aliasTarget);
               }
             }
           }
-        }
 
-        affectedIssueIds.add(issueId);
+          // 8. Attach each event as an occurrence of the issue its fingerprint maps to.
+          // Track per-issue event lists for regression check + attachment linking.
+          const issueToEventIds = new Map<string, string[]>();
+          const issueToClientEventIds = new Map<string, string[]>();
 
-        // 6. Insert occurrences (deduplicated by session)
-        for (const { event } of group) {
-          const eventTimestamp = new Date(event.timestamp).toISOString();
-          const result = await client`
-            INSERT INTO issue_occurrences (issue_id, session_id, user_id, app_version, environment, event_id, country_code, "timestamp")
-            VALUES (${issueId}, ${event.session_id}, ${event.user_id}, ${event.app_version}, ${event.environment}::environment, ${event.id}, ${event.country_code}, ${eventTimestamp}::timestamptz)
-            ON CONFLICT (issue_id, session_id) DO NOTHING
-          `;
+          for (const { event, fingerprint } of partitionItems) {
+            const issueId = fpToIssue.get(fingerprint);
+            if (!issueId) continue;
 
-          if (result.count > 0) {
-            occurrencesCreated++;
+            const eventTimestamp = new Date(event.timestamp).toISOString();
+            const result = await client`
+              INSERT INTO issue_occurrences (issue_id, session_id, user_id, app_version, environment, event_id, country_code, "timestamp")
+              VALUES (${issueId}, ${event.session_id}, ${event.user_id}, ${event.app_version}, ${event.environment}::environment, ${event.id}, ${event.country_code}, ${eventTimestamp}::timestamptz)
+              ON CONFLICT (issue_id, session_id) DO NOTHING
+            `;
+            if (result.count > 0) {
+              occurrencesCreated++;
+            }
+
+            affectedIssueIds.add(issueId);
+
+            const regressionEvents = regressionCandidates.get(issueId) ?? [];
+            regressionEvents.push(event);
+            regressionCandidates.set(issueId, regressionEvents);
+
+            if (event.id) {
+              const ids = issueToEventIds.get(issueId) ?? [];
+              ids.push(event.id);
+              issueToEventIds.set(issueId, ids);
+            }
+            if (event.client_event_id) {
+              const ids = issueToClientEventIds.get(issueId) ?? [];
+              ids.push(event.client_event_id);
+              issueToClientEventIds.set(issueId, ids);
+            }
           }
-        }
 
-        // 7. Link any attachments uploaded alongside these events to this issue so they
-        // survive event retention pruning. Matches on both event_id (populated via the
-        // ingest backfill) and event_client_id (covers pre-event uploads that never got
-        // backfilled because the event was dropped).
-        const eventIds = group.map((g) => g.event.id).filter(Boolean);
-        const clientEventIds = group
-          .map((g) => g.event.client_event_id)
-          .filter((id): id is string => !!id);
-        if (eventIds.length > 0 || clientEventIds.length > 0) {
-          await client`
-            UPDATE event_attachments
-            SET issue_id = ${issueId}
-            WHERE app_id = ${appRow.id}
-              AND issue_id IS NULL
-              AND deleted_at IS NULL
-              AND (
-                event_id = ANY(${eventIds}::uuid[])
-                OR event_client_id = ANY(${clientEventIds}::uuid[])
-              )
-          `;
+          // 9. Link event attachments to the issue their event ended up in.
+          // Matches on event_id (populated via the ingest backfill) and
+          // event_client_id (covers pre-event uploads whose event was dropped).
+          const issuesWithAttachmentsToLink = new Set<string>([
+            ...issueToEventIds.keys(),
+            ...issueToClientEventIds.keys(),
+          ]);
+          for (const issueId of issuesWithAttachmentsToLink) {
+            const eventIds = issueToEventIds.get(issueId) ?? [];
+            const clientEventIds = issueToClientEventIds.get(issueId) ?? [];
+            await client`
+              UPDATE event_attachments
+              SET issue_id = ${issueId}
+              WHERE app_id = ${appRow.id}
+                AND issue_id IS NULL
+                AND deleted_at IS NULL
+                AND (
+                  event_id = ANY(${eventIds}::uuid[])
+                  OR event_client_id = ANY(${clientEventIds}::uuid[])
+                )
+            `;
+          }
         }
       }
 
-      // 7. Update denormalized counts for affected issues
+      // 10. Regression detection — per issue, across all events that attached to it.
+      for (const [issueId, events] of regressionCandidates) {
+        const issueRows = await client<{ status: string; resolved_at_version: string | null }[]>`
+          SELECT status, resolved_at_version FROM issues WHERE id = ${issueId}
+        `;
+        if (issueRows.length === 0) continue;
+        const issue = issueRows[0];
+        if (issue.status !== "resolved") continue;
+
+        const regressed = events.some(
+          (event) =>
+            event.app_version &&
+            issue.resolved_at_version &&
+            compareVersions(event.app_version, issue.resolved_at_version) > 0
+        );
+        if (regressed) {
+          await client`
+            UPDATE issues SET status = 'regressed', resolved_at_version = NULL, updated_at = NOW() WHERE id = ${issueId}
+          `;
+          issuesRegressed++;
+        }
+      }
+
+      // 11. Update denormalized counts for affected issues
       if (affectedIssueIds.size > 0) {
         const ids = Array.from(affectedIssueIds);
         await client`
