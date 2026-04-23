@@ -28,6 +28,7 @@ firebase-debug.log
 
 # Next.js
 .next/
+.next-dev/
 out/
 
 # Fumadocs (auto-generated)
