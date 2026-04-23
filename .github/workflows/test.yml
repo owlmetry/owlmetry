@@ -1,0 +1,86 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Workspace + CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: owlmetry_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run tests
+        env:
+          # setup.ts + test-cli.sh hardcode `postgres://localhost:5432/owlmetry_test`
+          # with no user in the URL. PGUSER=postgres lets postgres-js fall back
+          # to the default postgres superuser (created by the service container).
+          # PGHOST=localhost steers psql off the Unix-socket default path.
+          # With POSTGRES_HOST_AUTH_METHOD=trust, no password is needed.
+          PGUSER: postgres
+          PGHOST: localhost
+          DATABASE_URL: postgres://postgres@localhost:5432/owlmetry_test
+          JWT_SECRET: test-secret
+          HOST: 127.0.0.1
+        run: pnpm test
+
+  notify-swift-sdk:
+    name: Trigger owlmetry-swift CI
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch monorepo-updated event
+        env:
+          GH_TOKEN: ${{ secrets.SWIFT_REPO_DISPATCH_TOKEN }}
+        run: |
+          gh api /repos/owlmetry/owlmetry-swift/dispatches \
+            -X POST \
+            -f event_type=monorepo-updated \
+            -f client_payload[sha]=${{ github.sha }}

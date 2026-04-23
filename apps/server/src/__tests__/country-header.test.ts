@@ -120,28 +120,33 @@ describe("CF-IPCountry ingest round-trip", () => {
     expect(event?.country_code).toBeNull();
   });
 
+  // upsertAppUsers is fire-and-forget from /v1/ingest — poll briefly for
+  // the row to materialize. Fast locally, racy on CI.
+  async function pollForUser(expectedCountry: string) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const res = await app.inject({
+        method: "GET",
+        url: `/v1/app-users?search=country-user-1`,
+        headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const user = res.json().users.find((u: { user_id: string }) => u.user_id === "country-user-1");
+      if (user?.last_country_code === expectedCountry) return user;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error(`timed out waiting for last_country_code=${expectedCountry}`);
+  }
+
   it("updates app_users.last_country_code", async () => {
     await ingestWithCountry("JP", "country-user-jp");
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/app-users?search=country-user-1`,
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-    });
-    expect(res.statusCode).toBe(200);
-    const user = res.json().users.find((u: { user_id: string }) => u.user_id === "country-user-1");
-    expect(user?.last_country_code).toBe("JP");
+    const user = await pollForUser("JP");
+    expect(user.last_country_code).toBe("JP");
   });
 
   it("does not wipe last_country_code when a later request has no header", async () => {
     await ingestWithCountry("JP", "first-country-event");
     await ingestWithCountry(undefined, "second-country-event");
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/app-users?search=country-user-1`,
-      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
-    });
-    const user = res.json().users.find((u: { user_id: string }) => u.user_id === "country-user-1");
-    expect(user?.last_country_code).toBe("JP");
+    const user = await pollForUser("JP");
+    expect(user.last_country_code).toBe("JP");
   });
 });
