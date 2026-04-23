@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, IssueResponse, IssueStatus, AppResponse } from "@owlmetry/shared";
@@ -407,8 +407,11 @@ export default function IssuesPage() {
   );
   const projects = projectsData?.projects ?? [];
   const allApps = appsData?.apps ?? [];
-  const appLatestVersionMap = new Map<string, string | null>();
-  for (const a of allApps) appLatestVersionMap.set(a.id, a.latest_app_version ?? null);
+  const appLatestVersionMap = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const a of allApps) m.set(a.id, a.latest_app_version ?? null);
+    return m;
+  }, [allApps]);
   const projectColorMap = useProjectColorMap(teamId);
 
   const ALL = "__all__";

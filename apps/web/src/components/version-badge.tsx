@@ -21,6 +21,27 @@ export function pickLatestForUser(
   return max;
 }
 
+// Detail-row layout matching DetailRow but rendering a VersionBadge instead of
+// a plain string. DetailRow can't be reused directly because it owns a copy
+// button keyed on a string value.
+export function VersionRow({
+  label,
+  version,
+  latestVersion,
+}: {
+  label: string;
+  version: string | null | undefined;
+  latestVersion: string | null | undefined;
+}) {
+  if (!version) return null;
+  return (
+    <div className="group flex justify-between gap-4 py-1.5">
+      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <VersionBadge version={version} latestVersion={latestVersion} />
+    </div>
+  );
+}
+
 interface VersionBadgeProps {
   version: string | null | undefined;
   latestVersion: string | null | undefined;

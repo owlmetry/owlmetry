@@ -149,14 +149,22 @@ issuesCommand
   }, cmd) => {
     const { client, globals } = createClient(cmd);
 
+    const issuesPromise = client.listIssues(opts.projectId, {
+      status: opts.status,
+      app_id: opts.appId,
+      is_dev: opts.dev ? "true" : undefined,
+      limit: opts.limit?.toString(),
+      cursor: opts.cursor,
+    });
+
+    if (globals.format === "json") {
+      const result = await issuesPromise;
+      output(globals.format as OutputFormat, result, () => "");
+      return;
+    }
+
     const [result, allApps] = await Promise.all([
-      client.listIssues(opts.projectId, {
-        status: opts.status,
-        app_id: opts.appId,
-        is_dev: opts.dev ? "true" : undefined,
-        limit: opts.limit?.toString(),
-        cursor: opts.cursor,
-      }),
+      issuesPromise,
       client.listApps().catch(() => []),
     ]);
 
@@ -177,6 +185,10 @@ issuesCommand
   .action(async (issueId: string, opts: { projectId: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     const result = await client.getIssue(opts.projectId, issueId);
+    if (globals.format === "json") {
+      output(globals.format as OutputFormat, result, () => formatIssueDetail(result));
+      return;
+    }
     const app = await client.getApp(result.app_id).catch(() => null);
     output(globals.format as OutputFormat, result, () => formatIssueDetail(result, app?.latest_app_version ?? null));
   });

@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
-import { VersionBadge, pickLatestForUser } from "@/components/version-badge";
+import { VersionRow, pickLatestForUser } from "@/components/version-badge";
 import { ArrowRight } from "lucide-react";
 import { formatDateTime } from "@/lib/format-date";
 import { ProjectDot } from "@/lib/project-color";
@@ -183,15 +183,11 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
             />
             <DetailRow label="First Seen" value={formatDateTime(user.first_seen_at)} />
             <DetailRow label="Last Seen" value={formatDateTime(user.last_seen_at)} />
-            {user.last_app_version && (
-              <div className="group flex justify-between gap-4 py-1.5">
-                <span className="shrink-0 text-xs text-muted-foreground">Last App Version</span>
-                <VersionBadge
-                  version={user.last_app_version}
-                  latestVersion={appLatestVersionMap ? pickLatestForUser(user.apps, appLatestVersionMap) : null}
-                />
-              </div>
-            )}
+            <VersionRow
+              label="Last App Version"
+              version={user.last_app_version}
+              latestVersion={appLatestVersionMap ? pickLatestForUser(user.apps, appLatestVersionMap) : null}
+            />
             {(() => {
               const f = countryFlag(user.last_country_code);
               return f.emoji ? (

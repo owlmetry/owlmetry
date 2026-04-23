@@ -83,6 +83,10 @@ eventsCommand
   .action(async (id: string, _opts, cmd) => {
     const { client, globals } = createClient(cmd);
     const event = await client.getEvent(id);
+    if (globals.format === "json") {
+      output(globals.format, event, () => formatEventDetail(event));
+      return;
+    }
     const app = await client.getApp(event.app_id).catch(() => null);
     output(globals.format, event, () => formatEventDetail(event, app?.latest_app_version ?? null));
   });

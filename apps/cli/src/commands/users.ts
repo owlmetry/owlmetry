@@ -47,14 +47,22 @@ export const usersCommand = new Command("users")
 
     const is_anonymous = opts.anonymous ? "true" : opts.real ? "false" : undefined;
 
+    const usersPromise = client.listAppUsers(appId, {
+      is_anonymous,
+      search: opts.search,
+      billing_status: opts.billing || undefined,
+      limit: opts.limit,
+      cursor: opts.cursor,
+    });
+
+    if (globals.format === "json") {
+      const result = await usersPromise;
+      output(globals.format, result, () => "");
+      return;
+    }
+
     const [result, app] = await Promise.all([
-      client.listAppUsers(appId, {
-        is_anonymous,
-        search: opts.search,
-        billing_status: opts.billing || undefined,
-        limit: opts.limit,
-        cursor: opts.cursor,
-      }),
+      usersPromise,
       client.getApp(appId).catch(() => null),
     ]);
 
