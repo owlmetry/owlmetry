@@ -19,6 +19,7 @@ Each job has a **type** that determines what it does and a **scope** that contro
 | `attachment_cleanup` | Attachment Cleanup | System | Daily 5am UTC | Hard-deletes soft-deleted event attachments after a 7-day grace, sweeps orphaned uploads and files whose events were retention-pruned |
 | `issue_scan` | Issue Scan | System | Hourly | Clusters new error events into issues via fingerprinting |
 | `issue_notify` | Issue Notify | System | Hourly @ :05 | Sends per-project issue digest emails; silent when nothing new or regressed |
+| `app_version_sync` | App Version Sync | System | Hourly @ :15 | Refreshes each app's `latest_app_version` (iTunes Lookup for Apple, computed from production events otherwise). System-scoped — cannot be triggered via the API, CLI, or MCP. See [Latest Version Detection](/docs/concepts/latest-version-detection) |
 
 **Project-scoped jobs** are triggered by team admins via the dashboard, CLI, or API. They operate on a specific project and are visible to all team members with `jobs:read` permission.
 

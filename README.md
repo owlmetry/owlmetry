@@ -45,14 +45,14 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; gzip-compressed payloads supported
 - **Bulk historical import** — import keys (`owl_import_`) scoped per project; `POST /v1/import` accepts up to 1000 events per request and upserts duplicates
 - **Projects & apps** — organize apps by product across platforms (`apple`, `android`, `web`, `backend`); one Apple app covers iOS, iPadOS, and macOS
-- **Device tracking** — environment, OS version, app version, device model, locale, build number
+- **Device tracking** — environment, OS version, app version, device model, locale, build number; latest released version auto-detected per app (iTunes Lookup for Apple, max event version for others) and stale versions badged across surfaces
 - **Country tracking** — server auto-derives country from Cloudflare's `CF-IPCountry` header at ingest; rendered as flags across the dashboard
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user, including late-arriving events after the claim
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
 - **A/B experiments** — SDKs assign random variants on first call, persist assignments locally, and tag all events with the active experiment; no server config needed
 
 ### Debugging and incident response
-- **Issue tracker** — error events automatically clustered into issues by fingerprint, with status lifecycle (`new → in_progress → resolved → silenced → regressed`), agent/user comments, merge duplicates, regression detection against `resolved_at_version`. Kanban board in the dashboard, full API, MCP, and CLI surface
+- **Issue tracker** — error events automatically clustered into issues by fingerprint, with status lifecycle (`new → in_progress → resolved → silenced → regressed`), agent/user comments, merge duplicates, semver-aware regression detection against `resolved_at_version`, first/last-seen app version tracking. Kanban board in the dashboard, full API, MCP, and CLI surface
 - **Issue alerts** — per-project digest emails at configurable frequency (`none | hourly | 6_hourly | daily | weekly`), silent when nothing is new or regressed
 - **Event attachments** — SDKs can upload files (logs, screenshots, crash dumps) alongside error events; stored on disk, linked to events and issues, downloadable via dashboard, CLI, and MCP. Per-project + per-user quotas. See [docs/concepts/attachments](https://owlmetry.com/docs/concepts/attachments)
 - **Cross-app session investigation** — one endpoint reconstructs the full timeline across all apps a user touched during an incident window

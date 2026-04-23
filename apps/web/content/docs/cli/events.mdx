@@ -128,3 +128,5 @@ owlmetry events --since 1h --format json
 ```
 
 The `log` format is particularly useful for reading event streams chronologically, similar to tailing a log file. The `investigate` command defaults to `log` format.
+
+The table output colours each event's `app_version` green when it matches the app's `latest_app_version`, amber when it's older — see [Latest Version Detection](/docs/concepts/latest-version-detection).

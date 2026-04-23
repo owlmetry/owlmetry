@@ -13,7 +13,7 @@ List all apps accessible to this agent.
 |-----------|------|----------|-------------|
 | `team_id` | UUID | No | Filter by team ID |
 
-Returns `{ apps: [...] }` with each app's `id`, `name`, `platform`, `bundle_id`, `client_secret`, `project_id`, and timestamps.
+Returns `{ apps: [...] }` with each app's `id`, `name`, `platform`, `bundle_id`, `client_secret`, `project_id`, and timestamps. Each app also carries `latest_app_version`, `latest_app_version_updated_at`, and `latest_app_version_source` (`"app_store"` or `"computed"`) — compare these against an event's `app_version` to tell whether the data is from the current release. See [Latest Version Detection](/docs/concepts/latest-version-detection).
 
 ## get-app
 

@@ -41,7 +41,7 @@ Each issue tracks **occurrences** — one per unique session where the error hap
 - **Environment**: iOS, Android, web, backend, etc.
 - **Timestamp**: When the error occurred.
 
-The issue's **occurrence count** and **unique user count** are denormalized for fast querying and sorting by severity.
+The issue's **occurrence count** and **unique user count** are denormalized for fast querying and sorting by severity. Issue rows also carry **`first_seen_app_version`** and **`last_seen_app_version`**, denormalised by the hourly scan from the underlying occurrences. Pair `last_seen_app_version` with the app's `latest_app_version` to tell whether an issue is still happening on the current release — see [Latest Version Detection](/docs/concepts/latest-version-detection) for the comparison rules and how the green/amber badge is rendered.
 
 ## Status Lifecycle
 
@@ -70,7 +70,9 @@ silenced → new (manual reopen)
 
 ### Regression Detection
 
-When the scan job finds an error matching a `resolved` issue, it checks the event's `app_version` against the issue's `resolved_at_version`. If the event version is newer (string comparison), the issue is automatically set to `regressed`.
+When the scan job finds an error matching a `resolved` issue, it checks the event's `app_version` against the issue's `resolved_at_version`. If the event version is newer, the issue is automatically set to `regressed`.
+
+The comparison is **semver-aware** — `1.10.0` correctly regresses past `1.9.0` (and standard build-number suffixes like `1.2.3 (456)` plus date-style versions like `2024.10.15` are handled). See [Latest Version Detection](/docs/concepts/latest-version-detection) for the full comparator rules.
 
 If either version is null, the scan does not trigger a regression (can't determine version ordering).
 
