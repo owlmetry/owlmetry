@@ -20,10 +20,10 @@ const badgeVariants = cva(
         link: "text-primary underline-offset-4 [a&]:hover:underline",
       },
       size: {
-        xs: "h-4 px-1.5 py-0 text-[10px] [&>svg]:size-2.5",
-        sm: "h-5 px-2 text-[10px] [&>svg]:size-3",
-        md: "px-2 py-0.5 text-xs [&>svg]:size-3",
-        lg: "px-2.5 py-1 text-sm [&>svg]:size-3.5",
+        xs: "h-5 px-1.5 text-[10px] leading-none [&>svg]:size-2.5",
+        sm: "h-6 px-2 text-[11px] leading-none [&>svg]:size-3",
+        md: "h-7 px-2.5 text-xs leading-none [&>svg]:size-3.5",
+        lg: "h-8 px-3 text-sm leading-none [&>svg]:size-4",
       },
       tone: {
         neutral: "",
