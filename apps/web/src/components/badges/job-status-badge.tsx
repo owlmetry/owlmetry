@@ -1,8 +1,8 @@
+import type { JobStatus } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 
 interface JobStatusBadgeProps {
-  status: string;
+  status: JobStatus;
   size?: "sm" | "md";
 }
 
@@ -13,12 +13,10 @@ export function JobStatusBadge({ status, size = "sm" }: JobStatusBadgeProps) {
     case "failed":
       return <Badge variant="destructive" size={size}>failed</Badge>;
     case "running":
-      return <Badge variant="default" tone="blue" size={size} className={cn("animate-pulse")}>running</Badge>;
+      return <Badge variant="default" tone="blue" size={size} className="animate-pulse">running</Badge>;
     case "cancelled":
       return <Badge variant="secondary" size={size}>cancelled</Badge>;
     case "pending":
       return <Badge variant="outline" size={size}>pending</Badge>;
-    default:
-      return <Badge variant="outline" size={size}>{status}</Badge>;
   }
 }

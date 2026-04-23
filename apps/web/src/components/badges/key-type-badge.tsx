@@ -1,24 +1,22 @@
+import type { ApiKeyType } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
 
-const KEY_TYPE_META: Record<string, { emoji: string; label: string; variant: "default" | "secondary" }> = {
-  client: { emoji: "📱", label: "client", variant: "secondary" },
-  agent: { emoji: "🕶️", label: "agent", variant: "default" },
-  import: { emoji: "📦", label: "import", variant: "secondary" },
+const KEY_TYPE_META: Record<ApiKeyType, { emoji: string; variant: "default" | "secondary" }> = {
+  client: { emoji: "📱", variant: "secondary" },
+  agent: { emoji: "🕶️", variant: "default" },
+  import: { emoji: "📦", variant: "secondary" },
 };
 
 interface KeyTypeBadgeProps {
-  keyType: string;
+  keyType: ApiKeyType;
   size?: "sm" | "md";
 }
 
 export function KeyTypeBadge({ keyType, size = "sm" }: KeyTypeBadgeProps) {
   const meta = KEY_TYPE_META[keyType];
-  if (!meta) {
-    return <Badge variant="secondary" size={size}>{keyType}</Badge>;
-  }
   return (
     <Badge variant={meta.variant} size={size}>
-      {meta.emoji} {meta.label}
+      {meta.emoji} {keyType}
     </Badge>
   );
 }

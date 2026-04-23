@@ -16,7 +16,6 @@ interface AppBadgeProps {
 }
 
 export function AppBadge({ name, color, size = "sm", className, onClick }: AppBadgeProps) {
-  const interactive = onClick ? "cursor-pointer hover:bg-accent" : "";
   const handleClick = onClick
     ? (e: MouseEvent<HTMLSpanElement>) => {
         e.stopPropagation();
@@ -27,7 +26,7 @@ export function AppBadge({ name, color, size = "sm", className, onClick }: AppBa
     <Badge
       variant="outline"
       size={size}
-      className={cn("gap-1.5", interactive, className)}
+      className={cn("gap-1.5", onClick && "cursor-pointer hover:bg-accent", className)}
       onClick={handleClick}
     >
       <ProjectDot color={color} size={6} />
