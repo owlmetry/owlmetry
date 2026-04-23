@@ -35,18 +35,11 @@ import {
 import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
+import { MetricPhaseBadge } from "@/components/badges/metric-phase-badge";
 import { BookOpen } from "lucide-react";
 import { AnimatedPage } from "@/components/ui/animated-page";
 
 const METRIC_PHASES: MetricPhase[] = ["start", "complete", "fail", "cancel", "record"];
-
-const PHASE_COLORS: Record<string, string> = {
-  start: "bg-blue-500/10 text-blue-600",
-  complete: "bg-green-500/10 text-green-600",
-  fail: "bg-red-500/10 text-red-600",
-  cancel: "bg-yellow-500/10 text-yellow-600",
-  record: "bg-cyan-500/10 text-cyan-600",
-};
 
 const METRIC_GROUP_BY_OPTIONS = [
   { value: "time:hour", label: "Hour" },
@@ -375,9 +368,7 @@ export default function MetricDetailPage() {
                     <TableRow key={`${event.timestamp}-${i}`}>
                       <TableCell className="font-mono text-xs py-1.5">{time} {date}</TableCell>
                       <TableCell className="py-1.5">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${PHASE_COLORS[event.phase] ?? ""}`}>
-                          {event.phase === "start" ? "🚀 start" : event.phase === "complete" ? "✅ complete" : event.phase === "fail" ? "❌ fail" : event.phase === "cancel" ? "🚫 cancel" : "📝 record"}
-                        </span>
+                        <MetricPhaseBadge phase={event.phase} />
                       </TableCell>
                       <TableCell className="font-mono text-xs py-1.5">
                         {event.duration_ms != null ? formatDuration(event.duration_ms) : "—"}

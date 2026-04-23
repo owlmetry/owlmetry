@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { ProjectResponse, IssueResponse, IssueStatus, AppResponse } from "@owlmetry/shared";
+import type { ProjectResponse, IssueResponse, AppResponse } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
@@ -32,7 +32,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/badges/app-badge";
+import { DevModeBadge } from "@/components/badges/dev-mode-badge";
+import { CountBadge } from "@/components/badges/count-badge";
+import {
+  IssueStatusBadge,
+  ISSUE_STATUS_CONFIG,
+  ISSUE_STATUS_COLUMNS,
+} from "@/components/badges/issue-status-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,20 +52,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Bug, ChevronDown, Clock, Users } from "lucide-react";
 import { VisuallyHidden } from "radix-ui";
-import { ProjectDot } from "@/lib/project-color";
 import { VersionBadge } from "@/components/version-badge";
+import { ProjectDot } from "@/lib/project-color";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { KanbanSkeleton } from "@/components/ui/skeletons";
-
-const STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: string; color: string }> = {
-  new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
-  in_progress: { label: "In Progress", emoji: "🔧", color: "bg-blue-500/10 text-blue-600" },
-  regressed: { label: "Regressed", emoji: "🔄", color: "bg-yellow-500/10 text-yellow-600" },
-  resolved: { label: "Resolved", emoji: "✅", color: "bg-green-500/10 text-green-600" },
-  silenced: { label: "Silenced", emoji: "🔇", color: "bg-gray-500/10 text-gray-500" },
-};
-
-const KANBAN_COLUMNS: IssueStatus[] = ["new", "in_progress", "regressed", "resolved", "silenced"];
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -93,20 +90,11 @@ function IssueCard({ issue, projectColor, latestAppVersion, onClick }: { issue: 
           </span>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
-          {issue.app_name && (
-            <Badge variant="outline" className="text-[10px] h-5 flex items-center gap-1">
-              <ProjectDot color={projectColor} size={6} />
-              {issue.app_name}
-            </Badge>
-          )}
+          {issue.app_name && <AppBadge name={issue.app_name} color={projectColor} />}
           {issue.last_seen_app_version && (
             <VersionBadge version={issue.last_seen_app_version} latestVersion={latestAppVersion} />
           )}
-          {issue.is_dev && (
-            <Badge variant="secondary" className="text-[10px] h-5">
-              🛠️ dev
-            </Badge>
-          )}
+          {issue.is_dev && <DevModeBadge />}
         </div>
       </CardContent>
     </Card>
@@ -167,7 +155,6 @@ function IssueDetailModal({
   };
 
   if (!open) return null;
-  const config = issue ? STATUS_CONFIG[issue.status] : null;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -182,10 +169,8 @@ function IssueDetailModal({
             <DialogHeader>
               <div className="flex items-center gap-2">
                 <ProjectDot color={projectColor} />
-                <Badge className={config?.color}>
-                  {config?.emoji} {config?.label}
-                </Badge>
-                {issue.is_dev && <Badge variant="secondary">🛠️ dev</Badge>}
+                <IssueStatusBadge status={issue.status} size="md" />
+                {issue.is_dev && <DevModeBadge size="md" />}
               </div>
               <DialogTitle className="text-base leading-snug mt-2">{issue.title}</DialogTitle>
             </DialogHeader>
@@ -272,7 +257,7 @@ function IssueDetailModal({
                                     }
                                   }}
                                 >
-                                  {STATUS_CONFIG[i.status]?.emoji} {i.title.slice(0, 50)}{i.title.length > 50 ? "..." : ""}
+                                  {ISSUE_STATUS_CONFIG[i.status]?.emoji} {i.title.slice(0, 50)}{i.title.length > 50 ? "..." : ""}
                                 </DropdownMenuItem>
                               ))}
                           </DropdownMenuSubContent>
@@ -452,7 +437,7 @@ export default function IssuesPage() {
   // Group issues by status for kanban columns.
   // "New" is sorted by severity (unique users affected) so the most impactful issues surface first.
   const issuesByStatus: Record<string, IssueResponse[]> = {};
-  for (const status of KANBAN_COLUMNS) {
+  for (const status of ISSUE_STATUS_COLUMNS) {
     const col = issues.filter((i) => i.status === status);
     if (status === "new") {
       col.sort((a, b) => {
@@ -504,17 +489,15 @@ export default function IssuesPage() {
         </div>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {KANBAN_COLUMNS.map((status) => {
-            const config = STATUS_CONFIG[status];
+          {ISSUE_STATUS_COLUMNS.map((status) => {
+            const config = ISSUE_STATUS_CONFIG[status];
             const colIssues = issuesByStatus[status] ?? [];
             return (
               <div key={status} className="flex-shrink-0 w-[250px]">
                 <div className="flex items-center gap-2 mb-3">
                   <span>{config.emoji}</span>
                   <span className="text-sm font-semibold">{config.label}</span>
-                  <Badge variant="secondary" className="text-[10px] h-5 ml-auto">
-                    {colIssues.length}
-                  </Badge>
+                  <CountBadge className="ml-auto">{colIssues.length}</CountBadge>
                 </div>
                 <div className="space-y-2">
                   {colIssues.map((issue) => (

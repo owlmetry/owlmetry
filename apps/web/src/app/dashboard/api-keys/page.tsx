@@ -33,6 +33,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { KeyTypeBadge } from "@/components/badges/key-type-badge";
 import { CopyButton } from "@/components/copy-button";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useAppColorMap } from "@/hooks/use-project-colors";
@@ -525,12 +526,7 @@ export default function ApiKeysPage() {
                 <TableRow key={key.id}>
                   <TableCell className="text-sm py-1.5">{key.name}</TableCell>
                   <TableCell className="py-1.5">
-                    <Badge
-                      variant={key.key_type === "agent" ? "default" : "secondary"}
-                      className="text-xs"
-                    >
-                      {{ client: "📱 client", agent: "🕶️ agent", import: "📦 import" }[key.key_type] ?? key.key_type}
-                    </Badge>
+                    <KeyTypeBadge keyType={key.key_type} size="md" />
                   </TableCell>
                   <TableCell className="text-sm py-1.5 text-muted-foreground">
                     {key.app_id ? (
@@ -550,11 +546,7 @@ export default function ApiKeysPage() {
                   <TableCell className="py-1.5">
                     <div className="flex flex-wrap gap-1">
                       {key.permissions.map((perm) => (
-                        <Badge
-                          key={perm}
-                          variant="outline"
-                          className="text-[10px] px-1 py-0"
-                        >
+                        <Badge key={perm} variant="outline" size="xs">
                           {perm}
                         </Badge>
                       ))}

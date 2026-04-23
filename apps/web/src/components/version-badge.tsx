@@ -45,10 +45,11 @@ export function VersionRow({
 interface VersionBadgeProps {
   version: string | null | undefined;
   latestVersion: string | null | undefined;
+  size?: "sm" | "md";
   className?: string;
 }
 
-export function VersionBadge({ version, latestVersion, className }: VersionBadgeProps) {
+export function VersionBadge({ version, latestVersion, size = "sm", className }: VersionBadgeProps) {
   if (!version) {
     return <span className={cn("font-mono text-xs text-muted-foreground", className)}>—</span>;
   }
@@ -59,10 +60,7 @@ export function VersionBadge({ version, latestVersion, className }: VersionBadge
     return <span className={cn("font-mono text-xs", className)}>{version}</span>;
   }
 
-  const colorClasses = isLatest
-    ? "text-green-500 bg-green-500/10 border-green-500/30"
-    : "text-amber-500 bg-amber-500/10 border-amber-500/30";
-
+  const tone = isLatest ? "green" : "amber";
   const tooltipText = isLatest
     ? "On the latest released version"
     : `Older than the latest released version (v${latestVersion})`;
@@ -72,7 +70,9 @@ export function VersionBadge({ version, latestVersion, className }: VersionBadge
       <TooltipTrigger asChild>
         <Badge
           variant="outline"
-          className={cn("font-mono text-[11px] font-medium", colorClasses, className)}
+          tone={tone}
+          size={size}
+          className={cn("font-mono", className)}
         >
           {version}
         </Badge>

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
-import { Badge } from "@/components/ui/badge";
+import { IntegrationStatusBadge } from "@/components/badges/integration-status-badge";
 import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError, API_URL } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
@@ -102,9 +102,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-2">
             {integration && (
               <>
-                <Badge variant={integration.enabled ? "default" : "secondary"} className="text-xs">
-                  {integration.enabled ? "Active" : "Disabled"}
-                </Badge>
+                <IntegrationStatusBadge enabled={integration.enabled} />
                 <Button variant="ghost" size="sm" onClick={handleToggle}>
                   {integration.enabled ? "Disable" : "Enable"}
                 </Button>

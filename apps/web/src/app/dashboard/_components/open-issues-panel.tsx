@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { Bug, Users } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProjectDot } from "@/lib/project-color";
+import { AppBadge } from "@/components/badges/app-badge";
 import { useIssues } from "@/hooks/use-issues";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { useTeam } from "@/contexts/team-context";
@@ -73,13 +72,11 @@ export function OpenIssuesPanel() {
               </p>
               <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                 {issue.app_name && (
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] h-4 px-1.5 flex items-center gap-1 shrink-0"
-                  >
-                    <ProjectDot color={projectColorMap.get(issue.project_id)} size={5} />
-                    <span className="max-w-[90px] truncate">{issue.app_name}</span>
-                  </Badge>
+                  <AppBadge
+                    name={issue.app_name}
+                    color={projectColorMap.get(issue.project_id)}
+                    className="max-w-[110px]"
+                  />
                 )}
                 <span className="flex items-center gap-1">
                   <Bug className="h-3 w-3" />

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { RoleBadge } from "@/components/badges/role-badge";
+import { CountBadge } from "@/components/badges/count-badge";
 import {
   Table,
   TableBody,
@@ -48,12 +49,6 @@ import { useRouter } from "next/navigation";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { Skeleton } from "@/components/ui/skeleton";
 
-function roleBadgeVariant(role: TeamRole) {
-  if (role === "owner") return "default" as const;
-  if (role === "admin") return "secondary" as const;
-  return "outline" as const;
-}
-
 function assignableRoles(actorRole: TeamRole): TeamRole[] {
   return VALID_TEAM_ROLES.filter((r) => actorRole === "owner" || r !== "owner");
 }
@@ -91,9 +86,7 @@ export default function TeamPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <CardTitle>Members</CardTitle>
-            {members.length > 0 && (
-              <Badge variant="secondary" className="font-normal">{members.length}</Badge>
-            )}
+            {members.length > 0 && <CountBadge>{members.length}</CountBadge>}
           </div>
           {isAdmin && <InviteMemberDialog teamId={currentTeam.id} currentRole={currentRole} onInvited={() => mutate()} />}
         </CardHeader>
@@ -147,9 +140,7 @@ export default function TeamPage() {
                             onChanged={() => mutate()}
                           />
                         ) : (
-                          <Badge variant={roleBadgeVariant(member.role)}>
-                            {member.role === "owner" ? "👑 owner" : member.role === "admin" ? "🛡️ admin" : "👤 member"}
-                          </Badge>
+                          <RoleBadge role={member.role} size="md" />
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -188,9 +179,7 @@ export default function TeamPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <CardTitle>Pending Invitations</CardTitle>
-              {pendingInvitations.length > 0 && (
-                <Badge variant="secondary" className="font-normal">{pendingInvitations.length}</Badge>
-              )}
+              {pendingInvitations.length > 0 && <CountBadge>{pendingInvitations.length}</CountBadge>}
             </div>
           </CardHeader>
           <CardContent>
@@ -215,9 +204,7 @@ export default function TeamPage() {
                     <TableRow key={inv.id}>
                       <TableCell>{inv.email}</TableCell>
                       <TableCell>
-                        <Badge variant={roleBadgeVariant(inv.role)}>
-                          {inv.role === "owner" ? "👑 owner" : inv.role === "admin" ? "🛡️ admin" : "👤 member"}
-                        </Badge>
+                        <RoleBadge role={inv.role} size="md" />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {inv.invited_by.name}

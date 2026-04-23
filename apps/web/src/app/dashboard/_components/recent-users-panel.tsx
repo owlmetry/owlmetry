@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
 import type { TeamAppUsersQueryParams } from "@owlmetry/shared";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { useTeam } from "@/contexts/team-context";
@@ -12,6 +11,7 @@ import { ProjectDot } from "@/lib/project-color";
 import { CountryEmoji } from "@/components/country-flag";
 import { AttributionBadge } from "@/components/attribution-badge";
 import { BillingBadge } from "@/components/billing-badge";
+import { UserTypeBadge } from "@/components/badges/user-type-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
@@ -58,11 +58,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-[68px] flex justify-start">
-                {user.is_anonymous ? (
-                  <Badge variant="secondary" className="text-[10px] h-5">👻 anon</Badge>
-                ) : (
-                  <Badge variant="default" className="text-[10px] h-5">👤 real</Badge>
-                )}
+                <UserTypeBadge isAnonymous={user.is_anonymous} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-mono text-xs truncate">{user.user_id}</p>
@@ -85,7 +81,7 @@ export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
               </div>
               <div className="shrink-0 flex items-center gap-1">
                 <BillingBadge properties={user.properties} size="sm" />
-                <AttributionBadge properties={user.properties} />
+                <AttributionBadge properties={user.properties} size="sm" />
               </div>
               <CountryEmoji code={user.last_country_code} />
               <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">

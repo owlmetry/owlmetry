@@ -3,22 +3,13 @@
 import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 import type { AuditLogsQueryParams } from "@owlmetry/shared";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 import { useTeam } from "@/contexts/team-context";
+import { AuditActionBadge } from "@/components/badges/audit-action-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
-
-function actionMeta(action: string): { emoji: string; variant: "default" | "secondary" | "destructive" | "outline" } {
-  switch (action) {
-    case "create": return { emoji: "✨", variant: "default" };
-    case "update": return { emoji: "✏️", variant: "secondary" };
-    case "delete": return { emoji: "🗑️", variant: "destructive" };
-    default: return { emoji: "•", variant: "outline" };
-  }
-}
 
 export function RecentAuditPanel() {
   const { currentTeam, currentRole } = useTeam();
@@ -42,7 +33,6 @@ export function RecentAuditPanel() {
         />
       ) : (
         auditLogs.slice(0, 5).map((log) => {
-          const meta = actionMeta(log.action);
           const resource = log.resource_type.replace(/_/g, " ");
           return (
             <Link
@@ -51,9 +41,7 @@ export function RecentAuditPanel() {
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-[72px] flex justify-start">
-                <Badge variant={meta.variant} className="text-[10px] h-5">
-                  {meta.emoji} {log.action}
-                </Badge>
+                <AuditActionBadge action={log.action} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm truncate">

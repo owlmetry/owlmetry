@@ -31,7 +31,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/badges/app-badge";
+import { DevModeBadge } from "@/components/badges/dev-mode-badge";
+import { CountBadge } from "@/components/badges/count-badge";
+import {
+  FeedbackStatusBadge,
+  FEEDBACK_STATUS_CONFIG,
+  FEEDBACK_STATUS_COLUMNS,
+} from "@/components/badges/feedback-status-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,15 +53,6 @@ import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { KanbanSkeleton } from "@/components/ui/skeletons";
 import { BillingBadge } from "@/components/billing-badge";
 import { AttributionBadge } from "@/components/attribution-badge";
-
-const STATUS_CONFIG: Record<FeedbackStatus, { label: string; emoji: string; color: string }> = {
-  new: { label: "New", emoji: "🆕", color: "bg-red-500/10 text-red-600" },
-  in_review: { label: "In Review", emoji: "👀", color: "bg-blue-500/10 text-blue-600" },
-  addressed: { label: "Addressed", emoji: "✅", color: "bg-green-500/10 text-green-600" },
-  dismissed: { label: "Dismissed", emoji: "🚫", color: "bg-gray-500/10 text-gray-500" },
-};
-
-const KANBAN_COLUMNS: FeedbackStatus[] = ["new", "in_review", "addressed", "dismissed"];
 
 function FeedbackCard({
   feedback,
@@ -87,17 +85,8 @@ function FeedbackCard({
           <CountryEmoji code={feedback.country_code} />
         </div>
         <div className="flex items-center gap-1 flex-wrap">
-          {feedback.app_name && (
-            <Badge variant="outline" className="text-[10px] h-5 flex items-center gap-1">
-              <ProjectDot color={projectColor} size={6} />
-              {feedback.app_name}
-            </Badge>
-          )}
-          {feedback.is_dev && (
-            <Badge variant="secondary" className="text-[10px] h-5">
-              🛠️ dev
-            </Badge>
-          )}
+          {feedback.app_name && <AppBadge name={feedback.app_name} color={projectColor} />}
+          {feedback.is_dev && <DevModeBadge />}
           <BillingBadge properties={feedback.user_properties} size="sm" />
           <AttributionBadge properties={feedback.user_properties} size="sm" />
         </div>
@@ -161,7 +150,6 @@ function FeedbackDetailModal({
   };
 
   if (!open) return null;
-  const config = feedback ? STATUS_CONFIG[feedback.status] : null;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -176,10 +164,8 @@ function FeedbackDetailModal({
             <DialogHeader>
               <div className="flex items-center gap-2 flex-wrap">
                 <ProjectDot color={projectColor} />
-                <Badge className={config?.color}>
-                  {config?.emoji} {config?.label}
-                </Badge>
-                {feedback.is_dev && <Badge variant="secondary">🛠️ dev</Badge>}
+                <FeedbackStatusBadge status={feedback.status} size="md" />
+                {feedback.is_dev && <DevModeBadge size="md" />}
                 <BillingBadge properties={feedback.user_properties} />
                 <AttributionBadge properties={feedback.user_properties} />
               </div>
@@ -234,9 +220,9 @@ function FeedbackDetailModal({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  {KANBAN_COLUMNS.filter((s) => s !== feedback.status).map((s) => (
+                  {FEEDBACK_STATUS_COLUMNS.filter((s) => s !== feedback.status).map((s) => (
                     <DropdownMenuItem key={s} onClick={() => handleStatusChange(s)}>
-                      {STATUS_CONFIG[s].emoji} Move to {STATUS_CONFIG[s].label}
+                      {FEEDBACK_STATUS_CONFIG[s].emoji} Move to {FEEDBACK_STATUS_CONFIG[s].label}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
@@ -347,7 +333,7 @@ export default function FeedbackPage() {
     : null;
 
   const feedbackByStatus: Record<string, FeedbackResponse[]> = {};
-  for (const status of KANBAN_COLUMNS) {
+  for (const status of FEEDBACK_STATUS_COLUMNS) {
     feedbackByStatus[status] = filtered.filter((f) => f.status === status);
   }
 
@@ -399,17 +385,15 @@ export default function FeedbackPage() {
         </div>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {KANBAN_COLUMNS.map((status) => {
-            const config = STATUS_CONFIG[status];
+          {FEEDBACK_STATUS_COLUMNS.map((status) => {
+            const config = FEEDBACK_STATUS_CONFIG[status];
             const colFeedback = feedbackByStatus[status] ?? [];
             return (
               <div key={status} className="flex-shrink-0 w-[280px]">
                 <div className="flex items-center gap-2 mb-3">
                   <span>{config.emoji}</span>
                   <span className="text-sm font-semibold">{config.label}</span>
-                  <Badge variant="secondary" className="text-[10px] h-5 ml-auto">
-                    {colFeedback.length}
-                  </Badge>
+                  <CountBadge className="ml-auto">{colFeedback.length}</CountBadge>
                 </div>
                 <div className="space-y-2">
                   {colFeedback.map((fb) => (

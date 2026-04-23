@@ -1,21 +1,20 @@
 import type { LogLevel } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
-import { levelColors } from "@/lib/level-colors";
-import { cn } from "@/lib/utils";
 
-export function EventLevelBadge({ level }: { level: LogLevel }) {
-  const colors = levelColors[level];
+type Tone = "red" | "yellow" | "cyan" | "gray";
+
+const LEVEL_META: Record<LogLevel, { label: string; tone: Tone }> = {
+  info: { label: "ℹ️ info", tone: "cyan" },
+  debug: { label: "🐛 debug", tone: "gray" },
+  warn: { label: "⚠️ warn", tone: "yellow" },
+  error: { label: "🔴 error", tone: "red" },
+};
+
+export function EventLevelBadge({ level, size = "sm" }: { level: LogLevel; size?: "sm" | "md" }) {
+  const meta = LEVEL_META[level];
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "font-mono text-[11px] font-medium uppercase",
-        colors.text,
-        colors.bg,
-        colors.border
-      )}
-    >
-      {level === "info" ? "ℹ️ info" : level === "debug" ? "🐛 debug" : level === "warn" ? "⚠️ warn" : "🔴 error"}
+    <Badge variant="outline" tone={meta.tone} size={size} className="font-mono uppercase">
+      {meta.label}
     </Badge>
   );
 }

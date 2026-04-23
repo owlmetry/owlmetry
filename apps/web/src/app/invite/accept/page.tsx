@@ -6,7 +6,7 @@ import { Check, Loader2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { RoleBadge } from "@/components/badges/role-badge";
 import { OwlLogo } from "@/components/owl-logo";
 import type {
   TeamInvitationPublicResponse,
@@ -190,7 +190,7 @@ function AcceptInvitationContent() {
                   <div className="text-center space-y-1.5">
                     <p className="text-2xl font-semibold tracking-tight">{invite.team_name}</p>
                     <p className="text-muted-foreground">
-                      as <Badge variant="secondary">{invite.role}</Badge>
+                      as <RoleBadge role={invite.role} size="md" />
                     </p>
                   </div>
 

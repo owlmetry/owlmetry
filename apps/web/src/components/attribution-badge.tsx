@@ -63,14 +63,14 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
   const source = properties.attribution_source;
   if (!source) return null;
 
-  const cls = size === "sm" ? "text-[10px] h-5" : "text-xs";
+  const badgeSize = size === "sm" ? "sm" : "md";
 
   if (source === "apple_search_ads") {
     const rows = orderedAsaEntries(properties);
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline" className={cls}>🎯 ASA</Badge>
+          <Badge variant="outline" size={badgeSize}>🎯 ASA</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           <div className="space-y-0.5 text-xs">
@@ -94,7 +94,7 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline" className={cls}>🌱 Organic</Badge>
+          <Badge variant="outline" size={badgeSize}>🌱 Organic</Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
           Organic install — Apple returned no ad attribution for this user.
@@ -104,5 +104,5 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
   }
 
   // Future source we don't recognize — render the raw value rather than hide it.
-  return <Badge variant="outline" className={cls}>🏷️ {source}</Badge>;
+  return <Badge variant="outline" size={badgeSize}>🏷️ {source}</Badge>;
 }

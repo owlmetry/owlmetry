@@ -9,7 +9,7 @@ import { FilterSheet, type FilterChip, truncateId } from "@/components/filter-sh
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { formatDateTime, formatCompactDateTime } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { AuditActionBadge } from "@/components/badges/audit-action-badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,15 +43,6 @@ const RESOURCE_TYPES: AuditResourceType[] = [
   "invitation", "metric_definition", "user",
 ];
 const ACTIONS: AuditAction[] = ["create", "update", "delete"];
-
-function actionBadgeVariant(action: string) {
-  switch (action) {
-    case "create": return "default" as const;
-    case "update": return "secondary" as const;
-    case "delete": return "destructive" as const;
-    default: return "outline" as const;
-  }
-}
 
 export default function AuditLogPage() {
   const { currentTeam } = useTeam();
@@ -260,9 +251,7 @@ export default function AuditLogPage() {
                         {time}
                       </TableCell>
                       <TableCell className="py-1.5">
-                        <Badge variant={actionBadgeVariant(log.action)} className="text-xs">
-                          {log.action === "create" ? "✨ create" : log.action === "update" ? "✏️ update" : "🗑️ delete"}
-                        </Badge>
+                        <AuditActionBadge action={log.action} size="md" />
                       </TableCell>
                       <TableCell className="text-xs py-1.5">
                         {log.resource_type.replace(/_/g, " ")}
@@ -309,9 +298,7 @@ export default function AuditLogPage() {
                 <span className="font-mono text-xs">{formatDateTime(selectedLog.timestamp)}</span>
 
                 <span className="text-muted-foreground">Action</span>
-                <Badge variant={actionBadgeVariant(selectedLog.action)} className="w-fit text-xs">
-                  {selectedLog.action === "create" ? "✨ create" : selectedLog.action === "update" ? "✏️ update" : "🗑️ delete"}
-                </Badge>
+                <div className="w-fit"><AuditActionBadge action={selectedLog.action} size="md" /></div>
 
                 <span className="text-muted-foreground">Resource</span>
                 <span>{selectedLog.resource_type.replace(/_/g, " ")}</span>

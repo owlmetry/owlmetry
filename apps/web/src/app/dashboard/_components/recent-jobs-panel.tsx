@@ -7,31 +7,14 @@ import { Cog } from "lucide-react";
 import type { JobRunsQueryParams, JobType, ProjectResponse } from "@owlmetry/shared";
 import { JOB_TYPE_META } from "@owlmetry/shared/jobs";
 import { formatDuration as formatMs } from "@owlmetry/shared/constants";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useJobRuns } from "@/hooks/use-jobs";
 import { useTeam } from "@/contexts/team-context";
 import { ProjectDot } from "@/lib/project-color";
+import { JobStatusBadge } from "@/components/badges/job-status-badge";
 import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
-
-function statusBadge(status: string) {
-  switch (status) {
-    case "completed":
-      return <Badge variant="default" className="bg-green-600 text-[10px] h-5">completed</Badge>;
-    case "failed":
-      return <Badge variant="destructive" className="text-[10px] h-5">failed</Badge>;
-    case "running":
-      return <Badge variant="default" className="bg-blue-600 text-[10px] h-5 animate-pulse">running</Badge>;
-    case "cancelled":
-      return <Badge variant="secondary" className="text-[10px] h-5">cancelled</Badge>;
-    case "pending":
-      return <Badge variant="outline" className="text-[10px] h-5">pending</Badge>;
-    default:
-      return <Badge variant="outline" className="text-[10px] h-5">{status}</Badge>;
-  }
-}
 
 function durationOf(startedAt: string | null, completedAt: string | null): string | null {
   if (!startedAt) return null;
@@ -81,7 +64,7 @@ export function RecentJobsPanel() {
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-[88px] flex justify-start">
-                {statusBadge(run.status)}
+                <JobStatusBadge status={run.status} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{label}</p>

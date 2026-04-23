@@ -10,7 +10,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/badges/app-badge";
+import { UserTypeBadge } from "@/components/badges/user-type-badge";
 import { DetailRow } from "@/components/detail-row";
 import { VersionRow, pickLatestForUser } from "@/components/version-badge";
 import { ArrowRight } from "lucide-react";
@@ -160,11 +161,7 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
         <SheetHeader className="px-6 pt-6 pb-4">
           <div className="flex items-center gap-2">
             <ProjectDot color={projectColorMap?.get(user.project_id)} />
-            {user.is_anonymous ? (
-              <Badge variant="secondary" className="text-xs">👻 anon</Badge>
-            ) : (
-              <Badge variant="default" className="text-xs">👤 real</Badge>
-            )}
+            <UserTypeBadge isAnonymous={user.is_anonymous} size="md" />
           </div>
           <SheetTitle className="text-base font-medium mt-1 break-words font-mono">
             {user.user_id}
@@ -221,14 +218,12 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
               <div className="space-y-3">
                 {user.apps.map((app) => (
                   <div key={app.app_id} className="space-y-1">
-                    <Badge
-                      variant="outline"
-                      className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5 w-fit"
-                      onClick={() => onFilter?.("app_id", app.app_id)}
-                    >
-                      <ProjectDot color={appColorMap?.get(app.app_id) ?? projectColorMap?.get(user.project_id)} size={6} />
-                      {app.app_name}
-                    </Badge>
+                    <AppBadge
+                      name={app.app_name}
+                      color={appColorMap?.get(app.app_id) ?? projectColorMap?.get(user.project_id)}
+                      size="md"
+                      onClick={onFilter ? () => onFilter("app_id", app.app_id) : undefined}
+                    />
                     <DetailRow label="First Seen" value={formatDateTime(app.first_seen_at)} />
                     <DetailRow label="Last Seen" value={formatDateTime(app.last_seen_at)} />
                   </div>

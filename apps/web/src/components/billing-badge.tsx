@@ -52,22 +52,22 @@ function SubscriptionTooltipBody({
  */
 export function BillingBadge({ properties, size = "default" }: BillingBadgeProps) {
   const state = getBillingBadgeState(properties);
-  const cls = size === "sm" ? "text-[10px] h-5" : "text-xs";
+  const badgeSize = size === "sm" ? "sm" : "md";
 
   let badge: ReactNode = null;
   let description: string | null = null;
 
   if (state.isCancelledTrial) {
-    badge = <Badge variant="default" className={`${cls} bg-red-600`}>🎁 Trial</Badge>;
+    badge = <Badge variant="default" tone="red" size={badgeSize}>🎁 Trial</Badge>;
     description = state.primaryTooltip;
   } else if (state.showCancelledBadge) {
-    badge = <Badge variant="secondary" className={cls}>🚫 Cancelled</Badge>;
+    badge = <Badge variant="secondary" size={badgeSize}>🚫 Cancelled</Badge>;
     description = state.cancelledTooltip;
   } else if (state.isTrial) {
-    badge = <Badge variant="default" className={`${cls} bg-sky-600`}>🎁 Trial</Badge>;
+    badge = <Badge variant="default" tone="sky" size={badgeSize}>🎁 Trial</Badge>;
     description = state.primaryTooltip;
   } else if (state.isPaid) {
-    badge = <Badge variant="default" className={`${cls} bg-green-600`}>💰 Paid</Badge>;
+    badge = <Badge variant="default" tone="green" size={badgeSize}>💰 Paid</Badge>;
     description = state.primaryTooltip;
   }
 

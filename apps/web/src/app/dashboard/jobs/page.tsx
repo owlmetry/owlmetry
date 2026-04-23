@@ -25,7 +25,7 @@ import { FilterSheet, type FilterChip, truncateId } from "@/components/filter-sh
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { JobStatusBadge } from "@/components/badges/job-status-badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -64,23 +64,6 @@ import { TableSkeleton } from "@/components/ui/skeletons";
 
 const PROJECT_JOB_TYPES = Object.entries(JOB_TYPE_META)
   .filter(([, meta]) => meta.scope === "project");
-
-function statusBadge(status: string) {
-  switch (status) {
-    case "completed":
-      return <Badge variant="default" className="bg-green-600 text-xs">completed</Badge>;
-    case "failed":
-      return <Badge variant="destructive" className="text-xs">failed</Badge>;
-    case "running":
-      return <Badge variant="default" className="bg-blue-600 text-xs animate-pulse">running</Badge>;
-    case "cancelled":
-      return <Badge variant="secondary" className="text-xs">cancelled</Badge>;
-    case "pending":
-      return <Badge variant="outline" className="text-xs">pending</Badge>;
-    default:
-      return <Badge variant="outline" className="text-xs">{status}</Badge>;
-  }
-}
 
 function formatDuration(startedAt: string | null, completedAt: string | null): string {
   if (!startedAt) return "—";
@@ -452,7 +435,7 @@ export default function JobsPage() {
                       onClick={() => { setSelectedRun(run); filters.set("job_id", run.id); }}
                       className="cursor-pointer"
                     >
-                      <TableCell className="py-1.5">{statusBadge(run.status)}</TableCell>
+                      <TableCell className="py-1.5"><JobStatusBadge status={run.status} size="md" /></TableCell>
                       <TableCell className="text-xs py-1.5">{label}</TableCell>
                       <TableCell className="text-xs py-1.5">
                         {project ? (
@@ -533,7 +516,7 @@ export default function JobsPage() {
                 <span>{getJobLabel(selectedRun.job_type)}</span>
 
                 <span className="text-muted-foreground">Status</span>
-                <span>{statusBadge(selectedRun.status)}</span>
+                <JobStatusBadge status={selectedRun.status} size="md" />
 
                 <span className="text-muted-foreground">Triggered</span>
                 <span>{selectedRun.triggered_by}</span>

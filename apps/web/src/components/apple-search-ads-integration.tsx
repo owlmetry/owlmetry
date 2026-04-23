@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { IntegrationStatusBadge } from "@/components/badges/integration-status-badge";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError } from "@/lib/api";
@@ -183,9 +183,7 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
           <CardTitle className="text-base">Apple Search Ads</CardTitle>
           <div className="flex items-center gap-2">
             {integration && (
-              <Badge variant={integration.enabled ? "default" : "secondary"} className="text-xs">
-                {integration.enabled ? "Active" : "Pending setup"}
-              </Badge>
+              <IntegrationStatusBadge enabled={integration.enabled} disabledLabel="Pending setup" />
             )}
           </div>
         </div>

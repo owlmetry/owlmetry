@@ -6,10 +6,11 @@ import { ATTRIBUTION_COLUMN_KEYS } from "@owlmetry/shared";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionBadge, pickLatestForUser } from "@/components/version-badge";
-import { ProjectDot } from "@/lib/project-color";
 import { CountryCell } from "@/components/country-flag";
 import { BillingBadge } from "@/components/billing-badge";
 import { AttributionBadge } from "@/components/attribution-badge";
+import { AppBadge } from "@/components/badges/app-badge";
+import { UserTypeBadge } from "@/components/badges/user-type-badge";
 import { formatDateTime } from "@/lib/format-date";
 import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
 
@@ -43,12 +44,7 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
     label: "Type",
     headerClassName: "w-[100px]",
     cellClassName: "py-1.5",
-    render: (user) =>
-      user.is_anonymous ? (
-        <Badge variant="secondary" className="text-xs">👻 anon</Badge>
-      ) : (
-        <Badge variant="default" className="text-xs">👤 real</Badge>
-      ),
+    render: (user) => <UserTypeBadge isAnonymous={user.is_anonymous} />,
   },
   apps: {
     id: "apps",
@@ -61,31 +57,19 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
         <div className="flex flex-wrap gap-1">
           {user.apps && user.apps.length > 0 ? (
             user.apps.map((a) => (
-              <Badge
+              <AppBadge
                 key={a.app_id}
-                variant="outline"
-                className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFilterClick?.("app_id", a.app_id);
-                }}
-              >
-                <ProjectDot color={appColorMap.get(a.app_id)} size={6} />
-                {a.app_name}
-              </Badge>
+                name={a.app_name}
+                color={appColorMap.get(a.app_id)}
+                onClick={onFilterClick ? () => onFilterClick("app_id", a.app_id) : undefined}
+              />
             ))
           ) : userProject ? (
-            <Badge
-              variant="outline"
-              className="text-xs cursor-pointer hover:bg-accent flex items-center gap-1.5"
-              onClick={(e) => {
-                e.stopPropagation();
-                onFilterClick?.("project_id", user.project_id);
-              }}
-            >
-              <ProjectDot color={userProject.color} size={6} />
-              {userProject.name}
-            </Badge>
+            <AppBadge
+              name={userProject.name}
+              color={userProject.color}
+              onClick={onFilterClick ? () => onFilterClick("project_id", user.project_id) : undefined}
+            />
           ) : (
             <span className="text-muted-foreground">-</span>
           )}
@@ -122,7 +106,7 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
           {otherEntries.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="outline" className="text-xs">🏷️ +{otherEntries.length}</Badge>
+                <Badge variant="outline" size="sm">🏷️ +{otherEntries.length}</Badge>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
                 <div className="space-y-0.5 text-xs">
