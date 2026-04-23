@@ -3,10 +3,10 @@ import postgres from "postgres";
 import { TEST_DB_URL } from "./setup.js";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq } from "drizzle-orm";
-import { apps, teams, projects } from "@owlmetry/db";
+import { apps, teams, projects, schema } from "@owlmetry/db";
 
 const dbClient = postgres(TEST_DB_URL, { max: 1 });
-const db = drizzle(dbClient);
+const db = drizzle(dbClient, { schema });
 
 let teamId: string;
 let projectId: string;
