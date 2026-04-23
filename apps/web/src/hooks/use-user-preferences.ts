@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import type { MeResponse, UserPreferences } from "@owlmetry/shared";
-import { mergeUserPreferences } from "@owlmetry/shared";
+import { mergeUserPreferences } from "@owlmetry/shared/preferences";
 import { useUser } from "./use-user";
 import { api } from "@/lib/api";
 

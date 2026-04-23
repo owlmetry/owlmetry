@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { AppUserResponse } from "@owlmetry/shared";
-import { ATTRIBUTION_COLUMN_KEYS } from "@owlmetry/shared";
+import { ATTRIBUTION_COLUMN_KEYS } from "@owlmetry/shared/attribution";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionBadge, pickLatestForUser } from "@/components/version-badge";

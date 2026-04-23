@@ -18,7 +18,7 @@ import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useEvents } from "@/hooks/use-events";
-import { isDefaultColumnOrder } from "@owlmetry/shared";
+import { isDefaultColumnOrder } from "@owlmetry/shared/preferences";
 import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useProjectColorMap, useAppColorMap } from "@/hooks/use-project-colors";
 import { EventDetailSheet } from "@/components/event-detail-sheet";

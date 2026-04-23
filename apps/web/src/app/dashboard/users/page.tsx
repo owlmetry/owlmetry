@@ -22,7 +22,7 @@ import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
-import { isDefaultColumnOrder } from "@owlmetry/shared";
+import { isDefaultColumnOrder } from "@owlmetry/shared/preferences";
 import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useProjectColorMap, useAppColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { Button } from "@/components/ui/button";
