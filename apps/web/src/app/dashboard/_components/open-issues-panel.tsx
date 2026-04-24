@@ -38,12 +38,6 @@ export function OpenIssuesPanel() {
 
   const unresolved = issues
     .filter((i) => UNRESOLVED.includes(i.status))
-    .sort((a, b) => {
-      if (b.unique_user_count !== a.unique_user_count) {
-        return b.unique_user_count - a.unique_user_count;
-      }
-      return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime();
-    })
     .slice(0, 5);
 
   return (
