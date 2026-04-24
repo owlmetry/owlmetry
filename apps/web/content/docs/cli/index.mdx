@@ -3,7 +3,7 @@ title: CLI
 description: Manage Owlmetry from the command line — query events, manage projects, and integrate with AI agents.
 ---
 
-The Owlmetry CLI (`@owlmetry/cli`) lets you manage your Owlmetry instance from the terminal. Use it to query events, create and manage projects and apps, inspect metrics and funnels, and view audit logs. It also ships AI skill files that teach coding agents how to instrument and query Owlmetry.
+The Owlmetry CLI (`@owlmetry/cli`) lets you manage your Owlmetry instance from the terminal. Use it to query events, create and manage projects and apps, inspect metrics and funnels, and view audit logs. Companion agent skills for the CLI and SDKs are distributed separately as the [owlmetry-skills Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills).
 
 ## Key capabilities
 
@@ -18,7 +18,7 @@ The Owlmetry CLI (`@owlmetry/cli`) lets you manage your Owlmetry instance from t
 - **List app users** — filter by billing tier, anonymous/real, or search by ID
 - **Audit trail** — review who did what across your team
 - **Multi-team support** — authenticate with multiple teams and switch between them with `owlmetry switch`
-- **AI agent integration** — bundled skill files for CLI, Node SDK, and Swift SDK
+- **AI agent integration** — companion skills for CLI, Node SDK, and Swift SDK via the [owlmetry-skills](https://github.com/owlmetry/owlmetry-skills) Claude Code plugin marketplace
 
 ## Command groups
 
@@ -40,7 +40,7 @@ The Owlmetry CLI (`@owlmetry/cli`) lets you manage your Owlmetry instance from t
 | `jobs` | List, view, trigger, and cancel background jobs |
 | `attachments` | List, show, download, and delete event attachments; show project usage |
 | `audit-log` | View audit log entries for team actions |
-| `skills` | Print paths to the bundled AI skill files |
+| `skills` | Print instructions for installing the `owlmetry-skills` Claude Code plugin marketplace |
 
 ## Global options
 

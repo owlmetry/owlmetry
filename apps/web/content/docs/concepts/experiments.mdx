@@ -7,7 +7,8 @@ Owlmetry supports lightweight client-side A/B experiments. You define experiment
 
 ```text title="Add A/B experiments with your coding agent"
 Add an Owlmetry A/B experiment to this project.
-Run `owlmetry skills` to find the SDK skill file.
+Load the `/owlmetry-swift` or `/owlmetry-node` skill first
+(install the owlmetry-skills Claude Code plugin if missing).
 
 - Use getVariant("experiment-name", options) to randomly assign
   users to a variant on first call (persisted automatically).

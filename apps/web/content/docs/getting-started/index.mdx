@@ -34,20 +34,26 @@ If your editor doesn't support MCP, or if you need Owlmetry in CI/CD pipelines a
 npm install -g @owlmetry/cli
 ```
 
-Requires Node.js 20+. The CLI ships with built-in skill files that teach your agent the full command reference and SDK integration patterns.
+Requires Node.js 20+. Pair the CLI with the companion [owlmetry-skills](https://github.com/owlmetry/owlmetry-skills) Claude Code plugin marketplace so your agent has the full command reference and SDK integration patterns.
 
 ### Tell Your Agent to Set Up Owlmetry
 
-Give your coding agent a prompt like this:
+Install the Owlmetry skills in Claude Code:
 
-```
-Set up Owlmetry in this project. Run `owlmetry skills` to get the
-skill file paths, then install the CLI and relevant SDK skill files.
-Use the CLI skill to authenticate and create a project/app, then use
-the SDK skill to instrument the code.
+```text
+/plugin marketplace add owlmetry/owlmetry-skills
+/plugin install owlmetry@owlmetry-skills
 ```
 
-That's it. Your agent reads the skill files and takes it from there. The only thing you'll need to do is provide a **6-digit verification code** — the agent will ask for your email, Owlmetry sends you a code, and you paste it back. This creates your account, generates an API key, and the agent handles the rest: creating a project, setting up an app, installing the SDK, and wiring up event tracking.
+Then give your coding agent a prompt like this:
+
+```
+Set up Owlmetry in this project. Load `/owlmetry-cli` to authenticate
+and create a project/app, then load `/owlmetry-swift` or `/owlmetry-node`
+(depending on the platform) to instrument the code.
+```
+
+That's it. Your agent reads the skills and takes it from there. The only thing you'll need to do is provide a **6-digit verification code** — the agent will ask for your email, Owlmetry sends you a code, and you paste it back. This creates your account, generates an API key, and the agent handles the rest: creating a project, setting up an app, installing the SDK, and wiring up event tracking.
 
 **Tip:** Add this line to your project's `CLAUDE.md`, `AGENTS.md`, or whatever default instructions file your coding agent uses:
 

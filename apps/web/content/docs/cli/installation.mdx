@@ -24,13 +24,13 @@ owlmetry --version
 
 ## AI skill files
 
-The CLI ships with AI skill files that teach coding agents (Claude, GPT, Cursor, etc.) how to use Owlmetry. Each skill file covers a different part of the platform:
+Companion skill files teach coding agents (Claude, GPT, Cursor, etc.) how to use Owlmetry. Three skills are available, each covering a different part of the platform:
 
-- **CLI** — command syntax, flags, and workflows
-- **Node SDK** — server-side instrumentation with `@owlmetry/node`
-- **Swift SDK** — iOS/macOS instrumentation with the Swift package
+- **owlmetry-cli** — command syntax, flags, and workflows
+- **owlmetry-node** — server-side instrumentation with `@owlmetry/node`
+- **owlmetry-swift** — iOS/macOS instrumentation with the Swift package
 
-Skills are distributed as a [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills). Inside Claude Code:
+They are distributed as a standalone [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills) rather than bundled with the CLI. Inside Claude Code:
 
 ```text
 /plugin marketplace add owlmetry/owlmetry-skills
