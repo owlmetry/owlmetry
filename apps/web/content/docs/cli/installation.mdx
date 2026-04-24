@@ -30,23 +30,20 @@ The CLI ships with AI skill files that teach coding agents (Claude, GPT, Cursor,
 - **Node SDK** — server-side instrumentation with `@owlmetry/node`
 - **Swift SDK** — iOS/macOS instrumentation with the Swift package
 
-To see the file paths on your system:
+Skills are distributed as a [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills). Inside Claude Code:
+
+```text
+/plugin marketplace add owlmetry/owlmetry-skills
+/plugin install owlmetry@owlmetry-skills
+```
+
+For other agents (Cursor, Continue, custom MCP clients), clone the skills repo and copy the folders under `plugins/owlmetry/skills/` into your agent's skills directory.
+
+`owlmetry skills` prints the install command as a reminder:
 
 ```bash
 owlmetry skills
 ```
-
-Output:
-
-```
-OwlMetry AI Skills
-
-  CLI        /path/to/skills/owlmetry-cli/SKILL.md
-  Node SDK   /path/to/skills/owlmetry-node/SKILL.md
-  Swift SDK  /path/to/skills/owlmetry-swift/SKILL.md
-```
-
-Point your AI agent to the relevant skill file so it can reference the correct API surface, command syntax, and code examples. The skill files are updated with each CLI release.
 
 ## Next steps
 

@@ -1,5 +1,5 @@
 import { defineConfig } from "tsup";
-import { cpSync, chmodSync } from "node:fs";
+import { chmodSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import pkg from "./package.json" with { type: "json" };
@@ -22,10 +22,6 @@ export default defineConfig({
     __CLI_VERSION__: JSON.stringify(pkg.version),
   },
   onSuccess: async () => {
-    const skillsSource = resolve(__dirname, "../../skills");
-    const skillsDest = resolve(__dirname, "dist/skills");
-    cpSync(skillsSource, skillsDest, { recursive: true });
-
     chmodSync(resolve(__dirname, "dist/index.cjs"), 0o755);
   },
 });

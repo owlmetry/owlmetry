@@ -36,15 +36,13 @@ Any MCP-compatible client can connect to OwlMetry. The endpoint uses:
 
 ## MCP Resources
 
-In addition to 51 tools, the server exposes three MCP resources that clients can read on connection:
+In addition to the tool surface, the server exposes one MCP resource that clients can read on connection:
 
 | URI | Description |
 |-----|-------------|
 | `owlmetry://guide` | Operational guide — concepts, resource hierarchy, workflows, and conventions |
-| `owlmetry://skills/swift` | Swift SDK integration guide — screen tracking, events, metrics, funnels, experiments |
-| `owlmetry://skills/node` | Node.js SDK integration guide — events, metrics, funnels, experiments, serverless |
 
-Supported clients read the guide automatically so agents understand how to use the tools effectively.
+Supported clients read the guide automatically so agents understand how to use the tools effectively. SDK integration guides live in a separate [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills) — install inside Claude Code with `/plugin marketplace add owlmetry/owlmetry-skills`.
 
 ## Authentication
 

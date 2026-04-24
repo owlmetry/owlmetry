@@ -53,7 +53,7 @@ The pattern (iOS → Node):
 
 Result: one logical user interaction (tap → API call → DB query → response → UI update) lands under a single \`session_id\`. \`investigate-event\` and \`query-events\` with \`session_id\` filters then return the full cross-app timeline automatically. Wire this up on any project that has both a Swift app and a Node backend in the same project — it is the whole point of grouping them under one project.
 
-Full setup snippets (Fastify/Express hook + Swift \`URLSession\` interceptor): \`owlmetry://skills/node\` → "Per-Request Session Scoping".
+Full setup snippets (Fastify/Express hook + Swift \`URLSession\` interceptor) live in the \`owlmetry-node\` Claude Code skill — install via \`/plugin marketplace add owlmetry/owlmetry-skills\` → \`/plugin install owlmetry@owlmetry-skills\`, then open the "Per-Request Session Scoping" section of \`owlmetry-node\`.
 
 ### Structured Metrics
 Metrics are project-scoped definitions that tell OwlMetry what structured data to expect. Two kinds:
@@ -138,7 +138,7 @@ User properties written:
 - On successful ASA attribution, additional ASA-specific IDs are written: \`asa_campaign_id\`, \`asa_ad_group_id\`, \`asa_keyword_id\`, \`asa_claim_type\`, \`asa_ad_id\`, \`asa_creative_set_id\`. Human-readable names (campaign name, keyword text, etc.) are resolved into extra properties when the Apple Search Ads integration is configured for the project (see **Integrations** above).
 - \`likely_app_reviewer = "true"\` when Apple returns its App Store review sandbox fixture (same numeric ID across campaign, ad group, and ad). Traceable numeric IDs are still stored, but exclude these users when reporting on paid acquisition.
 
-**Opt out**: pass \`attributionEnabled: false\` to \`Owl.configure()\` on the Swift SDK. Full setup, opt-out, and manual-submit APIs: \`owlmetry://skills/swift\` → "Apple Search Ads Attribution".
+**Opt out**: pass \`attributionEnabled: false\` to \`Owl.configure()\` on the Swift SDK. Full setup, opt-out, and manual-submit APIs live in the \`owlmetry-swift\` Claude Code skill under "Apple Search Ads Attribution" (install via the \`owlmetry-skills\` plugin marketplace).
 
 **RevenueCat backfill**: when the RevenueCat integration is enabled, \`sync-integration\` (or per-user sync on webhook events) also pulls ASA attribution out of RevenueCat's subscriber attributes and writes the same properties. This is how users who onboarded **before** the app shipped SDK-side attribution capture get attributed — no extra setup, happens automatically during any RevenueCat sync.
 
@@ -362,14 +362,22 @@ If a tool returns a permissions error, the agent key is missing the required per
 
 ## SDK Integration Guides
 
-This MCP server provides SDK integration guides as resources. Read the relevant guide when you need to install, configure, or instrument an SDK in the user's codebase.
+SDK integration guides live in the **\`owlmetry-skills\` Claude Code plugin marketplace** — a separate repository at [github.com/owlmetry/owlmetry-skills](https://github.com/owlmetry/owlmetry-skills). Install once per workstation:
 
-| Resource | SDK | Use when |
+\`\`\`
+/plugin marketplace add owlmetry/owlmetry-skills
+/plugin install owlmetry@owlmetry-skills
+\`\`\`
+
+That exposes three skills Claude Code can load on demand:
+
+| Skill | SDK | Use when |
 |---|---|---|
-| \`owlmetry://skills/swift\` | Swift SDK | Instrumenting iOS, iPadOS, or macOS apps (SwiftUI or UIKit) |
-| \`owlmetry://skills/node\` | Node.js SDK | Instrumenting backend services (Express, Fastify, serverless, etc.) |
+| \`owlmetry-swift\` | Swift SDK | Instrumenting iOS, iPadOS, or macOS apps (SwiftUI or UIKit) |
+| \`owlmetry-node\` | Node.js SDK | Instrumenting backend services (Express, Fastify, serverless, etc.) |
+| \`owlmetry-cli\` | CLI | Signing up, creating projects/apps, defining metrics and funnels, querying events |
 
-Each guide covers the full SDK surface. Summary:
+Each skill covers the full surface. Summary:
 
 - **Swift** — package installation, \`Owl.configure()\`, event logging, automatic screen tracking, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback collection** (drop-in \`OwlFeedbackView\` or programmatic \`Owl.sendFeedback\`), **Apple Search Ads attribution** (auto-capture, opt-out, manual submission), and reading \`Owl.sessionId\` to forward to a backend for session correlation.
 - **Node** — package installation, \`Owl.configure()\`, event logging, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback forwarding** (when the team collects feedback through their own frontend and wants it pushed to OwlMetry with \`Owl.sendFeedback\`), and **per-request session/user scoping** (\`Owl.withSession(...)\` / \`Owl.withUser(...)\` / per-call \`options.sessionId\`) for linking backend events to a client session via the \`X-Owl-Session-Id\` header.

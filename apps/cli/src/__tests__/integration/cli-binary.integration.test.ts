@@ -74,12 +74,13 @@ describe.skipIf(!TEST_ENDPOINT)("integration: CLI binary", () => {
   });
 
   describe("skills", () => {
-    it("lists skill file paths", () => {
+    it("prints the plugin marketplace install command", () => {
       const output = execFileSync("node", [CLI_BIN, "skills"], {
         encoding: "utf-8",
         timeout: 15000,
         env: process.env,
       });
+      expect(output).toContain("/plugin marketplace add owlmetry/owlmetry-skills");
       expect(output).toContain("owlmetry-cli");
       expect(output).toContain("owlmetry-node");
       expect(output).toContain("owlmetry-swift");
