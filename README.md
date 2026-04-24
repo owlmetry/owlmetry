@@ -1,5 +1,10 @@
 # OwlMetry
 
+[![Tests](https://github.com/owlmetry/owlmetry/actions/workflows/test.yml/badge.svg)](https://github.com/owlmetry/owlmetry/actions/workflows/test.yml)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
+[![@owlmetry/cli](https://img.shields.io/npm/v/%40owlmetry%2Fcli?label=%40owlmetry%2Fcli)](https://www.npmjs.com/package/@owlmetry/cli)
+[![@owlmetry/node](https://img.shields.io/npm/v/%40owlmetry%2Fnode?label=%40owlmetry%2Fnode)](https://www.npmjs.com/package/@owlmetry/node)
+
 Agent-first observability. Self-hosted. Built for the way you actually ship now.
 
 OwlMetry is an observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through MCP, an API, or a CLI.
