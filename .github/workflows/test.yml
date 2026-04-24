@@ -84,3 +84,18 @@ jobs:
             -X POST \
             -f event_type=monorepo-updated \
             -f client_payload[sha]=${{ github.sha }}
+
+  notify-node-sdk:
+    name: Trigger owlmetry-node CI
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch monorepo-updated event
+        env:
+          GH_TOKEN: ${{ secrets.NODE_REPO_DISPATCH_TOKEN }}
+        run: |
+          gh api /repos/owlmetry/owlmetry-node/dispatches \
+            -X POST \
+            -f event_type=monorepo-updated \
+            -f client_payload[sha]=${{ github.sha }}
