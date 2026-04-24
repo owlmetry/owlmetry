@@ -29,7 +29,7 @@ export type AttributionSourceValue =
 // fields and the raw search term come from two complementary sources, both
 // covering every attributed user (subscriber or free):
 //   1. The Apple Ads Campaign Management API (per-project OAuth integration) —
-//      OwlMetry resolves IDs → names directly. Self-contained, no RC needed.
+//      Owlmetry resolves IDs → names directly. Self-contained, no RC needed.
 //   2. RevenueCat's stored subscriber attributes — RC does the same ID → name
 //      resolution server-side on AdServices token receipt (not gated on a
 //      subscription event; verified empirically for a non-subscribing user),

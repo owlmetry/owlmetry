@@ -9,21 +9,21 @@ const dmSans = DM_Sans({ subsets: ["latin"] });
 export const metadata: Metadata = {
   metadataBase: new URL("https://owlmetry.com"),
   title: {
-    default: "OwlMetry — Agent-First Observability for Mobile Apps",
-    template: "%s | OwlMetry",
+    default: "Owlmetry — Agent-First Observability for Mobile Apps",
+    template: "%s | Owlmetry",
   },
   description:
     "Self-hosted observability for mobile and backend apps. Structured events, performance metrics, and conversion funnels — purpose-built for AI coding agents.",
   openGraph: {
     type: "website",
-    siteName: "OwlMetry",
-    title: "OwlMetry — Agent-First Observability for Mobile Apps",
+    siteName: "Owlmetry",
+    title: "Owlmetry — Agent-First Observability for Mobile Apps",
     description:
       "Self-hosted observability for mobile and backend apps. Structured events, performance metrics, and conversion funnels.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "OwlMetry — Agent-First Observability for Mobile Apps",
+    title: "Owlmetry — Agent-First Observability for Mobile Apps",
     description:
       "Self-hosted observability for mobile and backend apps. Events, metrics, funnels — driven by your coding agent.",
   },

@@ -46,7 +46,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="text-center space-y-4 max-w-sm">
           <h2 className="text-lg font-semibold">Unable to connect</h2>
           <p className="text-sm text-muted-foreground">
-            The OwlMetry server is not reachable. Make sure it&apos;s running and try again.
+            The Owlmetry server is not reachable. Make sure it&apos;s running and try again.
           </p>
           <Button variant="outline" onClick={() => mutate()}>
             Retry

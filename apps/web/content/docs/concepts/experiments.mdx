@@ -3,10 +3,10 @@ title: A/B Experiments
 description: Run lightweight client-side experiments with variant assignment, persistence, and funnel segmentation.
 ---
 
-OwlMetry supports lightweight client-side A/B experiments. You define experiment names and variant options, and the SDK handles random assignment, persistence, and attaching assignments to every event automatically.
+Owlmetry supports lightweight client-side A/B experiments. You define experiment names and variant options, and the SDK handles random assignment, persistence, and attaching assignments to every event automatically.
 
 ```text title="Add A/B experiments with your coding agent"
-Add an OwlMetry A/B experiment to this project.
+Add an Owlmetry A/B experiment to this project.
 Run `owlmetry skills` to find the SDK skill file.
 
 - Use getVariant("experiment-name", options) to randomly assign
@@ -19,7 +19,7 @@ Run `owlmetry skills` to find the SDK skill file.
 
 ## How It Works
 
-Experiments in OwlMetry are client-side only. There is no server-side experiment configuration or central experiment registry. You define experiments in your app code, and the SDK manages variant assignment and persistence locally.
+Experiments in Owlmetry are client-side only. There is no server-side experiment configuration or central experiment registry. You define experiments in your app code, and the SDK manages variant assignment and persistence locally.
 
 Every event emitted by an SDK automatically includes an `experiments` field containing the user's current variant assignments:
 

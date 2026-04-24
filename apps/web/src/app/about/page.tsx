@@ -5,7 +5,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 export const metadata: Metadata = {
 	title: "About",
 	description:
-		"OwlMetry closes the feedback loop in app development. Agent-first observability that catches issues before users give up.",
+		"Owlmetry closes the feedback loop in app development. Agent-first observability that catches issues before users give up.",
 };
 
 export default function AboutPage() {
@@ -18,7 +18,7 @@ export default function AboutPage() {
 			>
 				<div className="mx-auto max-w-3xl px-6 py-16 md:py-24">
 					<article className="prose prose-invert prose-lg max-w-none prose-headings:text-white prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-4xl prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4 prose-p:text-white/70 prose-p:leading-relaxed prose-strong:text-white/90 prose-a:text-amber-400 prose-a:no-underline hover:prose-a:underline">
-						<h1>About OwlMetry</h1>
+						<h1>About Owlmetry</h1>
 
 						<h2>The problem</h2>
 						<p>
@@ -31,7 +31,7 @@ export default function AboutPage() {
 
 						<h2>The mission</h2>
 						<p>
-							OwlMetry exists to close the feedback loop. Structured
+							Owlmetry exists to close the feedback loop. Structured
 							events, performance metrics, and conversion funnels
 							give you real-time visibility into what&apos;s actually
 							happening in your app &mdash; so you can catch errors,
@@ -41,7 +41,7 @@ export default function AboutPage() {
 						<h2>Agent-first</h2>
 						<p>
 							Most observability tools assume a human staring at a
-							dashboard. OwlMetry is built for the agents that write
+							dashboard. Owlmetry is built for the agents that write
 							your code. Install the CLI, point your agent at the
 							skill files, and let it monitor for errors, track
 							regressions, find where users drop off, and improve
@@ -71,7 +71,7 @@ export default function AboutPage() {
 						<hr className="!border-white/10 !my-12" />
 
 						<p className="!text-white/40 !text-base">
-							OwlMetry is built by Adapted Hub LLC.
+							Owlmetry is built by Adapted Hub LLC.
 						</p>
 					</article>
 				</div>

@@ -11,7 +11,7 @@ In a SwiftUI app, call `configure()` in the `@main` App `init()`:
 
 ```swift
 import SwiftUI
-import OwlMetry
+import Owlmetry
 
 @main
 struct MyApp: App {
@@ -22,7 +22,7 @@ struct MyApp: App {
                 apiKey: "owl_client_..."
             )
         } catch {
-            print("OwlMetry configuration failed: \(error)")
+            print("Owlmetry configuration failed: \(error)")
         }
     }
 
@@ -37,7 +37,7 @@ struct MyApp: App {
 For UIKit apps, call it in `application(_:didFinishLaunchingWithOptions:)`:
 
 ```swift
-import OwlMetry
+import Owlmetry
 
 func application(
     _ application: UIApplication,
@@ -49,7 +49,7 @@ func application(
             apiKey: "owl_client_..."
         )
     } catch {
-        print("OwlMetry configuration failed: \(error)")
+        print("Owlmetry configuration failed: \(error)")
     }
     return true
 }
@@ -59,12 +59,12 @@ func application(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `endpoint` | `String` | required | Your OwlMetry ingest server URL. |
+| `endpoint` | `String` | required | Your Owlmetry ingest server URL. |
 | `apiKey` | `String` | required | Client API key. Must start with `owl_client_`. |
 | `flushOnBackground` | `Bool` | `true` | Automatically flush buffered events when the app enters the background. |
 | `compressionEnabled` | `Bool` | `true` | Gzip-compress request bodies before sending. |
 | `networkTrackingEnabled` | `Bool` | `true` | Automatically track URLSession HTTP requests. |
-| `consoleLogging` | `Bool` | `true` | Print events to the Xcode console / terminal. Each line is prefixed with `🦉 OwlMetry` and the log level. Set to `false` to suppress. |
+| `consoleLogging` | `Bool` | `true` | Print events to the Xcode console / terminal. Each line is prefixed with `🦉 Owlmetry` and the log level. Set to `false` to suppress. |
 | `attributionEnabled` | `Bool` | `true` | Auto-capture Apple Search Ads attribution on configure. See [below](#apple-search-ads-attribution). |
 
 ## Full Example with All Options
@@ -112,8 +112,8 @@ The SDK writes one of:
 
 The SDK's live path only populates numeric IDs — Apple's AdServices Attribution API doesn't return human-readable names. Name fields (`asa_campaign_name`, `asa_ad_group_name`, `asa_ad_name`, `asa_keyword`) are populated by one of two server-side integrations, both of which cover every attributed user and are per-field merged so the live SDK's numeric IDs are never overwritten:
 
-- **[Apple Search Ads integration](/docs/concepts/integrations#apple-search-ads)** (recommended, self-contained) — OwlMetry calls Apple's Campaign Management API directly to resolve IDs → names.
-- **[RevenueCat integration](/docs/concepts/integrations)** with RC's Advanced Apple AdServices integration configured — RC resolves the names server-side on AdServices token receipt; OwlMetry pulls them via RC sync and webhooks.
+- **[Apple Search Ads integration](/docs/concepts/integrations#apple-search-ads)** (recommended, self-contained) — Owlmetry calls Apple's Campaign Management API directly to resolve IDs → names.
+- **[RevenueCat integration](/docs/concepts/integrations)** with RC's Advanced Apple AdServices integration configured — RC resolves the names server-side on AdServices token receipt; Owlmetry pulls them via RC sync and webhooks.
 
 Capture runs once per anonymous ID and is idempotent — the SDK records completion in `UserDefaults` and skips on subsequent launches. If Apple's attribution record isn't ready yet (HTTP 404), the server returns `pending: true` and the SDK retries on the next launch, up to 5 attempts across ~24h.
 
@@ -148,7 +148,7 @@ Every capture attempt emits an `sdk:attribution_capture` event so you can spot f
 | `gave_up` | warn | `_attempts` | Hit the 5-pending cap; SDK wrote `attribution_source = "none"`. |
 | `token_fetch_failed` | warn | `_error` | `AAAttribution.attributionToken()` threw on-device. |
 | `invalid_token` | error | — | Apple rejected the token (400); never retried. |
-| `transport_failure` | error | — | OwlMetry POST failed after transport retries. |
+| `transport_failure` | error | — | Owlmetry POST failed after transport retries. |
 
 Filter the dashboard events list by `sdk:attribution_capture` to see the capture outcome for each install.
 

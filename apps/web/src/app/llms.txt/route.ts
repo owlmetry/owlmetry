@@ -4,7 +4,7 @@ export function GET() {
   const pages = docsSource.getPages();
 
   const lines = [
-    "# OwlMetry",
+    "# Owlmetry",
     "",
     "> Self-hosted observability platform for mobile and backend apps. Structured events, performance metrics, and conversion funnels — purpose-built for AI coding agents.",
     "",

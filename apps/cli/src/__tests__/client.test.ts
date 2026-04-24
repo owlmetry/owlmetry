@@ -1,4 +1,4 @@
-import { OwlMetryClient, ApiError } from "../client.js";
+import { OwlmetryClient, ApiError } from "../client.js";
 import {
   mockFetchJson,
   mockFetchError,
@@ -13,7 +13,7 @@ const ENDPOINT = "http://localhost:4000";
 const API_KEY = "owl_agent_testkey123";
 
 function makeClient(endpoint = ENDPOINT) {
-  return new OwlMetryClient({ endpoint, apiKey: API_KEY });
+  return new OwlmetryClient({ endpoint, apiKey: API_KEY });
 }
 
 beforeEach(() => {

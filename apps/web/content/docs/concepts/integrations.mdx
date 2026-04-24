@@ -1,9 +1,9 @@
 ---
 title: Integrations
-description: Connect third-party services to sync data into OwlMetry user properties.
+description: Connect third-party services to sync data into Owlmetry user properties.
 ---
 
-Integrations connect external services to OwlMetry. They sync data from services like RevenueCat into [user properties](/docs/concepts/user-properties), giving you a unified view of each user's subscription status, revenue, and entitlements alongside their analytics data.
+Integrations connect external services to Owlmetry. They sync data from services like RevenueCat into [user properties](/docs/concepts/user-properties), giving you a unified view of each user's subscription status, revenue, and entitlements alongside their analytics data.
 
 ## How Integrations Work
 
@@ -14,7 +14,7 @@ Each integration is configured per-project and consists of:
 3. **Webhook** — an endpoint that receives real-time updates from the provider
 4. **Sync** — on-demand API calls to pull data for existing users
 
-When a webhook fires or a sync runs, the integration maps the provider's data to OwlMetry user properties. These properties then appear in the Users list in the dashboard.
+When a webhook fires or a sync runs, the integration maps the provider's data to Owlmetry user properties. These properties then appear in the Users list in the dashboard.
 
 ## RevenueCat
 
@@ -97,9 +97,9 @@ Numeric IDs (`asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_ad_id`
 
 ### Setup
 
-OwlMetry generates the EC P-256 keypair on your behalf and keeps the private half server-side — you never handle an openssl command or a `.pem` file. You just copy the public key into Apple's UI, paste back three IDs, and pick an org.
+Owlmetry generates the EC P-256 keypair on your behalf and keeps the private half server-side — you never handle an openssl command or a `.pem` file. You just copy the public key into Apple's UI, paste back three IDs, and pick an org.
 
-1. **Invite an API user** at ads.apple.com → Account Settings → User Management → Invite Users. Assign role `API Account Read Only` (read access is all OwlMetry needs). If your Apple Ads account already has one API user configured (e.g. for RevenueCat), add a second one — Apple only supports one active public key per user, and sharing a certificate between tools isn't possible.
+1. **Invite an API user** at ads.apple.com → Account Settings → User Management → Invite Users. Assign role `API Account Read Only` (read access is all Owlmetry needs). If your Apple Ads account already has one API user configured (e.g. for RevenueCat), add a second one — Apple only supports one active public key per user, and sharing a certificate between tools isn't possible.
 2. **Create the integration** (dashboard: Integrations page → Connect Apple Search Ads, or CLI):
    ```bash
    owlmetry integrations add apple-search-ads --project-id <id>
@@ -122,7 +122,7 @@ OwlMetry generates the EC P-256 keypair on your behalf and keeps the private hal
    The integration auto-enables as soon as all four IDs (`client_id`, `team_id`, `key_id`, `org_id`) are present.
 6. **Backfill existing users** with `owlmetry integrations sync apple-search-ads --project-id <id>` — sweeps every user with a stored `asa_campaign_id` and resolves names.
 
-To rotate the keypair, remove the integration and reconnect — OwlMetry generates a new keypair, and you upload the new public key to Apple (replacing the old one on the same API user).
+To rotate the keypair, remove the integration and reconnect — Owlmetry generates a new keypair, and you upload the new public key to Apple (replacing the old one on the same API user).
 
 ### Data Flow
 
@@ -137,7 +137,7 @@ For users attributed before the integration was connected, the bulk sync (`apple
 
 ### Heads up: API sunset
 
-Apple has announced the v5 Campaign Management API will be sunset on **January 26, 2027**, replaced by a new **Apple Ads Platform API** shipping Summer 2026. OwlMetry will migrate customers to the Platform API ahead of the sunset.
+Apple has announced the v5 Campaign Management API will be sunset on **January 26, 2027**, replaced by a new **Apple Ads Platform API** shipping Summer 2026. Owlmetry will migrate customers to the Platform API ahead of the sunset.
 
 ## Managing Integrations
 
@@ -147,7 +147,7 @@ Open the **Integrations** sidebar entry in the dashboard (`/dashboard/integratio
 
 ### Copy from Another Project
 
-If your team has multiple projects that share the same provider account (e.g., one Apple Ads account running campaigns for several apps, or one RevenueCat account used by several projects), you can copy a configured integration between projects rather than re-entering credentials each time. Copies live independently of the source — credentials are **duplicated, not shared**, so rotating the source project's API key does **not** propagate to the copy. For **Apple Search Ads**, the full config (keypair + client/team/key/org IDs) is duplicated verbatim and OwlMetry immediately runs a live connection test against Apple's `/api/v5/acls` so the response confirms the clone works end-to-end — no Apple-side setup required on the target. For **RevenueCat**, the API key is copied but a fresh webhook secret is generated on the target because each project has its own webhook URL (you paste the returned `webhook_setup` values into RC if you want events delivered to the copy's project). Copying requires admin role and is only permitted within the same team.
+If your team has multiple projects that share the same provider account (e.g., one Apple Ads account running campaigns for several apps, or one RevenueCat account used by several projects), you can copy a configured integration between projects rather than re-entering credentials each time. Copies live independently of the source — credentials are **duplicated, not shared**, so rotating the source project's API key does **not** propagate to the copy. For **Apple Search Ads**, the full config (keypair + client/team/key/org IDs) is duplicated verbatim and Owlmetry immediately runs a live connection test against Apple's `/api/v5/acls` so the response confirms the clone works end-to-end — no Apple-side setup required on the target. For **RevenueCat**, the API key is copied but a fresh webhook secret is generated on the target because each project has its own webhook URL (you paste the returned `webhook_setup` values into RC if you want events delivered to the copy's project). Copying requires admin role and is only permitted within the same team.
 
 ### CLI
 
@@ -171,9 +171,9 @@ All integration endpoints are under `/v1/projects/:projectId/integrations` and r
 Copy-paste this prompt to have your coding agent set up the RevenueCat integration end-to-end:
 
 ```
-Set up RevenueCat integration for my OwlMetry project.
+Set up RevenueCat integration for my Owlmetry project.
 
-1. Use the OwlMetry CLI to add the RevenueCat integration to my project with my
+1. Use the Owlmetry CLI to add the RevenueCat integration to my project with my
    RC V2 secret API key (needs Customer information → Read only AND Project
    configuration → Read only at the section level, everything else No access).
    Use `/owlmetry-cli` for CLI syntax.

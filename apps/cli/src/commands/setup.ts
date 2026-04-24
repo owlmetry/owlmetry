@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { loadConfig, saveConfig, getGlobals } from "../config.js";
 import type { CliConfig } from "../config.js";
-import { OwlMetryClient } from "../client.js";
+import { OwlmetryClient } from "../client.js";
 
 export const setupCommand = new Command("setup")
   .description("Configure CLI endpoint and API key (pass --endpoint and --api-key)")
@@ -27,7 +27,7 @@ export const setupCommand = new Command("setup")
     }
 
     // Verify connectivity and fetch team info
-    const client = new OwlMetryClient({
+    const client = new OwlmetryClient({
       endpoint: globals.endpoint,
       apiKey: globals.apiKey,
     });

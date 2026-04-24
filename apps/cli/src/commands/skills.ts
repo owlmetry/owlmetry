@@ -2,9 +2,9 @@ import { Command } from "commander";
 import chalk from "chalk";
 
 export const skillsCommand = new Command("skills")
-  .description("Show how to install the OwlMetry Claude Code skills")
+  .description("Show how to install the Owlmetry Claude Code skills")
   .action(() => {
-    console.log(chalk.bold("\nOwlMetry Claude Code skills\n"));
+    console.log(chalk.bold("\nOwlmetry Claude Code skills\n"));
     console.log("  Install via the plugin marketplace inside Claude Code:");
     console.log();
     console.log(chalk.cyan("    /plugin marketplace add owlmetry/owlmetry-skills"));

@@ -46,7 +46,7 @@ export function MarketingFooter() {
             <div className="flex items-center gap-2.5">
               <OwlLogo className="h-7 w-7" />
               <span className="text-lg font-semibold tracking-tight text-white/90">
-                OwlMetry
+                Owlmetry
               </span>
             </div>
             <p className="text-sm text-white/35 leading-relaxed">
@@ -75,7 +75,7 @@ export function MarketingFooter() {
         </div>
         <div className="mt-16 flex items-center justify-between border-t border-white/[0.06] pt-8">
           <p className="text-xs text-white/25">
-            &copy; {new Date().getFullYear()} OwlMetry
+            &copy; {new Date().getFullYear()} Owlmetry
           </p>
           <p className="text-xs text-white/25">Open Source</p>
         </div>

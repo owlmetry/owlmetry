@@ -1,47 +1,47 @@
 ---
 title: FAQ
-description: Frequently asked questions about OwlMetry — pricing, platforms, self-hosting, and how it compares to other analytics tools.
+description: Frequently asked questions about Owlmetry — pricing, platforms, self-hosting, and how it compares to other analytics tools.
 icon: CircleHelp
 ---
 
-## What is OwlMetry?
+## What is Owlmetry?
 
-OwlMetry is a self-hosted observability platform for mobile and backend apps. It provides structured event logging, performance metrics with p50/p95 tracking, multi-step conversion funnels, A/B experiment analysis, automatic error clustering via the issue tracker, and event attachments for logs and screenshots. It is designed to be driven by AI coding agents through its MCP endpoint, CLI, and REST API, though it includes a full web dashboard for human use.
+Owlmetry is a self-hosted observability platform for mobile and backend apps. It provides structured event logging, performance metrics with p50/p95 tracking, multi-step conversion funnels, A/B experiment analysis, automatic error clustering via the issue tracker, and event attachments for logs and screenshots. It is designed to be driven by AI coding agents through its MCP endpoint, CLI, and REST API, though it includes a full web dashboard for human use.
 
-## Is OwlMetry free?
+## Is Owlmetry free?
 
 Yes. The hosted version at owlmetry.com has a free tier (1 app, 10,000 events/month) and a Pro tier that is free during the alpha period. Self-hosting is free forever with no limits on apps, events, or features.
 
-## What database does OwlMetry require?
+## What database does Owlmetry require?
 
-OwlMetry uses a single PostgreSQL 16 database with no additional infrastructure. Events are stored in monthly-partitioned tables for performance. There is no Redis, Kafka, or other dependency — just Postgres.
+Owlmetry uses a single PostgreSQL 16 database with no additional infrastructure. Events are stored in monthly-partitioned tables for performance. There is no Redis, Kafka, or other dependency — just Postgres.
 
 ## Which platforms are supported?
 
-OwlMetry has SDKs for two platforms:
+Owlmetry has SDKs for two platforms:
 
 - **Swift SDK** — iOS, iPadOS, and macOS (distributed as a Swift Package)
 - **Node.js SDK** — Express, Fastify, serverless functions, and any Node.js backend
 
 Both SDKs have zero runtime dependencies and handle batching, compression, and retry automatically. Events from all platforms appear in the same dashboard.
 
-## Can I self-host OwlMetry?
+## Can I self-host Owlmetry?
 
-Yes. OwlMetry is designed to run on a single VPS. You get the same platform as the hosted version, but everything runs on your hardware and your database. There is no telemetry or phone-home behavior. See the [self-hosting guide](/docs/self-hosting) for setup instructions.
+Yes. Owlmetry is designed to run on a single VPS. You get the same platform as the hosted version, but everything runs on your hardware and your database. There is no telemetry or phone-home behavior. See the [self-hosting guide](/docs/self-hosting) for setup instructions.
 
-## How is OwlMetry different from PostHog, Mixpanel, or Amplitude?
+## How is Owlmetry different from PostHog, Mixpanel, or Amplitude?
 
-OwlMetry is purpose-built for the agent-first development workflow. Where other tools are designed around manual dashboard interaction, OwlMetry's CLI and REST API let AI coding agents handle setup, instrumentation, querying, and debugging autonomously. It is also fully self-hostable on a single Postgres database with no external dependencies, making it simpler to operate than alternatives that require multi-service architectures.
+Owlmetry is purpose-built for the agent-first development workflow. Where other tools are designed around manual dashboard interaction, Owlmetry's CLI and REST API let AI coding agents handle setup, instrumentation, querying, and debugging autonomously. It is also fully self-hostable on a single Postgres database with no external dependencies, making it simpler to operate than alternatives that require multi-service architectures.
 
 ## What does "agent-first" mean?
 
-Agent-first means OwlMetry is designed so that AI coding agents (Claude Code, Codex, Cursor, etc.) can handle the entire observability workflow — from installing SDKs and configuring API keys to querying events and diagnosing production issues. The CLI ships with AI skill files that teach agents the correct command syntax and SDK APIs. You still get a full web dashboard, but the API is the primary interface.
+Agent-first means Owlmetry is designed so that AI coding agents (Claude Code, Codex, Cursor, etc.) can handle the entire observability workflow — from installing SDKs and configuring API keys to querying events and diagnosing production issues. The CLI ships with AI skill files that teach agents the correct command syntax and SDK APIs. You still get a full web dashboard, but the API is the primary interface.
 
-## Does OwlMetry support A/B experiments?
+## Does Owlmetry support A/B experiments?
 
 Yes. Both SDKs provide client-side variant assignment with `getVariant(name, options)`, which randomly assigns a variant on first call and persists it across sessions. All events automatically include experiment assignments, and funnel queries can filter or segment by variant to measure the impact of each experiment.
 
-## Is OwlMetry open source?
+## Is Owlmetry open source?
 
 Yes. The entire codebase — server, web dashboard, CLI, and both SDKs — is available on [GitHub](https://github.com/owlmetry/owlmetry). You can inspect, modify, and self-host it freely.
 

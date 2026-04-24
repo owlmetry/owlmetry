@@ -47,7 +47,7 @@ RevenueCat example:
 
 The `api_key` is a RevenueCat **V2 Secret API key** (Project Settings → API Keys → + New secret API key). Required permissions — set at the section level (top-right dropdown on each section), not per individual sub-row: **Customer information → Read only** AND **Project configuration → Read only**; all other sections → No access.
 
-Apple Search Ads example — **pass an empty config**. OwlMetry generates the EC P-256 keypair server-side, stores the private half, and returns the public half for you to relay to the user:
+Apple Search Ads example — **pass an empty config**. Owlmetry generates the EC P-256 keypair server-side, stores the private half, and returns the public half for you to relay to the user:
 
 ```json
 {
@@ -59,7 +59,7 @@ Apple Search Ads example — **pass an empty config**. OwlMetry generates the EC
 
 The response's `config.public_key_pem` contains the public key (PEM). Walk the user through uploading it at ads.apple.com → Account Settings → User Management → (their API user, role "API Account Read Only") → API tab. Apple returns `clientId`, `teamId`, `keyId`. Save those via `update-integration`, then call `update-integration` once more with `org_id` (the numeric "Account ID" shown in the ads.apple.com profile menu) — the integration auto-enables when all four IDs are present.
 
-**Never ask the user for a private key.** OwlMetry always strips `private_key_pem` / `public_key_pem` from inbound configs on `add-integration` and `update-integration` — those are server-managed. To rotate the keypair, remove the integration and re-add.
+**Never ask the user for a private key.** Owlmetry always strips `private_key_pem` / `public_key_pem` from inbound configs on `add-integration` and `update-integration` — those are server-managed. To rotate the keypair, remove the integration and re-add.
 
 Use `sync-integration` with `provider: "apple-search-ads"` to backfill names for users already attributed before the integration was connected.
 

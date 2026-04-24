@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const alt = "OwlMetry — Agent-first observability. Set up in one prompt.";
+export const alt = "Owlmetry — Agent-first observability. Set up in one prompt.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -72,7 +72,7 @@ export default async function OGImage() {
 						display: "flex",
 					}}
 				>
-					OwlMetry
+					Owlmetry
 				</div>
 
 				{/* Tagline */}

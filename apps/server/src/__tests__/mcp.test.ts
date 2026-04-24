@@ -184,7 +184,7 @@ describe("MCP endpoint", () => {
       });
       const contents = readRes.json().result.contents;
       expect(contents[0].mimeType).toBe("text/markdown");
-      expect(contents[0].text).toContain("OwlMetry");
+      expect(contents[0].text).toContain("Owlmetry");
       expect(contents[0].text).toContain("Resource Hierarchy");
       expect(contents[0].text).toContain("SDK Integration Guides");
     });

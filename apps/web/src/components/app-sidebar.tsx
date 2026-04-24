@@ -44,7 +44,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="flex h-14 items-center border-b px-4 gap-2.5">
         <OwlLogo className="h-6 w-6" />
         <Link href="/" className="text-lg font-semibold tracking-tight">
-          OwlMetry
+          Owlmetry
         </Link>
       </div>
       {currentTeam && (

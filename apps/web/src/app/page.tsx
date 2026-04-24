@@ -131,7 +131,7 @@ export default function LandingPage() {
               />
               <Image
                 src="/owl-logo.png"
-                alt="OwlMetry — agent-first observability for mobile apps"
+                alt="Owlmetry — agent-first observability for mobile apps"
                 width={128}
                 height={128}
                 priority
@@ -250,7 +250,7 @@ export default function LandingPage() {
                   >
                     3
                   </span>
-                  <span className="text-sm font-medium text-foreground/80">Tell your agent to set up OwlMetry</span>
+                  <span className="text-sm font-medium text-foreground/80">Tell your agent to set up Owlmetry</span>
                 </div>
                 <div className="md:pl-11">
                   <div
@@ -271,12 +271,12 @@ export default function LandingPage() {
                         </div>
                         <span className="text-xs font-medium text-white/50 ml-2">Your Agent</span>
                       </div>
-                      <TerminalCopyButton text="Set up OwlMetry for this project and instrument the app with event tracking." />
+                      <TerminalCopyButton text="Set up Owlmetry for this project and instrument the app with event tracking." />
                     </div>
                     <pre className="px-5 py-4 text-[13px] leading-relaxed font-mono whitespace-pre-wrap break-words">
                       <code>
                         <span className="text-white/40">&gt;</span>{" "}
-                        <span className="text-white/70">Set up OwlMetry for this project and instrument the app with event tracking.</span>
+                        <span className="text-white/70">Set up Owlmetry for this project and instrument the app with event tracking.</span>
                         {"\n\n"}
                         <span className="text-green-400">✓</span>{" "}
                         <span className="text-white/55">Authenticated</span>
@@ -293,7 +293,7 @@ export default function LandingPage() {
                         <span className="text-green-400">✓</span>{" "}
                         <span className="text-white/55">Instrumentation added</span>
                         {"\n\n"}
-                        <span className="text-white/55">Done. OwlMetry is ready.</span>
+                        <span className="text-white/55">Done. Owlmetry is ready.</span>
                       </code>
                     </pre>
                   </div>
@@ -316,7 +316,7 @@ export default function LandingPage() {
             </h2>
             <p className="mt-4 text-white/50 max-w-2xl mx-auto">
               Most observability tools are built for humans staring at dashboards.
-              OwlMetry is built for agents making API calls.
+              Owlmetry is built for agents making API calls.
             </p>
           </div>
 
@@ -357,7 +357,7 @@ export default function LandingPage() {
               Ask your agent. Get answers.
             </h2>
             <p className="mt-4 text-muted-foreground max-w-2xl mx-auto">
-              Your agent uses the OwlMetry CLI to query events, trace sessions, analyze funnels, and monitor performance &mdash; all from natural language.
+              Your agent uses the Owlmetry CLI to query events, trace sessions, analyze funnels, and monitor performance &mdash; all from natural language.
             </p>
           </div>
 
@@ -657,7 +657,7 @@ export default function LandingPage() {
             {
               "@context": "https://schema.org",
               "@type": "SoftwareApplication",
-              name: "OwlMetry",
+              name: "Owlmetry",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "iOS, iPadOS, macOS, Node.js",
               description:
@@ -715,7 +715,7 @@ export default function LandingPage() {
             {
               "@context": "https://schema.org",
               "@type": "WebSite",
-              name: "OwlMetry",
+              name: "Owlmetry",
               url: "https://owlmetry.com",
               description:
                 "Self-hosted observability platform for mobile and backend apps",

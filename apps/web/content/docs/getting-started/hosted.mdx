@@ -1,19 +1,19 @@
 ---
-title: Using OwlMetry Cloud
-description: Start tracking metrics with the hosted OwlMetry instance at owlmetry.com.
+title: Using Owlmetry Cloud
+description: Start tracking metrics with the hosted Owlmetry instance at owlmetry.com.
 ---
 
 The hosted instance at [owlmetry.com](https://owlmetry.com) is the fastest way to get started. No server setup, no database configuration -- sign up and start sending events in minutes.
 
 ## 1. Sign Up
 
-Go to [owlmetry.com](https://owlmetry.com) and enter your email address. OwlMetry uses passwordless authentication -- you will receive a 6-digit verification code by email. Enter the code to sign in.
+Go to [owlmetry.com](https://owlmetry.com) and enter your email address. Owlmetry uses passwordless authentication -- you will receive a 6-digit verification code by email. Enter the code to sign in.
 
 There is no separate registration step. Your account is created automatically the first time you verify your email.
 
 ## 2. Create a Team
 
-After your first sign-in, you will be prompted to create a team. Teams are the top-level organizational unit in OwlMetry -- all projects, apps, and API keys belong to a team.
+After your first sign-in, you will be prompted to create a team. Teams are the top-level organizational unit in Owlmetry -- all projects, apps, and API keys belong to a team.
 
 You can invite other members to your team later from the Team page in the dashboard. Members can have one of three roles: **owner**, **admin**, or **member**.
 
@@ -55,7 +55,7 @@ Keep your client key secure. While it can only write events, anyone with the key
 Add the Swift Package and configure in your app's entry point:
 
 ```swift
-import OwlMetry
+import Owlmetry
 
 @main
 struct MyApp: App {
@@ -66,7 +66,7 @@ struct MyApp: App {
                 apiKey: "owl_client_your_key_here"
             )
         } catch {
-            print("OwlMetry configuration failed: \(error)")
+            print("Owlmetry configuration failed: \(error)")
         }
     }
 

@@ -3,7 +3,7 @@ title: Events
 description: Log events at different levels (info, debug, warn, error) with custom attributes and screen context.
 ---
 
-Events are the core unit of data in OwlMetry. The Swift SDK provides four log levels, each designed for a different class of information. For a broader overview of the event model, see [Events](/docs/concepts/events).
+Events are the core unit of data in Owlmetry. The Swift SDK provides four log levels, each designed for a different class of information. For a broader overview of the event model, see [Events](/docs/concepts/events).
 
 ## Log Levels
 
@@ -136,7 +136,7 @@ Each tracked request emits a `sdk:network_request` event with these attributes:
 
 Log levels are assigned based on the response: `debug` for 2xx/3xx, `warn` for 4xx/5xx, and `error` for network failures with no response. Debug-level network events stay out of production views by default, while 4xx/5xx and network errors surface clearly.
 
-The SDK's own requests to the OwlMetry ingest endpoint are automatically excluded. To disable network request tracking entirely:
+The SDK's own requests to the Owlmetry ingest endpoint are automatically excluded. To disable network request tracking entirely:
 
 ```swift
 try Owl.configure(

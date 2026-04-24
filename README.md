@@ -1,4 +1,4 @@
-# OwlMetry
+# Owlmetry
 
 [![Tests](https://github.com/owlmetry/owlmetry/actions/workflows/test.yml/badge.svg)](https://github.com/owlmetry/owlmetry/actions/workflows/test.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](./LICENSE)
@@ -7,15 +7,15 @@
 
 Agent-first observability. Self-hosted. Built for the way you actually ship now.
 
-OwlMetry is an observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through MCP, an API, or a CLI.
+Owlmetry is an observability platform designed for the agentic development era. Point your coding agent at the setup instructions, and it handles everything — integration, monitoring, debugging, performance analysis. The developer doesn't need to open a dashboard, configure alerts, or interpret charts. The agent does it all through MCP, an API, or a CLI.
 
-> **⚠️ Alpha Software** — OwlMetry is in early alpha. APIs, schemas, and configuration may change without notice. Not yet production-ready.
+> **⚠️ Alpha Software** — Owlmetry is in early alpha. APIs, schemas, and configuration may change without notice. Not yet production-ready.
 
 ## Get Started
 
 ### Option A — MCP (recommended for AI agents)
 
-Add the OwlMetry MCP server to your agent's config. It exposes the full product surface as tools, plus SDK integration guides as resources — no CLI install needed. See the [MCP setup docs](https://owlmetry.com/docs/mcp) for editor-specific instructions.
+Add the Owlmetry MCP server to your agent's config. It exposes the full product surface as tools, plus SDK integration guides as resources — no CLI install needed. See the [MCP setup docs](https://owlmetry.com/docs/mcp) for editor-specific instructions.
 
 ### Option B — CLI
 
@@ -27,9 +27,9 @@ Then tell your agent to run `owlmetry skills` and install the relevant skill fil
 
 ## Why agent-first?
 
-Most observability tools are built for humans staring at dashboards. OwlMetry is built for agents making API calls. Every feature is accessible programmatically through agent API keys, a CLI, an MCP server, and a complete REST API. The web dashboard exists as an optional visual layer — not the primary interface.
+Most observability tools are built for humans staring at dashboards. Owlmetry is built for agents making API calls. Every feature is accessible programmatically through agent API keys, a CLI, an MCP server, and a complete REST API. The web dashboard exists as an optional visual layer — not the primary interface.
 
-With OwlMetry, your agent can:
+With Owlmetry, your agent can:
 
 1. **Set up observability** — create projects, register apps, integrate the SDK into your codebase
 2. **Monitor in production** — query events, filter by level/app/time, investigate error clusters, watch user journeys
@@ -40,7 +40,7 @@ The dashboard is there if you want to look. But you shouldn't have to.
 
 ## Why self-hosted?
 
-Your analytics data is some of the most sensitive information you have — user behavior, device details, session traces, error logs, crash dumps. OwlMetry keeps all of it on your own infrastructure. No data leaves your servers, no third-party vendor has access, no privacy policy to hope they follow. Self-hosted by design means GDPR, HIPAA, and SOC 2 compliance become properties of your infrastructure, not vendor promises.
+Your analytics data is some of the most sensitive information you have — user behavior, device details, session traces, error logs, crash dumps. Owlmetry keeps all of it on your own infrastructure. No data leaves your servers, no third-party vendor has access, no privacy policy to hope they follow. Self-hosted by design means GDPR, HIPAA, and SOC 2 compliance become properties of your infrastructure, not vendor promises.
 
 And it's simple: one Postgres database, one Node.js API server, one optional Next.js dashboard. No Kafka, no ClickHouse, no Redis. A `deploy/` folder of Ubuntu scripts gets you from a fresh VPS to a running instance with backups, log rotation, and health checks.
 
@@ -79,7 +79,7 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **Agent-native API** — every operation available through `owl_agent_` keys: query events, investigate sessions, read issues, download attachments, drive integrations
 - **MCP server** — Streamable HTTP endpoint exposing the full product surface as tools (55+), plus SDK integration guides as resources; agents connect directly with an `owl_agent_` key
 - **CLI for agents and humans** — `--format json` for machine consumption, `--format table` for humans. Same tool, both audiences
-- **AI skill files** — bundled with the CLI npm package, teach any coding agent (Claude Code, Codex, etc.) how to set up, instrument, and query OwlMetry
+- **AI skill files** — bundled with the CLI npm package, teach any coding agent (Claude Code, Codex, etc.) how to set up, instrument, and query Owlmetry
 - **Dashboard optional** — Next.js web UI for when you want a visual overview. Not required for any workflow
 
 ### Platform and operations
@@ -95,7 +95,7 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 ## Architecture
 
 ```
-apps/server        Fastify API server (port 4000) — the core of OwlMetry
+apps/server        Fastify API server (port 4000) — the core of Owlmetry
 apps/cli           CLI for agents and humans (agent key auth)
 apps/web           Next.js dashboard + Fumadocs documentation site (port 3000)
 packages/shared    Shared TypeScript types and constants

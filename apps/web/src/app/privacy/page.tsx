@@ -3,9 +3,9 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — OwlMetry",
+  title: "Privacy Policy — Owlmetry",
   description:
-    "Learn how OwlMetry collects, uses, and protects your data. Privacy policy for the OwlMetry analytics platform.",
+    "Learn how Owlmetry collects, uses, and protects your data. Privacy policy for the Owlmetry analytics platform.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -25,8 +25,8 @@ export default function PrivacyPolicyPage() {
 
             <h2>Who We Are</h2>
             <p>
-              Adapted Hub LLC operates OwlMetry, an analytics platform for
-              mobile and backend applications. OwlMetry is available as a hosted
+              Adapted Hub LLC operates Owlmetry, an analytics platform for
+              mobile and backend applications. Owlmetry is available as a hosted
               service at{" "}
               <a href="https://owlmetry.com">owlmetry.com</a> and as
               self-hosted open-source software.
@@ -36,7 +36,7 @@ export default function PrivacyPolicyPage() {
 
             <h3>Platform Users (You)</h3>
             <p>
-              When you create an OwlMetry account, we collect the following
+              When you create an Owlmetry account, we collect the following
               information:
             </p>
             <ul>
@@ -112,7 +112,7 @@ export default function PrivacyPolicyPage() {
 
             <h2>How We Use Your Information</h2>
             <ul>
-              <li>Provide and operate the OwlMetry analytics service</li>
+              <li>Provide and operate the Owlmetry analytics service</li>
               <li>Authenticate your account and maintain your session</li>
               <li>
                 Send verification codes and team invitation emails
@@ -147,7 +147,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
             <p>
-              If you self-host OwlMetry, your data stays entirely on your own
+              If you self-host Owlmetry, your data stays entirely on your own
               infrastructure.
             </p>
 
@@ -189,7 +189,7 @@ export default function PrivacyPolicyPage() {
             </ul>
 
             <h2>Cookies</h2>
-            <p>OwlMetry uses a single authentication cookie:</p>
+            <p>Owlmetry uses a single authentication cookie:</p>
             <ul>
               <li>
                 <strong>Name:</strong> <code>token</code>
@@ -211,8 +211,8 @@ export default function PrivacyPolicyPage() {
 
             <h2>Our Role as a Data Processor</h2>
             <p>
-              When you use OwlMetry to collect data about your application&apos;s
-              users, you are the data controller and OwlMetry acts as a data
+              When you use Owlmetry to collect data about your application&apos;s
+              users, you are the data controller and Owlmetry acts as a data
               processor (under GDPR) or service provider (under CCPA). This
               means:
             </p>
@@ -221,7 +221,7 @@ export default function PrivacyPolicyPage() {
                 You determine what data is collected from your users and why
               </li>
               <li>
-                We process that data solely to provide the OwlMetry service to
+                We process that data solely to provide the Owlmetry service to
                 you
               </li>
               <li>
@@ -303,7 +303,7 @@ export default function PrivacyPolicyPage() {
 
             <h2>Children&apos;s Privacy</h2>
             <p>
-              OwlMetry is not directed at children under 16 years of age. We do
+              Owlmetry is not directed at children under 16 years of age. We do
               not knowingly collect personal information from children under 16.
               If you believe we have collected information from a child under 16,
               please contact us at{" "}

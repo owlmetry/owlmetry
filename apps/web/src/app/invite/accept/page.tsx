@@ -128,7 +128,7 @@ function AcceptInvitationContent() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-white/90 tracking-tight">
-              OwlMetry
+              Owlmetry
             </h1>
             <p className="text-white/40 mt-2 text-sm">
               Self-hosted metrics tracking for mobile apps
@@ -142,7 +142,7 @@ function AcceptInvitationContent() {
         <div className="w-full max-w-md animate-fade-in-up">
           <div className="lg:hidden flex items-center gap-2.5 justify-center mb-8">
             <OwlLogo className="h-7 w-7 text-primary" />
-            <span className="text-xl font-bold tracking-tight">OwlMetry</span>
+            <span className="text-xl font-bold tracking-tight">Owlmetry</span>
           </div>
 
           {inviteError ? (
@@ -181,7 +181,7 @@ function AcceptInvitationContent() {
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">{invite.invited_by_name}</span>{" "}
-                  invited you to join a team on OwlMetry
+                  invited you to join a team on Owlmetry
                 </p>
               </div>
 

@@ -1,12 +1,12 @@
-export const GUIDE_CONTENT = `# OwlMetry — Agent Guide
+export const GUIDE_CONTENT = `# Owlmetry — Agent Guide
 
-OwlMetry is a self-hosted analytics platform for mobile and backend apps. It captures events, structured metrics, and funnel conversions from client SDKs (Swift, Node.js), stores them in a partitioned PostgreSQL database, and exposes query and management APIs.
+Owlmetry is a self-hosted analytics platform for mobile and backend apps. It captures events, structured metrics, and funnel conversions from client SDKs (Swift, Node.js), stores them in a partitioned PostgreSQL database, and exposes query and management APIs.
 
 You are connected via MCP using an **agent key** (\`owl_agent_...\`). Agent keys are for reading data and managing resources. **Client keys** (\`owl_client_...\`) are used by SDKs for event ingestion — you will not ingest events yourself, but you will retrieve client keys when creating apps for SDK configuration. **Import keys** (\`owl_import_...\`) are for bulk-importing historical event data — you can create these with the \`create-import-key\` tool.
 
 ## Resource Hierarchy
 
-OwlMetry organises resources in a **Team → Project → Apps** hierarchy:
+Owlmetry organises resources in a **Team → Project → Apps** hierarchy:
 
 - **Team** — the top-level account. All resources (projects, apps, keys) are team-scoped. Use \`whoami\` to see your team and permissions.
 - **Project** — groups related apps under one product (e.g., "MyApp" project). Metrics and funnels are defined at the project level so they span all apps in the project. Each project has configurable data retention policies for events (default: 120 days), metrics (default: 365 days), and funnels (default: 365 days).
@@ -56,7 +56,7 @@ Result: one logical user interaction (tap → API call → DB query → response
 Full setup snippets (Fastify/Express hook + Swift \`URLSession\` interceptor) live in the \`owlmetry-node\` Claude Code skill — install via \`/plugin marketplace add owlmetry/owlmetry-skills\` → \`/plugin install owlmetry@owlmetry-skills\`, then open the "Per-Request Session Scoping" section of \`owlmetry-node\`.
 
 ### Structured Metrics
-Metrics are project-scoped definitions that tell OwlMetry what structured data to expect. Two kinds:
+Metrics are project-scoped definitions that tell Owlmetry what structured data to expect. Two kinds:
 
 - **Lifecycle metrics**: track operations with a start → complete/fail/cancel flow. Use for things with duration — API calls, uploads, database queries. The SDK auto-tracks \`duration_ms\`. Phases: \`start\`, \`complete\`, \`fail\`, \`cancel\`.
 - **Single-shot metrics** (\`record\` phase): record a point-in-time measurement. Use for snapshots — cache hit rates, queue depth, cold start time.
@@ -115,7 +115,7 @@ Third-party service connections (RevenueCat, Apple Search Ads) that sync data in
 
 **Setting up Apple Search Ads — needed to resolve captured ASA IDs into human-readable names** (campaign name, ad group name, keyword text, ad name). Complementary to RevenueCat: ASA covers every attributed user, RC only subscribers.
 
-**IMPORTANT: DO NOT ask the user for a private key or an openssl command.** OwlMetry generates the EC P-256 keypair server-side. The flow is three calls:
+**IMPORTANT: DO NOT ask the user for a private key or an openssl command.** Owlmetry generates the EC P-256 keypair server-side. The flow is three calls:
 
 1. Call \`add-integration\` with \`provider: "apple-search-ads"\` and an empty config (\`{}\`). The response includes the generated \`public_key_pem\` under \`config.public_key_pem\` and an instructions block. Relay the public key to the user.
 2. Walk the user through uploading it at ads.apple.com:
@@ -131,7 +131,7 @@ The server strips \`private_key_pem\` and \`public_key_pem\` from any user-suppl
 
 Where a user came from, stored as user properties on \`app_users\`. Today only **Apple Search Ads** is implemented — future Meta / Google Ads support will write into the same keys.
 
-**Auto-captured by the Swift SDK** on \`Owl.configure()\` (iOS / iPadOS / macOS). No code required. The SDK fetches the AdServices attribution token, posts it to OwlMetry, and writes the resolved attribution onto the user's properties.
+**Auto-captured by the Swift SDK** on \`Owl.configure()\` (iOS / iPadOS / macOS). No code required. The SDK fetches the AdServices attribution token, posts it to Owlmetry, and writes the resolved attribution onto the user's properties.
 
 User properties written:
 - \`attribution_source\` — \`apple_search_ads\` on a successful attribution, \`none\` when the install came from organic / another source. Query/group on this key rather than a network-specific flag; future networks will reuse it.
@@ -176,7 +176,7 @@ To fully investigate an issue, follow this workflow:
 8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
 
 ### Feedback
-Free-text user feedback. Two ingest paths: mobile apps via the Swift SDK (\`OwlFeedbackView\` / \`Owl.sendFeedback\`), and server handlers via the Node SDK (\`Owl.sendFeedback\`) — use the Node path when a team collects feedback through their own frontend (form, chat widget, support page) and wants it forwarded into OwlMetry. Each feedback row captures \`message\`, optional \`submitter_name\` and \`submitter_email\`, plus the session, user, app version, device, environment, and country — automatically on mobile, caller-supplied on Node.
+Free-text user feedback. Two ingest paths: mobile apps via the Swift SDK (\`OwlFeedbackView\` / \`Owl.sendFeedback\`), and server handlers via the Node SDK (\`Owl.sendFeedback\`) — use the Node path when a team collects feedback through their own frontend (form, chat widget, support page) and wants it forwarded into Owlmetry. Each feedback row captures \`message\`, optional \`submitter_name\` and \`submitter_email\`, plus the session, user, app version, device, environment, and country — automatically on mobile, caller-supplied on Node.
 
 - **Status lifecycle** — free transitions between \`new\`, \`in_review\`, \`addressed\`, \`dismissed\`. No forced order; \`dismissed\` is the "not actionable" state.
 - **Comments** — investigation notes from users (\`👤\`) and agents (\`🕶️\`), mirror the issue-comment model.
@@ -380,7 +380,7 @@ That exposes three skills Claude Code can load on demand:
 Each skill covers the full surface. Summary:
 
 - **Swift** — package installation, \`Owl.configure()\`, event logging, automatic screen tracking, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback collection** (drop-in \`OwlFeedbackView\` or programmatic \`Owl.sendFeedback\`), **Apple Search Ads attribution** (auto-capture, opt-out, manual submission), and reading \`Owl.sessionId\` to forward to a backend for session correlation.
-- **Node** — package installation, \`Owl.configure()\`, event logging, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback forwarding** (when the team collects feedback through their own frontend and wants it pushed to OwlMetry with \`Owl.sendFeedback\`), and **per-request session/user scoping** (\`Owl.withSession(...)\` / \`Owl.withUser(...)\` / per-call \`options.sessionId\`) for linking backend events to a client session via the \`X-Owl-Session-Id\` header.
+- **Node** — package installation, \`Owl.configure()\`, event logging, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback forwarding** (when the team collects feedback through their own frontend and wants it pushed to Owlmetry with \`Owl.sendFeedback\`), and **per-request session/user scoping** (\`Owl.withSession(...)\` / \`Owl.withUser(...)\` / per-call \`options.sessionId\`) for linking backend events to a client session via the \`X-Owl-Session-Id\` header.
 
 **Note:** The guides reference CLI commands for creating metrics and funnels. You can use the equivalent MCP tools instead (\`create-metric\`, \`create-funnel\`).
 
@@ -395,7 +395,7 @@ Each skill covers the full surface. Summary:
 
 ## Bulk Import
 
-To migrate historical event data from another system into OwlMetry:
+To migrate historical event data from another system into Owlmetry:
 
 1. **Create an import key** using the \`create-import-key\` tool with the target \`app_id\`.
 2. **Write an export script** that reads events from the source system and POSTs them to \`POST /v1/import\` with the import key as a Bearer token.

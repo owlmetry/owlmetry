@@ -1,17 +1,17 @@
-import { OwlMetryClient, ApiError } from "../../client.js";
+import { OwlmetryClient, ApiError } from "../../client.js";
 
 const TEST_ENDPOINT = process.env.OWLMETRY_TEST_ENDPOINT;
 const TEST_AGENT_KEY = process.env.OWLMETRY_TEST_AGENT_KEY;
 
-function makeClient(): OwlMetryClient {
-  return new OwlMetryClient({
+function makeClient(): OwlmetryClient {
+  return new OwlmetryClient({
     endpoint: TEST_ENDPOINT!,
     apiKey: TEST_AGENT_KEY!,
   });
 }
 
-describe.skipIf(!TEST_ENDPOINT)("integration: OwlMetryClient", () => {
-  let client: OwlMetryClient;
+describe.skipIf(!TEST_ENDPOINT)("integration: OwlmetryClient", () => {
+  let client: OwlmetryClient;
 
   beforeAll(() => {
     client = makeClient();

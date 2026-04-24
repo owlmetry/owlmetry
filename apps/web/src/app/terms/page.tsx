@@ -2,9 +2,9 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata = {
-  title: "Terms of Service — OwlMetry",
+  title: "Terms of Service — Owlmetry",
   description:
-    "Terms of Service for OwlMetry, the agent-first observability platform for mobile and backend applications.",
+    "Terms of Service for Owlmetry, the agent-first observability platform for mobile and backend applications.",
 };
 
 export default function TermsPage() {
@@ -21,7 +21,7 @@ export default function TermsPage() {
 
             <h2>Agreement to Terms</h2>
             <p>
-              By accessing or using OwlMetry (the hosted service at owlmetry.com
+              By accessing or using Owlmetry (the hosted service at owlmetry.com
               or the self-hosted software), you agree to be bound by these Terms
               of Service. If you do not agree to these terms, do not use the
               service.
@@ -34,11 +34,11 @@ export default function TermsPage() {
 
             <h2>Service Description</h2>
             <p>
-              OwlMetry is an analytics platform for mobile and backend
+              Owlmetry is an analytics platform for mobile and backend
               applications. It includes a hosted service at owlmetry.com,
               self-hosted open-source software, client SDKs (Swift, Node.js), a
               command-line interface (CLI), and an API. These terms govern your
-              use of all OwlMetry products and services.
+              use of all Owlmetry products and services.
             </p>
 
             <h2>Accounts</h2>
@@ -80,7 +80,7 @@ export default function TermsPage() {
 
             <h2>Your Data</h2>
             <p>
-              You retain all ownership rights to data you submit to OwlMetry.
+              You retain all ownership rights to data you submit to Owlmetry.
               You grant us a limited, non-exclusive license to process your data
               solely to provide the service. We will not sell, share, or use your
               data for any purpose other than operating the service.
@@ -97,9 +97,9 @@ export default function TermsPage() {
 
             <h2>Open Source Software</h2>
             <p>
-              The OwlMetry platform (server, web dashboard, database layer) is
+              The Owlmetry platform (server, web dashboard, database layer) is
               released under the GNU Affero General Public License v3.0
-              (AGPL-3.0). The OwlMetry SDKs and CLI are released under the MIT
+              (AGPL-3.0). The Owlmetry SDKs and CLI are released under the MIT
               License. Your use of the self-hosted software is governed by those
               licenses. Your use of the hosted service at owlmetry.com is
               governed by these Terms of Service.
@@ -107,7 +107,7 @@ export default function TermsPage() {
 
             <h2>Intellectual Property</h2>
             <p>
-              The OwlMetry name, logo, and branding are the property of Adapted
+              The Owlmetry name, logo, and branding are the property of Adapted
               Hub LLC. The open-source code is licensed under the applicable
               open-source license. Nothing in these terms grants you rights to
               our trademarks or branding.
@@ -115,7 +115,7 @@ export default function TermsPage() {
 
             <h2>API and Rate Limits</h2>
             <p>
-              Access to the OwlMetry API is subject to rate limits. We may
+              Access to the Owlmetry API is subject to rate limits. We may
               throttle or suspend access if we determine that usage is abusive or
               places an unreasonable burden on the service. Current rate limits
               are documented in our API documentation.

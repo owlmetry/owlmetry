@@ -22,7 +22,7 @@ export function createMcpServer(app: FastifyInstance, agentKey: string): McpServ
 
   // Register the operational guide as a resource
   server.registerResource("guide", "owlmetry://guide", {
-    description: "OwlMetry operational guide — concepts, resource hierarchy, workflows, and conventions for using the MCP tools.",
+    description: "Owlmetry operational guide — concepts, resource hierarchy, workflows, and conventions for using the MCP tools.",
     mimeType: "text/markdown",
   }, async () => ({
     contents: [{

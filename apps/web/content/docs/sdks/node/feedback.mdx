@@ -1,9 +1,9 @@
 ---
 title: User Feedback
-description: Forward free-text user feedback from your own frontend to OwlMetry.
+description: Forward free-text user feedback from your own frontend to Owlmetry.
 ---
 
-The Node SDK can forward user feedback to OwlMetry so it lands in the dashboard's feedback tracker alongside feedback captured by the Swift SDK. Use this when your users submit feedback through your own UI — a web form, a chat widget, a support page — and your Node server acts as the bridge.
+The Node SDK can forward user feedback to Owlmetry so it lands in the dashboard's feedback tracker alongside feedback captured by the Swift SDK. Use this when your users submit feedback through your own UI — a web form, a chat widget, a support page — and your Node server acts as the bridge.
 
 See the [Feedback concept page](/docs/concepts/feedback) for the status lifecycle, comments, and how to work with feedback once it's captured.
 
@@ -68,7 +68,7 @@ Pass any option explicitly in the second argument to override what the scope pro
 | `email` | — | Submitter email. Validated server-side. |
 | `userId` | scope's userId | Attach to an end-user in the project. |
 | `sessionId` | scope's sessionId | UUID — links feedback to the event timeline for that session. Non-UUIDs are silently ignored. |
-| `bundleId` | — | Only needed when forwarding for a mobile frontend whose OwlMetry app has a bundle_id set. |
+| `bundleId` | — | Only needed when forwarding for a mobile frontend whose Owlmetry app has a bundle_id set. |
 | `environment` | `"backend"` | Must be allowed for the API key's app platform. |
 | `appVersion` | `config.appVersion` | |
 | `deviceModel` | — | Pass-through when forwarding from a mobile frontend. |

@@ -1,9 +1,9 @@
 ---
 title: Installation
-description: Add the OwlMetry Swift SDK to your project via Swift Package Manager.
+description: Add the Owlmetry Swift SDK to your project via Swift Package Manager.
 ---
 
-The OwlMetry Swift SDK is distributed as a Swift Package. It has zero external dependencies.
+The Owlmetry Swift SDK is distributed as a Swift Package. It has zero external dependencies.
 
 ## Xcode (recommended)
 
@@ -15,11 +15,11 @@ The OwlMetry Swift SDK is distributed as a Swift Package. It has zero external d
    ```
 4. Set the dependency rule to **Branch** and enter `main`.
 5. Click **Add Package**.
-6. Select the **OwlMetry** library and add it to your app target.
+6. Select the **Owlmetry** library and add it to your app target.
 
 ## Package.swift
 
-If you manage dependencies through a `Package.swift` file, add OwlMetry to the `dependencies` array:
+If you manage dependencies through a `Package.swift` file, add Owlmetry to the `dependencies` array:
 
 ```swift
 dependencies: [
@@ -35,7 +35,7 @@ Then add the product to your target's `dependencies`:
 .target(
     name: "YourApp",
     dependencies: [
-        .product(name: "OwlMetry", package: "owlmetry-swift")
+        .product(name: "Owlmetry", package: "owlmetry-swift")
     ]
 )
 ```
@@ -45,10 +45,10 @@ Then add the product to your target's `dependencies`:
 Build your project and confirm the import compiles without errors:
 
 ```swift
-import OwlMetry
+import Owlmetry
 ```
 
-If you see a "No such module 'OwlMetry'" error in your editor, this is a known SourceKit issue -- the error should resolve when you perform an actual build with Xcode or `xcodebuild`.
+If you see a "No such module 'Owlmetry'" error in your editor, this is a known SourceKit issue -- the error should resolve when you perform an actual build with Xcode or `xcodebuild`.
 
 ## Requirements
 

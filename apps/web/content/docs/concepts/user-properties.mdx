@@ -3,7 +3,7 @@ title: User Properties
 description: Attach custom key-value metadata to users — subscription status, revenue, plan tier, and more.
 ---
 
-User properties are custom key-value pairs stored on each user in OwlMetry. They let you see at a glance who is a paid subscriber, what plan they're on, how much they've spent, or any other user-level attribute you care about.
+User properties are custom key-value pairs stored on each user in Owlmetry. They let you see at a glance who is a paid subscriber, what plan they're on, how much they've spent, or any other user-level attribute you care about.
 
 Properties are stored on each project-level user and displayed in the Users list in the dashboard. Users are unique per project — the same user ID seen from multiple apps (e.g., iOS and backend) is a single user with one set of properties.
 
@@ -79,7 +79,7 @@ When an anonymous user is claimed (Swift `Owl.setUser()`, or direct `POST /v1/id
 
 ## Reserved Namespaces
 
-Some property keys are populated by OwlMetry itself and should not be written manually from your app code. Overwriting them is allowed (properties are just strings), but you'll collide with the values integrations and attribution write.
+Some property keys are populated by Owlmetry itself and should not be written manually from your app code. Overwriting them is allowed (properties are just strings), but you'll collide with the values integrations and attribution write.
 
 | Prefix / Key | Populated by | Purpose |
 |---|---|---|

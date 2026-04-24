@@ -1,9 +1,9 @@
 ---
 title: Getting Started
-description: Get up and running with OwlMetry in minutes. Your coding agent handles the setup.
+description: Get up and running with Owlmetry in minutes. Your coding agent handles the setup.
 ---
 
-OwlMetry is designed to be set up by your coding agent. There are two ways to connect your agent:
+Owlmetry is designed to be set up by your coding agent. There are two ways to connect your agent:
 
 - **[MCP](/docs/mcp/setup)** (recommended) — Configure a URL once in your editor. No installation, automatic updates, 51 tools available instantly.
 - **[CLI](/docs/cli/installation)** — Install the `@owlmetry/cli` npm package. Best for CI/CD, scripts, and human terminal use.
@@ -20,7 +20,7 @@ If your coding agent supports MCP, this is the fastest path. You need two things
 2. **Add the MCP config** — Follow the instructions for your editor in the [MCP setup guide](/docs/mcp/setup)
 3. **Verify** — Ask your agent to call the `whoami` tool
 
-That's it. Your agent now has access to all OwlMetry operations — creating projects, defining metrics, querying events, and building funnels.
+That's it. Your agent now has access to all Owlmetry operations — creating projects, defining metrics, querying events, and building funnels.
 
 <Callout>
 **Self-hosting?** Use your own server URL (e.g., `https://your-server.example.com/mcp`) instead of `api.owlmetry.com`. See [Self-hosted setup](/docs/getting-started/self-hosting).
@@ -28,7 +28,7 @@ That's it. Your agent now has access to all OwlMetry operations — creating pro
 
 ## Connect via CLI
 
-If your editor doesn't support MCP, or if you need OwlMetry in CI/CD pipelines and shell scripts, install the CLI:
+If your editor doesn't support MCP, or if you need Owlmetry in CI/CD pipelines and shell scripts, install the CLI:
 
 ```bash
 npm install -g @owlmetry/cli
@@ -36,32 +36,32 @@ npm install -g @owlmetry/cli
 
 Requires Node.js 20+. The CLI ships with built-in skill files that teach your agent the full command reference and SDK integration patterns.
 
-### Tell Your Agent to Set Up OwlMetry
+### Tell Your Agent to Set Up Owlmetry
 
 Give your coding agent a prompt like this:
 
 ```
-Set up OwlMetry in this project. Run `owlmetry skills` to get the
+Set up Owlmetry in this project. Run `owlmetry skills` to get the
 skill file paths, then install the CLI and relevant SDK skill files.
 Use the CLI skill to authenticate and create a project/app, then use
 the SDK skill to instrument the code.
 ```
 
-That's it. Your agent reads the skill files and takes it from there. The only thing you'll need to do is provide a **6-digit verification code** — the agent will ask for your email, OwlMetry sends you a code, and you paste it back. This creates your account, generates an API key, and the agent handles the rest: creating a project, setting up an app, installing the SDK, and wiring up event tracking.
+That's it. Your agent reads the skill files and takes it from there. The only thing you'll need to do is provide a **6-digit verification code** — the agent will ask for your email, Owlmetry sends you a code, and you paste it back. This creates your account, generates an API key, and the agent handles the rest: creating a project, setting up an app, installing the SDK, and wiring up event tracking.
 
 **Tip:** Add this line to your project's `CLAUDE.md`, `AGENTS.md`, or whatever default instructions file your coding agent uses:
 
 ```markdown
-### OwlMetry
+### Owlmetry
 Load `/owlmetry-cli` before running any `owlmetry` CLI commands or doing analytics work — it links to the appropriate SDK skill for your platform.
 ```
 
-This ensures every future session knows OwlMetry is integrated and loads the right skill files automatically — including the full API reference, funnel design rules, and lifecycle metric patterns.
+This ensures every future session knows Owlmetry is integrated and loads the right skill files automatically — including the full API reference, funnel design rules, and lifecycle metric patterns.
 
 ## Choose Your Deployment
 
 - **[Hosted](/docs/getting-started/hosted)** — Use the instance at owlmetry.com. No server setup required.
-- **[Self-hosted](/docs/getting-started/self-hosting)** — Run OwlMetry on your own server. Full control over your data, deployed in under 30 minutes.
+- **[Self-hosted](/docs/getting-started/self-hosting)** — Run Owlmetry on your own server. Full control over your data, deployed in under 30 minutes.
 
 ---
 
@@ -95,7 +95,7 @@ For Apple, Android, and Web platforms, provide a **bundle ID** (e.g., `com.examp
 When you create the app, a client API key (`owl_client_...`) is generated automatically. **Copy this key** — you'll need it to configure the SDK.
 
 <Callout>
-For a more detailed walkthrough of these steps, see [Using OwlMetry Cloud](/docs/getting-started/hosted).
+For a more detailed walkthrough of these steps, see [Using Owlmetry Cloud](/docs/getting-started/hosted).
 </Callout>
 
 ### 4. Install and Configure Your SDK
@@ -107,11 +107,11 @@ For a more detailed walkthrough of these steps, see [Using OwlMetry Cloud](/docs
 
 ### Swift Quickstart
 
-For iOS, iPadOS, and macOS apps. Requires an Apple-platform app and client key from OwlMetry.
+For iOS, iPadOS, and macOS apps. Requires an Apple-platform app and client key from Owlmetry.
 
 #### 1. Add the Swift Package
 
-In Xcode: **File > Add Package Dependencies**, enter the repository URL, select branch `main`, and add `OwlMetry` to your target.
+In Xcode: **File > Add Package Dependencies**, enter the repository URL, select branch `main`, and add `Owlmetry` to your target.
 
 Or in `Package.swift`:
 
@@ -127,7 +127,7 @@ Add to your target:
 
 ```swift
 .target(name: "YourApp", dependencies: [
-    .product(name: "OwlMetry", package: "owlmetry-swift")
+    .product(name: "Owlmetry", package: "owlmetry-swift")
 ])
 ```
 
@@ -138,7 +138,7 @@ Minimum platforms: iOS 16.0, macOS 13.0. Zero external dependencies.
 Call `Owl.configure()` as early as possible -- in your `@main` App `init()` or AppDelegate `didFinishLaunching`:
 
 ```swift
-import OwlMetry
+import Owlmetry
 
 @main
 struct MyApp: App {
@@ -149,7 +149,7 @@ struct MyApp: App {
                 apiKey: "owl_client_your_key_here"
             )
         } catch {
-            print("OwlMetry configuration failed: \(error)")
+            print("Owlmetry configuration failed: \(error)")
         }
     }
 
@@ -169,7 +169,7 @@ Owl.error("Failed to load profile", screenName: "ProfileView")
 Owl.warn("Slow network response", attributes: ["latency_ms": "1200"])
 ```
 
-Events are buffered and flushed automatically in batches. They appear in the OwlMetry dashboard within seconds.
+Events are buffered and flushed automatically in batches. They appear in the Owlmetry dashboard within seconds.
 
 <Callout>
 For the full Swift SDK reference -- screen tracking, metrics, funnels, identity, and experiments -- see the [Swift SDK documentation](/docs/sdks/swift).
@@ -177,7 +177,7 @@ For the full Swift SDK reference -- screen tracking, metrics, funnels, identity,
 
 ### Node.js Quickstart
 
-For API servers, job workers, and serverless functions. Requires a backend-platform app and client key from OwlMetry.
+For API servers, job workers, and serverless functions. Requires a backend-platform app and client key from Owlmetry.
 
 #### 1. Install
 

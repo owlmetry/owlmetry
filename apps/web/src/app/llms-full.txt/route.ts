@@ -12,13 +12,13 @@ export function GET() {
   const docsDir = path.join(process.cwd(), "content/docs");
 
   const header = [
-    "# OwlMetry",
+    "# Owlmetry",
     "",
     "> Self-hosted observability platform for mobile and backend apps. Structured events, performance metrics, and conversion funnels — purpose-built for AI coding agents.",
     "",
-    "## About OwlMetry",
+    "## About Owlmetry",
     "",
-    "OwlMetry is an agent-first, open-source observability platform for mobile and backend apps.",
+    "Owlmetry is an agent-first, open-source observability platform for mobile and backend apps.",
     "It provides structured events, performance metrics, conversion funnels, and A/B experiments.",
     "",
     "Key capabilities:",
@@ -44,7 +44,7 @@ export function GET() {
     "",
     "## Alternatives",
     "",
-    "OwlMetry is an open-source alternative to Mixpanel, Amplitude, PostHog, and Firebase Analytics,",
+    "Owlmetry is an open-source alternative to Mixpanel, Amplitude, PostHog, and Firebase Analytics,",
     "differentiated by its agent-first API design and single-database self-hosted architecture.",
     "",
     "## Docs",

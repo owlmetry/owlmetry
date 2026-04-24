@@ -39,7 +39,7 @@ export function MarketingNav() {
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2.5">
           <OwlLogo className="h-7 w-7" />
-          <span className="text-lg font-semibold tracking-tight text-white/90">OwlMetry</span>
+          <span className="text-lg font-semibold tracking-tight text-white/90">Owlmetry</span>
         </Link>
 
         {/* Desktop nav */}

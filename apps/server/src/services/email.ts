@@ -120,16 +120,16 @@ export class ResendEmailService implements EmailService {
   }
 
   async sendVerificationCode(email: string, code: string): Promise<void> {
-    await this.sendEmail(email, "Your OwlMetry verification code", [
+    await this.sendEmail(email, "Your Owlmetry verification code", [
       `<p>Your verification code is:</p>`,
       `<p style="font-size:32px;font-weight:bold;letter-spacing:6px;margin:16px 0;">${code}</p>`,
-      `<p>Pass this code to your AI agent to authenticate the OwlMetry CLI, or enter it in the dashboard to sign in.</p>`,
+      `<p>Pass this code to your AI agent to authenticate the Owlmetry CLI, or enter it in the dashboard to sign in.</p>`,
       `<p style="color:#888;font-size:13px;">This code expires in 10 minutes.</p>`,
     ].join(""));
   }
 
   async sendTeamInvitation(email: string, params: TeamInvitationEmailParams): Promise<void> {
-    await this.sendEmail(email, `You've been invited to join ${params.team_name} on OwlMetry`, [
+    await this.sendEmail(email, `You've been invited to join ${params.team_name} on Owlmetry`, [
       `<p><strong>${escapeHtml(params.invited_by_name)}</strong> invited you to join <strong>${escapeHtml(params.team_name)}</strong> as <strong>${escapeHtml(params.role)}</strong>.</p>`,
       `<p><a href="${escapeHtml(params.accept_url)}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>`,
       `<p style="color:#888;font-size:13px;">This invitation expires in 7 days.</p>`,
@@ -146,7 +146,7 @@ export class ResendEmailService implements EmailService {
     if (params.error) lines.push(`<p><strong>Error:</strong> ${escapeHtml(params.error)}</p>`);
     if (params.result) lines.push(`<p><strong>Result:</strong></p><pre>${escapeHtml(JSON.stringify(params.result, null, 2))}</pre>`);
 
-    await this.sendEmail(email, `[OwlMetry] ${emoji} Job ${params.status}: ${escapeHtml(params.job_type)}`, lines.join(""));
+    await this.sendEmail(email, `[Owlmetry] ${emoji} Job ${params.status}: ${escapeHtml(params.job_type)}`, lines.join(""));
   }
 
   async sendIssueDigest(email: string, params: IssueDigestEmailParams): Promise<void> {
@@ -161,7 +161,7 @@ export class ResendEmailService implements EmailService {
       </tr>`;
     }).join("");
 
-    await this.sendEmail(email, `[OwlMetry] 🐛 ${params.issues.length} issue(s) in ${escapeHtml(params.project_name)}`, [
+    await this.sendEmail(email, `[Owlmetry] 🐛 ${params.issues.length} issue(s) in ${escapeHtml(params.project_name)}`, [
       `<p>New issues detected in <strong>${escapeHtml(params.project_name)}</strong>:</p>`,
       `<table style="border-collapse:collapse;width:100%;font-size:14px">`,
       `<thead><tr style="background:#f5f5f5">`,

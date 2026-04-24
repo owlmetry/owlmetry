@@ -268,7 +268,7 @@ export async function integrationsRoutes(app: FastifyInstance) {
       // Apple Search Ads: copy the full config verbatim (including the
       // keypair and all four IDs). Apple only allows one active cert per
       // API user, so regenerating per project would force the user to
-      // set up 1 API user per OwlMetry project. Within a team, sharing
+      // set up 1 API user per Owlmetry project. Within a team, sharing
       // the private key is safe — team admins already have access to all
       // projects. Same trust model as RevenueCat's api_key, which is also
       // copied verbatim.

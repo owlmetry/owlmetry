@@ -368,7 +368,7 @@ async function main() {
           issue_id: issue.id,
           author_type: c.authorType,
           author_id: c.authorType === "user" ? adminUser.id : agentId,
-          author_name: c.authorType === "user" ? adminUser.name ?? "Admin" : "OwlMetry Agent",
+          author_name: c.authorType === "user" ? adminUser.name ?? "Admin" : "Owlmetry Agent",
           body: c.body,
           created_at: ago(c.createdOffset),
         })),

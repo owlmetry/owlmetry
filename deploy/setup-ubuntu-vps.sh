@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# OwlMetry VPS Setup Script
+# Owlmetry VPS Setup Script
 # Installs: Node.js 22 LTS, PostgreSQL 16, nginx, pm2, pnpm
 # Target: Ubuntu 24.04 LTS
 # Usage: bash setup-vps.sh
@@ -30,7 +30,7 @@ fi
 
 echo ""
 echo "=============================="
-echo "  OwlMetry VPS Setup"
+echo "  Owlmetry VPS Setup"
 echo "=============================="
 echo ""
 

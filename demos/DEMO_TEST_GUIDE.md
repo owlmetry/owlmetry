@@ -1,6 +1,6 @@
-# OwlMetry Full Demo Test Guide
+# Owlmetry Full Demo Test Guide
 
-Step-by-step guide for setting up, running, and verifying the full OwlMetry demo stack. Designed so an AI agent (or human) can follow it end-to-end.
+Step-by-step guide for setting up, running, and verifying the full Owlmetry demo stack. Designed so an AI agent (or human) can follow it end-to-end.
 
 ## Phase 1: Prerequisites
 
@@ -46,7 +46,7 @@ Kill any stale processes, then start the API server and Node demo server:
 lsof -ti:4000 | xargs kill 2>/dev/null || true
 lsof -ti:4007 | xargs kill 2>/dev/null || true
 
-# Terminal 1 — OwlMetry API server (port 4000)
+# Terminal 1 — Owlmetry API server (port 4000)
 pnpm dev:server
 
 # Terminal 2 — Node.js demo server (port 4007, requires API server)
@@ -94,8 +94,8 @@ The iOS demo now lives in the sibling [`owlmetry-swift`](https://github.com/owlm
 
 ```bash
 xcodebuildmcp simulator build-and-run \
-  --scheme OwlMetryDemo \
-  --project-path ../owlmetry-swift/Examples/Demo/OwlMetryDemo.xcodeproj \
+  --scheme OwlmetryDemo \
+  --project-path ../owlmetry-swift/Examples/Demo/OwlmetryDemo.xcodeproj \
   --simulator-name "iPhone 16"
 ```
 

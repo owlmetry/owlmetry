@@ -10,7 +10,7 @@ function DocsNavTitle() {
     <span className="inline-flex items-center gap-2.5">
       <OwlLogo className="h-6 w-6" />
       <span className="text-lg font-semibold tracking-tight">
-        OwlMetry
+        Owlmetry
       </span>
     </span>
   );

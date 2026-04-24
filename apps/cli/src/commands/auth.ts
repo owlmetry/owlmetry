@@ -25,7 +25,7 @@ async function apiPost<T>(endpoint: string, path: string, body: unknown): Promis
 }
 
 export const authCommand = new Command("auth")
-  .description("Authenticate with an OwlMetry server");
+  .description("Authenticate with an Owlmetry server");
 
 // owlmetry auth send-code --email alice@example.com
 authCommand

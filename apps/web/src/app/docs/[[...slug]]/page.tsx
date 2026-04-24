@@ -57,7 +57,7 @@ export default async function Page(props: {
     {
       "@context": "https://schema.org",
       "@type": "TechArticle",
-      headline: `${page.data.title} — OwlMetry Docs`,
+      headline: `${page.data.title} — Owlmetry Docs`,
       description: page.data.description,
       url: `${BASE}/docs${slugParts.length ? `/${slugParts.join("/")}` : ""}`,
       publisher: {
@@ -66,7 +66,7 @@ export default async function Page(props: {
         url: BASE,
         logo: `${BASE}/owl-logo.png`,
       },
-      isPartOf: { "@type": "WebSite", name: "OwlMetry", url: BASE },
+      isPartOf: { "@type": "WebSite", name: "Owlmetry", url: BASE },
       inLanguage: "en",
     },
   ];
@@ -123,7 +123,7 @@ export async function generateMetadata(props: {
 
   const slug = params.slug?.join("/") ?? "";
   const url = `/docs${slug ? `/${slug}` : ""}`;
-  const title = `${page.data.title} — OwlMetry Docs`;
+  const title = `${page.data.title} — Owlmetry Docs`;
   return {
     title: { absolute: title },
     description: page.data.description,

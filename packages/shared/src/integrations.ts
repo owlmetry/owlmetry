@@ -77,7 +77,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
     id: INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS,
     name: "Apple Search Ads",
     description:
-      "Resolves Apple Search Ads campaign, ad group, keyword, and ad IDs into human-readable names via Apple's Campaign Management API. Complements the AdServices token capture done by the Swift SDK. Setup is two-step: create the integration (OwlMetry generates the keypair and returns a public key), upload that public key to ads.apple.com → Account Settings → API, then save the returned client/team/key IDs + pick your org.",
+      "Resolves Apple Search Ads campaign, ad group, keyword, and ad IDs into human-readable names via Apple's Campaign Management API. Complements the AdServices token capture done by the Swift SDK. Setup is two-step: create the integration (Owlmetry generates the keypair and returns a public key), upload that public key to ads.apple.com → Account Settings → API, then save the returned client/team/key IDs + pick your org.",
     // All four user-supplied IDs are `required: false` at the schema level
     // because setup is multi-step — they're filled in incrementally via PATCH
     // as the user moves through the flow. The effective "all four present"
@@ -90,7 +90,7 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
         required: false,
         sensitive: false,
         placeholder: "SEARCHADS.XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
-        description: "Apple Ads API client ID. Issued by Apple at ads.apple.com → Account Settings → API after you upload the public key OwlMetry generated. Starts with \"SEARCHADS.\".",
+        description: "Apple Ads API client ID. Issued by Apple at ads.apple.com → Account Settings → API after you upload the public key Owlmetry generated. Starts with \"SEARCHADS.\".",
       },
       {
         key: "team_id",

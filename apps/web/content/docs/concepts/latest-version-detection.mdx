@@ -1,9 +1,9 @@
 ---
 title: Latest Version Detection
-description: How OwlMetry knows which version of your app is the current release, and how that powers the green/amber version badges shown across the dashboard, CLI, and MCP.
+description: How Owlmetry knows which version of your app is the current release, and how that powers the green/amber version badges shown across the dashboard, CLI, and MCP.
 ---
 
-Every event, user, and issue in OwlMetry carries an `app_version` string captured by the SDK at the moment the data was recorded. To make those versions actionable -- "is this user on the current release?", "is this issue still happening on the latest build?" -- OwlMetry tracks a single source of truth per app and renders coloured badges:
+Every event, user, and issue in Owlmetry carries an `app_version` string captured by the SDK at the moment the data was recorded. To make those versions actionable -- "is this user on the current release?", "is this issue still happening on the latest build?" -- Owlmetry tracks a single source of truth per app and renders coloured badges:
 
 - 🟢 **Green** -- the version matches the app's known latest release.
 - 🟡 **Amber** -- the version is older than the latest release.
@@ -11,7 +11,7 @@ Every event, user, and issue in OwlMetry carries an `app_version` string capture
 
 ## How the latest version is determined
 
-OwlMetry uses a hybrid source-of-truth that picks the most reliable signal available per platform:
+Owlmetry uses a hybrid source-of-truth that picks the most reliable signal available per platform:
 
 | Platform | Source | Notes |
 |---|---|---|

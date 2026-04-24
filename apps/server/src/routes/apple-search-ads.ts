@@ -64,7 +64,7 @@ export async function appleSearchAdsRoutes(app: FastifyInstance) {
 
   // Discover orgs — called during the connect flow once the user has pasted
   // client_id, team_id, and key_id (received from Apple after uploading the
-  // public key OwlMetry generated). Reads the partial integration config,
+  // public key Owlmetry generated). Reads the partial integration config,
   // mints an access token against Apple using the server-held private key,
   // and returns the list of orgs so the user can pick one from a dropdown.
   app.post<{ Params: { projectId: string } }>(

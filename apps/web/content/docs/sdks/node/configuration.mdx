@@ -22,7 +22,7 @@ Owl.configure({
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `endpoint` | `string` | *required* | OwlMetry server URL. Trailing slashes are stripped automatically. |
+| `endpoint` | `string` | *required* | Owlmetry server URL. Trailing slashes are stripped automatically. |
 | `apiKey` | `string` | *required* | Client API key for a backend-platform app. Must start with `owl_client_`. |
 | `serviceName` | `string` | `"unknown"` | Name of this service. Useful for identifying which backend emitted an event when you run multiple services. |
 | `appVersion` | `string` | `undefined` | Version string included on every event. |
@@ -31,7 +31,7 @@ Owl.configure({
 | `flushIntervalMs` | `number` | `5000` | Milliseconds between automatic buffer flushes. |
 | `flushThreshold` | `number` | `20` | Maximum buffered events before an automatic flush is triggered. |
 | `maxBufferSize` | `number` | `10000` | Hard cap on buffered events. When the buffer is full, the oldest event is dropped. |
-| `consoleLogging` | `boolean` | `true` | Print events to the console. Each line is prefixed with `🦉 OwlMetry` and the log level. Set to `false` to suppress. |
+| `consoleLogging` | `boolean` | `true` | Print events to the console. Each line is prefixed with `🦉 Owlmetry` and the log level. Set to `false` to suppress. |
 
 ## What Happens on Configure
 

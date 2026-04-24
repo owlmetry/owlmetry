@@ -90,7 +90,7 @@ function LoginForm() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-white/90 tracking-tight">
-              OwlMetry
+              Owlmetry
             </h1>
             <p className="text-white/40 mt-2 text-sm">
               Self-hosted metrics tracking for mobile apps
@@ -104,7 +104,7 @@ function LoginForm() {
         <div className="w-full max-w-sm animate-fade-in-up">
           <div className="lg:hidden flex items-center gap-2.5 mb-8">
             <OwlLogo className="h-7 w-7 text-primary" />
-            <span className="text-xl font-bold tracking-tight">OwlMetry</span>
+            <span className="text-xl font-bold tracking-tight">Owlmetry</span>
           </div>
 
           <div className="space-y-1.5 mb-8">

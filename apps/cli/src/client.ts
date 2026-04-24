@@ -64,7 +64,7 @@ export class ApiError extends Error {
   }
 }
 
-export class OwlMetryClient {
+export class OwlmetryClient {
   private endpoint: string;
   private apiKey: string;
 

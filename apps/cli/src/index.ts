@@ -24,15 +24,15 @@ declare const __CLI_VERSION__: string;
 const program = new Command()
   .name("owlmetry")
   .version(__CLI_VERSION__)
-  .description("OwlMetry CLI — query metrics and manage your apps from the terminal")
+  .description("Owlmetry CLI — query metrics and manage your apps from the terminal")
   .addOption(
     new Option("--format <format>", "Output format")
       .choices(["table", "json", "log"])
       .default("table"),
   )
-  .option("--endpoint <url>", "OwlMetry API server URL")
+  .option("--endpoint <url>", "Owlmetry API server URL")
   .option("--api-key <key>", "API key")
-  .option("--ingest-endpoint <url>", "OwlMetry ingest endpoint URL (for SDKs; defaults to API endpoint for self-hosted)")
+  .option("--ingest-endpoint <url>", "Owlmetry ingest endpoint URL (for SDKs; defaults to API endpoint for self-hosted)")
   .option("--team <name-or-id>", "Use a specific team profile for this command");
 
 program.addCommand(authCommand);

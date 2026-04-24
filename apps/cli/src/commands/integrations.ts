@@ -97,7 +97,7 @@ function collectIntegrationConfig(opts: IntegrationConfigFlags): Record<string, 
 
 integrationsCommand
   .command("add <provider>")
-  .description("Add an integration (revenuecat | apple-search-ads). For apple-search-ads, OwlMetry generates the keypair — run without ID flags, upload the printed public key to Apple, then run `integrations update apple-search-ads` with the returned IDs.")
+  .description("Add an integration (revenuecat | apple-search-ads). For apple-search-ads, Owlmetry generates the keypair — run without ID flags, upload the printed public key to Apple, then run `integrations update apple-search-ads` with the returned IDs.")
   .requiredOption("--project-id <id>", "Project ID")
   .option("--api-key <key>", "RevenueCat V2 Secret API key")
   .action(async (provider: string, opts: { projectId: string } & IntegrationConfigFlags, cmd) => {

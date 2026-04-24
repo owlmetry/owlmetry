@@ -379,7 +379,7 @@ async function main() {
           level: "info",
           message: stepMessage,
           screen_name: "OnboardingScreen",
-          source_module: "OwlMetry",
+          source_module: "Owlmetry",
           environment: session.device.environment,
           os_version: session.device.os_version,
           app_version: session.appVersion,

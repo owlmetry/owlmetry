@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { Command } from "commander";
-import { OwlMetryClient } from "./client.js";
+import { OwlmetryClient } from "./client.js";
 import type { OutputFormat } from "./formatters/index.js";
 
 export interface TeamProfile {
@@ -169,9 +169,9 @@ export function getGlobals(cmd: Command): GlobalOptions {
   return cmd.optsWithGlobals() as GlobalOptions;
 }
 
-export function createClient(cmd: Command): { client: OwlMetryClient; globals: GlobalOptions } {
+export function createClient(cmd: Command): { client: OwlmetryClient; globals: GlobalOptions } {
   const globals = getGlobals(cmd);
   const config = resolveConfig(globals);
-  const client = new OwlMetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
+  const client = new OwlmetryClient({ endpoint: config.endpoint, apiKey: config.api_key });
   return { client, globals };
 }
