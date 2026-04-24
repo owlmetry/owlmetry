@@ -98,14 +98,17 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 apps/server        Fastify API server (port 4000) — the core of OwlMetry
 apps/cli           CLI for agents and humans (agent key auth)
 apps/web           Next.js dashboard + Fumadocs documentation site (port 3000)
-sdks/node          Node.js Server SDK (zero runtime dependencies)
 packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed, partition utilities
 demos/node         Node.js demo server
 deploy/            VPS deployment scripts (Ubuntu 24.04)
 ```
 
-The Swift SDK lives in its own repo: **[owlmetry/owlmetry-swift](https://github.com/owlmetry/owlmetry-swift)** — iOS, iPadOS, and macOS instrumentation as a standalone Swift Package.
+Sibling repos:
+
+- **[owlmetry/owlmetry-swift](https://github.com/owlmetry/owlmetry-swift)** — Swift SDK for iOS, iPadOS, and macOS.
+- **[owlmetry/owlmetry-node](https://github.com/owlmetry/owlmetry-node)** — Node.js server SDK (`@owlmetry/node`).
+- **[owlmetry/owlmetry-skills](https://github.com/owlmetry/owlmetry-skills)** — Claude Code plugin marketplace for agent skills.
 
 The API server is the product. Everything else — the dashboard, the CLI, the MCP server, the SDKs — is a client of that API. This means your agent has the same capabilities as the web UI. Nothing is dashboard-only.
 

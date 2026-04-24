@@ -16,11 +16,9 @@
     "db:cleanup-stranded-anons": "pnpm --filter @owlmetry/db cleanup-stranded-anons",
     "test": "pnpm -r test && pnpm test:cli",
     "test:cli": "bash scripts/test-cli.sh",
-    "test:node-sdk": "bash scripts/test-node-sdk.sh",
     "dev:demo-node": "node demos/node/server.mjs",
     "test:coverage": "pnpm --filter @owlmetry/server exec vitest run --coverage",
     "publish:cli": "cd apps/cli && npm version patch --no-git-tag-version && cd ../.. && pnpm build && cd apps/cli && npm publish --access public",
-    "publish:node-sdk": "cd sdks/node && npm version patch --no-git-tag-version && npm publish --access public",
     "prod:jobs": "bash scripts/prod-jobs.sh"
   },
   "pnpm": {
