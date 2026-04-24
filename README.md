@@ -101,8 +101,6 @@ apps/web           Next.js dashboard + Fumadocs documentation site (port 3000)
 sdks/node          Node.js Server SDK (zero runtime dependencies)
 packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed, partition utilities
-skills/            AI skill files (bundled into the CLI npm package)
-demos/ios          iOS demo app
 demos/node         Node.js demo server
 deploy/            VPS deployment scripts (Ubuntu 24.04)
 ```

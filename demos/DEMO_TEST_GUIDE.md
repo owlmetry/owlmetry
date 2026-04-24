@@ -90,10 +90,12 @@ Pick a simulator (e.g., "iPhone 16") and note its UDID. You can also use `--simu
 
 ### Build and run
 
+The iOS demo now lives in the sibling [`owlmetry-swift`](https://github.com/owlmetry/owlmetry-swift) repo under `Examples/Demo/`. Assuming it's checked out as a sibling of this repo:
+
 ```bash
 xcodebuildmcp simulator build-and-run \
   --scheme OwlMetryDemo \
-  --project-path demos/ios/OwlMetryDemo.xcodeproj \
+  --project-path ../owlmetry-swift/Examples/Demo/OwlMetryDemo.xcodeproj \
   --simulator-name "iPhone 16"
 ```
 
