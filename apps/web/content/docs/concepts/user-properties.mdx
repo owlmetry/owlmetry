@@ -88,6 +88,10 @@ Some property keys are populated by OwlMetry itself and should not be written ma
 | `asa_*_id` / `asa_claim_type` | Swift SDK ([auto-captured](/docs/sdks/swift/configuration#apple-search-ads-attribution)) | Apple Search Ads IDs (campaign, ad group, keyword, ad, creative set) plus claim type, resolved from Apple's AdServices API |
 | `asa_campaign_name`, `asa_ad_group_name`, `asa_ad_name`, `asa_keyword` | [Apple Search Ads integration](/docs/concepts/integrations#apple-search-ads) (primary) or [RevenueCat integration](/docs/concepts/integrations) (secondary) | Human-readable names for the same campaign / ad group / ad the `asa_*_id` fields identify, plus the literal search keyword. Apple's AdServices Attribution API returns only numeric IDs; both sources resolve those IDs → names via Apple's ASA Campaign Management API (ASA integration does it directly; RC does it server-side and surfaces resolved names as subscriber attributes). Both cover every attributed user, subscriber or not. |
 
-Attribution properties are captured once per anonymous user by the Swift SDK and carried through the claim merge into the real user. To opt out, set `attributionEnabled: false` on `Owl.configure()`.
+Attribution properties are captured once per anonymous user by the Swift SDK and carried through the claim merge into the real user. To opt out, set `attributionEnabled: false` on `Owl.configure()`. See [Attribution](/docs/concepts/attribution) for the full pipeline.
 
 Backfill paths (RC sync/webhook and ASA integration sync) are additive: they never overwrite an `asa_*_id` or `attribution_source` set by the Swift SDK's live flow — they only fill empty slots. For users who predate the Apple AdServices capture, these backfill paths are the only source of attribution.
+
+## Dashboard columns
+
+Attribution fields (`asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name`) are exposed as **opt-in columns** on the Users page via the column picker. Open the picker, toggle any attribution column on, drag to reorder — your configuration is persisted per-user via `users.preferences` so it follows you across browsers and devices. The same picker works for the Events page, letting you build personal views that stay out of your teammates' way.

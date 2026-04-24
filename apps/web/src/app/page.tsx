@@ -8,6 +8,9 @@ import {
   Shield,
   ArrowRight,
   Check,
+  Megaphone,
+  Bug,
+  MessageSquare,
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
@@ -36,6 +39,21 @@ const features = [
     icon: Filter,
     title: "Funnels",
     description: "See where users drop off. Define multi-step funnels, compare conversion across app versions, and measure the impact of A/B experiments.",
+  },
+  {
+    icon: Bug,
+    title: "Issue Tracker",
+    description: "Error events cluster into issues automatically. Semver-aware regression detection, kanban workflow, and same-session burst aliasing so one bug doesn't triple-count.",
+  },
+  {
+    icon: Megaphone,
+    title: "Acquisition Attribution",
+    description: "See which Apple Search Ads campaigns drive your installs. The Swift SDK auto-captures attribution, and the dashboard ties campaign to user to revenue — no marketing SDK required.",
+  },
+  {
+    icon: MessageSquare,
+    title: "User Feedback",
+    description: "Collect free-text feedback from your apps or your own frontend. Kanban board with status lifecycle, comments, and session-linked event replay for every submission.",
   },
   {
     icon: Smartphone,
@@ -684,6 +702,9 @@ export default function LandingPage() {
                 "Structured event ingestion",
                 "Performance metrics with lifecycle tracking",
                 "Funnel analytics with A/B experiments",
+                "Error issue tracker with semver-aware regression detection",
+                "Apple Search Ads acquisition attribution",
+                "User feedback with kanban workflow",
                 "Swift SDK for iOS/iPadOS/macOS",
                 "Node.js SDK for backends",
                 "CLI for agents and humans",

@@ -1,0 +1,90 @@
+---
+title: Attribution
+description: See which ad campaigns drive your installs. Apple Search Ads attribution captured at install time and enriched with campaign names.
+---
+
+Attribution in OwlMetry answers one question: **which marketing campaign did this user come from?** The Swift SDK captures attribution data at install time, the server resolves it against the ad network's API, and the result lives on the user as a handful of [user properties](/docs/concepts/user-properties). You can then filter, segment, and compare any analytics view by campaign — conversion rates, revenue per acquisition channel, retention by ad group — without adding a separate marketing SDK.
+
+For v1, the only supported network is **Apple Search Ads**. The URL namespace (`/v1/identity/attribution/:source`) is future-proofed for Google Ads, Meta, and TikTok once demand arrives.
+
+## Capture Flow
+
+```
+Swift SDK                         Server                       Apple AdServices
+─────────                         ──────                       ────────────────
+Owl.configure()
+  └─ asks iOS AdServices
+     for an attribution token
+     ───────────────────────────►
+                                   POST /v1/identity/attribution/apple-search-ads
+                                   ──────────────────────────────────────────────►
+                                                                resolves token
+                                                                ◄───────────────
+                                   writes asa_*_id properties
+                                   to the current user
+```
+
+The SDK calls `AAAttribution.attributionToken()` on a background task shortly after `Owl.configure()`, POSTs the token to the server, and the server resolves it against Apple's public Attribution API (`api-adservices.apple.com`). On success, the server writes the numeric IDs to the user's properties; the SDK records a "captured" flag in `UserDefaults` so subsequent launches don't repeat the work.
+
+**Apple's API sometimes 404s for up to ~24 hours after install** (the attribution record isn't ready yet). When that happens, the server returns `{ pending: true, retry_after_seconds }` and the SDK retries on the next launch, up to 5 attempts (`ASA_MAX_PENDING_ATTEMPTS`). After 5 failures, the SDK writes `attribution_source = "none"` and gives up — you can force a retry with `Owl.resetAppleSearchAdsAttributionCapture()`.
+
+To opt out entirely, pass `attributionEnabled: false` to `Owl.configure()`. See the [Swift SDK configuration](/docs/sdks/swift/configuration#apple-search-ads-attribution) for more.
+
+## Name Enrichment
+
+Apple's AdServices Attribution API returns only numeric IDs — never human-readable names. "Campaign `1234567890`" isn't a useful row in a dashboard, so OwlMetry resolves IDs → names through one of two complementary backends. Both cover every attributed user (subscriber or not), and both are additive — they fill empty slots but never overwrite values set by the SDK's live flow.
+
+### Option A — Apple Search Ads integration (recommended, self-contained)
+
+Configure the [Apple Search Ads integration](/docs/concepts/integrations#apple-search-ads) on a project and OwlMetry calls Apple's Campaign Management API directly to resolve names. Works for every attributed user, doesn't depend on any third-party SDK being in your app, and runs fire-and-forget right after the ID capture plus a daily `apple_ads_sync` backfill job.
+
+This is the default path to choose if you don't already have RevenueCat in your stack.
+
+### Option B — RevenueCat backfill
+
+If your project is already connected to RevenueCat **and** RC has its "Advanced Apple AdServices" integration configured upstream, RC surfaces resolved names on its subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$keyword`, `$ad`). OwlMetry's RC sync and webhooks pull those attributes and fold them into the user's properties.
+
+RC's name resolution happens server-side on AdServices token receipt (not gated on a subscription event), so a bulk `owlmetry integrations sync revenuecat` run enriches your whole attributed population, subscribers and free users alike. Only the **webhook delivery** path is subscription-gated by RC — it only fires for purchase/renewal events, so free users exclusively get enrichment through the sync path.
+
+### Can I use both?
+
+Yes. Per-field merge logic in `selectUnsetProps` ensures neither source overwrites the other — whichever writes a given key first wins, and subsequent writes for the same key are ignored. In practice most teams use one or the other.
+
+## What You Get
+
+Attribution writes up to 11 reserved user properties. The authoritative list lives in [User properties → Reserved namespaces](/docs/concepts/user-properties#reserved-namespaces); the table below is a quick reference:
+
+| Property | Source | Example |
+|----------|--------|---------|
+| `attribution_source` | Server (on token resolve) | `apple_search_ads` &#124; `none` |
+| `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_ad_id`, `asa_creative_set_id`, `asa_claim_type` | Server (on token resolve) | Numeric IDs from Apple's Attribution API |
+| `asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name` | ASA integration or RevenueCat backfill | Human-readable names from Campaign Management API |
+
+Attribution properties carry through the identity claim — when an anonymous user is promoted via `Owl.setUser()`, `asa_*` and `attribution_source` merge onto the real user. Claim race protection on the ingest path rewrites any late-arriving attribution writes to the claimed user ID.
+
+## Dashboard Surfaces
+
+- **User rows** on the Users page show a small attribution badge (🍎 Apple Search Ads) next to the anon/real user badge when `attribution_source` is set.
+- **User detail sheet** groups the `asa_*` properties into a dedicated "Attribution" section above Subscription.
+- **Feedback cards** on the Feedback kanban show the attribution badge alongside billing badges so you can spot which campaign a complaint came from.
+- **Column picker** on the Users page exposes the attribution fields (campaign name, ad group, keyword, ad name) as opt-in columns. Drag to reorder; your configuration is persisted to your user profile so it follows you across devices.
+
+## Debugging
+
+Every capture attempt emits an `sdk:attribution_capture` event with a `_outcome` attribute distinguishing the states:
+
+| `_outcome` | Level | Meaning |
+|------------|-------|---------|
+| `success` | info | Apple returned a decisive answer (`apple_search_ads` or `none`). |
+| `pending_retry` | info | Apple 404'd; SDK will retry on next launch. |
+| `gave_up` | warn | Hit the 5-attempt cap; SDK wrote `attribution_source = "none"`. |
+| `token_fetch_failed` | warn | `AAAttribution.attributionToken()` threw on-device. |
+| `submit_failed` | warn | Server POST failed (network, 5xx, auth). |
+
+Filter the dashboard events list by `sdk:attribution_capture` to see the outcome for each install. For deeper debugging see [Swift SDK configuration → Debugging attribution](/docs/sdks/swift/configuration#debugging-attribution-from-the-dashboard).
+
+## Limitations and Roadmap
+
+- **Apple-only for v1.** Google Ads, Meta, and TikTok are not yet supported. The `/v1/identity/attribution/:source` URL reserves the namespace for future networks.
+- **Apple's v5 Campaign Management API sunsets 2027-01-26.** Apple's replacement — the Apple Ads Platform API — is expected Summer 2026. OwlMetry will migrate behind the existing resolver interface; no action needed on your end.
+- **Swift SDK only.** Android and web platforms don't have a first-party attribution framework equivalent to AdServices, so there's nothing analogous to capture. If your acquisition channels are primarily non-Apple, tell us — it shapes the roadmap.
