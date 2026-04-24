@@ -39,7 +39,7 @@ pnpm dev:seed
 
 ## Phase 3: Start Servers
 
-Kill any stale processes, then start the API server and Node demo server:
+Kill any stale processes, then start the API server and Node demo server. The Node demo now lives in the sibling [`owlmetry-node`](https://github.com/owlmetry/owlmetry-node) repo under `Examples/Demo/` and resolves `@owlmetry/node` via `file:../..`, so the SDK must be built before the demo can start.
 
 ```bash
 # Kill stale processes
@@ -49,8 +49,13 @@ lsof -ti:4007 | xargs kill 2>/dev/null || true
 # Terminal 1 — Owlmetry API server (port 4000)
 pnpm dev:server
 
-# Terminal 2 — Node.js demo server (port 4007, requires API server)
-pnpm dev:demo-node
+# Terminal 2 — Build the Node SDK once, then start the demo (port 4007, requires API server)
+cd ../owlmetry-node
+npm install
+npm run build
+cd Examples/Demo
+npm install
+npm start
 ```
 
 ### Health checks

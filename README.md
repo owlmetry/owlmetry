@@ -100,7 +100,6 @@ apps/cli           CLI for agents and humans (agent key auth)
 apps/web           Next.js dashboard + Fumadocs documentation site (port 3000)
 packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed, partition utilities
-demos/node         Node.js demo server
 deploy/            VPS deployment scripts (Ubuntu 24.04)
 ```
 

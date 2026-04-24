@@ -185,12 +185,6 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
-  demos/node:
-    dependencies:
-      '@owlmetry/node':
-        specifier: ^0.1.14
-        version: 0.1.14
-
   packages/db:
     dependencies:
       '@owlmetry/shared':
@@ -1175,10 +1169,6 @@ packages:
   '@orama/orama@3.1.18':
     resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
     engines: {node: '>= 20.0.0'}
-
-  '@owlmetry/node@0.1.14':
-    resolution: {integrity: sha512-RgEFunQsdXDuKWBe+pudbnZ2aguBgUs9RB0BfjYu1JHrvDWLJrwlwttNpNmIegOGEXfM/1QEjczvEaFeudb6SQ==}
-    engines: {node: '>=20'}
 
   '@petamoriken/float16@3.9.3':
     resolution: {integrity: sha512-8awtpHXCx/bNpFt4mt2xdkgtgVvKqty8VbjHI/WWWQuEw+KLzFot3f4+LkQY9YmOtq7A5GdOnqoIC8Pdygjk2g==}
@@ -4796,8 +4786,6 @@ snapshots:
     optional: true
 
   '@orama/orama@3.1.18': {}
-
-  '@owlmetry/node@0.1.14': {}
 
   '@petamoriken/float16@3.9.3': {}
 
