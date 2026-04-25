@@ -110,6 +110,7 @@ export function issueNotifyHandler(dispatcher: NotificationDispatcher): JobHandl
             .join("\n"),
           link: "/dashboard/issues",
           data: {
+            project_id: project.id,
             project_name: project.name,
             issues: issueList,
             dashboard_url: dashboardUrl,

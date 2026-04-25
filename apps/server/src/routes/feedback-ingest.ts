@@ -160,6 +160,7 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
                   feedback_id: created.id,
                   app_id: appRow.id,
                   app_name: appRow.name,
+                  project_id: appRow.project_id,
                 },
               },
             });

@@ -203,6 +203,32 @@ describe("GET /v1/projects/:projectId/feedback", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().feedback).toHaveLength(1);
   });
+
+  it("non-dev feedback fans out feedback.new notifications to team members", async () => {
+    const u2 = await createUserAndGetToken(app, "fb-member@owlmetry.com");
+    await addTeamMember(teamId, u2.userId, "member");
+
+    const id = await ingestFeedback({ message: "hello prod" });
+
+    // Wait for the fire-and-forget dispatcher chain.
+    await new Promise((r) => setTimeout(r, 150));
+
+    const inbox = await dbClient`
+      SELECT user_id, type, data FROM notifications WHERE type = 'feedback.new'
+    `;
+    expect(inbox).toHaveLength(2);
+    expect(inbox.every((r) => (r.data as Record<string, unknown>).feedback_id === id)).toBe(true);
+    expect(inbox.every((r) => (r.data as Record<string, unknown>).project_id === projectId)).toBe(true);
+  });
+
+  it("dev feedback does NOT fan out notifications", async () => {
+    const u2 = await createUserAndGetToken(app, "fb-dev-member@owlmetry.com");
+    await addTeamMember(teamId, u2.userId, "member");
+    await ingestFeedback({ message: "dev only", is_dev: true });
+    await new Promise((r) => setTimeout(r, 150));
+    const inbox = await dbClient`SELECT id FROM notifications WHERE type = 'feedback.new'`;
+    expect(inbox).toHaveLength(0);
+  });
 });
 
 describe("GET /v1/projects/:projectId/feedback/:feedbackId", () => {
