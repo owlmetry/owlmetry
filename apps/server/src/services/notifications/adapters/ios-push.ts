@@ -3,17 +3,28 @@ import { notifications, userDevices } from "@owlmetry/db";
 import type { ApnsClient } from "../../../utils/apns/client.js";
 import type { ChannelAdapter, ChannelDeliveryContext, ChannelDeliveryResult } from "../types.js";
 
+export interface ApnsClientPair {
+  sandbox: ApnsClient;
+  production: ApnsClient;
+}
+
 /**
  * Sends an iOS APNs push to every user_devices row registered for this user
- * with channel="ios_push". Apple-side revocation (410 Unregistered, 400
- * BadDeviceToken) hard-deletes the offending row so we stop retrying.
+ * with channel="ios_push". Routes each device to its registered APNs host
+ * (sandbox / production) — the iOS client declares the env at registration.
+ * Apple-side revocation (410 Unregistered, 400 BadDeviceToken) hard-deletes
+ * the offending row so we stop retrying.
  */
-export function createIosPushAdapter(apns: ApnsClient): ChannelAdapter {
+export function createIosPushAdapter(clients: ApnsClientPair): ChannelAdapter {
   return {
     channel: "ios_push",
     async deliver(ctx: ChannelDeliveryContext): Promise<ChannelDeliveryResult> {
       const devices = await ctx.db
-        .select({ id: userDevices.id, token: userDevices.token })
+        .select({
+          id: userDevices.id,
+          token: userDevices.token,
+          environment: userDevices.environment,
+        })
         .from(userDevices)
         .where(and(eq(userDevices.user_id, ctx.userId), eq(userDevices.channel, "ios_push")));
 
@@ -33,8 +44,9 @@ export function createIosPushAdapter(apns: ApnsClient): ChannelAdapter {
         );
 
       const results = await Promise.all(
-        devices.map((device) =>
-          apns
+        devices.map((device) => {
+          const client = device.environment === "sandbox" ? clients.sandbox : clients.production;
+          return client
             .push(device.token, {
               alert: { title: ctx.payload.title, body: ctx.payload.body ?? "" },
               link: ctx.payload.link,
@@ -42,8 +54,8 @@ export function createIosPushAdapter(apns: ApnsClient): ChannelAdapter {
               notificationId: ctx.notificationId,
               badge: unreadCount,
             })
-            .then((result) => ({ device, result })),
-        ),
+            .then((result) => ({ device, result }));
+        }),
       );
 
       const deliveredIds: string[] = [];

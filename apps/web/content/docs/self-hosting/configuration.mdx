@@ -36,7 +36,6 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `APNS_TEAM_ID` | (empty) | Apple Developer team id (10-char). |
 | `APNS_KEY_P8` | (empty) | Full PEM contents of the `.p8` key downloaded from Apple Developer. Wrap in double quotes in `.env` — dotenv 16 preserves real newlines inside quoted values. Treat as a secret. |
 | `APNS_BUNDLE_ID` | (empty) | Bundle id of the iOS app (e.g., `com.owlmetry.dashboard`). Sent as `apns-topic` on every push. |
-| `APNS_ENV` | `production` | `sandbox` to hit `api.sandbox.push.apple.com`, anything else hits `api.push.apple.com`. Use `sandbox` for debug builds installed via Xcode; `production` for TestFlight and the App Store. |
 
 ## Example `.env` file
 
@@ -67,7 +66,6 @@ APNS_KEY_P8="-----BEGIN PRIVATE KEY-----
 ...multi-line PEM contents...
 -----END PRIVATE KEY-----"
 APNS_BUNDLE_ID=com.yourdomain.app
-APNS_ENV=production
 ```
 
 ## Migration note
@@ -110,7 +108,8 @@ The notification dispatcher's iOS push channel uses **token-based auth** with an
 | `APNS_TEAM_ID` | Your Apple Developer 10-char team id. |
 | `APNS_KEY_P8` | Full PEM contents of the `.p8` file. Wrap in double quotes in `.env` — dotenv 16 preserves real newlines inside quoted values, so paste the file verbatim. Treat as a secret. |
 | `APNS_BUNDLE_ID` | Bundle id of the iOS app — sent as the `apns-topic` header on every push. |
-| `APNS_ENV` | `sandbox` (development builds installed via Xcode, hits `api.sandbox.push.apple.com`) or `production` (TestFlight / App Store, hits `api.push.apple.com`). Defaults to `production`. |
+
+The server auto-routes each push to `api.sandbox.push.apple.com` or `api.push.apple.com` based on the per-device value the iOS client reports at registration time (read from `aps-environment` in the embedded provisioning profile). One server can serve Debug installs, TestFlight, and App Store builds side-by-side — no env flag, no manual flip.
 
 These are **all optional**. If `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8`, or `APNS_BUNDLE_ID` is missing the iOS push adapter logs once at boot and silently marks every push delivery `skipped` — local dev and self-hosted setups without iOS push setup keep working. Inbox and email channels are unaffected.
 

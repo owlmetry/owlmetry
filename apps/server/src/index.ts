@@ -60,11 +60,18 @@ const jobRunner = new JobRunner({
 });
 
 // Notification dispatcher — drops in iOS push adapter only when APNS_* env vars are set.
+// Two APNs clients side-by-side: each owns its own HTTP/2 session, adapter routes
+// per device.environment. Same auth key works for both hosts.
 const adapters: ChannelAdapter[] = [inAppAdapter, createEmailAdapter(emailService)];
-const apnsClient = config.apns ? new ApnsClient(config.apns) : null;
-if (apnsClient && config.apns) {
-  adapters.push(createIosPushAdapter(apnsClient));
-  app.log.info(`APNs ${config.apns.environment} configured for ${config.apns.bundleId}`);
+const apnsClients = config.apns
+  ? {
+      sandbox: new ApnsClient(config.apns, "https://api.sandbox.push.apple.com"),
+      production: new ApnsClient(config.apns, "https://api.push.apple.com"),
+    }
+  : null;
+if (apnsClients && config.apns) {
+  adapters.push(createIosPushAdapter(apnsClients));
+  app.log.info(`APNs configured for ${config.apns.bundleId} — per-device sandbox/production routing`);
 } else {
   app.log.info("APNs not configured (APNS_KEY_P8 unset) — iOS push deliveries will be skipped");
 }
@@ -221,7 +228,8 @@ const shutdown = async (signal: string) => {
   forceTimer.unref();
 
   await jobRunner.shutdown(2500);
-  apnsClient?.close();
+  apnsClients?.sandbox.close();
+  apnsClients?.production.close();
   try {
     await app.close();
   } catch {

@@ -31,13 +31,8 @@ export interface ApnsPushPayload {
 
 export class ApnsClient {
   private session: ClientHttp2Session | null = null;
-  private host: string;
 
-  constructor(private config: ApnsConfig) {
-    this.host = config.environment === "sandbox"
-      ? "https://api.sandbox.push.apple.com"
-      : "https://api.push.apple.com";
-  }
+  constructor(private config: ApnsConfig, private host: string) {}
 
   /**
    * Send a push to one device token. Resolves with the outcome — never throws.

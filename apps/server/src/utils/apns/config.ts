@@ -8,6 +8,10 @@
  * If `APNS_KEY_P8` is unset the iOS push adapter logs once at boot and marks
  * every push delivery `skipped` — this keeps dev / local environments working
  * without push setup.
+ *
+ * Sandbox vs production routing is per-device — the iOS client tells the
+ * server which APNs environment its token belongs to at registration time
+ * and the server picks the matching host on each push. No server-wide flag.
  */
 export interface ApnsConfig {
   keyId: string;
@@ -16,8 +20,6 @@ export interface ApnsConfig {
   keyPem: string;
   /** Bundle id of the iOS app. Used as `apns-topic`. */
   bundleId: string;
-  /** "production" hits api.push.apple.com; "sandbox" hits api.sandbox.push.apple.com. */
-  environment: "production" | "sandbox";
 }
 
 export function loadApnsConfig(env: NodeJS.ProcessEnv = process.env): ApnsConfig | null {
@@ -26,6 +28,5 @@ export function loadApnsConfig(env: NodeJS.ProcessEnv = process.env): ApnsConfig
   const keyPem = env.APNS_KEY_P8?.trim();
   const bundleId = env.APNS_BUNDLE_ID?.trim();
   if (!keyId || !teamId || !keyPem || !bundleId) return null;
-  const environment = env.APNS_ENV === "sandbox" ? "sandbox" : "production";
-  return { keyId, teamId, keyPem, bundleId, environment };
+  return { keyId, teamId, keyPem, bundleId };
 }
