@@ -35,6 +35,7 @@ interface IssueMeta {
   status: string;
   resolved_at_version: string | null;
   created_at: Date;
+  is_dev: boolean;
 }
 
 function appendToMapList<K, V>(map: Map<K, V[]>, key: K, value: V): void {
@@ -249,6 +250,7 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
                 status: r.status,
                 resolved_at_version: r.resolved_at_version,
                 created_at: r.created_at,
+                is_dev: isDev,
               });
             }
             const existingIssueIds = Array.from(new Set(fpToIssue.values()));
@@ -266,7 +268,7 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
                 RETURNING id, created_at
               `;
               issuesCreated++;
-              issueMeta.set(inserted.id, { status: "new", resolved_at_version: null, created_at: inserted.created_at });
+              issueMeta.set(inserted.id, { status: "new", resolved_at_version: null, created_at: inserted.created_at, is_dev: isDev });
               if (!isDev) newIssueIdsProd.add(inserted.id);
 
               for (const fp of distinctFps) fpToIssue.set(fp, inserted.id);
@@ -342,13 +344,7 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
               UPDATE issues SET status = 'regressed', resolved_at_version = NULL, updated_at = NOW() WHERE id = ${issueId}
             `;
             issuesRegressed++;
-            // Regression candidates are keyed by issue_id whose burst partition
-            // determined dev/prod. The issue row itself carries is_dev — read it
-            // back to decide whether to push.
-            const [{ is_dev: regIsDev }] = await client<{ is_dev: boolean }[]>`
-              SELECT is_dev FROM issues WHERE id = ${issueId}
-            `;
-            if (!regIsDev) regressedIssueIdsProd.add(issueId);
+            if (!meta.is_dev) regressedIssueIdsProd.add(issueId);
           }
         }
 
@@ -410,20 +406,21 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
         .from(issues)
         .where(inArray(issues.id, allTouchedProdIds));
 
-      const projectAppRows = await ctx.db
-        .select({
-          project_id: projects.id,
-          project_name: projects.name,
-          team_id: projects.team_id,
-        })
-        .from(projects)
-        .where(inArray(projects.id, Array.from(new Set(issueRows.map((i) => i.project_id)))));
+      const [projectAppRows, appRows] = await Promise.all([
+        ctx.db
+          .select({
+            project_id: projects.id,
+            project_name: projects.name,
+            team_id: projects.team_id,
+          })
+          .from(projects)
+          .where(inArray(projects.id, Array.from(new Set(issueRows.map((i) => i.project_id))))),
+        ctx.db
+          .select({ id: apps.id, name: apps.name })
+          .from(apps)
+          .where(inArray(apps.id, Array.from(new Set(issueRows.map((i) => i.app_id))))),
+      ]);
       const projectInfo = new Map(projectAppRows.map((r) => [r.project_id, r]));
-
-      const appRows = await ctx.db
-        .select({ id: apps.id, name: apps.name })
-        .from(apps)
-        .where(inArray(apps.id, Array.from(new Set(issueRows.map((i) => i.app_id)))));
       const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
 
       const newSummaries: IssueSummary[] = [];
@@ -442,34 +439,39 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
         else if (regressedIssueIdsProd.has(row.id)) regressedSummaries.push(summary);
       }
 
-      const teamIds = new Set<string>([...newSummaries.map((s) => s.team_id), ...regressedSummaries.map((s) => s.team_id)]);
-      for (const teamId of teamIds) {
-        const teamNew = newSummaries.filter((s) => s.team_id === teamId);
-        const teamRegressed = regressedSummaries.filter((s) => s.team_id === teamId);
-        if (teamNew.length === 0 && teamRegressed.length === 0) continue;
+      const teamIds = Array.from(
+        new Set<string>([...newSummaries.map((s) => s.team_id), ...regressedSummaries.map((s) => s.team_id)]),
+      );
+      const dispatchResults = await Promise.all(
+        teamIds.map(async (teamId) => {
+          const teamNew = newSummaries.filter((s) => s.team_id === teamId);
+          const teamRegressed = regressedSummaries.filter((s) => s.team_id === teamId);
+          if (teamNew.length === 0 && teamRegressed.length === 0) return 0;
 
-        const memberUserIds = await resolveTeamMemberUserIds(ctx.db, teamId);
-        if (memberUserIds.length === 0) continue;
+          const memberUserIds = await resolveTeamMemberUserIds(ctx.db, teamId);
+          if (memberUserIds.length === 0) return 0;
 
-        const { title, body } = buildIssueNewPayload(teamNew, teamRegressed);
-        const result = await dispatcher.enqueue({
-          type: "issue.new",
-          userIds: memberUserIds,
-          teamId,
-          payload: {
-            title,
-            body,
-            link: "/dashboard/issues",
-            data: {
-              team_id: teamId,
-              counts: { new: teamNew.length, regressed: teamRegressed.length },
-              new_issues: teamNew.map(({ team_id: _t, ...rest }) => rest),
-              regressed_issues: teamRegressed.map(({ team_id: _t, ...rest }) => rest),
+          const { title, body } = buildIssueNewPayload(teamNew, teamRegressed);
+          const result = await dispatcher.enqueue({
+            type: "issue.new",
+            userIds: memberUserIds,
+            teamId,
+            payload: {
+              title,
+              body,
+              link: "/dashboard/issues",
+              data: {
+                team_id: teamId,
+                counts: { new: teamNew.length, regressed: teamRegressed.length },
+                new_issues: teamNew.map(({ team_id: _t, ...rest }) => rest),
+                regressed_issues: teamRegressed.map(({ team_id: _t, ...rest }) => rest),
+              },
             },
-          },
-        });
-        issueNewNotificationsSent += result.notificationIds.length;
-      }
+          });
+          return result.notificationIds.length;
+        }),
+      );
+      issueNewNotificationsSent = dispatchResults.reduce((a, b) => a + b, 0);
     }
 
     return {

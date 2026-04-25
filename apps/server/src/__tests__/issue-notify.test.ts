@@ -2,8 +2,6 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import postgres from "postgres";
 import { issueNotifyHandler } from "../jobs/issue-notify.js";
-import type { JobContext } from "../services/job-runner.js";
-import { createDatabaseConnection } from "@owlmetry/db";
 import {
   buildApp,
   truncateAll,
@@ -11,6 +9,7 @@ import {
   getTokenAndTeamId,
   createUserAndGetToken,
   addTeamMember,
+  makeJobContext,
   TEST_DB_URL,
 } from "./setup.js";
 
@@ -43,17 +42,6 @@ beforeEach(async () => {
   const [owner] = await dbClient`SELECT id FROM users WHERE email = 'test@owlmetry.com'`;
   ownerUserId = owner.id;
 });
-
-function makeJobContext(): JobContext {
-  return {
-    runId: "test-run",
-    db: createDatabaseConnection(TEST_DB_URL),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-    isCancelled: () => false,
-    updateProgress: async () => {},
-    createClient: () => postgres(TEST_DB_URL, { max: 1 }),
-  };
-}
 
 async function makeProjectEligible() {
   // Switch to hourly + back-date so the gate passes.

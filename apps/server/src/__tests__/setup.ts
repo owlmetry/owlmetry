@@ -39,7 +39,7 @@ import { mcpRoute } from "../mcp/index.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
 import { JobRunner } from "../services/job-runner.js";
-import type { JobHandler } from "../services/job-runner.js";
+import type { JobContext, JobHandler } from "../services/job-runner.js";
 import { NotificationDispatcher } from "../services/notifications/dispatcher.js";
 import { inAppAdapter } from "../services/notifications/adapters/in-app.js";
 import { createEmailAdapter } from "../services/notifications/adapters/email.js";
@@ -777,6 +777,22 @@ export interface IntegrationRow {
   config: Record<string, unknown>;
   enabled: boolean;
   deleted_at: Date | null;
+}
+
+/**
+ * Minimal JobContext for tests that drive a job handler directly without the
+ * full JobRunner. Each call gets its own postgres connection so concurrent
+ * tests don't share a `client`.
+ */
+export function makeJobContext(): JobContext {
+  return {
+    runId: "test-run",
+    db: createDatabaseConnection(TEST_DB_URL),
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+    isCancelled: () => false,
+    updateProgress: async () => {},
+    createClient: () => postgres(TEST_DB_URL, { max: 1 }),
+  };
 }
 
 /**

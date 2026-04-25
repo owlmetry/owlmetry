@@ -2,13 +2,12 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import postgres from "postgres";
 import { issueScanHandler } from "../jobs/issue-scan.js";
-import type { JobContext } from "../services/job-runner.js";
-import { createDatabaseConnection } from "@owlmetry/db";
 import {
   buildApp,
   truncateAll,
   seedTestData,
   getTokenAndTeamId,
+  makeJobContext,
   TEST_CLIENT_KEY,
   TEST_SESSION_ID,
   TEST_BUNDLE_ID,
@@ -41,17 +40,6 @@ beforeEach(async () => {
   const [appRow] = await dbClient`SELECT id FROM apps WHERE project_id = ${projectId}`;
   appId = appRow.id;
 });
-
-function makeJobContext(): JobContext {
-  return {
-    runId: "test-run",
-    db: createDatabaseConnection(TEST_DB_URL),
-    log: { info: () => {}, warn: () => {}, error: () => {} },
-    isCancelled: () => false,
-    updateProgress: async () => {},
-    createClient: () => postgres(TEST_DB_URL, { max: 1 }),
-  };
-}
 
 async function ingestErrors(events: Array<{
   message: string;
