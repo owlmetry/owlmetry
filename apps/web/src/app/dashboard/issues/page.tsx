@@ -318,7 +318,9 @@ function IssueDetailModal({
                     <div key={occ.id} className="grid grid-cols-5 gap-2 p-2">
                       <span>{formatDateTime(occ.timestamp)}</span>
                       <a
-                        href={`/dashboard/events?session_id=${occ.session_id}`}
+                        href={occ.event_id
+                          ? `/dashboard/events?session_id=${occ.session_id}&event_id=${occ.event_id}`
+                          : `/dashboard/events?session_id=${occ.session_id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-mono truncate text-primary hover:underline"
