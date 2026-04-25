@@ -146,6 +146,24 @@ export async function requireAuth(
   }
 }
 
+/** Auth + 403 if the caller is an API key. Use for user-only resources (notifications, devices, profile). */
+export async function requireUser(request: FastifyRequest, reply: FastifyReply) {
+  await requireAuth(request, reply);
+  if (reply.sent) return;
+  if (request.auth.type !== "user") {
+    return reply.code(403).send({ error: "User authentication required" });
+  }
+}
+
+/**
+ * Read `request.auth` as a UserContext after `requireUser` has run. The
+ * middleware narrows at runtime; this helper carries the narrowing through
+ * the type system.
+ */
+export function userAuth(request: FastifyRequest): UserContext {
+  return request.auth as UserContext;
+}
+
 export function requirePermission(...perms: Permission[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     await requireAuth(request, reply);

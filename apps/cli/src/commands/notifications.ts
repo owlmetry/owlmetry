@@ -1,24 +1,12 @@
 import { Command, Option } from "commander";
 import chalk from "chalk";
-import { NOTIFICATION_TYPES } from "@owlmetry/shared";
+import { NOTIFICATION_TYPES, type NotificationResponse } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
 import { paginationHint } from "../utils/pagination.js";
 
-interface CliNotification {
-  id: string;
-  type: string;
-  title: string;
-  body: string | null;
-  link: string | null;
-  data: Record<string, unknown>;
-  team_id: string | null;
-  read_at: string | null;
-  created_at: string;
-}
-
-function formatNotificationsTable(rows: CliNotification[]): string {
+function formatNotificationsTable(rows: NotificationResponse[]): string {
   if (rows.length === 0) return chalk.dim("No notifications");
 
   const lines = [

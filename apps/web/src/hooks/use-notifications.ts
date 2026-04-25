@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import useSWR from "swr";
 import type { NotificationsListResponse } from "@owlmetry/shared";
 import { api } from "@/lib/api";
+import { buildQueryString } from "@/lib/query";
 import { useUnreadNotifications } from "./use-unread-notifications";
 
 interface UseNotificationsOpts {
@@ -12,10 +13,10 @@ interface UseNotificationsOpts {
 }
 
 export function useNotifications(opts: UseNotificationsOpts = {}) {
-  const params = new URLSearchParams();
-  if (opts.readState && opts.readState !== "all") params.set("read_state", opts.readState);
-  if (opts.type) params.set("type", opts.type);
-  const qs = params.toString();
+  const qs = buildQueryString({
+    read_state: opts.readState && opts.readState !== "all" ? opts.readState : undefined,
+    type: opts.type,
+  });
   const key = `/v1/notifications${qs ? `?${qs}` : ""}`;
 
   const { data, isLoading, mutate } = useSWR<NotificationsListResponse>(key);

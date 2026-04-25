@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, isNull } from "drizzle-orm";
-import { apps, feedback, teamMembers, users } from "@owlmetry/db";
+import { apps, feedback } from "@owlmetry/db";
 import {
   ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
   MAX_FEEDBACK_MESSAGE_LENGTH,
@@ -13,6 +13,7 @@ import { requirePermission } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { parseCountryHeader } from "../utils/event-processing.js";
 import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
+import { resolveTeamMemberUserIds } from "../utils/team-members.js";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -48,9 +49,11 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
       const [appRow] = await app.db
         .select({
           id: apps.id,
+          name: apps.name,
           bundle_id: apps.bundle_id,
           platform: apps.platform,
           project_id: apps.project_id,
+          team_id: apps.team_id,
         })
         .from(apps)
         .where(and(eq(apps.id, auth.app_id), isNull(apps.deleted_at)))
@@ -138,17 +141,30 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
         })
         .returning({ id: feedback.id, created_at: feedback.created_at });
 
-      // Fan out a notification to every team member of the project's team.
       // Production-only — dev feedback shouldn't ping the team.
       if (!isDev) {
-        notifyTeamOfNewFeedback(app, {
-          appId: appRow.id,
-          appPlatform: appRow.platform,
-          projectId: appRow.project_id,
-          feedbackId: created.id,
-          submitterLabel: submitterName ?? submitterEmailRaw ?? "Someone",
-          messageSnippet: rawMessage,
-        }).catch((err) => app.log.error(err, "Failed to enqueue feedback.new notification"));
+        const submitterLabel = submitterName ?? submitterEmailRaw ?? "Someone";
+        const snippet = rawMessage.length > 200 ? rawMessage.slice(0, 200) + "…" : rawMessage;
+        resolveTeamMemberUserIds(app.db, appRow.team_id)
+          .then((userIds) => {
+            if (userIds.length === 0) return;
+            return app.notificationDispatcher.enqueue({
+              type: "feedback.new",
+              userIds,
+              teamId: appRow.team_id,
+              payload: {
+                title: `New feedback in ${appRow.name}`,
+                body: `${submitterLabel}: ${snippet}`,
+                link: `/dashboard/feedback/${created.id}`,
+                data: {
+                  feedback_id: created.id,
+                  app_id: appRow.id,
+                  app_name: appRow.name,
+                },
+              },
+            });
+          })
+          .catch((err) => app.log.error(err, "Failed to enqueue feedback.new notification"));
       }
 
       return reply.code(201).send({
@@ -157,56 +173,4 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
       });
     }
   );
-}
-
-/**
- * Fire-and-forget: look up the team that owns this project, fan out a
- * `feedback.new` notification to every team member. Failures are logged
- * but never block the SDK ingest response.
- */
-async function notifyTeamOfNewFeedback(
-  app: FastifyInstance,
-  params: {
-    appId: string;
-    appPlatform: string;
-    projectId: string;
-    feedbackId: string;
-    submitterLabel: string;
-    messageSnippet: string;
-  },
-): Promise<void> {
-  // Resolve project → team → users
-  const [appWithTeam] = await app.db
-    .select({ team_id: apps.team_id, app_name: apps.name, project_name: apps.project_id })
-    .from(apps)
-    .where(eq(apps.id, params.appId))
-    .limit(1);
-  if (!appWithTeam) return;
-
-  const memberRows = await app.db
-    .select({ user_id: teamMembers.user_id })
-    .from(teamMembers)
-    .innerJoin(users, eq(users.id, teamMembers.user_id))
-    .where(eq(teamMembers.team_id, appWithTeam.team_id));
-  if (memberRows.length === 0) return;
-
-  const snippet = params.messageSnippet.length > 200
-    ? params.messageSnippet.slice(0, 200) + "…"
-    : params.messageSnippet;
-
-  await app.notificationDispatcher.enqueue({
-    type: "feedback.new",
-    userIds: memberRows.map((m) => m.user_id),
-    teamId: appWithTeam.team_id,
-    payload: {
-      title: `New feedback in ${appWithTeam.app_name}`,
-      body: `${params.submitterLabel}: ${snippet}`,
-      link: `/dashboard/feedback/${params.feedbackId}`,
-      data: {
-        feedback_id: params.feedbackId,
-        app_id: params.appId,
-        app_name: appWithTeam.app_name,
-      },
-    },
-  });
 }

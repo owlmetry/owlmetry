@@ -5,7 +5,7 @@ import { jobRuns, users, apiKeys } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
 import type { JobType, JobProgress } from "@owlmetry/shared";
 import { JOB_TYPE_META, formatDuration } from "@owlmetry/shared";
-import type { EmailService } from "./email.js";
+import { jobStatusEmoji, type EmailService } from "./email.js";
 import type { NotificationDispatcher } from "./notifications/dispatcher.js";
 
 export interface JobContext {
@@ -314,7 +314,7 @@ export class JobRunner {
     if (opts.notify) {
       const userId = await this.resolveTriggeredByUserId(opts.triggeredBy);
       if (userId && this.notificationDispatcher) {
-        const emoji = opts.status === "completed" ? "✅" : opts.status === "failed" ? "❌" : "🚫";
+        const emoji = jobStatusEmoji(opts.status);
         await this.notificationDispatcher
           .enqueue({
             type: "job.completed",

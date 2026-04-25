@@ -49,6 +49,10 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+export function jobStatusEmoji(status: string): string {
+  return status === "completed" ? "✅" : status === "failed" ? "❌" : "🚫";
+}
+
 /** Project root — 4 levels up from apps/server/src/services/ */
 const PROJECT_ROOT = resolve(import.meta.dirname, "../../../..");
 const DEV_CODE_PATH = resolve(PROJECT_ROOT, ".dev-verification-code");
@@ -86,7 +90,7 @@ export class ConsoleEmailService implements EmailService {
   }
 
   async sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void> {
-    const emoji = params.status === "completed" ? "✅" : params.status === "failed" ? "❌" : "🚫";
+    const emoji = jobStatusEmoji(params.status);
     console.log(`\n========================================`);
     console.log(`  ${emoji} Job ${params.status}: ${params.job_type}`);
     console.log(`  To: ${email} | Duration: ${params.duration}`);
@@ -155,7 +159,7 @@ export class ResendEmailService implements EmailService {
   }
 
   async sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void> {
-    const emoji = params.status === "completed" ? "✅" : params.status === "failed" ? "❌" : "🚫";
+    const emoji = jobStatusEmoji(params.status);
     const lines = [
       `<p><strong>Job:</strong> ${escapeHtml(params.job_type)}</p>`,
       `<p><strong>Status:</strong> ${escapeHtml(params.status)}</p>`,

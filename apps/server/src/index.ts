@@ -61,8 +61,8 @@ const jobRunner = new JobRunner({
 
 // Notification dispatcher — drops in iOS push adapter only when APNS_* env vars are set.
 const adapters: ChannelAdapter[] = [inAppAdapter, createEmailAdapter(emailService)];
-if (config.apns) {
-  const apnsClient = new ApnsClient(config.apns);
+const apnsClient = config.apns ? new ApnsClient(config.apns) : null;
+if (apnsClient && config.apns) {
   adapters.push(createIosPushAdapter(apnsClient));
   app.log.info(`APNs ${config.apns.environment} configured for ${config.apns.bundleId}`);
 } else {
@@ -221,6 +221,7 @@ const shutdown = async (signal: string) => {
   forceTimer.unref();
 
   await jobRunner.shutdown(2500);
+  apnsClient?.close();
   try {
     await app.close();
   } catch {

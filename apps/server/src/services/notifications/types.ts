@@ -27,8 +27,6 @@ export interface EnqueueNotificationInput {
 export interface EnqueueNotificationResult {
   /** Inserted inbox row IDs (one per userId). */
   notificationIds: string[];
-  /** Pending delivery row IDs that were queued for async dispatch. */
-  pendingDeliveryIds: string[];
 }
 
 /**

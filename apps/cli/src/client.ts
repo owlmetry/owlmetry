@@ -47,6 +47,9 @@ import type {
   MetricQueryResponse,
   MetricEventsQueryParams,
   MetricEventsResponse,
+  NotificationsListResponse,
+  NotificationsUnreadCountResponse,
+  MarkAllReadResponse,
   ProjectResponse,
   ProjectDetailResponse,
   StoredEventResponse,
@@ -406,33 +409,26 @@ export class OwlmetryClient {
     type?: string;
     cursor?: string;
     limit?: number;
-  } = {}): Promise<{
-    notifications: Array<{
-      id: string; type: string; title: string; body: string | null; link: string | null;
-      data: Record<string, unknown>; team_id: string | null; read_at: string | null; created_at: string;
-    }>;
-    cursor: string | null;
-    has_more: boolean;
-  }> {
+  } = {}): Promise<NotificationsListResponse> {
     const stringParams: Record<string, string | undefined> = {
       read_state: params.read_state,
       type: params.type,
       cursor: params.cursor,
       limit: params.limit?.toString(),
     };
-    return this.request("GET", "/v1/notifications", { params: stringParams });
+    return this.request<NotificationsListResponse>("GET", "/v1/notifications", { params: stringParams });
   }
 
-  async unreadNotificationCount(): Promise<{ count: number }> {
-    return this.request("GET", "/v1/notifications/unread-count");
+  async unreadNotificationCount(): Promise<NotificationsUnreadCountResponse> {
+    return this.request<NotificationsUnreadCountResponse>("GET", "/v1/notifications/unread-count");
   }
 
   async markNotificationRead(id: string): Promise<unknown> {
     return this.request("PATCH", `/v1/notifications/${id}`, { body: { read: true } });
   }
 
-  async markAllNotificationsRead(type?: string): Promise<{ marked: number }> {
-    return this.request("POST", "/v1/notifications/mark-all-read", { body: type ? { type } : {} });
+  async markAllNotificationsRead(type?: string): Promise<MarkAllReadResponse> {
+    return this.request<MarkAllReadResponse>("POST", "/v1/notifications/mark-all-read", { body: type ? { type } : {} });
   }
 
   // Attachments

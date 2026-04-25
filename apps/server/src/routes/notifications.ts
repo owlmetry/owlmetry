@@ -1,25 +1,31 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { notifications } from "@owlmetry/db";
 import {
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
   NOTIFICATION_TYPES,
   type NotificationsListQueryParams,
   type UpdateNotificationRequest,
   type MarkAllReadRequest,
 } from "@owlmetry/shared";
-import { requireAuth } from "../middleware/auth.js";
-import { encodeKeysetCursor, decodeKeysetCursor } from "../utils/pagination.js";
+import { requireUser, userAuth } from "../middleware/auth.js";
+import { encodeKeysetCursor, decodeKeysetCursor, normalizeLimit } from "../utils/pagination.js";
 
-function serializeNotification(row: typeof notifications.$inferSelect) {
+function serializeNotification(row: {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  team_id: string | null;
+  read_at: Date | null;
+  created_at: Date;
+}) {
   return {
     id: row.id,
     type: row.type,
     title: row.title,
     body: row.body,
     link: row.link,
-    data: (row.data ?? {}) as Record<string, unknown>,
     team_id: row.team_id,
     read_at: row.read_at?.toISOString() ?? null,
     created_at: row.created_at.toISOString(),
@@ -27,17 +33,12 @@ function serializeNotification(row: typeof notifications.$inferSelect) {
 }
 
 export async function notificationsRoutes(app: FastifyInstance) {
-  // List
   app.get<{ Querystring: NotificationsListQueryParams }>(
     "/notifications",
-    { preHandler: requireAuth },
-    async (request, reply) => {
-      if (request.auth.type !== "user") {
-        return reply.code(403).send({ error: "Notifications are user-scoped — agent keys cannot list" });
-      }
-      const userId = request.auth.user_id;
-      const { read_state, type, cursor, limit: rawLimit } = request.query ?? {};
-      const limit = Math.min(Math.max(Number(rawLimit) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+    { preHandler: requireUser },
+    async (request) => {
+      const userId = userAuth(request).user_id;
+      const { read_state, type, cursor, limit } = request.query ?? {};
 
       const conditions = [
         eq(notifications.user_id, userId),
@@ -65,15 +66,27 @@ export async function notificationsRoutes(app: FastifyInstance) {
         }
       }
 
+      const pageSize = normalizeLimit(limit);
+      // Skip the `data` jsonb in list — issue digests can carry kilobytes of
+      // structured data per row. List view only needs the pre-rendered text.
       const rows = await app.db
-        .select()
+        .select({
+          id: notifications.id,
+          type: notifications.type,
+          title: notifications.title,
+          body: notifications.body,
+          link: notifications.link,
+          team_id: notifications.team_id,
+          read_at: notifications.read_at,
+          created_at: notifications.created_at,
+        })
         .from(notifications)
         .where(and(...conditions))
         .orderBy(desc(notifications.created_at), desc(notifications.id))
-        .limit(limit + 1);
+        .limit(pageSize + 1);
 
-      const hasMore = rows.length > limit;
-      const page = hasMore ? rows.slice(0, limit) : rows;
+      const hasMore = rows.length > pageSize;
+      const page = hasMore ? rows.slice(0, pageSize) : rows;
       const last = page[page.length - 1];
       const nextCursor = hasMore && last ? encodeKeysetCursor(last.created_at, last.id) : null;
 
@@ -85,20 +98,16 @@ export async function notificationsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Unread count
   app.get(
     "/notifications/unread-count",
-    { preHandler: requireAuth },
-    async (request, reply) => {
-      if (request.auth.type !== "user") {
-        return reply.code(403).send({ error: "Notifications are user-scoped" });
-      }
+    { preHandler: requireUser },
+    async (request) => {
       const [{ count }] = await app.db
         .select({ count: sql<number>`count(*)::int` })
         .from(notifications)
         .where(
           and(
-            eq(notifications.user_id, request.auth.user_id),
+            eq(notifications.user_id, userAuth(request).user_id),
             isNull(notifications.read_at),
             isNull(notifications.deleted_at),
           ),
@@ -107,16 +116,12 @@ export async function notificationsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Mark all read
   app.post<{ Body: MarkAllReadRequest }>(
     "/notifications/mark-all-read",
-    { preHandler: requireAuth },
-    async (request, reply) => {
-      if (request.auth.type !== "user") {
-        return reply.code(403).send({ error: "Notifications are user-scoped" });
-      }
+    { preHandler: requireUser },
+    async (request) => {
       const conditions = [
-        eq(notifications.user_id, request.auth.user_id),
+        eq(notifications.user_id, userAuth(request).user_id),
         isNull(notifications.read_at),
         isNull(notifications.deleted_at),
       ];
@@ -133,14 +138,10 @@ export async function notificationsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Mark one notification (read or unread)
   app.patch<{ Params: { id: string }; Body: UpdateNotificationRequest }>(
     "/notifications/:id",
-    { preHandler: requireAuth },
+    { preHandler: requireUser },
     async (request, reply) => {
-      if (request.auth.type !== "user") {
-        return reply.code(403).send({ error: "Notifications are user-scoped" });
-      }
       const [updated] = await app.db
         .update(notifications)
         .set({
@@ -149,7 +150,7 @@ export async function notificationsRoutes(app: FastifyInstance) {
         .where(
           and(
             eq(notifications.id, request.params.id),
-            eq(notifications.user_id, request.auth.user_id),
+            eq(notifications.user_id, userAuth(request).user_id),
             isNull(notifications.deleted_at),
           ),
         )
@@ -159,21 +160,17 @@ export async function notificationsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Soft delete
   app.delete<{ Params: { id: string } }>(
     "/notifications/:id",
-    { preHandler: requireAuth },
+    { preHandler: requireUser },
     async (request, reply) => {
-      if (request.auth.type !== "user") {
-        return reply.code(403).send({ error: "Notifications are user-scoped" });
-      }
       const [deleted] = await app.db
         .update(notifications)
         .set({ deleted_at: new Date() })
         .where(
           and(
             eq(notifications.id, request.params.id),
-            eq(notifications.user_id, request.auth.user_id),
+            eq(notifications.user_id, userAuth(request).user_id),
             isNull(notifications.deleted_at),
           ),
         )
