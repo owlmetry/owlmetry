@@ -34,7 +34,7 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `OWLMETRY_ATTACHMENTS_INTERNAL_URI` | (empty) | Optional internal URI prefix used by nginx `X-Accel-Redirect` when serving attachment downloads. See `deploy/attachments-nginx-snippet.conf`. |
 | `APNS_KEY_ID` | (empty) | Apple `.p8` key id (10-char) from Apple Developer → Keys. Required to enable iOS push deliveries. |
 | `APNS_TEAM_ID` | (empty) | Apple Developer team id (10-char). |
-| `APNS_KEY_P8` | (empty) | Full PEM contents of the `.p8` key downloaded from Apple Developer. Multi-line — use a quoted env var or load from a file. Treat as a secret. |
+| `APNS_KEY_P8` | (empty) | Full PEM contents of the `.p8` key downloaded from Apple Developer. Wrap in double quotes in `.env` — dotenv 16 preserves real newlines inside quoted values. Treat as a secret. |
 | `APNS_BUNDLE_ID` | (empty) | Bundle id of the iOS app (e.g., `com.owlmetry.dashboard`). Sent as `apns-topic` on every push. |
 | `APNS_ENV` | `production` | `sandbox` to hit `api.sandbox.push.apple.com`, anything else hits `api.push.apple.com`. Use `sandbox` for debug builds installed via Xcode; `production` for TestFlight and the App Store. |
 
@@ -108,7 +108,7 @@ The notification dispatcher's iOS push channel uses **token-based auth** with an
 |----------|-------------|
 | `APNS_KEY_ID` | The 10-char key id printed next to the key on the Apple Developer Keys page. |
 | `APNS_TEAM_ID` | Your Apple Developer 10-char team id. |
-| `APNS_KEY_P8` | Full PEM contents of the `.p8` file. Multi-line — quote the env var, or load it via `cat key.p8 \| base64` and decode in your shim, or reference a secret-manager binding. |
+| `APNS_KEY_P8` | Full PEM contents of the `.p8` file. Wrap in double quotes in `.env` — dotenv 16 preserves real newlines inside quoted values, so paste the file verbatim. Treat as a secret. |
 | `APNS_BUNDLE_ID` | Bundle id of the iOS app — sent as the `apns-topic` header on every push. |
 | `APNS_ENV` | `sandbox` (development builds installed via Xcode, hits `api.sandbox.push.apple.com`) or `production` (TestFlight / App Store, hits `api.push.apple.com`). Defaults to `production`. |
 
