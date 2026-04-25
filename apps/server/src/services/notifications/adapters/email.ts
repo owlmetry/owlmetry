@@ -32,6 +32,17 @@ export function createEmailAdapter(emailService: EmailService): ChannelAdapter {
             });
             return { status: "sent", metadata: { template: "feedback.new" } };
           }
+          case "issue.new": {
+            await emailService.sendGenericNotification(ctx.userEmail, {
+              subject: ctx.payload.title,
+              body: ctx.payload.body ?? "",
+              link: ctx.payload.link
+                ? `${process.env.WEB_APP_URL ?? "https://owlmetry.com"}${ctx.payload.link}`
+                : undefined,
+              link_text: "View issues",
+            });
+            return { status: "sent", metadata: { template: "issue.new" } };
+          }
           case "job.completed": {
             const params = extractJobAlertParams(ctx);
             await emailService.sendJobAlert(ctx.userEmail, params);

@@ -31,6 +31,7 @@ Each notification has a `type` that determines its formatters and which channels
 
 | Type | Trigger | Channels | Default On |
 |------|---------|----------|------------|
+| `issue.new` | Fires from the `issue_scan` job at the end of every run when one or more **production** issues were created or regressed. One push per team per scan, summarizing all of that run's new + regressed issues — bypasses the per-project digest cadence so push lands in close to real time. Dev-build crashes are excluded. | `in_app`, `email`, `ios_push` | `in_app`, `ios_push` (email off by default) |
 | `issue.digest` | Per-project periodic digest of new and regressed issues, sent by the `issue_notify` job at the project's configured frequency. | `in_app`, `email`, `ios_push` | All three |
 | `feedback.new` | A user submitted feedback in one of the team's apps. | `in_app`, `email`, `ios_push` | All three |
 | `job.completed` | A manual job run with `--notify` finished — only the triggering user is notified, never the whole team. | `in_app`, `email`, `ios_push` | `in_app`, `email` (push off by default) |

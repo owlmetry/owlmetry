@@ -313,7 +313,7 @@ describe("Issue-scan propagation", () => {
     await ingestEvent(clientEventId, "error");
 
     const ctx = buildJobContext();
-    await issueScanHandler(ctx, {});
+    await issueScanHandler(app.notificationDispatcher)(ctx, {});
 
     const client = postgres(TEST_DB_URL, { max: 1 });
     try {

@@ -32,6 +32,7 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
  * the recipient may not yet be a user.
  */
 export const NOTIFICATION_TYPES = [
+  "issue.new",
   "issue.digest",
   "feedback.new",
   "job.completed",
@@ -49,6 +50,12 @@ export interface NotificationTypeMeta {
 }
 
 export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMeta> = {
+  "issue.new": {
+    label: "New issues",
+    description: "Push as soon as a new or regressed issue is detected by the hourly scan. Bypasses the per-project digest cadence.",
+    channels: ["in_app", "email", "ios_push"],
+    defaults: { in_app: true, email: false, ios_push: true },
+  },
   "issue.digest": {
     label: "Issue digests",
     description: "Periodic summary of new or regressed issues for your projects.",

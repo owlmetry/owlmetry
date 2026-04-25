@@ -913,7 +913,7 @@ describe("Issues API", () => {
       // Run the scan job directly
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
       const jobCtx = createJobContext();
-      const result = await issueScanHandler(jobCtx, {});
+      const result = await issueScanHandler(app.notificationDispatcher)(jobCtx, {});
       expect(result.events_processed).toBeGreaterThanOrEqual(1);
 
       // Verify issue was created
@@ -938,7 +938,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -967,7 +967,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const afterRes = await app.inject({
         method: "GET",
@@ -986,7 +986,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1007,7 +1007,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1041,7 +1041,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      const result = await issueScanHandler(createJobContext(), {});
+      const result = await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
       expect(result.events_processed).toBeGreaterThanOrEqual(1);
 
       // Should still be resolved (not regressed since 1.9.0 < 2.0.0)
@@ -1075,7 +1075,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1107,7 +1107,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1127,7 +1127,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1158,7 +1158,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1188,7 +1188,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1231,7 +1231,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1282,7 +1282,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const resA = await app.inject({
         method: "GET",
@@ -1314,7 +1314,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1338,7 +1338,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1365,7 +1365,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1406,7 +1406,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const res = await app.inject({
         method: "GET",
@@ -1454,7 +1454,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       // Older issue gains the unseen fingerprint
       const olderRes = await app.inject({
@@ -1493,7 +1493,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       const devRes = await app.inject({
         method: "GET",
@@ -1540,7 +1540,7 @@ describe("Issues API", () => {
       ]);
 
       const { issueScanHandler } = await import("../jobs/issue-scan.js");
-      await issueScanHandler(createJobContext(), {});
+      await issueScanHandler(app.notificationDispatcher)(createJobContext(), {});
 
       // The occurrence should route to the target issue
       const res = await app.inject({

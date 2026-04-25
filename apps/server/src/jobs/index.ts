@@ -22,7 +22,7 @@ export function registerAllJobs(
   runner.register("partition_creation", partitionCreationHandler);
   runner.register("revenuecat_sync", revenuecatSyncHandler);
   runner.register("retention_cleanup", retentionCleanupHandler);
-  runner.register("issue_scan", issueScanHandler);
+  runner.register("issue_scan", issueScanHandler(dispatcher));
   runner.register("issue_notify", issueNotifyHandler(dispatcher));
   runner.register("attachment_cleanup", attachmentCleanupHandler);
   runner.register("apple_ads_sync", appleAdsSyncHandler);
