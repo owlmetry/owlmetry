@@ -52,7 +52,7 @@ if (result.length === 0) {
 
 console.log(`\nFound ${result.length} device(s):`);
 for (const row of result) {
-  console.log(`  id=${row.id} env=${row.environment} token=${row.token.slice(0, 16)}…  created=${row.created_at.toISOString()}`);
+  console.log(`  id=${row.id} env=${row.environment} token=${row.token.slice(0, 16)}…  created=${String(row.created_at)}`);
 }
 
 for (const row of result) {
