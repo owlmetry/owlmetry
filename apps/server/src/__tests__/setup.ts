@@ -33,11 +33,24 @@ import { appleSearchAdsRoutes } from "../routes/apple-search-ads.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
+import { notificationsRoutes } from "../routes/notifications.js";
+import { devicesRoutes } from "../routes/devices.js";
 import { mcpRoute } from "../mcp/index.js";
 import { decompressPlugin } from "../middleware/decompress.js";
 import type { EmailService } from "../services/email.js";
 import { JobRunner } from "../services/job-runner.js";
 import type { JobHandler } from "../services/job-runner.js";
+import { NotificationDispatcher } from "../services/notifications/dispatcher.js";
+import { inAppAdapter } from "../services/notifications/adapters/in-app.js";
+import { createEmailAdapter } from "../services/notifications/adapters/email.js";
+import { notificationDeliverHandler } from "../jobs/notification-deliver.js";
+import type {
+  ChannelAdapter,
+  ChannelDeliveryContext,
+  ChannelDeliveryResult,
+  NotificationPayload,
+} from "../services/notifications/types.js";
+import type { NotificationType } from "@owlmetry/shared";
 
 export const TEST_DB_URL = "postgres://localhost:5432/owlmetry_test";
 
@@ -355,6 +368,23 @@ export async function setupTestDb() {
 
 export const testEmailService = new TestEmailService();
 
+export interface TestPushDelivery {
+  userId: string;
+  type: NotificationType;
+  payload: NotificationPayload;
+}
+
+/** Records iOS push deliveries instead of hitting APNs. Cleared in truncateAll(). */
+export const testPushDeliveries: TestPushDelivery[] = [];
+
+export const testPushAdapter: ChannelAdapter = {
+  channel: "ios_push",
+  async deliver(ctx: ChannelDeliveryContext): Promise<ChannelDeliveryResult> {
+    testPushDeliveries.push({ userId: ctx.userId, type: ctx.type, payload: ctx.payload });
+    return { status: "sent" };
+  },
+};
+
 /** A fast test handler that completes immediately. */
 export const testJobHandler: JobHandler = async (ctx, params) => {
   const delay = (params.delay_ms as number) ?? 0;
@@ -380,10 +410,20 @@ export async function buildApp() {
   jobRunner.register("revenuecat_sync", testJobHandler);
   jobRunner.register("test_job", testJobHandler);
 
+  const notificationDispatcher = new NotificationDispatcher({
+    db,
+    jobRunner,
+    log: { info: () => {}, warn: () => {}, error: () => {} },
+    adapters: [inAppAdapter, createEmailAdapter(testEmailService as EmailService), testPushAdapter],
+  });
+  jobRunner.setNotificationDispatcher(notificationDispatcher);
+  jobRunner.register("notification_deliver", notificationDeliverHandler(notificationDispatcher));
+
   app.decorate("db", db);
   app.decorate("databaseUrl", TEST_DB_URL);
   app.decorate("emailService", testEmailService as EmailService);
   app.decorate("jobRunner", jobRunner);
+  app.decorate("notificationDispatcher", notificationDispatcher);
   await app.register(decompressPlugin);
   await app.register(cookie);
   await app.register(cors, { origin: true, credentials: true });
@@ -419,6 +459,8 @@ export async function buildApp() {
   await app.register(teamIssuesRoutes, { prefix: "/v1" });
   await app.register(feedbackRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamFeedbackRoutes, { prefix: "/v1" });
+  await app.register(notificationsRoutes, { prefix: "/v1" });
+  await app.register(devicesRoutes, { prefix: "/v1" });
   await app.register(mcpRoute);
 
   await app.ready();
@@ -427,6 +469,10 @@ export async function buildApp() {
 
 export async function truncateAll() {
   const client = postgres(TEST_DB_URL, { max: 1 });
+  await client`DELETE FROM notification_deliveries`.catch(() => {});
+  await client`DELETE FROM notifications`.catch(() => {});
+  await client`DELETE FROM user_devices`.catch(() => {});
+  testPushDeliveries.length = 0;
   await client`DELETE FROM event_attachments`.catch(() => {});
   await client`DELETE FROM feedback_comments`.catch(() => {});
   await client`DELETE FROM feedback`.catch(() => {});
