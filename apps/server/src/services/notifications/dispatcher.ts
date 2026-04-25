@@ -53,10 +53,10 @@ export class NotificationDispatcher {
       .where(inArray(users.id, uniqueUserIds));
     if (userRows.length === 0) return result;
 
-    for (const user of userRows) {
-      const [notif] = await this.opts.db
-        .insert(notifications)
-        .values({
+    const inboxRows = await this.opts.db
+      .insert(notifications)
+      .values(
+        userRows.map((user) => ({
           user_id: user.id,
           team_id: input.teamId ?? null,
           type: input.type,
@@ -64,43 +64,55 @@ export class NotificationDispatcher {
           body: input.payload.body ?? null,
           link: input.payload.link ?? null,
           data: input.payload.data ?? {},
-        })
-        .returning({ id: notifications.id });
+        })),
+      )
+      .returning({ id: notifications.id, user_id: notifications.user_id });
 
-      result.notificationIds.push(notif.id);
+    result.notificationIds = inboxRows.map((r) => r.id);
 
+    const inboxByUserId = new Map(inboxRows.map((r) => [r.user_id, r.id]));
+    const sentRows: Array<typeof notificationDeliveries.$inferInsert> = [];
+    const pendingRows: Array<typeof notificationDeliveries.$inferInsert> = [];
+    const now = new Date();
+
+    for (const user of userRows) {
+      const notifId = inboxByUserId.get(user.id);
+      if (!notifId) continue;
       for (const channel of NOTIFICATION_CHANNELS) {
         if (!isChannelEnabled(user.preferences, input.type, channel)) continue;
-
         if (channel === "in_app") {
-          await this.opts.db.insert(notificationDeliveries).values({
-            notification_id: notif.id,
+          sentRows.push({
+            notification_id: notifId,
             channel: "in_app",
             status: "sent",
-            attempted_at: new Date(),
+            attempted_at: now,
           });
-          continue;
+        } else if (this.adapters.has(channel)) {
+          pendingRows.push({ notification_id: notifId, channel, status: "pending" });
         }
+      }
+    }
 
-        if (!this.adapters.has(channel)) continue;
+    if (sentRows.length > 0) {
+      await this.opts.db.insert(notificationDeliveries).values(sentRows);
+    }
 
-        const [delivery] = await this.opts.db
-          .insert(notificationDeliveries)
-          .values({
-            notification_id: notif.id,
-            channel,
-            status: "pending",
-          })
-          .returning({ id: notificationDeliveries.id });
+    if (pendingRows.length > 0) {
+      const pendingDeliveries = await this.opts.db
+        .insert(notificationDeliveries)
+        .values(pendingRows)
+        .returning({ id: notificationDeliveries.id });
 
-        // Durability: server may restart mid-loop; pg-boss persists the job.
+      // Durability: jobRunner.trigger persists a job_runs row; we don't await
+      // the in-process execution so all triggers fan out concurrently.
+      for (const d of pendingDeliveries) {
         this.opts.jobRunner
           .trigger("notification_deliver", {
             triggeredBy: "schedule:notifications",
-            params: { delivery_id: delivery.id },
+            params: { delivery_id: d.id },
           })
           .catch((err) => {
-            this.opts.log.error(err, `Failed to queue notification delivery ${delivery.id}`);
+            this.opts.log.error(err, `Failed to queue notification delivery ${d.id}`);
           });
       }
     }
