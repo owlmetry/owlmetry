@@ -1,6 +1,6 @@
 ---
 title: Issues
-description: Automatic error detection, deduplication, and tracking with resolution workflows and email notifications.
+description: Automatic error detection, deduplication, and tracking with resolution workflows and notifications.
 ---
 
 Issues are error events automatically grouped by fingerprint into trackable units. A background job scans for error-level events every hour, deduplicates them, and creates issues that can be investigated, resolved, silenced, or merged.
@@ -119,21 +119,30 @@ Both dev (`is_dev: true`) and production events create issues, tracked separatel
 - Are **never** included in email notifications.
 - Can be filtered with `is_dev=true` in the API.
 
-## Email Notifications
+## Notifications
 
-Each project has a configurable **issue alert frequency**:
+Two notification paths fire off issue activity, both production-only (dev issues are never surfaced to a team's inbox or push):
+
+- **`issue.new`** — instant fan-out. The `issue_scan` job dispatches one notification per team at the end of every run summarizing all production issues created or regressed during that scan. Bypasses the per-project digest cadence so push lands in close to real time. Defaults to in-app + iOS push on, email off.
+- **`issue.digest`** — per-project rollup. The `issue_notify` job assembles a periodic digest at each project's configured cadence and sends it to every team member over their enabled channels. Defaults to all three channels on.
+
+Both types route through the unified [notifications dispatcher](/docs/concepts/notifications), so each recipient's per-channel toggles at `/dashboard/profile/notifications` decide whether a given delivery becomes an inbox row, an email, an iOS push, or some combination.
+
+### Per-Project Alert Frequency
+
+The `issue_alert_frequency` setting controls **only the digest cadence** — `issue.new` push fires every scan regardless.
 
 | Frequency | Interval |
 |-----------|----------|
-| `none` | Notifications disabled |
+| `none` | Digests disabled |
 | `hourly` | Every hour |
 | `6_hourly` | Every 6 hours |
 | `daily` | Every 24 hours (default) |
 | `weekly` | Every 7 days |
 
-The **issue notify** job runs hourly and checks each project's frequency. When a notification is due, it sends a digest email to all team members listing new and regressed issues with activity since the last notification. Only production issues (non-dev) are included.
+The `issue_notify` job runs hourly @ :05 and checks each project's frequency. When a digest is due, it lists new and regressed issues with activity since the last notification. The job is silent when nothing has changed.
 
-Configure the frequency via the project settings in the dashboard or the API (`PATCH /v1/projects/:id` with `issue_alert_frequency`).
+Configure the frequency via the project settings in the dashboard or the API (`PATCH /v1/projects/:id` with `issue_alert_frequency`). Setting it to `none` only mutes the digest — instant `issue.new` notifications still fire and can be muted per-user under notification preferences.
 
 ## Permissions
 
