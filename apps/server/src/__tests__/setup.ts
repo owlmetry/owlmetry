@@ -91,6 +91,14 @@ export class TestEmailService implements EmailService {
     this.lastIssueDigestEmail = email;
     this.lastIssueDigestParams = params;
   }
+
+  lastGenericNotificationEmail: string = "";
+  lastGenericNotificationParams: { subject: string; body: string; link?: string; link_text?: string } | null = null;
+
+  async sendGenericNotification(email: string, params: { subject: string; body: string; link?: string; link_text?: string }): Promise<void> {
+    this.lastGenericNotificationEmail = email;
+    this.lastGenericNotificationParams = params;
+  }
 }
 
 let migrationClient: postgres.Sql | null = null;

@@ -400,6 +400,41 @@ export class OwlmetryClient {
     return this.request<FeedbackCommentResponse>("POST", `/v1/projects/${projectId}/feedback/${feedbackId}/comments`, { body });
   }
 
+  // Notifications
+  async listNotifications(params: {
+    read_state?: "unread" | "read" | "all";
+    type?: string;
+    cursor?: string;
+    limit?: number;
+  } = {}): Promise<{
+    notifications: Array<{
+      id: string; type: string; title: string; body: string | null; link: string | null;
+      data: Record<string, unknown>; team_id: string | null; read_at: string | null; created_at: string;
+    }>;
+    cursor: string | null;
+    has_more: boolean;
+  }> {
+    const stringParams: Record<string, string | undefined> = {
+      read_state: params.read_state,
+      type: params.type,
+      cursor: params.cursor,
+      limit: params.limit?.toString(),
+    };
+    return this.request("GET", "/v1/notifications", { params: stringParams });
+  }
+
+  async unreadNotificationCount(): Promise<{ count: number }> {
+    return this.request("GET", "/v1/notifications/unread-count");
+  }
+
+  async markNotificationRead(id: string): Promise<unknown> {
+    return this.request("PATCH", `/v1/notifications/${id}`, { body: { read: true } });
+  }
+
+  async markAllNotificationsRead(type?: string): Promise<{ marked: number }> {
+    return this.request("POST", "/v1/notifications/mark-all-read", { body: type ? { type } : {} });
+  }
+
   // Attachments
   async listAttachments(params: {
     project_id?: string;

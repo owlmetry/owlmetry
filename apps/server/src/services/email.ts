@@ -28,11 +28,20 @@ export interface IssueDigestEmailParams {
   dashboard_url: string;
 }
 
+export interface GenericNotificationParams {
+  subject: string;
+  body: string;
+  link?: string;
+  link_text?: string;
+}
+
 export interface EmailService {
   sendVerificationCode(email: string, code: string): Promise<void>;
   sendTeamInvitation(email: string, params: TeamInvitationEmailParams): Promise<void>;
   sendJobAlert(email: string, params: JobAlertEmailParams): Promise<void>;
   sendIssueDigest(email: string, params: IssueDigestEmailParams): Promise<void>;
+  /** Plain notification email for types without a richer template (e.g. feedback.new). */
+  sendGenericNotification(email: string, params: GenericNotificationParams): Promise<void>;
 }
 
 /** Escape user-controlled strings before interpolation into HTML emails. */
@@ -93,6 +102,15 @@ export class ConsoleEmailService implements EmailService {
       const statusEmoji = issue.status === "regressed" ? "🔄" : "🆕";
       console.log(`  ${statusEmoji} ${issue.title.slice(0, 60)} (${issue.occurrence_count} occ, ${issue.unique_user_count} users) [${issue.app_name}]`);
     }
+    console.log(`========================================\n`);
+  }
+
+  async sendGenericNotification(email: string, params: GenericNotificationParams): Promise<void> {
+    console.log(`\n========================================`);
+    console.log(`  🔔 ${params.subject}`);
+    console.log(`  To: ${email}`);
+    if (params.body) console.log(`  ${params.body.slice(0, 200)}`);
+    if (params.link) console.log(`  Link: ${params.link}`);
     console.log(`========================================\n`);
   }
 }
@@ -174,6 +192,16 @@ export class ResendEmailService implements EmailService {
       `<tbody>${issueRows}</tbody>`,
       `</table>`,
       `<p><a href="${escapeHtml(params.dashboard_url)}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;margin-top:16px">View Issues</a></p>`,
+    ].join(""));
+  }
+
+  async sendGenericNotification(email: string, params: GenericNotificationParams): Promise<void> {
+    const linkHtml = params.link
+      ? `<p><a href="${escapeHtml(params.link)}" style="display:inline-block;padding:12px 24px;background:#e8590c;color:#fff;text-decoration:none;border-radius:6px;margin-top:8px">${escapeHtml(params.link_text ?? "Open")}</a></p>`
+      : "";
+    await this.sendEmail(email, `[Owlmetry] ${params.subject}`, [
+      `<p>${escapeHtml(params.body)}</p>`,
+      linkHtml,
     ].join(""));
   }
 }

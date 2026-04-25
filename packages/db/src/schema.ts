@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -759,6 +760,101 @@ export const feedbackComments = pgTable(
   (table) => [
     index("feedback_comments_feedback_created_at_idx").on(table.feedback_id, table.created_at),
     index("feedback_comments_author_id_idx").on(table.author_id),
+  ]
+);
+
+// Notifications — per-user inbox row, the durable record of a user-facing event.
+// Channel-agnostic: in-app rendering reads this directly; email + push are separate
+// delivery rows. type/channel are varchar (not enum) to keep the schema open as new
+// notification types and channels are added — runtime validation lives in
+// @owlmetry/shared NOTIFICATION_TYPES + NOTIFICATION_CHANNELS.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    team_id: uuid("team_id").references(() => teams.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 64 }).notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    link: text("link"),
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    read_at: timestamp("read_at", { withTimezone: true }),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("notifications_user_created_at_idx")
+      .on(table.user_id, table.created_at)
+      .where(sql`${table.deleted_at} IS NULL`),
+    index("notifications_user_unread_idx")
+      .on(table.user_id)
+      .where(sql`${table.read_at} IS NULL AND ${table.deleted_at} IS NULL`),
+    index("notifications_team_id_idx").on(table.team_id),
+    index("notifications_type_created_at_idx").on(table.type, table.created_at),
+  ]
+);
+
+// Notification Deliveries — per-channel attempt log. One row per (notification, channel)
+// queued or attempted. Decoupled from `notifications` so retrying a failed email doesn't
+// rewrite the inbox row, and so we can answer "did the push send?" without grep-ing a
+// status grab-bag jsonb. The `in_app` channel row is created+marked sent synchronously
+// alongside the inbox row insert.
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notification_id: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    channel: varchar("channel", { length: 32 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("pending"),
+    attempt_metadata: jsonb("attempt_metadata").$type<Record<string, unknown>>(),
+    error: text("error"),
+    attempted_at: timestamp("attempted_at", { withTimezone: true }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("notification_deliveries_notification_id_idx").on(table.notification_id),
+    index("notification_deliveries_pending_idx")
+      .on(table.id)
+      .where(sql`${table.status} = 'pending'`),
+  ]
+);
+
+// User Devices — push token registry, channel-tagged so a single table covers iOS APNs
+// today and FCM/Telegram chat IDs/webhook URLs in the future. Keyed by token (unique):
+// when a device wipes and reissues the same token to a different user, the next
+// register call atomically reassigns user_id rather than colliding.
+export const userDevices = pgTable(
+  "user_devices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    user_id: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    channel: varchar("channel", { length: 32 }).notNull(),
+    token: text("token").notNull(),
+    environment: varchar("environment", { length: 16 }).notNull().default("production"),
+    app_version: varchar("app_version", { length: 50 }),
+    device_model: varchar("device_model", { length: 100 }),
+    os_version: varchar("os_version", { length: 50 }),
+    last_seen_at: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_devices_token_idx").on(table.token),
+    index("user_devices_user_id_idx").on(table.user_id),
   ]
 );
 

@@ -553,6 +553,73 @@ export interface MetricEventsQueryParams {
   data_mode?: DataMode;
 }
 
+// Notifications
+export interface NotificationResponse {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  data: Record<string, unknown>;
+  team_id: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationsListResponse {
+  notifications: NotificationResponse[];
+  cursor: string | null;
+  has_more: boolean;
+}
+
+export interface NotificationsUnreadCountResponse {
+  count: number;
+}
+
+export interface NotificationsListQueryParams {
+  read_state?: "unread" | "read" | "all";
+  type?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface UpdateNotificationRequest {
+  read?: boolean;
+}
+
+export interface MarkAllReadRequest {
+  type?: string;
+}
+
+export interface MarkAllReadResponse {
+  marked: number;
+}
+
+// Devices (push token registry)
+export interface RegisterDeviceRequest {
+  channel: "ios_push";
+  token: string;
+  environment?: "production" | "sandbox";
+  app_version?: string;
+  device_model?: string;
+  os_version?: string;
+}
+
+export interface DeviceResponse {
+  id: string;
+  channel: string;
+  environment: string;
+  app_version: string | null;
+  device_model: string | null;
+  os_version: string | null;
+  last_seen_at: string;
+  created_at: string;
+}
+
+export interface DevicesListResponse {
+  devices: DeviceResponse[];
+}
+
 // Re-export for convenience
 export type {
   StoredEvent,

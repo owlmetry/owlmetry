@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Bell, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,31 @@ export default function ProfilePage() {
             onSaved={() => mutate()}
           />
         )}
+      </StaggerItem>
+
+      <StaggerItem index={2}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Notifications</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/dashboard/profile/notifications"
+              className="flex items-center justify-between rounded-md border p-3 hover:bg-accent transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Bell className="size-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">Notification preferences</p>
+                  <p className="text-xs text-muted-foreground">
+                    Choose channels (in-app, email, iOS push) for each notification type.
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          </CardContent>
+        </Card>
       </StaggerItem>
     </AnimatedPage>
   );

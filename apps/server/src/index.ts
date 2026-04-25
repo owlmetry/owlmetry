@@ -28,11 +28,19 @@ import { appleSearchAdsRoutes } from "./routes/apple-search-ads.js";
 import { jobsRoutes, jobsByIdRoutes } from "./routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "./routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "./routes/feedback.js";
+import { notificationsRoutes } from "./routes/notifications.js";
+import { devicesRoutes } from "./routes/devices.js";
 import { mcpRoute } from "./mcp/index.js";
 import { decompressPlugin } from "./middleware/decompress.js";
 import { createEmailService } from "./services/email.js";
 import { JobRunner } from "./services/job-runner.js";
 import { registerAllJobs } from "./jobs/index.js";
+import { NotificationDispatcher } from "./services/notifications/dispatcher.js";
+import { inAppAdapter } from "./services/notifications/adapters/in-app.js";
+import { createEmailAdapter } from "./services/notifications/adapters/email.js";
+import { createIosPushAdapter } from "./services/notifications/adapters/ios-push.js";
+import { ApnsClient } from "./utils/apns/client.js";
+import type { ChannelAdapter } from "./services/notifications/types.js";
 
 const app = Fastify({ logger: true });
 
@@ -51,7 +59,25 @@ const jobRunner = new JobRunner({
   systemJobsAlertEmail: config.systemJobsAlertEmail,
 });
 
-registerAllJobs(jobRunner);
+// Notification dispatcher — drops in iOS push adapter only when APNS_* env vars are set.
+const adapters: ChannelAdapter[] = [inAppAdapter, createEmailAdapter(emailService)];
+if (config.apns) {
+  const apnsClient = new ApnsClient(config.apns);
+  adapters.push(createIosPushAdapter(apnsClient));
+  app.log.info(`APNs ${config.apns.environment} configured for ${config.apns.bundleId}`);
+} else {
+  app.log.info("APNs not configured (APNS_KEY_P8 unset) — iOS push deliveries will be skipped");
+}
+
+const notificationDispatcher = new NotificationDispatcher({
+  db,
+  jobRunner,
+  log: app.log,
+  adapters,
+});
+jobRunner.setNotificationDispatcher(notificationDispatcher);
+
+registerAllJobs(jobRunner, notificationDispatcher);
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -103,12 +129,19 @@ jobRunner.schedule({
   enabled: () => true,
   params: () => ({}),
 });
+jobRunner.schedule({
+  jobType: "notification_cleanup",
+  cron: isDev ? "*/10 * * * *" : "0 6 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
 
 // Decorators
 app.decorate("db", db);
 app.decorate("databaseUrl", config.databaseUrl);
 app.decorate("emailService", emailService);
 app.decorate("jobRunner", jobRunner);
+app.decorate("notificationDispatcher", notificationDispatcher);
 
 // Plugins
 await app.register(decompressPlugin);
@@ -153,6 +186,8 @@ await app.register(issuesRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamIssuesRoutes, { prefix: "/v1" });
 await app.register(feedbackRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamFeedbackRoutes, { prefix: "/v1" });
+await app.register(notificationsRoutes, { prefix: "/v1" });
+await app.register(devicesRoutes, { prefix: "/v1" });
 await app.register(mcpRoute);
 
 // Start

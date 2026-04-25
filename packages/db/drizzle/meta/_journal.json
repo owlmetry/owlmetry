@@ -288,6 +288,13 @@
       "when": 1776940465296,
       "tag": "0040_smart_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1777110416359,
+      "tag": "0041_notifications",
+      "breakpoints": true
     }
   ]
 }

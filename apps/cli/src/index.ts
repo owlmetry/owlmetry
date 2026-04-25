@@ -18,6 +18,7 @@ import { jobsCommand } from "./commands/jobs.js";
 import { issuesCommand } from "./commands/issues.js";
 import { feedbackCommand } from "./commands/feedback.js";
 import { attachmentsCommand } from "./commands/attachments.js";
+import { notificationsCommand } from "./commands/notifications.js";
 
 declare const __CLI_VERSION__: string;
 
@@ -53,6 +54,7 @@ program.addCommand(jobsCommand);
 program.addCommand(issuesCommand);
 program.addCommand(feedbackCommand);
 program.addCommand(attachmentsCommand);
+program.addCommand(notificationsCommand);
 
 program.parseAsync().catch((err: unknown) => {
   const format = program.opts().format as string;

@@ -2,6 +2,7 @@ import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { projects, issues, apps, teamMembers, users } from "@owlmetry/db";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
+import type { NotificationDispatcher } from "../services/notifications/dispatcher.js";
 
 const FREQUENCY_INTERVAL_MS: Record<Exclude<IssueAlertFrequency, "none">, number> = {
   hourly: 60 * 60 * 1000,
@@ -10,7 +11,8 @@ const FREQUENCY_INTERVAL_MS: Record<Exclude<IssueAlertFrequency, "none">, number
   weekly: 7 * 24 * 60 * 60 * 1000,
 };
 
-export const issueNotifyHandler: JobHandler = async (ctx) => {
+export function issueNotifyHandler(dispatcher: NotificationDispatcher): JobHandler {
+  return async (ctx) => {
   // 1. Query all active projects with non-none alert frequency
   const allProjects = await ctx.db
     .select({
@@ -90,10 +92,10 @@ export const issueNotifyHandler: JobHandler = async (ctx) => {
       .where(inArray(apps.id, appIds));
     const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
 
-    // 5. Get all team member emails
+    // 5. Get all team member user_ids
     const members = await ctx.db
       .select({
-        email: users.email,
+        user_id: teamMembers.user_id,
       })
       .from(teamMembers)
       .innerJoin(users, eq(users.id, teamMembers.user_id))
@@ -104,7 +106,7 @@ export const issueNotifyHandler: JobHandler = async (ctx) => {
       continue;
     }
 
-    // 6. Send digest email to each member
+    // 6. Build the digest payload — same shape the email adapter expects.
     const issueList = qualifyingIssues.map((i) => ({
       title: i.title,
       status: i.status as "new" | "regressed",
@@ -113,23 +115,27 @@ export const issueNotifyHandler: JobHandler = async (ctx) => {
       app_name: appNameMap.get(i.app_id) ?? "Unknown",
     }));
 
-    if (!ctx.emailService) {
-      projectsChecked++;
-      continue;
-    }
-
-    const emailPromises = members.map((member) =>
-      ctx.emailService!.sendIssueDigest(member.email, {
-        project_name: project.name,
-        issues: issueList,
-        dashboard_url: `${process.env.WEB_URL ?? "https://owlmetry.com"}/dashboard/issues`,
-      }).then(() => {
-        notificationsSent++;
-      }).catch((err) => {
-        ctx.log.error(`Failed to send issue digest to ${member.email}:`, err);
-      })
-    );
-    await Promise.all(emailPromises);
+    const dashboardUrl = `${process.env.WEB_APP_URL ?? "https://owlmetry.com"}/dashboard/issues`;
+    const issueWord = qualifyingIssues.length === 1 ? "issue" : "issues";
+    const result = await dispatcher.enqueue({
+      type: "issue.digest",
+      userIds: members.map((m) => m.user_id),
+      teamId: project.team_id,
+      payload: {
+        title: `${qualifyingIssues.length} ${issueWord} in ${project.name}`,
+        body: issueList
+          .slice(0, 3)
+          .map((i) => `${i.status === "regressed" ? "🔄" : "🆕"} ${i.title}`)
+          .join("\n"),
+        link: "/dashboard/issues",
+        data: {
+          project_name: project.name,
+          issues: issueList,
+          dashboard_url: dashboardUrl,
+        },
+      },
+    });
+    notificationsSent += result.notificationIds.length;
 
     // 7. Update last_notified_at on notified issues
     const issueIds = qualifyingIssues.map((i) => i.id);
@@ -150,7 +156,7 @@ export const issueNotifyHandler: JobHandler = async (ctx) => {
 
   if (notificationsSent > 0) {
     ctx.log.info(
-      `Issue notifications: sent ${notificationsSent} emails for ${issuesNotified} issues across ${projectsChecked} projects`
+      `Issue notifications: enqueued ${notificationsSent} inbox rows for ${issuesNotified} issues across ${projectsChecked} projects`
     );
   }
 
@@ -160,4 +166,5 @@ export const issueNotifyHandler: JobHandler = async (ctx) => {
     issues_notified: issuesNotified,
     _silent: notificationsSent === 0,
   };
-};
+  };
+}

@@ -9,6 +9,8 @@ export const JOB_TYPES = [
   "attachment_cleanup",
   "apple_ads_sync",
   "app_version_sync",
+  "notification_deliver",
+  "notification_cleanup",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -120,6 +122,29 @@ export const JOB_TYPE_META: Record<
         required: false,
       },
     ],
+  },
+  notification_deliver: {
+    label: "Notification Delivery",
+    description:
+      "Delivers a single queued notification to one external channel (email, iOS push). One job per pending row in notification_deliveries.",
+    scope: "system",
+    default_schedule: null,
+    params: [
+      {
+        name: "delivery_id",
+        description: "ID of the notification_deliveries row to dispatch",
+        type: "string",
+        required: true,
+      },
+    ],
+  },
+  notification_cleanup: {
+    label: "Notification Cleanup",
+    description:
+      "Soft-deletes read notifications older than 30 days; hard-deletes soft-deleted notifications older than 90 days.",
+    scope: "system",
+    default_schedule: "0 6 * * *",
+    params: [],
   },
 };
 

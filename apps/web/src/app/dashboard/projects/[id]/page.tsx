@@ -426,11 +426,11 @@ function IssueAlertSettings({ project, onSaved }: { project: ProjectDetailRespon
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Issue Alerts</CardTitle>
+        <CardTitle className="text-base">Issue Alert Frequency</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center gap-3">
-          <Label htmlFor="alert-frequency" className="whitespace-nowrap">Email digest frequency</Label>
+          <Label htmlFor="alert-frequency" className="whitespace-nowrap">Digest frequency</Label>
           <select
             id="alert-frequency"
             className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -447,7 +447,12 @@ function IssueAlertSettings({ project, onSaved }: { project: ProjectDetailRespon
           {success && <span className="text-sm text-green-600">Saved</span>}
         </div>
         <p className="text-xs text-muted-foreground">
-          Controls how often team members receive email digests of new and regressed issues.
+          Controls how often new or regressed issues batch into a notification for this project.
+          Per-channel toggles (in-app, email, iOS push) live on your{" "}
+          <Link href="/dashboard/profile/notifications" className="underline">
+            notification preferences
+          </Link>{" "}
+          page.
         </p>
       </CardContent>
     </Card>

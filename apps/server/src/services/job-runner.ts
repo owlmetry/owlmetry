@@ -6,6 +6,7 @@ import type { Db } from "@owlmetry/db";
 import type { JobType, JobProgress } from "@owlmetry/shared";
 import { JOB_TYPE_META, formatDuration } from "@owlmetry/shared";
 import type { EmailService } from "./email.js";
+import type { NotificationDispatcher } from "./notifications/dispatcher.js";
 
 export interface JobContext {
   runId: string;
@@ -58,6 +59,7 @@ export class JobRunner {
   private log: JobContext["log"];
   private emailService?: EmailService;
   private systemJobsAlertEmail: string;
+  private notificationDispatcher: NotificationDispatcher | null = null;
 
   constructor(opts: JobRunnerOptions) {
     this.db = opts.db;
@@ -65,6 +67,15 @@ export class JobRunner {
     this.log = opts.log;
     this.emailService = opts.emailService;
     this.systemJobsAlertEmail = opts.systemJobsAlertEmail || "";
+  }
+
+  /**
+   * Wired in by index.ts after the dispatcher is constructed (the dispatcher
+   * itself depends on JobRunner.trigger to enqueue delivery jobs, so we have
+   * to break the cycle by setting the reference post-construction).
+   */
+  setNotificationDispatcher(dispatcher: NotificationDispatcher): void {
+    this.notificationDispatcher = dispatcher;
   }
 
   register(jobType: string, handler: JobHandler): void {
@@ -260,6 +271,17 @@ export class JobRunner {
     }
   }
 
+  /**
+   * Job-completion notifications split along two paths:
+   *
+   * - **System jobs that fail** (db_pruning, partition_creation, etc.) email
+   *   `SYSTEM_JOBS_ALERT_EMAIL` directly. Recipient is a server-owner alias,
+   *   not necessarily a user — kept off the dispatcher so it never reaches
+   *   team-member inboxes.
+   * - **User-triggered manual jobs with `notify: true`** route through the
+   *   notification dispatcher with `type: "job.completed"`, fanning out to
+   *   the triggering user only across whichever channels they've configured.
+   */
   private async sendCompletionEmail(opts: {
     jobType: string;
     status: string;
@@ -269,41 +291,61 @@ export class JobRunner {
     result?: Record<string, unknown>;
     error?: string;
   }): Promise<void> {
-    if (!this.emailService) return;
-
     const meta = JOB_TYPE_META[opts.jobType as JobType];
     const label = meta?.label ?? opts.jobType;
     const isSystemJob = meta?.scope === "system";
+    const duration = formatDuration(Date.now() - opts.startedAt);
 
-    const recipients: string[] = [];
-
-    if (isSystemJob && this.systemJobsAlertEmail) {
-      recipients.push(this.systemJobsAlertEmail);
+    // System-job alerts: direct email to the server-owner alias.
+    if (isSystemJob && this.systemJobsAlertEmail && this.emailService) {
+      this.emailService
+        .sendJobAlert(this.systemJobsAlertEmail, {
+          job_type: label,
+          status: opts.status,
+          duration,
+          error: opts.error,
+          result: opts.result,
+        })
+        .catch(() => {});
     }
 
+    // User-notify path: enqueue via dispatcher so the user gets it on every
+    // channel they've enabled (in-app + email + iOS push).
     if (opts.notify) {
-      const email = await this.resolveTriggeredByEmail(opts.triggeredBy);
-      if (email && !recipients.includes(email)) {
-        recipients.push(email);
+      const userId = await this.resolveTriggeredByUserId(opts.triggeredBy);
+      if (userId && this.notificationDispatcher) {
+        const emoji = opts.status === "completed" ? "✅" : opts.status === "failed" ? "❌" : "🚫";
+        await this.notificationDispatcher
+          .enqueue({
+            type: "job.completed",
+            userIds: [userId],
+            payload: {
+              title: `${emoji} ${label} ${opts.status}`,
+              body: opts.error
+                ? `Failed after ${duration}: ${opts.error}`
+                : `Finished in ${duration}`,
+              link: "/dashboard/jobs",
+              data: {
+                job_type: label,
+                status: opts.status,
+                duration,
+                error: opts.error,
+                result: opts.result,
+              },
+            },
+          })
+          .catch(() => {});
       }
-    }
-
-    if (recipients.length === 0) return;
-
-    const alertParams = {
-      job_type: label,
-      status: opts.status,
-      duration: formatDuration(Date.now() - opts.startedAt),
-      error: opts.error,
-      result: opts.result,
-    };
-
-    for (const to of recipients) {
-      this.emailService.sendJobAlert(to, alertParams).catch(() => {});
     }
   }
 
-  private async resolveTriggeredByEmail(triggeredBy: string): Promise<string | null> {
+  /**
+   * Resolves a `triggered_by` string ("manual:user:<id>" or
+   * "manual:api_key:<id>") to the user_id of whoever should receive the
+   * completion notification. For api_key triggers we fall back to the key's
+   * `created_by` user — the human who owns the agent.
+   */
+  private async resolveTriggeredByUserId(triggeredBy: string): Promise<string | null> {
     const parts = triggeredBy.split(":");
     if (parts[0] !== "manual" || parts.length < 3) return null;
 
@@ -311,14 +353,7 @@ export class JobRunner {
     const actorId = parts.slice(2).join(":");
 
     try {
-      if (actorType === "user") {
-        const [user] = await this.db
-          .select({ email: users.email })
-          .from(users)
-          .where(eq(users.id, actorId))
-          .limit(1);
-        return user?.email ?? null;
-      }
+      if (actorType === "user") return actorId;
 
       if (actorType === "api_key") {
         const [key] = await this.db
@@ -326,14 +361,7 @@ export class JobRunner {
           .from(apiKeys)
           .where(eq(apiKeys.id, actorId))
           .limit(1);
-        if (!key?.created_by) return null;
-
-        const [user] = await this.db
-          .select({ email: users.email })
-          .from(users)
-          .where(eq(users.id, key.created_by))
-          .limit(1);
-        return user?.email ?? null;
+        return key?.created_by ?? null;
       }
     } catch {
       return null;

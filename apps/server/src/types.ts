@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { TeamRole, Permission, ApiKeyType } from "@owlmetry/shared";
 import type { EmailService } from "./services/email.js";
 import type { JobRunner } from "./services/job-runner.js";
+import type { NotificationDispatcher } from "./services/notifications/dispatcher.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -10,6 +11,7 @@ declare module "fastify" {
     databaseUrl: string;
     emailService: EmailService;
     jobRunner: JobRunner;
+    notificationDispatcher: NotificationDispatcher;
   }
 }
 

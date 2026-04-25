@@ -205,6 +205,9 @@ Attachments linked to an event are automatically linked to its issue by the issu
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.
 
+### Notifications
+Owlmetry has a unified, multi-channel notification system: each user-facing event (new feedback, new/regressed issues, manual job completion) writes a row to the user's inbox \`notifications\` table and fans out to whichever channels the user has enabled — in-app, email (Resend), and iOS push (APNs). New channels (Android push, Telegram, etc.) plug in as new \`ChannelAdapter\`s without producer changes. Per-user preferences live under \`users.preferences.notifications.types\` and are merged into \`PATCH /v1/auth/me\`. The project-level \`issue_alert_frequency\` setting is the rate-limit / batching policy; per-user channel toggles control delivery. Verification codes and team invitations stay transactional (sent directly via EmailService) because their recipients may not yet be users. **Notifications are user-scoped, not team-scoped, so they do not have MCP tools** — humans read them in the web dashboard (\`/dashboard/notifications\`) or the iOS Profile screen, or via \`owlmetry notifications list\` from a CLI signed in as a user.
+
 ### Audit Trail
 Every mutation (create, update, delete) on resources is recorded in audit logs with the actor, action, resource type, resource ID, and metadata. Query with \`list-audit-logs\`.
 

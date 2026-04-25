@@ -13,7 +13,8 @@ import type {
   Permission,
   UserPreferences,
 } from "@owlmetry/shared";
-import { mergeUserPreferences } from "@owlmetry/shared";
+import { mergeUserPreferences, NOTIFICATION_TYPES, NOTIFICATION_CHANNELS } from "@owlmetry/shared";
+import type { NotificationChannel } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
 import { serializeApiKey } from "../utils/serialize.js";
@@ -73,6 +74,27 @@ function sanitizeUserPreferences(input: unknown): Partial<UserPreferences> {
       if (Object.keys(nextCols).length > 0) nextUi.columns = nextCols;
     }
     if (Object.keys(nextUi).length > 0) out.ui = nextUi;
+  }
+  if (src.notifications && typeof src.notifications === "object") {
+    const notif = src.notifications as Record<string, unknown>;
+    const nextNotif: NonNullable<UserPreferences["notifications"]> = {};
+    if (notif.types && typeof notif.types === "object") {
+      const types = notif.types as Record<string, unknown>;
+      const nextTypes: NonNullable<NonNullable<UserPreferences["notifications"]>["types"]> = {};
+      for (const t of NOTIFICATION_TYPES) {
+        const channelOverrides = types[t];
+        if (!channelOverrides || typeof channelOverrides !== "object") continue;
+        const channelMap = channelOverrides as Record<string, unknown>;
+        const nextChannels: Partial<Record<NotificationChannel, boolean>> = {};
+        for (const c of NOTIFICATION_CHANNELS) {
+          const v = channelMap[c];
+          if (typeof v === "boolean") nextChannels[c] = v;
+        }
+        if (Object.keys(nextChannels).length > 0) nextTypes[t] = nextChannels;
+      }
+      if (Object.keys(nextTypes).length > 0) nextNotif.types = nextTypes;
+    }
+    if (Object.keys(nextNotif).length > 0) out.notifications = nextNotif;
   }
   return out;
 }
