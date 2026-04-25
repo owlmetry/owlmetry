@@ -327,7 +327,16 @@ function IssueDetailModal({
                       >{occ.session_id.slice(0, 8)}…</a>
                       <span className="truncate inline-flex items-center gap-1">
                         <CountryEmoji code={occ.country_code} />
-                        {occ.user_id ?? <span className="text-muted-foreground">anon</span>}
+                        {occ.user_id
+                          ? occ.app_user_id
+                            ? <a
+                                href={`/dashboard/users?app_user_id=${occ.app_user_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="truncate text-primary hover:underline"
+                              >{occ.user_id}</a>
+                            : <span className="truncate">{occ.user_id}</span>
+                          : <span className="text-muted-foreground">anon</span>}
                       </span>
                       <span><VersionBadge version={occ.app_version} latestVersion={latestAppVersion} /></span>
                       <span>{occ.environment ?? "—"}</span>

@@ -36,6 +36,7 @@ export interface IssueOccurrenceResponse {
   issue_id: string;
   session_id: string;
   user_id: string | null;
+  app_user_id: string | null;
   app_version: string | null;
   environment: string | null;
   event_id: string | null;

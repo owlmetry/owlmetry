@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
-import { issues, issueFingerprints, issueOccurrences, issueComments, apps, projects, eventAttachments } from "@owlmetry/db";
+import { issues, issueFingerprints, issueOccurrences, issueComments, apps, projects, eventAttachments, appUsers } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES, ATTACHMENT_ISSUE_DETAIL_PAGE_SIZE } from "@owlmetry/shared";
 import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
@@ -41,12 +41,16 @@ function serializeIssue(
   };
 }
 
-function serializeOccurrence(row: typeof issueOccurrences.$inferSelect) {
+function serializeOccurrence(
+  row: typeof issueOccurrences.$inferSelect,
+  appUserIdMap?: Map<string, string>,
+) {
   return {
     id: row.id,
     issue_id: row.issue_id,
     session_id: row.session_id,
     user_id: row.user_id,
+    app_user_id: row.user_id ? appUserIdMap?.get(row.user_id) ?? null : null,
     app_version: row.app_version,
     environment: row.environment,
     event_id: row.event_id,
@@ -226,9 +230,19 @@ export async function issuesRoutes(app: FastifyInstance) {
       const occHasMore = occRows.length > occLimit;
       const occPage = occHasMore ? occRows.slice(0, occLimit) : occRows;
 
+      // Resolve SDK user_id strings to app_user row UUIDs so the dashboard can deep-link to the user sheet
+      const occUserIds = [...new Set(occPage.map((o) => o.user_id).filter((u): u is string => !!u))];
+      const appUserRows = occUserIds.length > 0
+        ? await app.db
+            .select({ id: appUsers.id, user_id: appUsers.user_id })
+            .from(appUsers)
+            .where(and(eq(appUsers.project_id, projectId), inArray(appUsers.user_id, occUserIds)))
+        : [];
+      const appUserIdMap = new Map(appUserRows.map((u) => [u.user_id, u.id]));
+
       return {
         ...serializeIssue(issue, fps.map((f) => f.fingerprint), appRow?.name),
-        occurrences: occPage.map(serializeOccurrence),
+        occurrences: occPage.map((o) => serializeOccurrence(o, appUserIdMap)),
         occurrence_cursor: occHasMore ? occPage[occPage.length - 1].id : null,
         occurrence_has_more: occHasMore,
         comments: commentRows.map(serializeComment),
