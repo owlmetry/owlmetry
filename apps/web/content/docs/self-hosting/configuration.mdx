@@ -32,6 +32,11 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `SYSTEM_JOBS_ALERT_EMAIL` | (empty) | If set, system job runs send a completion/failure email to this address. Leave empty to disable system-job alerts. |
 | `OWLMETRY_ATTACHMENTS_PATH` | `./data/attachments` (dev) / `/opt/owlmetry-attachments` (prod) | Directory on disk where event attachment bytes are stored. Must be writable by the API server process. Exclude from `pg_dump` backups — attachments live on disk, not in Postgres. |
 | `OWLMETRY_ATTACHMENTS_INTERNAL_URI` | (empty) | Optional internal URI prefix used by nginx `X-Accel-Redirect` when serving attachment downloads. See `deploy/attachments-nginx-snippet.conf`. |
+| `APNS_KEY_ID` | (empty) | Apple `.p8` key id (10-char) from Apple Developer → Keys. Required to enable iOS push deliveries. |
+| `APNS_TEAM_ID` | (empty) | Apple Developer team id (10-char). |
+| `APNS_KEY_P8` | (empty) | Full PEM contents of the `.p8` key downloaded from Apple Developer. Multi-line — use a quoted env var or load from a file. Treat as a secret. |
+| `APNS_BUNDLE_ID` | (empty) | Bundle id of the iOS app (e.g., `com.owlmetry.dashboard`). Sent as `apns-topic` on every push. |
+| `APNS_ENV` | `production` | `sandbox` to hit `api.sandbox.push.apple.com`, anything else hits `api.push.apple.com`. Use `sandbox` for debug builds installed via Xcode; `production` for TestFlight and the App Store. |
 
 ## Example `.env` file
 
@@ -54,6 +59,15 @@ SYSTEM_JOBS_ALERT_EMAIL=ops@yourdomain.com
 OWLMETRY_ATTACHMENTS_PATH=/opt/owlmetry-attachments
 OWLMETRY_ATTACHMENTS_SIGNING_SECRET=your-random-hex-string-32-bytes
 OWLMETRY_ATTACHMENTS_INTERNAL_URI=/_attachments/
+
+# iOS push (optional — leave unset to disable iOS push deliveries)
+APNS_KEY_ID=ABC1234567
+APNS_TEAM_ID=XYZ7654321
+APNS_KEY_P8="-----BEGIN PRIVATE KEY-----
+...multi-line PEM contents...
+-----END PRIVATE KEY-----"
+APNS_BUNDLE_ID=com.yourdomain.app
+APNS_ENV=production
 ```
 
 ## Migration note
@@ -85,3 +99,21 @@ When `MAX_DATABASE_SIZE_GB` is set to a positive value:
 4. If only the current month's partition remains and the database is still over the limit, row-level deletion is used as a fallback.
 
 Set this to a value safely below your disk capacity (e.g., `8` for a 25 GB disk) to prevent the server from running out of storage.
+
+## iOS push (APNs)
+
+The notification dispatcher's iOS push channel uses **token-based auth** with an Apple `.p8` key — the same ES256 / EC P-256 pattern used by App Store Connect API, Apple Search Ads, and Sign in with Apple. One Apple Developer account → one set of env vars covers the whole server.
+
+| Variable | Description |
+|----------|-------------|
+| `APNS_KEY_ID` | The 10-char key id printed next to the key on the Apple Developer Keys page. |
+| `APNS_TEAM_ID` | Your Apple Developer 10-char team id. |
+| `APNS_KEY_P8` | Full PEM contents of the `.p8` file. Multi-line — quote the env var, or load it via `cat key.p8 \| base64` and decode in your shim, or reference a secret-manager binding. |
+| `APNS_BUNDLE_ID` | Bundle id of the iOS app — sent as the `apns-topic` header on every push. |
+| `APNS_ENV` | `sandbox` (development builds installed via Xcode, hits `api.sandbox.push.apple.com`) or `production` (TestFlight / App Store, hits `api.push.apple.com`). Defaults to `production`. |
+
+These are **all optional**. If `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8`, or `APNS_BUNDLE_ID` is missing the iOS push adapter logs once at boot and silently marks every push delivery `skipped` — local dev and self-hosted setups without iOS push setup keep working. Inbox and email channels are unaffected.
+
+The server hard-deletes a `user_devices` row when APNs returns **410 Unregistered** or **400 BadDeviceToken**, so stale tokens self-clean on the next push attempt.
+
+See [Notifications](/docs/concepts/notifications) for the dispatcher and channel model.

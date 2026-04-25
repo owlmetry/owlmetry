@@ -28,6 +28,7 @@ export function GET() {
     "- **Funnels**: Multi-step conversion funnels with A/B experiment segmentation",
     "- **Experiments**: Client-side A/B experiment assignment, persisted across sessions",
     "- **Attribution**: Auto-captured Apple Search Ads acquisition data per user",
+    "- **Notifications**: Unified multi-channel inbox (in-app, email, iOS push) with per-user channel preferences",
     "- **SDKs**: Swift (iOS/macOS) and Node.js — batching, compression, and retry built in",
     "- **CLI**: Agent-native CLI for setup, querying, and management (`npm i -g @owlmetry/cli`)",
     "- **Self-hosted**: Single Postgres database, deploy on your own infrastructure",

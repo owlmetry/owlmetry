@@ -1,0 +1,111 @@
+---
+title: Notifications
+description: Per-user notification inbox API — list, mark read, mark all read, soft-delete.
+---
+
+Manage the per-user [notifications](/docs/concepts/notifications) inbox — issue digests, new feedback alerts, and manual job-completion notifications routed through the multi-channel dispatcher.
+
+**All endpoints are user-only.** Agent API keys receive 403. Auth is via the standard JWT cookie.
+
+## GET /v1/notifications
+
+List notifications for the authenticated user, newest first. Soft-deleted rows are excluded. The `data` blob is intentionally not returned in the list response — clients render the pre-rendered `title` / `body` / `link` instead, and call the underlying producer's endpoint when they need the structured payload.
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `read_state` | string | Filter by read state: `unread`, `read`, or `all` (default `all`). |
+| `type` | string | Filter by notification type. Accepts the values in [`NOTIFICATION_TYPES`](/docs/concepts/notifications#notification-types) — unknown values are ignored. |
+| `cursor` | string | Cursor from previous response for pagination. Keyset cursor over `(created_at, id)` desc. |
+| `limit` | number | Items per page (1-200, default 50). |
+
+### Response
+
+```json
+{
+  "notifications": [
+    {
+      "id": "uuid",
+      "type": "issue.digest",
+      "title": "3 new issues in Demo Project",
+      "body": "1 regression, 2 new errors since yesterday's digest.",
+      "link": "/dashboard/issues?project=...",
+      "team_id": "uuid-or-null",
+      "read_at": null,
+      "created_at": "2024-01-15T10:00:00.000Z"
+    }
+  ],
+  "cursor": "2024-01-15T10:00:00.000Z|uuid-or-null",
+  "has_more": false
+}
+```
+
+## GET /v1/notifications/unread-count
+
+Get the unread notification count for the authenticated user. Used by the user-menu avatar badge in the dashboard, polled every 30s.
+
+### Response
+
+```json
+{ "count": 5 }
+```
+
+## POST /v1/notifications/mark-all-read
+
+Mark every unread notification for the authenticated user as read. Optionally scope to a single notification type.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | No | Only mark notifications of this type. Unknown values are ignored. |
+
+### Response
+
+```json
+{ "marked": 5 }
+```
+
+`marked` is the number of rows updated.
+
+## PATCH /v1/notifications/:id
+
+Toggle a single notification's read state.
+
+### Request body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `read` | boolean | No | `true` (default) marks the notification read by setting `read_at` to now. `false` clears `read_at` (mark as unread). |
+
+### Response
+
+```json
+{
+  "notification": {
+    "id": "uuid",
+    "type": "issue.digest",
+    "title": "3 new issues in Demo Project",
+    "body": "...",
+    "link": "/dashboard/issues?project=...",
+    "team_id": "uuid",
+    "read_at": "2024-01-15T11:00:00.000Z",
+    "created_at": "2024-01-15T10:00:00.000Z"
+  }
+}
+```
+
+Returns 404 if the notification does not exist, was already soft-deleted, or belongs to another user.
+
+## DELETE /v1/notifications/:id
+
+Soft-delete a notification (sets `deleted_at`). The row is hidden from list and unread-count queries immediately and hard-deleted by the `notification_cleanup` job after 90 days.
+
+### Response
+
+```json
+{ "id": "uuid" }
+```
+
+Returns 404 if the notification does not exist, was already soft-deleted, or belongs to another user.

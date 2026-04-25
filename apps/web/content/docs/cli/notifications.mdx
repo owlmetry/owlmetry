@@ -1,0 +1,66 @@
+---
+title: Notifications
+description: View your notifications inbox and unread state from the Owlmetry CLI.
+---
+
+The `owlmetry notifications` command group lets you list your [notifications](/docs/concepts/notifications) inbox, check the unread count, and mark items as read.
+
+The CLI talks to the per-user inbox, so these commands require a **user JWT** — sign in with `owlmetry login`. Agent API keys receive 403; agents have no inbox.
+
+## List Notifications
+
+```bash
+owlmetry notifications list
+```
+
+Lists notifications in your inbox, newest first. Unread items are flagged with a red dot.
+
+### Filters
+
+| Flag | Description |
+|------|-------------|
+| `--unread` | Only show unread notifications |
+| `--type <type>` | Filter by notification type: `issue.digest`, `feedback.new`, `job.completed`, `team.invitation` |
+| `--limit <n>` | Max entries to return |
+| `--cursor <cursor>` | Pagination cursor from previous response |
+
+Add `--format json` for machine-readable output (the same shape as [`GET /v1/notifications`](/docs/api-reference/notifications#get-v1notifications)).
+
+```bash
+owlmetry notifications list --unread --type issue.digest --limit 10
+```
+
+## Unread Count
+
+```bash
+owlmetry notifications unread-count
+```
+
+Prints the unread notification count for your user. Useful in scripts and shell prompts.
+
+```bash
+owlmetry notifications unread-count --format json
+# { "count": 3 }
+```
+
+## Mark a Notification Read
+
+```bash
+owlmetry notifications read <notificationId>
+```
+
+Marks a single notification read by setting its `read_at` timestamp. Use the `id` from `notifications list`.
+
+## Mark All Read
+
+```bash
+owlmetry notifications mark-all-read
+```
+
+Marks every unread notification in your inbox as read. Optionally scope to a specific type:
+
+```bash
+owlmetry notifications mark-all-read --type feedback.new
+```
+
+The command prints the number of rows updated.

@@ -16,6 +16,8 @@
     "integrations",
     "teams",
     "identity",
-    "jobs"
+    "jobs",
+    "notifications",
+    "devices"
   ]
 }
