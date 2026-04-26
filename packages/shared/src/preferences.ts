@@ -26,6 +26,13 @@ export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
  *   1. Append to this tuple.
  *   2. Add an entry to NOTIFICATION_TYPE_META.
  *   3. Wire a producer call site to dispatcher.enqueue(type, ...).
+ *   4. Mirror the new entry in the iOS app's NOTIFICATION_TYPE_SPECS
+ *      (owlmetry-ios/Owlmetry/Tabs/Profile/NotificationPreferencesView.swift) —
+ *      the iOS preferences screen is hand-maintained, not generated.
+ *
+ * The web preferences page (apps/web/src/app/dashboard/profile/notifications/
+ * page.tsx) renders directly from this map, so it stays in sync automatically;
+ * iOS does not, and will silently drop the new type from its UI until updated.
  *
  * `team.invitation` is listed for documentation but never enters the
  * dispatcher — it is sent transactionally via EmailService directly because

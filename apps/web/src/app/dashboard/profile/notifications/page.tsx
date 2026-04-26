@@ -1,5 +1,9 @@
 "use client";
 
+// Renders straight from NOTIFICATION_TYPE_META in @owlmetry/shared/preferences,
+// so adding a new type there shows up here automatically. The iOS app's
+// NotificationPreferencesView.swift hand-maintains a parallel list — when a
+// new type lands, mirror it there too or it silently disappears from iOS.
 import {
   NOTIFICATION_CHANNELS,
   NOTIFICATION_TYPES,
