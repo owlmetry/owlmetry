@@ -63,6 +63,7 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **Event attachments** — SDKs can upload files (logs, screenshots, crash dumps) alongside error events; stored on disk, linked to events and issues, downloadable via dashboard, CLI, and MCP. Per-project + per-user quotas. See [docs/concepts/attachments](https://owlmetry.com/docs/concepts/attachments)
 - **Cross-app session investigation** — one endpoint reconstructs the full timeline across all apps a user touched during an incident window
 - **User feedback** — free-text feedback from apps (Swift SDK `OwlFeedbackView` / `Owl.sendFeedback`) or from your own frontend (Node SDK `Owl.sendFeedback`). Kanban board with status lifecycle, comments, and session-linked event replay. See [docs/concepts/feedback](https://owlmetry.com/docs/concepts/feedback)
+- **Store ratings & reviews** — public App Store ratings (avg, count, current-version split) and individual reviews captured per app. Aggregate ratings refresh hourly via iTunes Lookup; reviews ingest daily across every Apple storefront via the iTunes RSS feed, country-stamped per row. Schema supports Play Store from day 1 (ingest deferred). Dashboard list with filters + by-country panel, rating badge on app cards, full CLI / MCP surface. See [docs/concepts/reviews](https://owlmetry.com/docs/concepts/reviews)
 
 ### Analytics
 - **Structured metrics** — define metrics, track operations with `startOperation`/`complete`/`fail`, query aggregations (counts, success rates, duration percentiles, error breakdowns) via API
