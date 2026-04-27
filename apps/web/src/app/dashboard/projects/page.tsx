@@ -133,9 +133,9 @@ export default function ProjectsPage() {
           {projects.map((project) => {
             const projectApps = appsByProject.get(project.id) ?? [];
             return (
-              <Link key={project.id} href={`/dashboard/projects/${project.id}`}>
+              <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="block h-full">
                 <Card
-                  className="border-l-4 transition-colors hover:border-primary/50"
+                  className="h-full border-l-4 transition-colors hover:border-primary/50"
                   style={{ borderLeftColor: project.color }}
                 >
                   <CardHeader>
