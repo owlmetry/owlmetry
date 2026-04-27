@@ -27,6 +27,7 @@ import {
 import { IntegrationStatusBadge } from "@/components/badges/integration-status-badge";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { DetailSkeleton } from "@/components/ui/skeletons";
+import { P8DropZone, type P8Parsed } from "@/components/ui/p8-drop-zone";
 import { api, ApiError } from "@/lib/api";
 import type { IntegrationResponse } from "@owlmetry/shared";
 import { INTEGRATION_PROVIDER_IDS } from "@owlmetry/shared/integrations";
@@ -187,38 +188,39 @@ export function AppStoreConnectIntegration({ projectId }: { projectId: string })
 
   if (isLoading) return <DetailSkeleton />;
 
-  // No integration yet — show the connect card with a "Set up" button + a
-  // "Copy from another project" affordance (handled by the existing
-  // CopyIntegrationDialog).
   if (!integration) {
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>App Store Connect</CardTitle>
-            <IntegrationStatusBadge enabled={false} disabledLabel="Not connected" />
+            <CardTitle className="text-base">App Store Connect</CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            Pull Apple App Store reviews via the App Store Connect API. Requires an Individual API Key with the &quot;Customer Support&quot; role on your Apple Developer team.
-          </p>
-          <div className="flex gap-2">
-            <Dialog open={createDialogOpen} onOpenChange={(o) => { setCreateDialogOpen(o); if (!o) resetCreate(); }}>
-              <DialogTrigger asChild>
-                <Button size="sm"><Plus className="h-3.5 w-3.5 mr-1" /> Set up</Button>
-              </DialogTrigger>
-              <CreateOrUpdateDialog
-                title="Connect App Store Connect"
-                form={form}
-                setField={setField}
-                onSubmit={handleCreate}
-                saving={saving}
-                error={error}
-                isUpdate={false}
-              />
-            </Dialog>
-            <CopyIntegrationDialog targetProjectId={projectId} provider={PROVIDER} providerLabel="App Store Connect" onCopied={() => { mutate(); mutateStatus(); }} />
+        <CardContent className="space-y-4">
+          <div className="text-center py-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Pull Apple App Store reviews via the App Store Connect API. Requires an Individual API Key with the &quot;Customer Support&quot; role on your Apple Developer team.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <Dialog open={createDialogOpen} onOpenChange={(o) => { setCreateDialogOpen(o); if (!o) resetCreate(); }}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Connect App Store Connect
+                  </Button>
+                </DialogTrigger>
+                <CreateOrUpdateDialog
+                  title="Connect App Store Connect"
+                  form={form}
+                  setField={setField}
+                  onSubmit={handleCreate}
+                  saving={saving}
+                  error={error}
+                  isUpdate={false}
+                />
+              </Dialog>
+              <CopyIntegrationDialog targetProjectId={projectId} provider={PROVIDER} providerLabel="App Store Connect" onCopied={() => { mutate(); mutateStatus(); }} />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -233,7 +235,7 @@ export function AppStoreConnectIntegration({ projectId }: { projectId: string })
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>App Store Connect</CardTitle>
+          <CardTitle className="text-base">App Store Connect</CardTitle>
           <IntegrationStatusBadge enabled={integration.enabled} disabledLabel="Disabled" />
         </div>
       </CardHeader>
@@ -321,16 +323,24 @@ function CreateOrUpdateDialog({
   error: string;
   isUpdate: boolean;
 }) {
+  function handleP8Parsed(parsed: P8Parsed) {
+    setField("private_key_p8", parsed.contents);
+    if (parsed.keyIdFromFilename && !form.key_id) {
+      setField("key_id", parsed.keyIdFromFilename);
+    }
+  }
+
   return (
     <DialogContent className="max-w-xl">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>
-          In App Store Connect → Users and Access → Integrations → App Store Connect API, generate an Individual Key with the <strong>Customer Support</strong> role. Download the .p8 (you only get one chance) and copy the Issuer ID and Key ID below.
+          In App Store Connect → Users and Access → Integrations → App Store Connect API, generate an Individual Key with the <strong>Customer Support</strong> role. Download the .p8 (you only get one chance) and copy the Issuer ID below.
           {isUpdate && " Leave the private key field blank to keep the existing key."}
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={onSubmit} className="space-y-3">
+        <P8DropZone onParsed={handleP8Parsed} />
         <div className="space-y-1.5">
           <Label htmlFor="asc-issuer-id">Issuer ID</Label>
           <Input
@@ -364,7 +374,7 @@ function CreateOrUpdateDialog({
             required={!isUpdate}
           />
           <p className="text-xs text-muted-foreground">
-            Paste the full contents of the .p8 file. Owlmetry stores it securely and will never display it back.
+            Drop the .p8 above to auto-fill, or paste contents manually. Owlmetry stores the key securely and will never display it back.
           </p>
         </div>
         {error && <p className="text-destructive text-xs">{error}</p>}
