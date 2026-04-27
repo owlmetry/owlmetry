@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type {
@@ -257,6 +257,11 @@ export default function ReviewsPage() {
   const [country, setCountry] = useState(searchParams.get("country") ?? ALL);
   const [responseFilter, setResponseFilter] = useState(searchParams.get("response") ?? ALL);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const selectedReviewId = searchParams.get("review_id");
 
   const selectedProjectId = projectId !== ALL ? projectId : "";
@@ -302,19 +307,9 @@ export default function ReviewsPage() {
     ...(rating !== ALL ? { rating: Number(rating) } : {}),
     ...(country !== ALL ? { country_code: country } : {}),
     ...(responseFilter !== ALL ? { has_developer_response: responseFilter === "yes" } : {}),
+    ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
     limit: 100,
   });
-
-  const filtered = search.trim()
-    ? reviews.filter((r) => {
-        const term = search.toLowerCase();
-        return (
-          (r.title ?? "").toLowerCase().includes(term) ||
-          r.body.toLowerCase().includes(term) ||
-          (r.reviewer_name ?? "").toLowerCase().includes(term)
-        );
-      })
-    : reviews;
 
   const selectedReview = selectedReviewId ? reviews.find((r) => r.id === selectedReviewId) : null;
 
@@ -450,7 +445,7 @@ export default function ReviewsPage() {
       <StaggerItem index={2}>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : filtered.length === 0 ? (
+        ) : reviews.length === 0 ? (
           <div className="text-center py-12">
             <Star className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
             <p className="text-muted-foreground">No reviews yet</p>
@@ -462,7 +457,7 @@ export default function ReviewsPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((r) => (
+            {reviews.map((r) => (
               <ReviewCard
                 key={r.id}
                 review={r}

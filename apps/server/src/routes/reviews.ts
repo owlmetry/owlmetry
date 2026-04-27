@@ -36,6 +36,42 @@ function serializeReview(
   };
 }
 
+async function runReviewsQuery(
+  app: FastifyInstance,
+  conditions: ReturnType<typeof eq>[],
+  limit: number,
+) {
+  const rows = await app.db
+    .select()
+    .from(appStoreReviews)
+    .where(and(...conditions))
+    .orderBy(desc(appStoreReviews.created_at_in_store), desc(appStoreReviews.id))
+    .limit(limit + 1);
+
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+
+  const appIds = [...new Set(page.map((r) => r.app_id))];
+  const appRows = appIds.length
+    ? await app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
+    : [];
+  const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
+
+  const lastItem = page[page.length - 1];
+  return {
+    reviews: page.map((r) => serializeReview(r, appNameMap.get(r.app_id) ?? "")),
+    cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at_in_store, lastItem.id) : null,
+    has_more: hasMore,
+  };
+}
+
+function cursorCondition(cursor: string | undefined) {
+  if (!cursor) return null;
+  const decoded = decodeKeysetCursor(cursor);
+  if (!decoded) return null;
+  return sql`(${appStoreReviews.created_at_in_store} < ${decoded.timestamp}::timestamptz OR (${appStoreReviews.created_at_in_store} = ${decoded.timestamp}::timestamptz AND ${appStoreReviews.id} < ${decoded.id}))`;
+}
+
 function buildFilterConditions(query: ReviewsQueryParams) {
   const conditions = [];
   if (query.app_id) conditions.push(eq(appStoreReviews.app_id, query.app_id));
@@ -86,38 +122,10 @@ export async function reviewsRoutes(app: FastifyInstance) {
         isNull(appStoreReviews.deleted_at),
         ...buildFilterConditions(filters),
       ];
+      const cursorClause = cursorCondition(cursor);
+      if (cursorClause) conditions.push(cursorClause);
 
-      if (cursor) {
-        const decoded = decodeKeysetCursor(cursor);
-        if (decoded) {
-          conditions.push(
-            sql`(${appStoreReviews.created_at_in_store} < ${decoded.timestamp}::timestamptz OR (${appStoreReviews.created_at_in_store} = ${decoded.timestamp}::timestamptz AND ${appStoreReviews.id} < ${decoded.id}))`,
-          );
-        }
-      }
-
-      const rows = await app.db
-        .select()
-        .from(appStoreReviews)
-        .where(and(...conditions))
-        .orderBy(desc(appStoreReviews.created_at_in_store), desc(appStoreReviews.id))
-        .limit(limit + 1);
-
-      const hasMore = rows.length > limit;
-      const page = hasMore ? rows.slice(0, limit) : rows;
-
-      const appIds = [...new Set(page.map((r) => r.app_id))];
-      const appRows = appIds.length
-        ? await app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
-        : [];
-      const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
-
-      const lastItem = page[page.length - 1];
-      return {
-        reviews: page.map((r) => serializeReview(r, appNameMap.get(r.app_id) ?? "")),
-        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at_in_store, lastItem.id) : null,
-        has_more: hasMore,
-      };
+      return runReviewsQuery(app, conditions, limit);
     },
   );
 
@@ -277,38 +285,10 @@ export async function teamReviewsRoutes(app: FastifyInstance) {
         isNull(appStoreReviews.deleted_at),
         ...buildFilterConditions(filters),
       ];
+      const cursorClause = cursorCondition(cursor);
+      if (cursorClause) conditions.push(cursorClause);
 
-      if (cursor) {
-        const decoded = decodeKeysetCursor(cursor);
-        if (decoded) {
-          conditions.push(
-            sql`(${appStoreReviews.created_at_in_store} < ${decoded.timestamp}::timestamptz OR (${appStoreReviews.created_at_in_store} = ${decoded.timestamp}::timestamptz AND ${appStoreReviews.id} < ${decoded.id}))`,
-          );
-        }
-      }
-
-      const rows = await app.db
-        .select()
-        .from(appStoreReviews)
-        .where(and(...conditions))
-        .orderBy(desc(appStoreReviews.created_at_in_store), desc(appStoreReviews.id))
-        .limit(limit + 1);
-
-      const hasMore = rows.length > limit;
-      const page = hasMore ? rows.slice(0, limit) : rows;
-
-      const appIds = [...new Set(page.map((r) => r.app_id))];
-      const appRows = appIds.length
-        ? await app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
-        : [];
-      const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
-
-      const lastItem = page[page.length - 1];
-      return {
-        reviews: page.map((r) => serializeReview(r, appNameMap.get(r.app_id) ?? "")),
-        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at_in_store, lastItem.id) : null,
-        has_more: hasMore,
-      };
+      return runReviewsQuery(app, conditions, limit);
     },
   );
 }

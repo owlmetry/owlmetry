@@ -1,6 +1,6 @@
 import { Command, Option } from "commander";
 import chalk from "chalk";
-import type { ReviewResponse } from "@owlmetry/shared";
+import type { ReviewResponse, ReviewStore } from "@owlmetry/shared";
 import { REVIEW_STORES, countryName, countryFlag } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
@@ -12,13 +12,10 @@ function stars(rating: number): string {
   return chalk.yellow("★".repeat(full)) + chalk.gray("★".repeat(5 - full));
 }
 
-function storeBadge(store: string): string {
-  switch (store) {
-    case "app_store": return chalk.cyan("🍎 App Store");
-    case "play_store": return chalk.green("🤖 Play Store");
-    default: return store;
-  }
-}
+const STORE_BADGES: Record<ReviewStore, string> = {
+  app_store: chalk.cyan("🍎 App Store"),
+  play_store: chalk.green("🤖 Play Store"),
+};
 
 function formatReviewsTable(reviews: ReviewResponse[]): string {
   if (reviews.length === 0) return chalk.dim("No reviews");
@@ -56,7 +53,7 @@ function formatReviewDetail(r: ReviewResponse): string {
     chalk.bold("Review"),
     "",
     `  ID:        ${r.id}`,
-    `  Store:     ${storeBadge(r.store)}`,
+    `  Store:     ${STORE_BADGES[r.store]}`,
     `  Rating:    ${stars(r.rating)}  (${r.rating}/5)`,
     `  App:       ${r.app_name}`,
     `  Reviewer:  ${r.reviewer_name ?? chalk.dim("—")}`,

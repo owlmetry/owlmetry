@@ -6,7 +6,6 @@ import type { JobHandler } from "../services/job-runner.js";
 const ITUNES_RSS_TIMEOUT_MS = 10_000;
 const ITUNES_LOOKUP_TIMEOUT_MS = 10_000;
 const ITUNES_RSS_INTER_REQUEST_DELAY_MS = 100;
-const APP_STORE = "app_store";
 
 // On-demand iTunes Lookup so the reviews job can resolve the numeric Apple App
 // Store ID (trackId) for newly-created apps without depending on app_version_sync
@@ -196,7 +195,7 @@ export const appReviewsSyncHandler: JobHandler = async (ctx, params) => {
         team_id: app.team_id,
         project_id: app.project_id,
         app_id: app.id,
-        store: APP_STORE,
+        store: "app_store" as const,
         external_id: review.external_id,
         rating: review.rating,
         title: review.title,
