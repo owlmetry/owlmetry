@@ -5,8 +5,6 @@ import type postgres from "postgres";
 import type { JobHandler } from "../services/job-runner.js";
 import { lookupItunes } from "../utils/itunes-lookup.js";
 
-const ITUNES_INTER_REQUEST_DELAY_MS = 100;
-
 interface AppleAppMetadata {
   version: string;
   trackId: number | null;
@@ -60,16 +58,14 @@ export const appVersionSyncHandler: JobHandler = async (ctx, params) => {
 
   const client = ctx.createClient();
   try {
-    for (let i = 0; i < allApps.length; i++) {
+    for (const app of allApps) {
       if (ctx.isCancelled()) break;
-      const app = allApps[i];
 
       let version: string | null = null;
       let source: "app_store" | "computed" | null = null;
       let appleMetadata: AppleAppMetadata | null = null;
 
       if (app.platform === "apple" && app.bundle_id) {
-        if (i > 0) await new Promise((r) => setTimeout(r, ITUNES_INTER_REQUEST_DELAY_MS));
         const lookup = await lookupItunes(app.bundle_id, "us");
         if (lookup.kind === "found" && lookup.result.version) {
           version = lookup.result.version;

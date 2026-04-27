@@ -5,6 +5,7 @@
 
 const ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup";
 const ITUNES_TIMEOUT_MS = 10_000;
+const IS_TEST = process.env.NODE_ENV === "test";
 
 export interface ItunesResult {
   trackId?: number;
@@ -26,20 +27,113 @@ export type ItunesLookupOutcome =
   | { kind: "not_found" }
   | { kind: "error"; message: string };
 
-export async function lookupItunes(bundleId: string, country: string): Promise<ItunesLookupOutcome> {
+// Detailed outcome — splits errors by retryability so the per-storefront
+// fan-out can apply backoff. 403/429 = Apple-side throttling; 5xx + network
+// + timeout are transient. Other non-2xx + parse errors are terminal.
+export type ItunesLookupDetailedOutcome =
+  | { kind: "found"; result: ItunesResult }
+  | { kind: "not_found" }
+  | { kind: "rate_limited"; status: number }
+  | { kind: "transient"; message: string }
+  | { kind: "error"; message: string };
+
+// Adaptive inter-request delay shared by every iTunes Lookup caller in the
+// process — concurrent jobs (e.g. cron ratings sync + a manual sync trigger
+// + the hourly version sync) all observe the same rate-limit signal so they
+// back off together instead of fighting Apple independently from the same IP.
+// Steps up fast on 403/429/5xx and decays slowly back toward baseline on
+// success — AIMD-style, react fast, recover slow. Test runs use 0ms
+// throughout so the suite stays fast.
+class AdaptiveThrottler {
+  private static readonly BASELINE_MS = IS_TEST ? 0 : 150;
+  private static readonly CEILING_MS = IS_TEST ? 0 : 10_000;
+  private delayMs = AdaptiveThrottler.BASELINE_MS;
+
+  async wait(): Promise<void> {
+    if (this.delayMs > 0) {
+      await new Promise((r) => setTimeout(r, this.delayMs));
+    }
+  }
+
+  noteThrottle(): void {
+    this.delayMs = Math.min(
+      Math.max(this.delayMs * 2, 500),
+      AdaptiveThrottler.CEILING_MS,
+    );
+  }
+
+  noteTransient(): void {
+    this.delayMs = Math.min(
+      Math.max(this.delayMs * 1.5, 300),
+      AdaptiveThrottler.CEILING_MS,
+    );
+  }
+
+  noteSuccess(): void {
+    if (this.delayMs > AdaptiveThrottler.BASELINE_MS) {
+      this.delayMs = Math.max(AdaptiveThrottler.BASELINE_MS, this.delayMs * 0.97);
+    }
+  }
+
+  get currentDelayMs(): number {
+    return this.delayMs;
+  }
+}
+
+export const itunesThrottler = new AdaptiveThrottler();
+
+export async function lookupItunesDetailed(
+  bundleId: string,
+  country: string,
+): Promise<ItunesLookupDetailedOutcome> {
+  await itunesThrottler.wait();
   try {
     const url = `${ITUNES_LOOKUP_URL}?bundleId=${encodeURIComponent(bundleId)}&country=${country}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(ITUNES_TIMEOUT_MS) });
-    // iTunes 404s for storefronts where the app isn't sold — that's a normal
-    // "not in this region" signal, not an error. Treat any other non-200 as
-    // a real error (rate-limit, server-side issue, etc).
-    if (res.status === 404) return { kind: "not_found" };
+    // 404 = app not sold in this storefront. Normal "not in this region".
+    if (res.status === 404) {
+      itunesThrottler.noteSuccess();
+      return { kind: "not_found" };
+    }
+    if (res.status === 403 || res.status === 429) {
+      itunesThrottler.noteThrottle();
+      return { kind: "rate_limited", status: res.status };
+    }
+    if (res.status >= 500 && res.status < 600) {
+      itunesThrottler.noteTransient();
+      return { kind: "transient", message: `HTTP ${res.status}` };
+    }
     if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
     const data = (await res.json()) as ItunesLookupResponse;
+    itunesThrottler.noteSuccess();
     const result = data.results?.[0];
     if (!result) return { kind: "not_found" };
     return { kind: "found", result };
   } catch (err) {
-    return { kind: "error", message: err instanceof Error ? err.message : String(err) };
+    // Network failures, AbortSignal timeouts, DNS hiccups — all retry-worthy.
+    itunesThrottler.noteTransient();
+    return { kind: "transient", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Simple outcome wrapper for callers that don't care about retry classes
+// (app_version_sync, on-demand routes). Collapses rate_limited + transient
+// into plain errors. The shared throttler still observes the call so even
+// these "fire and forget" callers contribute to and benefit from the
+// process-wide backoff state.
+export async function lookupItunes(
+  bundleId: string,
+  country: string,
+): Promise<ItunesLookupOutcome> {
+  const detailed = await lookupItunesDetailed(bundleId, country);
+  switch (detailed.kind) {
+    case "found":
+    case "not_found":
+    case "error":
+      return detailed;
+    case "rate_limited":
+      return { kind: "error", message: `rate limited (HTTP ${detailed.status})` };
+    case "transient":
+      return { kind: "error", message: detailed.message };
   }
 }

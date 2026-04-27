@@ -2,13 +2,26 @@ import { eq, and, isNull, sql } from "drizzle-orm";
 import { apps, appStoreRatings } from "@owlmetry/db";
 import { APPLE_STOREFRONT_CODES } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
-import { lookupItunes } from "../utils/itunes-lookup.js";
+import { itunesThrottler, lookupItunesDetailed } from "../utils/itunes-lookup.js";
 
-// 150ms between iTunes Lookup calls keeps us well under any rate limits Apple
-// imposes on the public endpoint. Skipped in test runs (otherwise a single
-// test takes 37s+ to fan out across ~247 storefronts).
-const ITUNES_INTER_REQUEST_DELAY_MS = process.env.NODE_ENV === "test" ? 0 : 150;
 const APP_STORE = "app_store" as const;
+const IS_TEST = process.env.NODE_ENV === "test";
+
+// Per-storefront retry budget. Exponential backoff capped at 60s; with 8
+// attempts that's ~2 minutes worst case per storefront. Anything still
+// failing after that gets picked up tomorrow. The shared `itunesThrottler`
+// (in utils/itunes-lookup) handles inter-request pacing globally — this is
+// just the per-call retry-and-give-up loop.
+const MAX_ATTEMPTS = 8;
+const BACKOFF_BASE_MS = IS_TEST ? 0 : 1_000;
+const BACKOFF_CAP_MS = IS_TEST ? 0 : 60_000;
+
+function backoffDelay(attempt: number): number {
+  if (BACKOFF_BASE_MS === 0) return 0;
+  const exp = Math.min(BACKOFF_BASE_MS * 2 ** (attempt - 1), BACKOFF_CAP_MS);
+  // ±25% jitter so retries spread out.
+  return exp * (0.75 + Math.random() * 0.5);
+}
 
 interface StorefrontRating {
   averageRating: number | null;
@@ -23,32 +36,71 @@ type StorefrontOutcome =
   | { kind: "not_found" }
   | { kind: "error"; message: string };
 
-async function lookupStorefront(bundleId: string, country: string): Promise<StorefrontOutcome> {
-  const lookup = await lookupItunes(bundleId, country);
-  if (lookup.kind !== "found") return lookup;
-  const r = lookup.result;
-  const ratingCount = typeof r.userRatingCount === "number" ? r.userRatingCount : 0;
-  const averageRating = typeof r.averageUserRating === "number" ? r.averageUserRating : null;
-  // iTunes occasionally returns a result row with no rating data at all (e.g.
-  // an app present in the storefront but with zero ratings). Treat as
-  // not_found so we don't store a 0-count row that displaces a real one.
-  if (averageRating === null && ratingCount === 0) return { kind: "not_found" };
-  return {
-    kind: "found",
-    rating: {
-      averageRating,
-      ratingCount,
-      currentVersionAverageRating:
-        typeof r.averageUserRatingForCurrentVersion === "number"
-          ? r.averageUserRatingForCurrentVersion
-          : null,
-      currentVersionRatingCount:
-        typeof r.userRatingCountForCurrentVersion === "number"
-          ? r.userRatingCountForCurrentVersion
-          : null,
-      appVersion: typeof r.version === "string" ? r.version : null,
-    },
-  };
+interface SyncStats {
+  throttleHits: number;
+  transientHits: number;
+  retries: number;
+  retriesExhausted: number;
+}
+
+async function lookupStorefront(
+  bundleId: string,
+  country: string,
+  isCancelled: () => boolean,
+  stats: SyncStats,
+): Promise<StorefrontOutcome> {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (isCancelled()) return { kind: "error", message: "cancelled" };
+    // lookupItunesDetailed waits on the shared throttler and updates it from
+    // the response — we just count outcomes here for job-level observability.
+    const lookup = await lookupItunesDetailed(bundleId, country);
+
+    if (lookup.kind === "rate_limited" || lookup.kind === "transient") {
+      if (lookup.kind === "rate_limited") stats.throttleHits++;
+      else stats.transientHits++;
+      if (attempt >= MAX_ATTEMPTS) {
+        stats.retriesExhausted++;
+        const reason =
+          lookup.kind === "rate_limited"
+            ? `rate limited (HTTP ${lookup.status})`
+            : `transient (${lookup.message})`;
+        return { kind: "error", message: `${reason} after ${attempt} attempts` };
+      }
+      stats.retries++;
+      const delay = backoffDelay(attempt);
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+
+    if (lookup.kind === "error") return lookup;
+
+    if (lookup.kind === "not_found") return { kind: "not_found" };
+
+    const r = lookup.result;
+    const ratingCount = typeof r.userRatingCount === "number" ? r.userRatingCount : 0;
+    const averageRating = typeof r.averageUserRating === "number" ? r.averageUserRating : null;
+    // iTunes occasionally returns a result row with no rating data at all
+    // (e.g. app present in the storefront but with zero ratings). Treat as
+    // not_found so we don't store a 0-count row that displaces a real one.
+    if (averageRating === null && ratingCount === 0) return { kind: "not_found" };
+    return {
+      kind: "found",
+      rating: {
+        averageRating,
+        ratingCount,
+        currentVersionAverageRating:
+          typeof r.averageUserRatingForCurrentVersion === "number"
+            ? r.averageUserRatingForCurrentVersion
+            : null,
+        currentVersionRatingCount:
+          typeof r.userRatingCountForCurrentVersion === "number"
+            ? r.userRatingCountForCurrentVersion
+            : null,
+        appVersion: typeof r.version === "string" ? r.version : null,
+      },
+    };
+  }
+  return { kind: "error", message: "max retries exhausted" };
 }
 
 export function todayUtcDateString(): string {
@@ -96,6 +148,12 @@ export const appStoreRatingsSyncHandler: JobHandler = async (ctx, params) => {
   let rowsUpserted = 0;
   let tombstonesWritten = 0;
   let errors = 0;
+  const stats: SyncStats = {
+    throttleHits: 0,
+    transientHits: 0,
+    retries: 0,
+    retriesExhausted: 0,
+  };
 
   const client = ctx.createClient();
   const today = todayUtcDateString();
@@ -138,11 +196,13 @@ export const appStoreRatingsSyncHandler: JobHandler = async (ctx, params) => {
 
       for (const country of APPLE_STOREFRONT_CODES) {
         if (ctx.isCancelled()) break;
-        if (storefrontsFetched > 0) {
-          await new Promise((r) => setTimeout(r, ITUNES_INTER_REQUEST_DELAY_MS));
-        }
 
-        const result = await lookupStorefront(app.bundle_id, country);
+        const result = await lookupStorefront(
+          app.bundle_id,
+          country,
+          () => ctx.isCancelled(),
+          stats,
+        );
         storefrontsFetched++;
 
         if (result.kind === "error") {
@@ -263,7 +323,10 @@ export const appStoreRatingsSyncHandler: JobHandler = async (ctx, params) => {
       await ctx.updateProgress({
         processed: appsProcessed,
         total: targetApps.length,
-        message: `Processed ${appsProcessed}/${targetApps.length} apps (${rowsUpserted} rows, ${tombstonesWritten} tombstones)`,
+        message:
+          `Processed ${appsProcessed}/${targetApps.length} apps ` +
+          `(${rowsUpserted} rows, ${tombstonesWritten} tombstones, ` +
+          `${stats.throttleHits} throttles, delay ${Math.round(itunesThrottler.currentDelayMs)}ms)`,
       });
     }
   } finally {
@@ -277,6 +340,11 @@ export const appStoreRatingsSyncHandler: JobHandler = async (ctx, params) => {
     rows_upserted: rowsUpserted,
     tombstones_written: tombstonesWritten,
     errors,
+    throttle_hits: stats.throttleHits,
+    transient_hits: stats.transientHits,
+    retries: stats.retries,
+    retries_exhausted: stats.retriesExhausted,
+    final_delay_ms: Math.round(itunesThrottler.currentDelayMs),
     _silent: appsProcessed === 0 && appsSkipped === 0 && errors === 0,
   };
 };

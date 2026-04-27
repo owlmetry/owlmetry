@@ -216,6 +216,119 @@ describe("app_store_ratings_sync", () => {
     vi.unstubAllGlobals();
   });
 
+  it("retries after a 403 rate-limit and eventually persists the data", async () => {
+    let usAttempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: RequestInfo | URL) => {
+        const country = new URL(String(url)).searchParams.get("country") ?? "";
+        if (country !== "us") {
+          return new Response(JSON.stringify({ resultCount: 0, results: [] }), { status: 200 });
+        }
+        usAttempt++;
+        if (usAttempt <= 2) {
+          // First two US calls get throttled; third succeeds.
+          return new Response("rate limited", { status: 403 });
+        }
+        return new Response(
+          JSON.stringify({
+            resultCount: 1,
+            results: [
+              {
+                trackId: 1,
+                bundleId: "com.example.ratings",
+                averageUserRating: 4.7,
+                userRatingCount: 250,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+
+    expect(result.rows_upserted).toBe(1);
+    expect(result.errors).toBe(0);
+    expect(result.throttle_hits).toBe(2);
+    expect(result.retries).toBe(2);
+    expect(result.retries_exhausted).toBe(0);
+
+    const rows = await db.select().from(appStoreRatings).where(eq(appStoreRatings.app_id, appleAppId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].country_code).toBe("us");
+    expect(rows[0].rating_count).toBe(250);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("counts a storefront as exhausted (not silently skipped) when retries don't recover", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: RequestInfo | URL) => {
+        const country = new URL(String(url)).searchParams.get("country") ?? "";
+        if (country === "us") {
+          // Persistent 403 — retries will be exhausted.
+          return new Response("nope", { status: 403 });
+        }
+        return new Response(JSON.stringify({ resultCount: 0, results: [] }), { status: 200 });
+      }),
+    );
+
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+
+    expect(result.errors).toBe(1);
+    expect(result.retries_exhausted).toBe(1);
+    expect(result.throttle_hits).toBeGreaterThanOrEqual(8);
+    expect(result.rows_upserted).toBe(0);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("retries through 5xx transient errors", async () => {
+    let usAttempt = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: RequestInfo | URL) => {
+        const country = new URL(String(url)).searchParams.get("country") ?? "";
+        if (country !== "us") {
+          return new Response(JSON.stringify({ resultCount: 0, results: [] }), { status: 200 });
+        }
+        usAttempt++;
+        if (usAttempt === 1) {
+          return new Response("Bad Gateway", { status: 502 });
+        }
+        return new Response(
+          JSON.stringify({
+            resultCount: 1,
+            results: [
+              {
+                trackId: 1,
+                bundleId: "com.example.ratings",
+                averageUserRating: 4.3,
+                userRatingCount: 80,
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+
+    expect(result.rows_upserted).toBe(1);
+    expect(result.transient_hits).toBe(1);
+    expect(result.retries).toBe(1);
+    expect(result.errors).toBe(0);
+
+    vi.unstubAllGlobals();
+  });
+
   it("DISTINCT ON … ORDER BY snapshot_date DESC returns today's value over a historical row", async () => {
     // Seed a historical row directly.
     await db.insert(appStoreRatings).values({
