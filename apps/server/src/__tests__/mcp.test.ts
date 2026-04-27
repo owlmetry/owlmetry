@@ -674,14 +674,23 @@ describe("MCP endpoint", () => {
         { level: "info", message: "metric:api-call:complete", session_id: TEST_SESSION_ID, timestamp: new Date(now.getTime() + 500).toISOString(), custom_attributes: { duration_ms: 500 } },
       ]);
 
-      // Query aggregation
-      const { parsed } = parseToolResult(
-        await callTool(key, "query-metric", {
-          project_id: testData.projectId,
-          slug: "api-call",
-          data_mode: "all",
-        }),
-      );
+      // The /v1/ingest route fans the metric_events / funnel_events writes out
+      // fire-and-forget for hot-path latency, so on a slow CI box those rows
+      // can lag the events insert. Poll briefly so the query reflects them.
+      const queryMetric = async () =>
+        parseToolResult(
+          await callTool(key, "query-metric", {
+            project_id: testData.projectId,
+            slug: "api-call",
+            data_mode: "all",
+          }),
+        );
+      let parsed = (await queryMetric()).parsed;
+      const deadline = Date.now() + 2000;
+      while (parsed.aggregation.total_count < 1 && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 50));
+        parsed = (await queryMetric()).parsed;
+      }
       expect(parsed.aggregation.total_count).toBeGreaterThanOrEqual(1);
 
       // List raw metric events

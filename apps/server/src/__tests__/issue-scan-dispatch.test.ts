@@ -35,10 +35,15 @@ beforeEach(async () => {
   await seedTestData();
   const result = await getTokenAndTeamId(app);
   teamId = result.teamId;
-  const [proj] = await dbClient`SELECT id FROM projects WHERE team_id = ${teamId}`;
-  projectId = proj.id;
-  const [appRow] = await dbClient`SELECT id FROM apps WHERE project_id = ${projectId}`;
+  // Pin to the apple app — its bundle_id is what ingestErrors routes through.
+  // Without this, "first project/app" is heap-order-dependent across the
+  // three projects seedTestData creates, and the regression tests below
+  // would seed issue_fingerprints against the wrong app_id.
+  const [appRow] = await dbClient`
+    SELECT id, project_id FROM apps WHERE bundle_id = ${TEST_BUNDLE_ID}
+  `;
   appId = appRow.id;
+  projectId = appRow.project_id;
 });
 
 async function ingestErrors(events: Array<{
