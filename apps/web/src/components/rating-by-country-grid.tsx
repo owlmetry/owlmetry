@@ -57,7 +57,7 @@ export function RatingByCountryGrid({ projectId, appId, initialCount = 12 }: Rat
                       {countryFlag(r.country_code)} {r.country_code.toUpperCase()}
                     </span>
                     <span className="text-xs tabular-nums whitespace-nowrap">
-                      {r.average_rating !== null ? r.average_rating.toFixed(1) : "—"}{" "}
+                      {r.average_rating !== null ? r.average_rating.toFixed(2) : "—"}{" "}
                       <Star className="inline h-3 w-3 fill-amber-400 text-amber-400 align-text-bottom" />{" "}
                       <span className="text-muted-foreground">({r.rating_count.toLocaleString()})</span>
                     </span>

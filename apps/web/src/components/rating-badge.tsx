@@ -45,7 +45,7 @@ export function RatingBadge({
           )}
         >
           <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-          <span>{rating.toFixed(1)}</span>
+          <span>{rating.toFixed(2)}</span>
           <span className="text-muted-foreground">({formatCount(reviewers)})</span>
         </span>
       </TooltipTrigger>

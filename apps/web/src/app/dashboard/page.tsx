@@ -131,7 +131,7 @@ export default function DashboardPage() {
     }
     if (totalRatings === 0) return { avg: undefined, total: undefined };
     return {
-      avg: (weightedSum / totalRatings).toFixed(1),
+      avg: (weightedSum / totalRatings).toFixed(2),
       total: totalRatings,
     };
   }, [appsData]);

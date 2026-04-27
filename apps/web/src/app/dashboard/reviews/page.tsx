@@ -288,7 +288,7 @@ function RatingsPanel({
             {heroSummary ? (
               <div className="flex items-baseline gap-3">
                 <span className="text-4xl font-semibold tabular-nums text-amber-500">
-                  ★ {heroSummary.avg.toFixed(1)}
+                  ★ {heroSummary.avg.toFixed(2)}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {heroSummary.total.toLocaleString()} ratings
@@ -318,7 +318,7 @@ function RatingsPanel({
                     <span className="text-sm font-medium truncate">{row.project.name}</span>
                   </div>
                   <span className="text-sm tabular-nums whitespace-nowrap">
-                    <span className="text-amber-500">★</span> {row.avg.toFixed(1)}{" "}
+                    <span className="text-amber-500">★</span> {row.avg.toFixed(2)}{" "}
                     <span className="text-muted-foreground">({row.total.toLocaleString()})</span>
                   </span>
                 </div>
@@ -338,7 +338,7 @@ function RatingsPanel({
                     {countryFlag(c.country_code)} {countryName(c.country_code)}
                   </p>
                   <p className="text-sm font-medium tabular-nums">
-                    {c.average_rating.toFixed(1)} <span className="text-amber-500">★</span>{" "}
+                    {c.average_rating.toFixed(2)} <span className="text-amber-500">★</span>{" "}
                     <span className="text-muted-foreground">({c.rating_count.toLocaleString()})</span>
                   </p>
                 </div>
