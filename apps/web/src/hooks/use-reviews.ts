@@ -38,11 +38,19 @@ export function useReviewDetail(projectId: string | undefined, reviewId: string 
 }
 
 export function useReviewsByCountry(
-  projectId: string | undefined,
+  scope: { projectId?: string; teamId?: string },
   filters: { app_id?: string; store?: string } = {},
 ) {
+  const { projectId, teamId } = scope;
   const qs = buildQueryString(filters);
-  const key = projectId ? `/v1/projects/${projectId}/reviews/by-country${qs ? `?${qs}` : ""}` : null;
+  // Project-scoped takes precedence; team-level used for "All projects" views.
+  let key: string | null = null;
+  if (projectId) {
+    key = `/v1/projects/${projectId}/reviews/by-country${qs ? `?${qs}` : ""}`;
+  } else if (teamId) {
+    const teamQs = buildQueryString({ ...filters, team_id: teamId });
+    key = `/v1/reviews/by-country${teamQs ? `?${teamQs}` : ""}`;
+  }
   const { data, isLoading, error } = useSWR<ReviewsCountryFacets>(key, {
     refreshInterval: 60_000,
   });

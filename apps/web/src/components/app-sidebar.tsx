@@ -22,7 +22,7 @@ const navItems = [
   { href: "/dashboard/events", label: "Events", icon: ScrollText },
   { href: "/dashboard/issues", label: "Issues", icon: Bug },
   { href: "/dashboard/feedback", label: "Feedback", icon: MessageSquare },
-  { href: "/dashboard/reviews", label: "Reviews", icon: Star },
+  { href: "/dashboard/reviews", label: "Ratings/Reviews", icon: Star },
   { href: "/dashboard/users", label: "Users", icon: UserSearch },
   { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
   { href: "/dashboard/funnels", label: "Funnels", icon: Filter },

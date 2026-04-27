@@ -211,28 +211,141 @@ function ReviewDetailModal({
   );
 }
 
-function ByCountryPanel({ projectId, appId }: { projectId: string | undefined; appId: string | undefined }) {
-  const { countries, isLoading } = useReviewsByCountry(projectId, appId ? { app_id: appId } : {});
-  if (!projectId) return null;
-  if (isLoading) return null;
-  if (countries.length === 0) return null;
-  const top = countries.slice(0, 10);
+// Compute (weighted-average rating, total ratings) across a set of apps using
+// each app's Apple aggregate latest_rating × latest_rating_count. Mirrors the
+// math used on the main dashboard (apps/web/src/app/dashboard/page.tsx).
+function ratingSummary(apps: AppResponse[]): { avg: number; total: number } | null {
+  let weighted = 0;
+  let total = 0;
+  for (const a of apps) {
+    const r = a.latest_rating;
+    const c = a.latest_rating_count ?? 0;
+    if (r === null || r === undefined || c <= 0) continue;
+    weighted += r * c;
+    total += c;
+  }
+  if (total === 0) return null;
+  return { avg: weighted / total, total };
+}
+
+function RatingsPanel({
+  apps,
+  projects,
+  selectedProjectId,
+  teamId,
+  appId,
+  store,
+}: {
+  apps: AppResponse[];
+  projects: ProjectResponse[];
+  selectedProjectId: string;
+  teamId: string | undefined;
+  appId: string;
+  store: string;
+}) {
+  const ALL = "__all__";
+  const scopedApps = apps.filter((a) => {
+    if (selectedProjectId && a.project_id !== selectedProjectId) return false;
+    if (appId !== ALL && a.id !== appId) return false;
+    return true;
+  });
+  const heroSummary = ratingSummary(scopedApps);
+
+  const perProject = !selectedProjectId
+    ? projects
+        .map((p) => {
+          const summary = ratingSummary(apps.filter((a) => a.project_id === p.id));
+          return summary ? { project: p, ...summary } : null;
+        })
+        .filter((x): x is { project: ProjectResponse; avg: number; total: number } => x !== null)
+        .sort((a, b) => b.total - a.total)
+    : [];
+
+  const { countries } = useReviewsByCountry(
+    {
+      projectId: selectedProjectId || undefined,
+      teamId: !selectedProjectId ? teamId : undefined,
+    },
+    {
+      ...(appId !== ALL ? { app_id: appId } : {}),
+      ...(store !== ALL ? { store } : {}),
+    },
+  );
+  const topCountries = countries.slice(0, 10);
+
   return (
     <Card>
-      <CardContent className="p-4">
-        <p className="text-sm font-semibold mb-3">Top countries</p>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {top.map((c) => (
-            <div key={c.country_code} className="space-y-0.5">
-              <p className="text-xs text-muted-foreground truncate">
-                {countryFlag(c.country_code)} {countryName(c.country_code)}
-              </p>
-              <p className="text-sm font-medium">
-                {c.average_rating.toFixed(1)} ★ <span className="text-muted-foreground">({c.review_count})</span>
-              </p>
-            </div>
-          ))}
+      <CardContent className="p-4 space-y-4">
+        {/* Hero */}
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-xs text-muted-foreground tracking-wider uppercase mb-1">
+              {selectedProjectId
+                ? projects.find((p) => p.id === selectedProjectId)?.name ?? "Project"
+                : "All apps"}{" "}
+              · All time
+            </p>
+            {heroSummary ? (
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-semibold tabular-nums text-amber-500">
+                  ★ {heroSummary.avg.toFixed(1)}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {heroSummary.total.toLocaleString()} ratings
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-3">
+                <span className="text-4xl font-semibold tabular-nums text-muted-foreground">—</span>
+                <span className="text-sm text-muted-foreground">No ratings yet</span>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Per project */}
+        {perProject.length > 0 && (
+          <div className="space-y-2 pt-2 border-t">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">By project</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {perProject.map((row) => (
+                <div
+                  key={row.project.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-md border border-border bg-muted/30"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ProjectDot color={row.project.color} />
+                    <span className="text-sm font-medium truncate">{row.project.name}</span>
+                  </div>
+                  <span className="text-sm tabular-nums whitespace-nowrap">
+                    <span className="text-amber-500">★</span> {row.avg.toFixed(1)}{" "}
+                    <span className="text-muted-foreground">({row.total.toLocaleString()})</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* By country */}
+        {topCountries.length > 0 && (
+          <div className="space-y-2 pt-2 border-t">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">By country</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {topCountries.map((c) => (
+                <div key={c.country_code} className="space-y-0.5">
+                  <p className="text-xs text-muted-foreground truncate">
+                    {countryFlag(c.country_code)} {countryName(c.country_code)}
+                  </p>
+                  <p className="text-sm font-medium tabular-nums">
+                    {c.average_rating.toFixed(1)} <span className="text-amber-500">★</span>{" "}
+                    <span className="text-muted-foreground">({c.review_count})</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -315,15 +428,29 @@ export default function ReviewsPage() {
   const selectedReview = selectedReviewId ? reviews.find((r) => r.id === selectedReviewId) : null;
 
   // Derive country options from what's actually present in the by-country aggregate
-  // for the active project — keeps the dropdown small and useful.
+  // for the active scope — keeps the dropdown small and useful.
   const { countries: countryFacets } = useReviewsByCountry(
-    selectedProjectId || undefined,
+    {
+      projectId: selectedProjectId || undefined,
+      teamId: !selectedProjectId ? teamId : undefined,
+    },
     appId !== ALL ? { app_id: appId } : {},
   );
 
   return (
     <AnimatedPage className="space-y-4">
       <StaggerItem index={0}>
+        <RatingsPanel
+          apps={apps}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          teamId={teamId}
+          appId={appId}
+          store={store}
+        />
+      </StaggerItem>
+
+      <StaggerItem index={1}>
         <div className="flex items-end gap-3 flex-wrap">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Project</label>
@@ -436,12 +563,6 @@ export default function ReviewsPage() {
           </div>
         </div>
       </StaggerItem>
-
-      {selectedProjectId && (
-        <StaggerItem index={1}>
-          <ByCountryPanel projectId={selectedProjectId} appId={appId !== ALL ? appId : undefined} />
-        </StaggerItem>
-      )}
 
       <StaggerItem index={2}>
         {isLoading ? (

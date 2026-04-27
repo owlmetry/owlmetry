@@ -330,4 +330,60 @@ export async function teamReviewsRoutes(app: FastifyInstance) {
       return runReviewsQuery(app, conditions, limit);
     },
   );
+
+  // Team-scoped by-country aggregate. Mirrors the project-scoped sibling but
+  // resolves accessible projects from team membership so "All projects" views
+  // (web ratings panel, iOS ratings) can render a single grid.
+  app.get<{
+    Querystring: { team_id?: string; project_id?: string; app_id?: string; store?: string };
+  }>(
+    "/reviews/by-country",
+    { preHandler: requirePermission("reviews:read") },
+    async (request) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+      const { team_id, project_id, app_id, store } = request.query;
+
+      const teamIds = team_id ? (allTeamIds.includes(team_id) ? [team_id] : []) : allTeamIds;
+      if (teamIds.length === 0) return { countries: [] };
+
+      const projectConditions = [inArray(projects.team_id, teamIds), isNull(projects.deleted_at)];
+      if (project_id) projectConditions.push(eq(projects.id, project_id));
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(...projectConditions));
+      if (accessibleProjects.length === 0) return { countries: [] };
+
+      const projectIds = accessibleProjects.map((p) => p.id);
+      const conditions = [
+        inArray(appStoreReviews.project_id, projectIds),
+        isNull(appStoreReviews.deleted_at),
+        isNotNull(appStoreReviews.country_code),
+      ];
+      if (app_id) conditions.push(eq(appStoreReviews.app_id, app_id));
+      if (store && (REVIEW_STORES as readonly string[]).includes(store)) {
+        conditions.push(eq(appStoreReviews.store, store));
+      }
+
+      const rows = await app.db
+        .select({
+          country_code: appStoreReviews.country_code,
+          review_count: sql<number>`COUNT(*)::int`,
+          average_rating: sql<number>`AVG(${appStoreReviews.rating})::float`,
+        })
+        .from(appStoreReviews)
+        .where(and(...conditions))
+        .groupBy(appStoreReviews.country_code)
+        .orderBy(desc(sql<number>`COUNT(*)`), asc(appStoreReviews.country_code));
+
+      return {
+        countries: rows.map((r) => ({
+          country_code: r.country_code ?? "",
+          review_count: Number(r.review_count),
+          average_rating: Math.round(Number(r.average_rating) * 100) / 100,
+        })),
+      };
+    },
+  );
 }
