@@ -9,7 +9,7 @@ export const JOB_TYPES = [
   "attachment_cleanup",
   "apple_ads_sync",
   "app_version_sync",
-  "app_reviews_sync",
+  "app_store_connect_reviews_sync",
   "notification_deliver",
   "notification_cleanup",
 ] as const;
@@ -124,20 +124,13 @@ export const JOB_TYPE_META: Record<
       },
     ],
   },
-  app_reviews_sync: {
-    label: "App Reviews Sync",
+  app_store_connect_reviews_sync: {
+    label: "App Store Connect Reviews Sync",
     description:
-      "Pulls public App Store / Play Store reviews and stores them in app_store_reviews. Phase 1 covers Apple only — iterates every storefront via the iTunes RSS reviews feed for each Apple app with an apple_app_store_id.",
-    scope: "system",
-    default_schedule: "0 0 * * *",
-    params: [
-      {
-        name: "app_id",
-        description: "Sync only the given app instead of all apps",
-        type: "string",
-        required: false,
-      },
-    ],
+      "Pulls Apple App Store reviews via the App Store Connect customerReviews API and stores them in app_store_reviews. Requires a configured App Store Connect integration on the project.",
+    scope: "project",
+    default_schedule: null,
+    params: [],
   },
   notification_deliver: {
     label: "Notification Delivery",

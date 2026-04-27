@@ -7,7 +7,7 @@ import { callApi, buildQuery } from "../helpers.js";
 export function registerReviewsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-reviews", {
     description:
-      "List public App Store / Play Store reviews for a project. These are scraped from the stores (currently Apple App Store via the iTunes RSS feed across all storefronts) — distinct from in-app feedback. Sorted by most recent first. Filter by app, store, rating, country, or developer-response presence.",
+      "List App Store / Play Store reviews for a project. Apple reviews are pulled via the App Store Connect customerReviews API (requires the project to have an App Store Connect integration configured). Distinct from in-app feedback. Sorted by most recent first. Filter by app, store, rating, country, or developer-response presence.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       app_id: z.string().uuid().optional().describe("Filter by app"),

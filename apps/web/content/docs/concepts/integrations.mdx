@@ -139,6 +139,48 @@ For users attributed before the integration was connected, the bulk sync (`apple
 
 Apple has announced the v5 Campaign Management API will be sunset on **January 26, 2027**, replaced by a new **Apple Ads Platform API** shipping Summer 2026. Owlmetry will migrate customers to the Platform API ahead of the sunset.
 
+## App Store Connect
+
+Pulls App Store **reviews** via Apple's App Store Connect (ASC) API. The reviews land in the `app_store_reviews` table and surface on `/dashboard/reviews`. Replaces the older iTunes RSS feed (which Apple deprecated in early 2025 and now blocks from many datacenter IPs). See [Store Reviews](/docs/concepts/reviews) for the data model.
+
+### What it does
+
+- Powers `app_store_connect_reviews_sync` — a project-scoped job that calls `GET /v1/apps/{id}/customerReviews` for every Apple app in the project that has an `apple_app_store_id`.
+- Returns rating, title, body, reviewer nickname, territory (mapped from ISO 3166 alpha-3 to alpha-2), developer response, and dev-response timestamp.
+- Paginates 200 reviews per page, newest-first, and stops as soon as a page contains a review already in the DB. Re-runs are cheap.
+
+### Setup
+
+ASC keys are scoped to one Apple Developer team — each Apple account requires its own integration in each project that holds its apps. Setup is a single dialog (no multi-step wizard like ASA):
+
+1. In App Store Connect, go to **Users and Access → Integrations → App Store Connect API**, click "+" on the **Individual Keys** tab.
+2. Pick the **Customer Support** role (least-privilege for read-only review access).
+3. Download the `.p8` (one chance — Apple won't re-issue).
+4. Copy the **Issuer ID** (top of the page) and **Key ID** (10-char alphanumeric, also embedded in the `.p8` filename).
+5. Owlmetry → **Dashboard → Integrations → App Store Connect → Set up**, paste all three.
+6. **Test connection** to confirm Apple accepts the key and lists your apps. **Sync reviews** to backfill.
+
+CLI equivalent:
+
+```
+owlmetry integrations add app-store-connect \
+  --project-id <id> \
+  --issuer-id <uuid> \
+  --key-id <ABC1234567> \
+  --private-key-p8-file ./AuthKey_ABC1234567.p8
+owlmetry integrations test app-store-connect --project-id <id>
+owlmetry integrations sync app-store-connect --project-id <id>
+```
+
+### Rotation
+
+To rotate the key: re-issue a new one in App Store Connect, then `owlmetry integrations update app-store-connect --project-id <id> --key-id <new> --private-key-p8-file ./new.p8`. Omit `--private-key-p8-file` to update only the IDs (the existing `.p8` is preserved). The `.p8` is never returned by GET — Owlmetry stores it server-side and redacts it from API responses.
+
+### Limitations
+
+- One ASC key per project. If you have apps from multiple Apple Developer teams in one project, only the team that owns the configured key will have its reviews synced.
+- The Customer Support role does not allow posting developer responses. Replying to reviews from inside Owlmetry would require an Admin or App Manager role and is not yet implemented.
+
 ## Managing Integrations
 
 ### Dashboard

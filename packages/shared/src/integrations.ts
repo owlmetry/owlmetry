@@ -30,6 +30,7 @@ export interface IntegrationProviderDefinition {
 export const INTEGRATION_PROVIDER_IDS = {
   REVENUECAT: "revenuecat",
   APPLE_SEARCH_ADS: "apple-search-ads",
+  APP_STORE_CONNECT: "app-store-connect",
 } as const;
 
 export type IntegrationProviderId =
@@ -48,6 +49,18 @@ export const APPLE_ADS_USER_CONFIG_KEYS = [
   "org_id",
 ] as const;
 export type AppleAdsUserConfigKey = (typeof APPLE_ADS_USER_CONFIG_KEYS)[number];
+
+/**
+ * Required user-supplied fields for app-store-connect. All three must be
+ * present for the integration to be considered complete and auto-enabled.
+ */
+export const APP_STORE_CONNECT_REQUIRED_KEYS = [
+  "issuer_id",
+  "key_id",
+  "private_key_p8",
+] as const;
+export type AppStoreConnectRequiredKey =
+  (typeof APP_STORE_CONNECT_REQUIRED_KEYS)[number];
 
 export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
   {
@@ -131,6 +144,38 @@ export const INTEGRATION_PROVIDERS: IntegrationProviderDefinition[] = [
         sensitive: false,
         serverManaged: true,
         description: "EC P-256 public key, PEM-encoded. Generated server-side on create and shown to the user once so they can upload it at ads.apple.com → Account Settings → User Management → (their API user) → API. Visible (unredacted) in GET responses. Never accepted from user input.",
+      },
+    ],
+  },
+  {
+    id: INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT,
+    name: "App Store Connect",
+    description:
+      "Pulls Apple App Store reviews via the App Store Connect customerReviews API. Setup: in App Store Connect → Users and Access → Integrations → App Store Connect API, generate an Individual Key with the \"Customer Support\" role (least-privilege for read-only review access). Download the .p8 file and copy the Key ID and Issuer ID. Each Apple Developer account requires its own integration row — keys cannot be shared across accounts.",
+    configFields: [
+      {
+        key: "issuer_id",
+        label: "Issuer ID",
+        required: true,
+        sensitive: false,
+        placeholder: "57246542-96fe-1a63-e053-0824d011072a",
+        description: "Your team's Issuer ID. Shown at the top of App Store Connect → Users and Access → Integrations → App Store Connect API.",
+      },
+      {
+        key: "key_id",
+        label: "Key ID",
+        required: true,
+        sensitive: false,
+        placeholder: "ABC1234567",
+        description: "10-character alphanumeric Key ID assigned to the API key when generated. Visible in the keys list immediately after generation, and embedded in the .p8 filename (AuthKey_<KEY_ID>.p8).",
+      },
+      {
+        key: "private_key_p8",
+        label: "Private Key (.p8 contents)",
+        required: true,
+        sensitive: true,
+        placeholder: "-----BEGIN PRIVATE KEY-----\\nMIGTAgEAMBMGByqG…\\n-----END PRIVATE KEY-----",
+        description: "Paste the full contents of the .p8 file you downloaded from App Store Connect. PKCS#8 PEM (BEGIN PRIVATE KEY) and SEC1 PEM (BEGIN EC PRIVATE KEY) are both accepted. Owlmetry redacts this value after save and never returns it — to rotate, paste a new .p8.",
       },
     ],
   },
@@ -242,6 +287,19 @@ export function redactIntegrationConfig(
  */
 export function hasAllAppleAdsUserConfigKeys(config: Record<string, unknown>): boolean {
   for (const key of APPLE_ADS_USER_CONFIG_KEYS) {
+    const value = config[key];
+    if (typeof value !== "string" || value.length === 0) return false;
+  }
+  return true;
+}
+
+/**
+ * True if an app-store-connect config has all three required fields
+ * (issuer_id, key_id, private_key_p8). Drives `enabled` derivation on
+ * POST/PATCH the same way `hasAllAppleAdsUserConfigKeys` does for ASA.
+ */
+export function hasAllAppStoreConnectConfigKeys(config: Record<string, unknown>): boolean {
+  for (const key of APP_STORE_CONNECT_REQUIRED_KEYS) {
     const value = config[key];
     if (typeof value !== "string" || value.length === 0) return false;
   }

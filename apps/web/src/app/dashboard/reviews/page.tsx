@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type {
@@ -450,9 +451,9 @@ export default function ReviewsPage() {
             <Star className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
             <p className="text-muted-foreground">No reviews yet</p>
             <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-              Apple reviews are pulled daily from every storefront via the iTunes RSS feed for each Apple app with a
-              bundle ID. The first sync may take a couple of minutes after you create an app — give it a moment.
-              Play Store ingest is coming in a future phase.
+              Apple reviews are pulled via the App Store Connect API. Set up the integration on{" "}
+              <Link href="/dashboard/integrations" className="text-primary underline">Dashboard → Integrations</Link>{" "}
+              with a Customer Support API key, then trigger a sync to backfill all reviews. Play Store ingest is a future phase.
             </p>
           </div>
         ) : (

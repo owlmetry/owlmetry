@@ -33,11 +33,11 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
 
   server.registerTool("add-integration", {
     description:
-      "Add an integration to a project. For 'revenuecat' pass { api_key }; Owlmetry generates the webhook_secret. For 'apple-search-ads' pass an empty config ({}); Owlmetry generates the EC P-256 keypair, stores the private half server-side, and returns the public key — relay that to the user so they can upload it at ads.apple.com → Account Settings → User Management (on an \"API Account Read Only\" user). DO NOT ask the user for a private key — we never accept one. After the user uploads the public key and Apple returns client_id/team_id/key_id, call update-integration with those three IDs, then update-integration again with org_id to finalize. Use list-providers for field reference. Requires integrations:write permission.",
+      "Add an integration to a project. For 'revenuecat' pass { api_key }; Owlmetry generates the webhook_secret. For 'apple-search-ads' pass an empty config ({}); Owlmetry generates the EC P-256 keypair, stores the private half server-side, and returns the public key — relay that to the user so they can upload it at ads.apple.com → Account Settings → User Management (on an \"API Account Read Only\" user). DO NOT ask the user for a private key — we never accept one. After the user uploads the public key and Apple returns client_id/team_id/key_id, call update-integration with those three IDs, then update-integration again with org_id to finalize. For 'app-store-connect' pass { issuer_id, key_id, private_key_p8 } — the user downloads the .p8 from App Store Connect → Users and Access → Integrations (Customer Support role on an Individual Key) and pastes its full PEM contents. Owlmetry redacts the .p8 after save and never returns it; to rotate, call update-integration with a fresh private_key_p8. Use list-providers for field reference. Requires integrations:write permission.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
-      provider: z.string().describe("Provider name ('revenuecat' or 'apple-search-ads')"),
-      config: z.record(z.string(), z.unknown()).describe("Provider config. For revenuecat: { api_key }. For apple-search-ads: {} — server generates the keypair."),
+      provider: z.string().describe("Provider name ('revenuecat', 'apple-search-ads', or 'app-store-connect')"),
+      config: z.record(z.string(), z.unknown()).describe("Provider config. revenuecat: { api_key }. apple-search-ads: {} (server generates keypair). app-store-connect: { issuer_id, key_id, private_key_p8 }."),
     },
   }, async ({ project_id, provider, config }) => {
     const { body, error } = await callApiRaw(app, agentKey, {
@@ -92,17 +92,29 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
       });
     }
 
+    if (provider === INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT) {
+      content.push({
+        type: "text",
+        text: [
+          "── App Store Connect: integration created ──",
+          "Credentials are stored. The .p8 contents have been redacted from this response and will not be returned again.",
+          "",
+          `Next: call sync-integration with { project_id: '${project_id}', provider: 'app-store-connect' } to ingest reviews. Or test-connection via the dashboard / 'integrations test' CLI command first to confirm Apple accepts the credentials.`,
+        ].join("\n"),
+      });
+    }
+
     return { content };
   });
 
   server.registerTool("update-integration", {
     description:
-      "Update an integration's config or enabled state. For apple-search-ads, valid config keys are client_id, team_id, key_id, org_id — the integration auto-enables when all four are present, so do NOT pass enabled. Server-managed keys (private_key_pem, public_key_pem, webhook_secret) are always stripped from input — the server generates and rotates those. Requires integrations:write permission.",
+      "Update an integration's config or enabled state. For apple-search-ads, valid config keys are client_id, team_id, key_id, org_id — the integration auto-enables when all four are present, so do NOT pass enabled. For app-store-connect, valid config keys are issuer_id, key_id, private_key_p8 — omit private_key_p8 to keep the existing .p8 (the server merges patches on top of existing config). enabled is also derived from config completeness for app-store-connect, so do NOT pass enabled. Server-managed keys (private_key_pem, public_key_pem, webhook_secret) are always stripped from input — the server generates and rotates those. Requires integrations:write permission.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       provider: z.string().describe("Provider name"),
-      config: z.record(z.string(), z.unknown()).optional().describe("Updated config fields (merged with existing; blank = keep existing)"),
-      enabled: z.boolean().optional().describe("Enable or disable the integration. Ignored for apple-search-ads (derived from config completeness)."),
+      config: z.record(z.string(), z.unknown()).optional().describe("Updated config fields (merged with existing; omit a key to keep its existing value)"),
+      enabled: z.boolean().optional().describe("Enable or disable the integration. Ignored for apple-search-ads and app-store-connect (derived from config completeness)."),
     },
   }, async ({ project_id, provider, ...body }) => {
     return callApi(app, agentKey, {
@@ -118,7 +130,7 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
     inputSchema: {
       source_project_id: z.string().uuid().describe("Project that already has the integration configured"),
       target_project_id: z.string().uuid().describe("Project that will receive a copy of the credentials"),
-      provider: providerEnum.describe("Integration provider to copy (revenuecat | apple-search-ads)"),
+      provider: providerEnum.describe("Integration provider to copy (revenuecat | apple-search-ads | app-store-connect)"),
     },
   }, async ({ source_project_id, target_project_id, provider }) => {
     const { body, error } = await callApiRaw(app, agentKey, {
@@ -153,31 +165,45 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
     }
 
     const connectionTest = body.connection_test as
-      | { ok: true; orgs: Array<{ org_id: number; org_name: string }> }
+      | { ok: true; orgs?: Array<{ org_id: number; org_name: string }>; apps?: Array<{ id: string; name: string; bundle_id: string }> }
       | { ok: false; error: string; message: string }
       | undefined;
     if (connectionTest) {
       if (connectionTest.ok) {
-        const orgsList = connectionTest.orgs.map((o) => `  ${o.org_name} (orgId ${o.org_id})`).join("\n");
-        content.push({
-          type: "text",
-          text: [
-            "── Apple Search Ads connection test: OK ──",
-            "Apple accepted the copied credentials. The integration is active on the target project — no further setup needed.",
-            "",
-            "Accessible orgs:",
-            orgsList,
-          ].join("\n"),
-        });
+        if (connectionTest.orgs) {
+          const orgsList = connectionTest.orgs.map((o) => `  ${o.org_name} (orgId ${o.org_id})`).join("\n");
+          content.push({
+            type: "text",
+            text: [
+              "── Apple Search Ads connection test: OK ──",
+              "Apple accepted the copied credentials. The integration is active on the target project — no further setup needed.",
+              "",
+              "Accessible orgs:",
+              orgsList,
+            ].join("\n"),
+          });
+        } else if (connectionTest.apps) {
+          const appsList = connectionTest.apps.map((a) => `  ${a.name} (${a.bundle_id})`).join("\n");
+          content.push({
+            type: "text",
+            text: [
+              "── App Store Connect connection test: OK ──",
+              "Apple accepted the copied credentials. The integration is active on the target project — no further setup needed.",
+              "",
+              "Accessible apps:",
+              appsList,
+            ].join("\n"),
+          });
+        }
       } else {
         content.push({
           type: "text",
           text: [
-            "── Apple Search Ads connection test: FAILED ──",
+            "── Connection test: FAILED ──",
             `Error: ${connectionTest.error}`,
             `Message: ${connectionTest.message}`,
             "",
-            "The copy is saved but Apple rejected the credentials. Likely causes: source project's API user was revoked, or Apple's token endpoint is transiently down. Rerun `test-connection` (via the dashboard) once resolved.",
+            "The copy is saved but Apple rejected the credentials. Likely causes: source project's API key was revoked, or Apple's auth endpoint is transiently down. Rerun the test from the dashboard once resolved.",
           ].join("\n"),
         });
       }
@@ -201,11 +227,11 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
 
   server.registerTool("sync-integration", {
     description:
-      "Trigger a sync for an integration. Bulk sync (no user_id) queues a background job. Single-user sync (with user_id) is synchronous. Supports providers: 'revenuecat' (subscription data + attribution backfill), 'apple-search-ads' (resolves ASA IDs to campaign/ad group/keyword/ad names).",
+      "Trigger a sync for an integration. Bulk sync (no user_id) queues a background job. Single-user sync (with user_id) is synchronous and only supported by 'revenuecat' and 'apple-search-ads'. Supports providers: 'revenuecat' (subscription data + attribution backfill), 'apple-search-ads' (resolves ASA IDs to campaign/ad group/keyword/ad names), 'app-store-connect' (pulls App Store reviews via the customerReviews endpoint — bulk only, no user_id).",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       provider: providerEnum.optional().default("revenuecat").describe("Integration provider to sync. Defaults to 'revenuecat' for backwards compatibility."),
-      user_id: z.string().optional().describe("Sync a single user (synchronous). Omit for bulk sync (background job)."),
+      user_id: z.string().optional().describe("Sync a single user (synchronous). Omit for bulk sync (background job). Not supported for app-store-connect."),
     },
   }, async ({ project_id, provider, user_id }) => {
     const resolvedProvider = provider ?? "revenuecat";

@@ -885,11 +885,11 @@ export const eventDeletions = pgTable(
   ]
 );
 
-// App Store Reviews — public reviews scraped from Apple App Store / Google Play Store.
+// App Store Reviews — reviews captured from Apple App Store / Google Play Store.
 // Distinct from in-app `feedback` (which has a session+user+device context). Schema
-// supports both stores from day 1; phase 1 only populates Apple via the iTunes RSS feed.
-// Dedupe on (app_id, store, external_id). Soft-deletable so the dashboard can hide a row
-// without losing it on the next sync.
+// supports both stores from day 1; Apple reviews are populated via the App Store
+// Connect API (per-project integration). Dedupe on (app_id, store, external_id).
+// Soft-deletable so the dashboard can hide a row without losing it on the next sync.
 export const appStoreReviews = pgTable(
   "app_store_reviews",
   {

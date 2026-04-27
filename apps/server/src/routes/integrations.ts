@@ -6,6 +6,7 @@ import {
   redactIntegrationConfig,
   stripServerManagedKeys,
   hasAllAppleAdsUserConfigKeys,
+  hasAllAppStoreConnectConfigKeys,
   SUPPORTED_PROVIDER_IDS,
   INTEGRATION_PROVIDERS,
   INTEGRATION_PROVIDER_IDS,
@@ -18,6 +19,8 @@ import { config } from "../config.js";
 import { generateAppleAdsKeypair } from "../utils/apple-ads/keypair.js";
 import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
 import type { AppleAdsAuthConfig } from "../utils/apple-ads/config.js";
+import { listAppStoreConnectApps } from "../utils/app-store-connect/client.js";
+import type { AppStoreConnectConfig } from "../utils/app-store-connect/config.js";
 
 function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   return {
@@ -117,6 +120,10 @@ export async function integrationsRoutes(app: FastifyInstance) {
         // disabled until the user uploads the public key to Apple and fills
         // in client_id, team_id, key_id, and org_id.
         enabled = hasAllAppleAdsUserConfigKeys(integrationConfig);
+      } else if (provider === INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT) {
+        // Single-step setup — user pastes issuer_id, key_id, and the .p8
+        // contents up front. Validation already enforced presence above.
+        enabled = hasAllAppStoreConnectConfigKeys(integrationConfig);
       }
 
       // Check if integration already exists (including soft-deleted)
@@ -341,6 +348,25 @@ export async function integrationsRoutes(app: FastifyInstance) {
         }
       }
 
+      if (provider === INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT) {
+        // Same pattern as ASA: live test the copied .p8 against ASC's apps
+        // endpoint so the caller can confirm the credentials still authorize
+        // against Apple before triggering a sync on the new project.
+        const appsResult = await listAppStoreConnectApps(copiedConfig as unknown as AppStoreConnectConfig);
+        if (appsResult.status === "found") {
+          response.connection_test = {
+            ok: true,
+            apps: appsResult.data.map((a) => ({ id: a.id, name: a.name, bundle_id: a.bundleId })),
+          };
+        } else if (appsResult.status === "auth_error") {
+          response.connection_test = { ok: false, error: "auth_error", message: appsResult.message };
+        } else if (appsResult.status === "not_found") {
+          response.connection_test = { ok: false, error: "no_apps", message: "App Store Connect returned no accessible apps." };
+        } else {
+          response.connection_test = { ok: false, error: "upstream_error", message: appsResult.message };
+        }
+      }
+
       return reply.code(201).send(response);
     }
   );
@@ -398,10 +424,18 @@ export async function integrationsRoutes(app: FastifyInstance) {
         // enabled manually for this provider — it's derived.
         if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
           updates.enabled = hasAllAppleAdsUserConfigKeys(mergedConfig);
+        } else if (provider === INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT) {
+          // ASC: enabled iff issuer_id, key_id, and private_key_p8 are all
+          // present. Same derivation pattern as ASA.
+          updates.enabled = hasAllAppStoreConnectConfigKeys(mergedConfig);
         }
       }
 
-      if (request.body.enabled !== undefined && provider !== INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
+      if (
+        request.body.enabled !== undefined &&
+        provider !== INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS &&
+        provider !== INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT
+      ) {
         updates.enabled = request.body.enabled;
       }
 

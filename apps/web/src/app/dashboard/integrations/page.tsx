@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { RevenueCatIntegration } from "@/components/revenuecat-integration";
 import { AppleSearchAdsIntegration } from "@/components/apple-search-ads-integration";
+import { AppStoreConnectIntegration } from "@/components/app-store-connect-integration";
 import { ProjectDot } from "@/lib/project-color";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 
@@ -71,6 +72,7 @@ export default function IntegrationsPage() {
           <div className="space-y-4">
             <RevenueCatIntegration projectId={selectedProjectId} />
             <AppleSearchAdsIntegration projectId={selectedProjectId} />
+            <AppStoreConnectIntegration projectId={selectedProjectId} />
           </div>
         ) : (
           <p className="text-muted-foreground">Select a project to view integrations.</p>

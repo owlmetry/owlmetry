@@ -1,65 +1,78 @@
 ---
 title: Store Reviews
-description: Capture public App Store and Play Store ratings and individual reviews per app, surfaced on the project dashboard, with an opinionated daily sync across every Apple storefront.
+description: Capture App Store reviews via the App Store Connect API per project, surfaced on the project dashboard alongside aggregate ratings from iTunes Lookup.
 ---
 
-Owlmetry pulls **public ratings and reviews** from the app stores so you can monitor sentiment alongside crashes, in-app feedback, and metrics. This is distinct from the in-app [Feedback](./feedback) system — store reviews come from external users via the App Store / Play Store, not from your SDKs, so they have a numeric rating, no session context, and a separate triage flow.
+Owlmetry pulls **App Store reviews** via the App Store Connect (ASC) API so you can monitor sentiment alongside crashes, in-app feedback, and metrics. This is distinct from the in-app [Feedback](./feedback) system — store reviews come from external users via the App Store, not from your SDKs, so they have a numeric rating, no session context, and a separate triage flow.
 
 ## What Gets Captured
 
 For every Apple app with a `bundle_id`, Owlmetry tracks two things:
 
-**Aggregate ratings** (the "card" on each app):
+**Aggregate ratings** (the "card" on each app, populated for free by the existing version-sync job):
 - All-time average rating + total rating count
 - Current-version rating + count
 - Numeric Apple App Store ID (resolved automatically)
 
-**Individual reviews** (the `app_store_reviews` table):
+**Individual reviews** (the `app_store_reviews` table, populated via your ASC integration):
 - Star rating (1–5)
 - Title (Apple only — Play has no title)
 - Body
-- Reviewer handle (store-side nickname)
-- Country code (the storefront the review was left in)
-- App version reviewed
+- Reviewer handle (App Store nickname)
+- Country code (the storefront the review was left in, mapped from ASC's ISO 3166 alpha-3 territory codes)
 - Developer response + timestamp (when present)
 - When the review was posted in the store
 - When Owlmetry ingested it
 
 ## How It Works
 
-Two background jobs drive it:
-
 | Job | Cadence | Source | What it does |
 |-----|---------|--------|--------------|
-| `app_version_sync` | hourly :15 | iTunes Lookup API | Refreshes `latest_app_version` and aggregate ratings + Apple App Store ID for every Apple app with a `bundle_id`. |
-| `app_reviews_sync` | daily 00:00 UTC | iTunes RSS reviews feed | Iterates **every Apple storefront** (~175 countries) per app, ingests new reviews, dedupes on `(app_id, store, external_id)`. |
+| `app_version_sync` | hourly :15 (system) | iTunes Lookup API (no auth) | Refreshes `latest_app_version` and aggregate ratings + Apple App Store ID for every Apple app with a `bundle_id`. |
+| `app_store_connect_reviews_sync` | manual (project-scoped) | App Store Connect API | Pulls reviews via `GET /v1/apps/{id}/customerReviews` for every Apple app in the project that has an `apple_app_store_id`. |
 
-Both jobs also fire **immediately on Apple app create**, so a brand-new app shows ratings within seconds and starts pulling its review backlog without waiting for the next scheduled run.
+The reviews job is **project-scoped, not system-scoped** — it requires the project to have an active App Store Connect integration. You trigger it manually from Dashboard → Integrations → Sync reviews, or via `owlmetry integrations sync app-store-connect --project-id <id>`, or via the `sync-integration` MCP tool.
 
-The reviews job tags each row with the country code of the storefront it came from. The same human reviewing in two storefronts gets two distinct rows because Apple issues separate `external_id`s per storefront — there's no cross-storefront deduplication to worry about.
+Aggregate ratings keep flowing automatically once an Apple app has a bundle ID — no integration setup needed. ASC is only required for individual review ingestion.
 
-## Schema Caveats
+## Setting Up the App Store Connect Integration
 
-The `app_store_reviews` table supports both `app_store` and `play_store` from day 1 in the `store` column, but **only Apple is populated currently**. Play Store ingest requires a per-project Google Play integration with a service-account JSON (similar setup overhead to Apple Search Ads) and is planned for a future phase.
+Each Apple Developer account needs its own integration row — ASC keys can't be shared across accounts. If you have apps from multiple Apple Developer teams, you'll need to set up a separate integration in each project that holds them.
 
-Reviews are not partitioned (low volume relative to events), have a unique constraint on `(app_id, store, external_id)` for idempotent re-ingests, and are soft-deletable so you can hide a row from the dashboard without losing it on the next sync.
+1. In App Store Connect → **Users and Access → Integrations → App Store Connect API**, click "+" on the **Individual Keys** tab.
+2. Pick the **Customer Support** role (least-privilege for read-only review access; the Reply-to-Review write scope can come later).
+3. Download the `.p8` file (you only get one chance — Apple won't let you re-download).
+4. Copy the **Issuer ID** (top of the page) and **Key ID** (10-character alphanumeric, also embedded in the `.p8` filename like `AuthKey_ABC1234567.p8`).
+5. In Owlmetry, go to **Dashboard → Integrations → App Store Connect → Set up**, paste all three (Issuer ID, Key ID, full `.p8` contents).
+6. Click **Test connection** to confirm Apple accepts the key — it returns the list of apps visible to the key. If your Owlmetry app's bundle ID isn't in the list, the key was generated under the wrong Apple Developer team.
+7. Click **Sync reviews**. The first sync ingests every review Apple has on file (paginated 200 at a time, newest-first). Subsequent syncs stop at the first review they've already seen, so they're cheap.
+
+Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app_id, store, external_id)` so re-runs never insert duplicates. Reviews are soft-deletable so you can hide a row from the dashboard without losing it on the next sync.
 
 ## Where to See Them
 
-- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search) and a "Top countries" panel that surfaces where the app is most reviewed and how sentiment varies regionally.
-- **App overview card**: a `★ 4.6 (1,234)` badge on each Apple app card under `/dashboard/projects/<id>`, with a tooltip showing all-time vs. current-version split.
+- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search) and a "Top countries" panel.
+- **App overview card**: a `★ 4.6 (1,234)` badge on each Apple app card under `/dashboard/projects/<id>`, with a tooltip showing all-time vs. current-version split (sourced from iTunes Lookup, not ASC).
 - **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews by-country`, `owlmetry reviews delete <id>`.
 - **MCP**: `list-reviews`, `get-review`, `list-reviews-by-country`.
+
+## Copying the Integration to Other Projects
+
+If multiple projects under the same team contain apps from the same Apple Developer team, you can clone the credentials in one click. Dashboard → Integrations on the target project → "Copy from another project" → pick the source. Owlmetry duplicates the issuer/key/p8 verbatim and runs a live `listAppStoreConnectApps` call to confirm Apple still accepts the credentials. The source project's integration is unchanged.
+
+CLI: `owlmetry integrations copy app-store-connect --from <source-project-id> --to <target-project-id>`. MCP: `copy-integration`.
 
 ## Permissions
 
 - `reviews:read` — list / view (default for new agent keys)
 - `reviews:write` — soft-delete a review (user-only, agent keys 403 — same precedent as feedback)
+- `integrations:write` — required to set up / update / sync the App Store Connect integration
 
 ## When Reviews Don't Show Up
 
-- **App platform isn't `apple`** — Play Store ingest is deferred.
-- **App has no `bundle_id`** — required for the iTunes Lookup that resolves the numeric App Store ID.
-- **iTunes Lookup returns no results** — usually because the app isn't released yet or has been pulled from the store. The job logs and continues.
-- **The app has zero reviews in any storefront** — common for new apps. The job will pick them up on the next daily run after the first review lands.
-- **Fresh app, hasn't run yet** — the on-create fire-and-forget can take 1–2 minutes for the full storefront sweep. Refresh the dashboard.
+- **App platform isn't `apple`** — Play Store ingest is deferred to a future phase (would need a Google Play Console service-account integration).
+- **App has no `bundle_id`** — required for `app_version_sync` to populate `apple_app_store_id`, which the reviews job uses as ASC's app ID.
+- **App's `apple_app_store_id` hasn't been resolved yet** — wait for the next hourly `app_version_sync` tick (or trigger it manually via the Jobs API for the specific app).
+- **No App Store Connect integration on the project** — the sync errors out with "App Store Connect integration not found or disabled".
+- **`auth_error` on sync** — the `.p8` was revoked in App Store Connect, the issuer/key IDs are mismatched, or clock skew. Test Connection from the dashboard surfaces the precise Apple error message.
+- **App not visible to the key** — the Apple Developer team that owns the key doesn't have access to that app. ASC keys are scoped to a single team.
