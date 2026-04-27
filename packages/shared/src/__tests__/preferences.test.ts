@@ -153,10 +153,28 @@ describe("mergeUserPreferences with notifications", () => {
     });
     // The `feedback.new` override survives.
     expect(result.notifications?.types?.["feedback.new"]?.ios_push).toBe(false);
-    // The new `issue.digest` override is in place. (Deep-replace within the
-    // type — same shape as the columns merge: top-level types map shallow-merges,
-    // but each type's channel map is the value last written.)
+    // The new `issue.digest.in_app` override is in place, and the existing
+    // `issue.digest.email` override is preserved (channel maps merge per-key).
     expect(result.notifications?.types?.["issue.digest"]?.in_app).toBe(true);
+    expect(result.notifications?.types?.["issue.digest"]?.email).toBe(false);
+  });
+
+  it("preserves sibling channel overrides when patching one channel within a type", () => {
+    // Regression: a single-channel patch used to wipe other channel overrides
+    // for the same type, which made the preferences page appear to auto-enable
+    // ios_push when in_app was unchecked (defaults snapped back).
+    const existing = {
+      notifications: {
+        types: {
+          "issue.new": { ios_push: false },
+        },
+      },
+    };
+    const result = mergeUserPreferences(existing, {
+      notifications: { types: { "issue.new": { in_app: false } } },
+    });
+    expect(result.notifications?.types?.["issue.new"]?.in_app).toBe(false);
+    expect(result.notifications?.types?.["issue.new"]?.ios_push).toBe(false);
   });
 
   it("preserves columns when patching notifications and vice-versa", () => {

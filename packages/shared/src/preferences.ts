@@ -111,10 +111,12 @@ export interface UserPreferences {
 }
 
 /**
- * Top-level shallow merge; deep-replace any nested object the patch provides.
- * Two tabs editing different sub-objects (e.g. events vs users column layout)
- * don't clobber each other; same-page last-write-wins. Used by both the
- * server PATCH handler and the client's optimistic cache update.
+ * Top-level shallow merge; column sub-objects (events/users) deep-replace as a
+ * unit because the picker always writes the full ordered list. Notification
+ * channel maps merge per-channel — the preferences page sends one channel at a
+ * time, so a shallow type-level replace would wipe sibling overrides and snap
+ * them back to defaults. Used by both the server PATCH handler and the
+ * client's optimistic cache update.
  */
 export function mergeUserPreferences(
   existing: UserPreferences | null | undefined,
@@ -132,7 +134,15 @@ export function mergeUserPreferences(
   if (patch.notifications !== undefined) {
     merged.notifications = { ...base.notifications };
     if (patch.notifications.types !== undefined) {
-      merged.notifications.types = { ...base.notifications?.types, ...patch.notifications.types };
+      const mergedTypes = { ...base.notifications?.types };
+      for (const [type, channels] of Object.entries(patch.notifications.types)) {
+        if (channels === undefined) continue;
+        mergedTypes[type as NotificationType] = {
+          ...mergedTypes[type as NotificationType],
+          ...channels,
+        };
+      }
+      merged.notifications.types = mergedTypes;
     }
   }
   return merged;
