@@ -296,8 +296,9 @@ export class JobRunner {
     const isSystemJob = meta?.scope === "system";
     const duration = formatDuration(Date.now() - opts.startedAt);
 
-    // System-job alerts: direct email to the server-owner alias.
-    if (isSystemJob && this.systemJobsAlertEmail && this.emailService) {
+    // System-job alerts: direct email to the server-owner alias on failure only.
+    // Routine successes are noise — only failed/cancelled runs warrant a page.
+    if (isSystemJob && opts.status !== "completed" && this.systemJobsAlertEmail && this.emailService) {
       this.emailService
         .sendJobAlert(this.systemJobsAlertEmail, {
           job_type: label,
