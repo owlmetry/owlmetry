@@ -2,10 +2,9 @@ import { eq, and, isNull, sql } from "drizzle-orm";
 import { apps, appStoreRatings } from "@owlmetry/db";
 import { APPLE_STOREFRONT_CODES } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
-import { itunesThrottler, lookupItunesDetailed } from "../utils/itunes-lookup.js";
+import { IS_TEST, itunesThrottler, lookupItunesDetailed } from "../utils/itunes-lookup.js";
 
 const APP_STORE = "app_store" as const;
-const IS_TEST = process.env.NODE_ENV === "test";
 
 // Per-storefront retry budget. Exponential backoff capped at 60s; with 8
 // attempts that's ~2 minutes worst case per storefront. Anything still

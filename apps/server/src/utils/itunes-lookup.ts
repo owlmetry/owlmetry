@@ -5,7 +5,7 @@
 
 const ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup";
 const ITUNES_TIMEOUT_MS = 10_000;
-const IS_TEST = process.env.NODE_ENV === "test";
+export const IS_TEST = process.env.NODE_ENV === "test";
 
 export interface ItunesResult {
   trackId?: number;
@@ -48,10 +48,20 @@ class AdaptiveThrottler {
   private static readonly BASELINE_MS = IS_TEST ? 0 : 150;
   private static readonly CEILING_MS = IS_TEST ? 0 : 10_000;
   private delayMs = AdaptiveThrottler.BASELINE_MS;
+  // Monotonic timestamp for the next allowed request. Each `wait()` claims
+  // its slot synchronously (no JS task interleaving between read+write) so
+  // concurrent callers serialize through the throttler instead of all
+  // sleeping the same delayMs and waking up to fetch in parallel.
+  private nextAllowedAt = 0;
 
   async wait(): Promise<void> {
-    if (this.delayMs > 0) {
-      await new Promise((r) => setTimeout(r, this.delayMs));
+    if (this.delayMs === 0) return;
+    const now = Date.now();
+    const slotAt = Math.max(this.nextAllowedAt, now);
+    this.nextAllowedAt = slotAt + this.delayMs;
+    const sleepMs = slotAt - now;
+    if (sleepMs > 0) {
+      await new Promise((r) => setTimeout(r, sleepMs));
     }
   }
 
