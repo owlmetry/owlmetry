@@ -246,6 +246,45 @@ export async function reviewsRoutes(app: FastifyInstance) {
 // Team-scoped listing — mirrors teamFeedbackRoutes so the dashboard's
 // "all projects" view works.
 export async function teamReviewsRoutes(app: FastifyInstance) {
+  // Lightweight count endpoint for the dashboard stat card. Returns total
+  // active (non-deleted) reviews across every project the caller can see.
+  // Optionally narrowed to a single team or project.
+  app.get<{ Querystring: { team_id?: string; project_id?: string; since?: string } }>(
+    "/reviews/count",
+    { preHandler: requirePermission("reviews:read") },
+    async (request) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+      const { team_id, project_id, since } = request.query;
+
+      const teamIds = team_id ? (allTeamIds.includes(team_id) ? [team_id] : []) : allTeamIds;
+      if (teamIds.length === 0) return { count: 0 };
+
+      const projectConditions = [inArray(projects.team_id, teamIds), isNull(projects.deleted_at)];
+      if (project_id) projectConditions.push(eq(projects.id, project_id));
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(...projectConditions));
+      if (accessibleProjects.length === 0) return { count: 0 };
+
+      const projectIds = accessibleProjects.map((p) => p.id);
+      const conditions = [
+        inArray(appStoreReviews.project_id, projectIds),
+        isNull(appStoreReviews.deleted_at),
+      ];
+      if (since) {
+        conditions.push(sql`${appStoreReviews.created_at_in_store} >= ${since}::timestamptz`);
+      }
+
+      const [row] = await app.db
+        .select({ count: sql<number>`COUNT(*)::int` })
+        .from(appStoreReviews)
+        .where(and(...conditions));
+      return { count: Number(row?.count ?? 0) };
+    },
+  );
+
   app.get<{
     Querystring: ReviewsQueryParams & {
       team_id?: string;

@@ -11,6 +11,7 @@ export type AppStoreConnectResult<T> =
   | { status: "found"; data: T }
   | { status: "not_found" }
   | { status: "auth_error"; message: string }
+  | { status: "rate_limited"; retryAfterSeconds: number; message: string }
   | { status: "error"; statusCode: number; message: string };
 
 interface TokenBundle {
@@ -109,6 +110,21 @@ async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<Ap
 
   if (response.status === 404) {
     return { status: "not_found" };
+  }
+
+  if (response.status === 429) {
+    // Apple's docs say to honour Retry-After (seconds). Default to 60s if the
+    // header is absent or unparseable. Surfaced as a distinct status so the
+    // job can pause-and-resume rather than just counting it as a generic error.
+    const headerValue = response.headers.get("retry-after");
+    const parsed = headerValue ? Number.parseInt(headerValue, 10) : NaN;
+    const retryAfterSeconds = Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
+    const body = await response.text().catch(() => "");
+    return {
+      status: "rate_limited",
+      retryAfterSeconds,
+      message: body || `App Store Connect rate-limited (retry after ${retryAfterSeconds}s)`,
+    };
   }
 
   if (!response.ok) {

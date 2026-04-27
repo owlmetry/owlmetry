@@ -67,7 +67,11 @@ export function StatCard({
 export function StatRow({ children }: { children: React.ReactNode }) {
   return (
     <div className="rounded-md border bg-card shadow-sm overflow-hidden">
-      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 xl:divide-y-0">
+      {/* 5-col grid at xl gives a clean 2 rows for the current 10-card layout
+          (Issues, Events, Users, Sessions, Metrics, Funnels, Feedback, Reviews,
+          Avg Rating, Projects). At smaller breakpoints the count of rows
+          adjusts naturally — divides keep the visual block clean. */}
+      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 lg:grid-cols-5">
         {children}
       </div>
     </div>

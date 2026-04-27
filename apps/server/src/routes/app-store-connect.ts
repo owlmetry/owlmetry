@@ -88,6 +88,12 @@ export async function appStoreConnectRoutes(app: FastifyInstance) {
       if (result.status === "auth_error") {
         return reply.code(400).send({ error: result.message });
       }
+      if (result.status === "rate_limited") {
+        return reply
+          .code(429)
+          .header("Retry-After", String(result.retryAfterSeconds))
+          .send({ error: result.message });
+      }
       if (result.status === "error") {
         return reply.code(502).send({ error: `App Store Connect returned ${result.statusCode}: ${result.message}` });
       }

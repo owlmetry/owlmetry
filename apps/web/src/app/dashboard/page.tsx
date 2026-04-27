@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { Bug, CheckCircle2, Filter, FolderOpen, ScrollText, UserSearch, Waypoints } from "lucide-react";
+import { Bug, CheckCircle2, Filter, FolderOpen, ScrollText, UserSearch, Waypoints, MessageSquare, Star } from "lucide-react";
 import type {
   AppResponse,
   CompletionsCountResponse,
@@ -73,6 +73,18 @@ export default function DashboardPage() {
       { refreshInterval: 30_000 }
     );
 
+  const { data: feedbackCountData, isLoading: feedbackCountLoading } =
+    useSWR<{ count: number }>(
+      teamId ? `/v1/feedback/count?team_id=${teamId}&status=new` : null,
+      { refreshInterval: 60_000 }
+    );
+
+  const { data: reviewsCountData, isLoading: reviewsCountLoading } =
+    useSWR<{ count: number }>(
+      teamId ? `/v1/reviews/count?team_id=${teamId}` : null,
+      { refreshInterval: 60_000 }
+    );
+
   const projectCount = projectsData?.projects.length;
   const appCount = appsData?.apps.length;
   const openIssueCount = issuesData?.issues.filter((i) =>
@@ -100,6 +112,31 @@ export default function DashboardPage() {
     projectCount === undefined || appCount === undefined
       ? undefined
       : `${projectCount} · ${appCount}`;
+
+  // Aggregate rating across every Apple app in the team. Average is weighted
+  // by per-app rating count so a 5-star app with 1 rating doesn't outweigh
+  // a 4-star app with 50,000. Apps without an iTunes Lookup result yet are
+  // skipped (latest_rating null).
+  const ratingSummary = useMemo(() => {
+    const apps = appsData?.apps ?? [];
+    let totalRatings = 0;
+    let weightedSum = 0;
+    for (const a of apps) {
+      const rating = a.latest_rating;
+      const count = a.latest_rating_count ?? 0;
+      if (rating === null || rating === undefined || count <= 0) continue;
+      totalRatings += count;
+      weightedSum += rating * count;
+    }
+    if (totalRatings === 0) return { avg: undefined, total: undefined };
+    return {
+      avg: (weightedSum / totalRatings).toFixed(1),
+      total: totalRatings,
+    };
+  }, [appsData]);
+  const ratingValue = ratingSummary.avg !== undefined ? `★ ${ratingSummary.avg}` : "—";
+  const ratingSecondary =
+    ratingSummary.total !== undefined ? ratingSummary.total.toLocaleString() : undefined;
 
   const today = formatLongDate(new Date());
   const firstName = user?.name?.split(" ")[0];
@@ -165,6 +202,28 @@ export default function DashboardPage() {
           secondary={funnelsPercent}
           isLoading={funnelsCompletedLoading}
           href="/dashboard/funnels"
+        />
+        <StatCard
+          label="New Feedback"
+          icon={MessageSquare}
+          value={feedbackCountData?.count ?? 0}
+          isLoading={feedbackCountLoading}
+          href="/dashboard/feedback"
+        />
+        <StatCard
+          label="Reviews"
+          icon={Star}
+          value={reviewsCountData?.count ?? 0}
+          isLoading={reviewsCountLoading}
+          href="/dashboard/reviews"
+        />
+        <StatCard
+          label="Avg Rating · All Apps"
+          icon={Star}
+          value={ratingValue}
+          secondary={ratingSecondary}
+          isLoading={appsLoading}
+          href="/dashboard/projects"
         />
         <StatCard
           label="Projects · Apps"

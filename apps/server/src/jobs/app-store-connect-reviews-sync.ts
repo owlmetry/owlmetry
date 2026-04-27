@@ -57,9 +57,15 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
   let reviewsIngested = 0;
   let reviewsSkippedDuplicate = 0;
   let errors = 0;
+  let rateLimitWaits = 0;
   const errorStatusCounts: Record<string, number> = {};
   let aborted = false;
   let abortReason: string | null = null;
+  // Cap total rate-limit waiting at 10 minutes per run to avoid syncs that
+  // never end if Apple is throttling hard. The next scheduled / manual run
+  // will pick up where we left off (idempotent re-runs).
+  const MAX_RATE_LIMIT_WAIT_SECONDS = 600;
+  let totalRateLimitWaitSeconds = 0;
 
   outer: for (const app of targetApps) {
     if (ctx.isCancelled()) break;
@@ -80,6 +86,21 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
         aborted = true;
         abortReason = `auth_error: ${result.message}`;
         break outer;
+      }
+      if (result.status === "rate_limited") {
+        rateLimitWaits++;
+        if (totalRateLimitWaitSeconds + result.retryAfterSeconds > MAX_RATE_LIMIT_WAIT_SECONDS) {
+          aborted = true;
+          abortReason = `rate_limited: cumulative wait would exceed ${MAX_RATE_LIMIT_WAIT_SECONDS}s — bailing, next run will resume`;
+          break outer;
+        }
+        totalRateLimitWaitSeconds += result.retryAfterSeconds;
+        ctx.log.warn(
+          { app_id: app.id, retryAfterSeconds: result.retryAfterSeconds },
+          "App Store Connect rate-limited, sleeping",
+        );
+        await new Promise((r) => setTimeout(r, result.retryAfterSeconds * 1000));
+        continue; // retry the same cursor
       }
       if (result.status === "error") {
         errors++;
@@ -131,9 +152,11 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
     reviews_skipped_duplicate: reviewsSkippedDuplicate,
     errors,
     error_status_counts: errorStatusCounts,
+    rate_limit_waits: rateLimitWaits,
+    rate_limit_wait_seconds: totalRateLimitWaitSeconds,
     aborted,
     abort_reason: abortReason,
-    _silent: !aborted && reviewsIngested === 0 && errors === 0,
+    _silent: !aborted && reviewsIngested === 0 && errors === 0 && rateLimitWaits === 0,
   };
 };
 
