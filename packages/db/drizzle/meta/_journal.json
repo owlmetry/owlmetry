@@ -295,6 +295,13 @@
       "when": 1777110416359,
       "tag": "0041_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1777279842568,
+      "tag": "0042_backfill_resolved_at_version",
+      "breakpoints": true
     }
   ]
 }

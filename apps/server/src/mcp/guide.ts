@@ -148,7 +148,7 @@ User properties written:
 Error events are automatically scanned hourly and grouped into **issues** via fingerprinting (normalized error message + source module). Each issue tracks:
 - **Occurrences**: one per unique session. Each occurrence records the \`session_id\`, \`user_id\`, \`event_id\`, \`app_version\`, and \`environment\` — use these to drill into what happened.
 - **Unique users**: how many distinct users are affected (severity indicator)
-- **Status lifecycle**: \`new\` → \`in_progress\` (claimed by agent/user) → \`resolved\` (optionally with app version) → may \`regress\` if the error reappears in a newer version. Issues can also be \`silenced\` to suppress notifications while still tracking occurrences.
+- **Status lifecycle**: \`new\` → \`in_progress\` (claimed by agent/user) → \`resolved\` (the app version where the fix was applied is **required** — it powers regression detection) → may \`regress\` if the error reappears in a newer version. Issues can also be \`silenced\` to suppress notifications while still tracking occurrences — use \`silence-issue\` instead of \`resolve-issue\` when there's no fix version (e.g. transient infra blips).
 - **Comments**: investigation notes from users (\`👤\`) and agents (\`🕶️\`). Markdown supported.
 - **Merge**: if two issues turn out to be the same problem, merge them — all fingerprints, occurrences, and comments move to the target.
 - **Notifications**: two types fire on production issues. \`issue.new\` is a push-by-default summary that fires from \`issue_scan\` at the end of every hourly run when anything was just created or regressed (one push per team per scan). \`issue.digest\` is the per-project email-by-default digest gated by \`issue_alert_frequency\` (none/hourly/6-hourly/daily/weekly). See the Notifications section for per-channel defaults.
@@ -173,7 +173,7 @@ To fully investigate an issue, follow this workflow:
 5. **Read the error event**: Use \`get-event\` with the occurrence's \`event_id\` to see the full error details including \`custom_attributes\` (stack traces, error codes, etc.).
 6. **Iterate every occurrence, then look for patterns**: Repeat steps 4-5 across the occurrences returned by \`get-issue\` — one breadcrumb is rarely enough, the goal is to surface what they have in common (same screen, same \`app_version\`, same user flow, same preceding step). If \`occurrence_has_more\` is true on the \`get-issue\` response, call \`get-issue\` again with the returned \`occurrence_cursor\` to walk the next page. For very high-frequency issues, a representative sample across occurrences is fine — sample broadly enough to be confident the pattern is real.
 7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, the common pattern across occurrences, affected versions, reproduction steps, or a fix plan. This is visible to the team.
-8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
+8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched (the version is required so the regression detector has something to compare against). Use \`silence-issue\` when there's nothing to fix or no version exists. Leave the comment for the team to act on otherwise.
 
 ### Feedback
 Free-text user feedback. Two ingest paths: mobile apps via the Swift SDK (\`OwlFeedbackView\` / \`Owl.sendFeedback\`), and server handlers via the Node SDK (\`Owl.sendFeedback\`) — use the Node path when a team collects feedback through their own frontend (form, chat widget, support page) and wants it forwarded into Owlmetry. Each feedback row captures \`message\`, optional \`submitter_name\` and \`submitter_email\`, plus the session, user, app version, device, environment, and country — automatically on mobile, caller-supplied on Node.
@@ -266,7 +266,7 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 ### Issues
 - \`list-issues\` — List issues for a project (filter by status, app, dev/prod). Each issue includes \`first_seen_app_version\` / \`last_seen_app_version\` (denormalised from occurrences) — compare \`last_seen_app_version\` against the app's \`latest_app_version\` to tell whether the issue is still happening on the current release.
 - \`get-issue\` — Get issue detail with occurrences, comments, fingerprints, and linked attachments
-- \`resolve-issue\` — Mark resolved, optionally with the fix version
+- \`resolve-issue\` — Mark resolved (fix version required — used for regression detection)
 - \`silence-issue\` — Silence notifications (still tracks occurrences)
 - \`reopen-issue\` — Reopen a resolved or silenced issue
 - \`claim-issue\` — Set status to in_progress (claim for investigation)

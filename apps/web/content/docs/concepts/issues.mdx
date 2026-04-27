@@ -80,17 +80,19 @@ silenced → new (manual reopen)
 |--------|---------|
 | `new` | Detected by the scan job, not yet investigated. |
 | `in_progress` | Claimed by a user or agent for investigation. |
-| `resolved` | Fixed. Optionally tagged with the app version where the fix was applied. |
-| `silenced` | Known issue, notifications suppressed. Occurrences still tracked. |
+| `resolved` | Fixed. Tagged with the app version where the fix was applied (required — see [Regression Detection](#regression-detection) below). |
+| `silenced` | Known issue, notifications suppressed. Occurrences still tracked. Use this when there's nothing to fix or no version exists. |
 | `regressed` | Was resolved, but the error reappeared in a **newer** app version. |
 
 ### Regression Detection
 
-When the scan job finds an error matching a `resolved` issue, it checks the event's `app_version` against the issue's `resolved_at_version`. If the event version is newer, the issue is automatically set to `regressed`.
+When the scan job finds an error matching a `resolved` issue, it compares the event's `app_version` against the issue's `resolved_at_version`. If the event version is newer, the issue is automatically set to `regressed`.
+
+For this reason, `resolved_at_version` is **required** when transitioning an issue to `resolved` (across the dashboard, iOS app, CLI `--version`, MCP `version`, and the REST API). If you don't have a fix version — for example, the error was a transient infrastructure blip with nothing to fix — use `silenced` instead. Resolving without a version would silently disable regression detection for that issue, which is rarely what you want.
 
 The comparison is **semver-aware** — `1.10.0` correctly regresses past `1.9.0` (and standard build-number suffixes like `1.2.3 (456)` plus date-style versions like `2024.10.15` are handled). See [Latest Version Detection](/docs/concepts/latest-version-detection) for the full comparator rules.
 
-If either version is null, the scan does not trigger a regression (can't determine version ordering).
+If the incoming event itself has no `app_version` (e.g. backend events that don't tag versions), the scan does not trigger a regression — there's nothing to compare against.
 
 ## Comments
 

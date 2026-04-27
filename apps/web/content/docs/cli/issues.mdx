@@ -34,16 +34,10 @@ Shows full issue details including occurrences (affected sessions), comments, an
 ## Resolve an Issue
 
 ```bash
-owlmetry issues resolve <issueId> --project-id <id> --format json
-```
-
-Marks an issue as resolved. Optionally tag the fix version:
-
-```bash
 owlmetry issues resolve <issueId> --project-id <id> --version 2.1.0
 ```
 
-If the error reappears in a newer version, the issue will automatically be marked as `regressed` by the scan job.
+Marks an issue as resolved. **`--version` is required** — it powers regression detection: if the same error reappears in a later version, the scan job auto-flips the issue to `regressed`. If you don't have a fix version, use `owlmetry issues silence` instead.
 
 ## Silence an Issue
 

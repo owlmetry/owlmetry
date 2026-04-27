@@ -195,16 +195,16 @@ issuesCommand
 
 issuesCommand
   .command("resolve <issueId>")
-  .description("Resolve an issue")
+  .description("Resolve an issue (use 'silence' instead if you don't have a fix version)")
   .requiredOption("--project-id <id>", "Project ID")
-  .option("--version <v>", "App version where the fix was applied")
-  .action(async (issueId: string, opts: { projectId: string; version?: string }, cmd) => {
+  .requiredOption("--version <v>", "App version where the fix was applied (required — used for regression detection)")
+  .action(async (issueId: string, opts: { projectId: string; version: string }, cmd) => {
     const { client, globals } = createClient(cmd);
     const result = await client.updateIssue(opts.projectId, issueId, {
       status: "resolved",
       resolved_at_version: opts.version,
     });
-    output(globals.format as OutputFormat, result, () => chalk.green(`Issue resolved${opts.version ? ` in v${opts.version}` : ""}`));
+    output(globals.format as OutputFormat, result, () => chalk.green(`Issue resolved in v${opts.version}`));
   });
 
 issuesCommand

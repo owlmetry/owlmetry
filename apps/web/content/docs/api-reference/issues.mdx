@@ -125,7 +125,7 @@ Update issue status. Validates status transitions.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `status` | string | Yes | Target status: `new`, `in_progress`, `resolved`, `silenced`. Note: `regressed` is set automatically by the scan job. |
-| `resolved_at_version` | string | No | App version where the fix was applied. Only used when `status` is `resolved`. |
+| `resolved_at_version` | string | When `status` is `resolved` | App version where the fix was applied. Required when resolving — powers regression detection. Use `silenced` instead if you don't have a fix version. Cleared automatically when transitioning back to `new` or `in_progress`. |
 
 ### Valid status transitions
 
@@ -137,7 +137,7 @@ Update issue status. Validates status transitions.
 | `regressed` | `in_progress`, `resolved`, `silenced` |
 | `silenced` | `new`, `in_progress`, `resolved` |
 
-Returns 400 if the transition is not allowed.
+Returns 400 if the transition is not allowed, or if `status=resolved` is sent without a non-empty `resolved_at_version`.
 
 ## POST /v1/projects/:projectId/issues/:issueId/merge
 

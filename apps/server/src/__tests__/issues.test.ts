@@ -311,7 +311,7 @@ describe("Issues API", () => {
       expect(body.resolved_at_version).toBe("2.0.0");
     });
 
-    it("resolves without version", async () => {
+    it("rejects resolve without version (400)", async () => {
       const issueId = await createTestIssue({ status: "new" });
 
       const res = await app.inject({
@@ -320,8 +320,34 @@ describe("Issues API", () => {
         headers: { Authorization: `Bearer ${token}` },
         payload: { status: "resolved" },
       });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error).toMatch(/resolved_at_version is required/);
+    });
+
+    it("rejects resolve with whitespace-only version (400)", async () => {
+      const issueId = await createTestIssue({ status: "new" });
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "resolved", resolved_at_version: "   " },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).error).toMatch(/resolved_at_version is required/);
+    });
+
+    it("trims whitespace from resolved_at_version", async () => {
+      const issueId = await createTestIssue({ status: "new" });
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "resolved", resolved_at_version: "  1.5.0  " },
+      });
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body).resolved_at_version).toBeNull();
+      expect(JSON.parse(res.body).resolved_at_version).toBe("1.5.0");
     });
 
     it("silences an issue", async () => {

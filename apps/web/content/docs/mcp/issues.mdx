@@ -20,7 +20,7 @@ To fully investigate an issue from discovery to resolution:
 5. **Read the error event** — Use [`get-event`](/docs/mcp/events#get-event) with the occurrence's `event_id` to see full error details including `custom_attributes` (stack traces, error codes, etc.).
 6. **Iterate every occurrence, then look for patterns** — Repeat steps 4-5 across the occurrences returned by `get-issue` — one breadcrumb is rarely enough; the goal is to surface what they have in common (same screen, same `app_version`, same user flow, same preceding step). If `occurrence_has_more` is true on the response, call `get-issue` again with the returned `occurrence_cursor` to walk the next page. For very high-frequency issues, a representative sample is fine — just sample broadly enough to be confident the pattern is real.
 7. **Document findings** — `add-issue-comment` to record root cause, the common pattern across occurrences, affected versions, reproduction steps, or a fix plan. Visible to the whole team.
-8. **Resolve or escalate** — `resolve-issue` with the fix version once patched, or leave the comment for the team to act on.
+8. **Resolve or escalate** — `resolve-issue` with the fix version once patched (the version is required so regression detection has something to compare against). Use `silence-issue` if there's nothing to fix or no version exists. Leave the comment for the team to act on otherwise.
 
 ## list-issues
 
@@ -52,13 +52,13 @@ Occurrences are paginated (default 50, max 200). When `occurrence_has_more` is `
 
 ## resolve-issue
 
-Mark an issue as resolved. Optionally specify the app version where the fix was applied. If the error reappears in a newer version, the issue will automatically be marked as `regressed`.
+Mark an issue as resolved. The fix version is **required** — it powers regression detection (any later version reporting the same error auto-flips the issue to `regressed`). If you don't have a fix version, use [`silence-issue`](#silence-issue) instead.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
 | `issue_id` | UUID | Yes | The issue ID |
-| `version` | string | No | App version where the fix was applied |
+| `version` | string | Yes | App version where the fix was applied (used for regression detection) |
 
 ## silence-issue
 

@@ -197,17 +197,27 @@ function IssueDetailModal({
             {/* Actions */}
             <div className="flex items-center gap-2 mt-4">
               {showResolveInput ? (
-                <div className="flex items-center gap-2 w-full">
-                  <Input
-                    placeholder="Version (optional)"
-                    value={resolveVersion}
-                    onChange={(e) => setResolveVersion(e.target.value)}
-                    className="h-8 w-40"
-                  />
-                  <Button size="sm" onClick={() => handleStatusChange("resolved", resolveVersion || undefined)} disabled={actionLoading}>
-                    Confirm
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowResolveInput(false)}>Cancel</Button>
+                <div className="flex flex-col gap-1 w-full">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Version (required)"
+                      value={resolveVersion}
+                      onChange={(e) => setResolveVersion(e.target.value)}
+                      className="h-8 w-40"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleStatusChange("resolved", resolveVersion.trim())}
+                      disabled={actionLoading || !resolveVersion.trim()}
+                    >
+                      Confirm
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowResolveInput(false)}>Cancel</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Newer versions reporting this error will auto-regress. Silence the issue instead if you don&apos;t have a fix version.
+                  </p>
                 </div>
               ) : (
                 <DropdownMenu>
@@ -218,7 +228,12 @@ function IssueDetailModal({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
                     {issue.status !== "resolved" && (
-                      <DropdownMenuItem onClick={() => setShowResolveInput(true)}>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setResolveVersion(issue.last_seen_app_version ?? "");
+                          setShowResolveInput(true);
+                        }}
+                      >
                         ✅ Resolve
                       </DropdownMenuItem>
                     )}

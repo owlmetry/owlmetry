@@ -39,11 +39,11 @@ export function registerIssuesTools(server: McpServer, app: FastifyInstance, age
   });
 
   server.registerTool("resolve-issue", {
-    description: "Mark an issue as resolved. Optionally specify the app version where the fix was applied.",
+    description: "Mark an issue as resolved. The app version where the fix was applied is required — it powers regression detection (any later version reporting the same error auto-flips the issue to `regressed`). If you don't have a fix version, use `silence-issue` instead.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       issue_id: z.string().uuid().describe("The issue ID"),
-      version: z.string().optional().describe("App version where the fix was applied"),
+      version: z.string().min(1).describe("App version where the fix was applied (required — used for regression detection)"),
     },
   }, async ({ project_id, issue_id, version }) => {
     return callApi(app, agentKey, {

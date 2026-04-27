@@ -300,8 +300,14 @@ export async function issuesRoutes(app: FastifyInstance) {
       };
 
       if (status === "resolved") {
-        setFields.resolved_at_version = resolved_at_version ?? null;
-        changes.resolved_at_version = { before: issue.resolved_at_version, after: resolved_at_version ?? null };
+        const trimmed = resolved_at_version?.trim();
+        if (!trimmed) {
+          return reply.code(400).send({
+            error: "resolved_at_version is required when resolving an issue. Use status='silenced' if you don't want auto-regression.",
+          });
+        }
+        setFields.resolved_at_version = trimmed;
+        changes.resolved_at_version = { before: issue.resolved_at_version, after: trimmed };
       }
 
       if (status === "new" || status === "in_progress") {
