@@ -1111,6 +1111,55 @@ describe("MCP endpoint", () => {
       );
       expect(sourceError).toBe(true);
     });
+
+    it("get-issue paginates occurrences via occurrence_cursor / occurrence_limit", async () => {
+      const { key, teamId } = await createFullAgentKey();
+      const { parsed: project } = parseToolResult(
+        await callTool(key, "create-project", { team_id: teamId, name: "Occ Page", slug: "occ-page" }),
+      );
+      await callTool(key, "create-app", { project_id: project.id, name: "App", platform: "backend" });
+      const issueId = await createMcpIssue(key, project.id);
+
+      // Seed three occurrences directly
+      const client = (await import("postgres")).default("postgres://localhost:5432/owlmetry_test", { max: 1 });
+      const now = Date.now();
+      for (let i = 0; i < 3; i++) {
+        await client`
+          INSERT INTO issue_occurrences (issue_id, session_id, timestamp)
+          VALUES (${issueId}, gen_random_uuid(), ${new Date(now - i * 60_000).toISOString()})
+        `;
+      }
+      await client.end();
+
+      // Default page returns all three
+      const all = parseToolResult(
+        await callTool(key, "get-issue", { project_id: project.id, issue_id: issueId }),
+      );
+      expect(all.isError).toBe(false);
+      expect(all.parsed.occurrences.length).toBe(3);
+      expect(all.parsed.occurrence_has_more).toBe(false);
+
+      // limit=1 returns one occurrence and signals more available
+      const page1 = parseToolResult(
+        await callTool(key, "get-issue", { project_id: project.id, issue_id: issueId, occurrence_limit: 1 }),
+      );
+      expect(page1.isError).toBe(false);
+      expect(page1.parsed.occurrences.length).toBe(1);
+      expect(page1.parsed.occurrence_has_more).toBe(true);
+      expect(page1.parsed.occurrence_cursor).toBeTruthy();
+
+      // Cursor is accepted and forwarded — response shape is valid
+      const page2 = parseToolResult(
+        await callTool(key, "get-issue", {
+          project_id: project.id,
+          issue_id: issueId,
+          occurrence_limit: 1,
+          occurrence_cursor: page1.parsed.occurrence_cursor,
+        }),
+      );
+      expect(page2.isError).toBe(false);
+      expect(page2.parsed.occurrences).toBeInstanceOf(Array);
+    });
   });
 
   // ── Feedback ──────────────────────────────────────────────────────────

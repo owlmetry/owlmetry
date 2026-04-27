@@ -30,7 +30,9 @@ Returns `{ events: [...], cursor, has_more }`. Pass `cursor` to the next call fo
 
 ### Session reconstruction
 
-Use `session_id` to reconstruct a full user session — every event the SDK logged during that session, in order. This is the primary way to investigate [issues](/docs/mcp/issues): get an occurrence's `session_id` from `get-issue`, then `query-events` with that `session_id` to see what the user did before, during, and after the error.
+Use `session_id` to walk a full user session manually — every event the SDK logged during that session, in order.
+
+For [issue investigation](/docs/mcp/issues), prefer [`investigate-event`](#investigate-event) over `query-events`. Pass an occurrence's `event_id` from `get-issue` and you get the same session plus cross-app events for the same user (e.g. backend logs that ran during the iOS session) in one call — richer than walking the session by `session_id` alone.
 
 ### Time formats
 
@@ -56,7 +58,7 @@ Get a single event by ID with full details including custom attributes, device i
 
 ## investigate-event
 
-Build the best possible breadcrumb trail around a target event. If the target has a `session_id`, the tool pulls the full session from that app; otherwise it falls back to a `±window_minutes` time window. It then enriches the result with cross-app events for the same user in the same project (bounded by the session/window's time range) so backend and client events appear together even when they don't share a `session_id`. Results are merged, deduped by event id, and sorted ascending by timestamp.
+**The standard tool for investigating an issue's occurrences.** Pass an occurrence's `event_id` from [`get-issue`](/docs/mcp/issues#get-issue) and receive the full breadcrumb trail leading to the error. If the target has a `session_id`, the tool pulls the entire session from that app; otherwise it falls back to a `±window_minutes` time window. It then enriches the result with cross-app events for the same user in the same project (bounded by the session/window's time range) so backend and client events appear together even when they don't share a `session_id`. Results are merged, deduped by event id, and sorted ascending by timestamp.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -67,4 +69,4 @@ Build the best possible breadcrumb trail around a target event. If the target ha
 
 Returns `{ events, target_event_id, total }` — a single chronological timeline with the target event flagged by `target_event_id`.
 
-Prefer this over `query-events` when drilling into a specific event. It produces the richest timeline available: session events plus any cross-app activity by the same user during that window.
+Run this for **multiple** occurrences of the same issue (not just one) to surface common patterns — same screen, same `app_version`, same user flow — before commenting or resolving. One breadcrumb trail rarely tells the whole story.

@@ -16,10 +16,10 @@ To fully investigate an issue from discovery to resolution:
    - `user_id` — the affected user (null if anonymous)
    - `event_id` — the specific error event
    - `app_version` / `environment` — which build and platform
-4. **Reconstruct breadcrumbs** — Use [`investigate-event`](/docs/mcp/events#investigate-event) with the occurrence's `event_id` to get the best timeline we can build: the full session (or a ±5 min window for events without a `session_id`), enriched with cross-app events (e.g. backend) for the same user in the same project. Merged, deduped, and sorted ascending by timestamp.
+4. **Reconstruct breadcrumbs** — For each occurrence, call [`investigate-event`](/docs/mcp/events#investigate-event) with the `event_id` to build the best timeline available: the full session (or a ±5 min window for events without a `session_id`), enriched with cross-app events (e.g. backend) for the same user in the same project. Merged, deduped, and sorted ascending by timestamp.
 5. **Read the error event** — Use [`get-event`](/docs/mcp/events#get-event) with the occurrence's `event_id` to see full error details including `custom_attributes` (stack traces, error codes, etc.).
-6. **Check multiple occurrences** — Repeat steps 4-5 for other occurrences to find common patterns (same screen, same version, same user flow).
-7. **Document findings** — `add-issue-comment` to record root cause, affected versions, reproduction steps, or a fix plan. Visible to the whole team.
+6. **Iterate every occurrence, then look for patterns** — Repeat steps 4-5 across the occurrences returned by `get-issue` — one breadcrumb is rarely enough; the goal is to surface what they have in common (same screen, same `app_version`, same user flow, same preceding step). If `occurrence_has_more` is true on the response, call `get-issue` again with the returned `occurrence_cursor` to walk the next page. For very high-frequency issues, a representative sample is fine — just sample broadly enough to be confident the pattern is real.
+7. **Document findings** — `add-issue-comment` to record root cause, the common pattern across occurrences, affected versions, reproduction steps, or a fix plan. Visible to the whole team.
 8. **Resolve or escalate** — `resolve-issue` with the fix version once patched, or leave the comment for the team to act on.
 
 ## list-issues
@@ -39,12 +39,16 @@ List issues for a project. Issues are error events grouped by fingerprint, sorte
 
 Get details of a specific issue, including occurrences (sessions affected), comments, fingerprints, and linked attachments. The issue itself carries `first_seen_app_version` and `last_seen_app_version` — compare `last_seen_app_version` against the app's `latest_app_version` (from [`get-app`](/docs/mcp/apps#get-app)) to tell whether the issue is still happening on the current release. Regression detection is semver-aware. See [Latest Version Detection](/docs/concepts/latest-version-detection).
 
-Each occurrence includes a `session_id` — pass it to [`query-events`](/docs/mcp/events#query-events) or [`investigate-event`](/docs/mcp/events#investigate-event) to reconstruct the full session timeline around the error.
+Each occurrence includes an `event_id`, `session_id`, `user_id`, `app_version`, and `environment`. **For each occurrence, call [`investigate-event`](/docs/mcp/events#investigate-event) with the `event_id`** to build the full breadcrumb trail (entire session + cross-app events for the same user in the same project) — that's the standard issue-investigation move and is far richer than a raw `query-events` call. Iterate across multiple occurrences to find common patterns before commenting or resolving.
+
+Occurrences are paginated (default 50, max 200). When `occurrence_has_more` is `true`, call this tool again with the returned `occurrence_cursor` to walk the next page.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
 | `issue_id` | UUID | Yes | The issue ID |
+| `occurrence_cursor` | string | No | Pagination cursor from a prior response's `occurrence_cursor` |
+| `occurrence_limit` | number | No | Max occurrences to return (default 50, max 200) |
 
 ## resolve-issue
 

@@ -23,15 +23,18 @@ export function registerIssuesTools(server: McpServer, app: FastifyInstance, age
   });
 
   server.registerTool("get-issue", {
-    description: "Get details of a specific issue, including occurrences (sessions affected), comments, and fingerprints. Each occurrence includes a session_id — pass it to query-events to reconstruct the full session timeline around the error.",
+    description:
+      "Get full details of an issue: occurrences (one per session where the error fired), comments, fingerprints, and linked attachments. Each occurrence carries an `event_id`, `session_id`, `user_id`, `app_version`, and `environment`. **To investigate, call `investigate-event` with each occurrence's `event_id`** — that builds the full breadcrumb trail (entire session + cross-app events for the same user in the same project) and is far richer than a raw `query-events` call. Iterate `investigate-event` across multiple occurrences (not just one) to find common patterns — same screen, same `app_version`, same user flow — before commenting or resolving. Occurrences are paginated (default 50, max 200); if `occurrence_has_more` is true, call this tool again with the returned `occurrence_cursor` to walk the rest.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       issue_id: z.string().uuid().describe("The issue ID"),
+      occurrence_cursor: z.string().optional().describe("Pagination cursor from a prior response's `occurrence_cursor`. Use to walk past the first page of occurrences."),
+      occurrence_limit: z.number().optional().describe("Max occurrences to return (default 50, max 200)."),
     },
-  }, async ({ project_id, issue_id }) => {
+  }, async ({ project_id, issue_id, occurrence_cursor, occurrence_limit }) => {
     return callApi(app, agentKey, {
       method: "GET",
-      url: `/v1/projects/${project_id}/issues/${issue_id}`,
+      url: `/v1/projects/${project_id}/issues/${issue_id}${buildQuery({ occurrence_cursor, occurrence_limit })}`,
     });
   });
 

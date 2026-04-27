@@ -169,10 +169,10 @@ To fully investigate an issue, follow this workflow:
    - \`event_id\` — the specific error event
    - \`app_version\` / \`environment\` — which build and platform
    - \`timestamp\` — when it happened
-4. **Reconstruct breadcrumbs**: Pick an occurrence and use \`investigate-event\` with the \`event_id\` to get the best timeline we can build — the full session (or a ±5 min window for events without a session_id), enriched with cross-app events (e.g. backend) for the same user in the same project. Results come merged, deduped, and sorted ascending by timestamp. Pass \`compact: true\` to drop verbose fields (custom_attributes, experiments, device metadata) and avoid MCP token overflow on long timelines.
+4. **Reconstruct breadcrumbs**: For each occurrence, call \`investigate-event\` with the \`event_id\` to get the best timeline we can build — the full session (or a ±5 min window for events without a session_id), enriched with cross-app events (e.g. backend) for the same user in the same project. Results come merged, deduped, and sorted ascending by timestamp. Pass \`compact: true\` to drop verbose fields (custom_attributes, experiments, device metadata) and avoid MCP token overflow on long timelines.
 5. **Read the error event**: Use \`get-event\` with the occurrence's \`event_id\` to see the full error details including \`custom_attributes\` (stack traces, error codes, etc.).
-6. **Check multiple occurrences**: Repeat steps 4-5 for other occurrences to see if the error has a common pattern (same screen, same version, same user flow).
-7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, affected versions, reproduction steps, or a fix plan. This is visible to the team.
+6. **Iterate every occurrence, then look for patterns**: Repeat steps 4-5 across the occurrences returned by \`get-issue\` — one breadcrumb is rarely enough, the goal is to surface what they have in common (same screen, same \`app_version\`, same user flow, same preceding step). If \`occurrence_has_more\` is true on the \`get-issue\` response, call \`get-issue\` again with the returned \`occurrence_cursor\` to walk the next page. For very high-frequency issues, a representative sample across occurrences is fine — sample broadly enough to be confident the pattern is real.
+7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, the common pattern across occurrences, affected versions, reproduction steps, or a fix plan. This is visible to the team.
 8. **Resolve or escalate**: \`resolve-issue\` with the fix version once patched, or leave the comment for the team to act on.
 
 ### Feedback
@@ -242,9 +242,9 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
 Every app response includes \`latest_app_version\`, \`latest_app_version_updated_at\`, and \`latest_app_version_source\` (\`"app_store"\` for Apple apps resolved via the iTunes Lookup API; \`"computed"\` for everything else, derived from the highest \`app_version\` seen in production events). Refreshed hourly by the \`app_version_sync\` system job, and immediately on Apple app create. To compare a user/event/issue version against the latest, use string equality with the app's \`latest_app_version\` (semver-aware comparison only matters for ordering — equality is enough to flag "on latest"). Trigger \`app_version_sync\` with \`{ app_id }\` to refresh a single app on demand.
 
 ### Events
-- \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`session_id\` to reconstruct a session timeline (preferred for issue drill-down). Pass \`order: "asc"\` to walk events chronologically (default \`desc\`/newest-first) — use ascending for session timelines and breadcrumb investigations. Pass \`compact: true\` to drop verbose fields.
+- \`query-events\` — Filter by project, app, level, user, session, environment, screen, time, data mode. Cursor pagination. Pass \`order: "asc"\` to walk events chronologically (default \`desc\`/newest-first). Pass \`compact: true\` to drop verbose fields. **Not the right tool for issue investigation** — use \`investigate-event\` for that, which builds a richer breadcrumb (full session + cross-app events) directly from an occurrence's \`event_id\`. Reach for \`query-events\` for ad-hoc filter-driven searches.
 - \`get-event\` — Get full event details by ID
-- \`investigate-event\` — Best breadcrumb trail for an event. Pulls the full session (or ±window_minutes if no session_id), then enriches with cross-app events for the same user in the same project. Returns a single chronological \`events\` array with \`target_event_id\`. Prefer this over \`query-events\` when drilling into a specific event. Supports \`compact: true\`.
+- \`investigate-event\` — **The standard tool for investigating an issue's occurrences.** Given an \`event_id\` (typically from a \`get-issue\` occurrence), pulls the full session (or ±window_minutes if no session_id), then enriches with cross-app events for the same user in the same project. Returns a single chronological \`events\` array with \`target_event_id\`. Run across **multiple** occurrences of the same issue to surface common patterns. Supports \`compact: true\`.
 
 ### Metrics
 - \`list-metrics\` — List definitions for a project
@@ -353,11 +353,11 @@ If a tool returns a permissions error, the agent key is missing the required per
 ### Investigating issues
 1. \`list-issues\` → find open issues sorted by severity
 2. \`claim-issue\` → mark as in_progress
-3. \`get-issue\` → read occurrences (each has \`session_id\`, \`event_id\`, \`user_id\`)
-4. \`query-events\` with \`session_id\` (add \`compact: true\` for long sessions) → reconstruct the full session timeline to see what led to the error
+3. \`get-issue\` → read occurrences (each has \`session_id\`, \`event_id\`, \`user_id\`, \`app_version\`)
+4. \`investigate-event\` with each occurrence's \`event_id\` (add \`compact: true\` for long timelines) → build the full breadcrumb (entire session + cross-app events for the same user). This is the standard issue-investigation move; do it for **every** occurrence, not just one.
 5. \`get-event\` with \`event_id\` → read the full error details (custom_attributes, stack trace)
-6. Repeat for multiple occurrences to find common patterns
-7. \`add-issue-comment\` → document root cause and findings
+6. Iterate across occurrences and look for what they share — same screen, same \`app_version\`, same user flow. If \`occurrence_has_more\` is true, call \`get-issue\` again with the returned \`occurrence_cursor\` to walk the next page (sample broadly on very high-frequency issues).
+7. \`add-issue-comment\` → document root cause, the shared pattern, and affected versions
 8. \`resolve-issue\` → mark resolved with fix version
 
 ### Connecting integrations (RevenueCat)

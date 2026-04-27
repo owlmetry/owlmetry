@@ -34,13 +34,13 @@ function compactEvent(event: Record<string, unknown>): Record<string, unknown> {
 export function registerEventsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("query-events", {
     description:
-      "Query analytics events. Pass session_id to reconstruct a full user session timeline — the preferred tool for drilling into an issue's occurrences (see get-issue, whose occurrences include session_id). Defaults to last 24 hours. Supports filtering by project, app, level, user, session, environment, screen, and data mode. Returns cursor-paginated results. Set compact=true to drop verbose fields (custom_attributes, experiments, device metadata) and stay under MCP token limits.",
+      "Query analytics events with flexible filters — project, app, level, user, session, environment, screen, time range, data mode. Defaults to last 24 hours. Returns cursor-paginated results. Set compact=true to drop verbose fields (custom_attributes, experiments, device metadata) and stay under MCP token limits. **For investigating an issue's occurrences, use `investigate-event` instead** — it builds a richer breadcrumb (full session + cross-app events for the same user) automatically from an occurrence's `event_id`. Reach for `query-events` for ad-hoc filter-driven searches (all errors of a given level, all events on a screen, walking a session manually).",
     inputSchema: {
       project_id: z.string().uuid().optional().describe("Filter by project"),
       app_id: z.string().uuid().optional().describe("Filter by app (takes precedence over project_id)"),
       level: z.enum(LOG_LEVELS).optional().describe("Filter by log level"),
       user_id: z.string().optional().describe("Filter by user ID"),
-      session_id: z.string().uuid().optional().describe("Filter by session ID — use this with a session_id from get-issue occurrences to reconstruct the full session"),
+      session_id: z.string().uuid().optional().describe("Filter by session ID — for issue investigation, prefer `investigate-event` with the occurrence's `event_id` instead, which returns the same session plus cross-app enrichment"),
       environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
       screen_name: z.string().optional().describe("Filter by screen name"),
       since: z.string().optional().describe("Start time (relative like '1h', '7d' or ISO 8601)"),
@@ -88,7 +88,7 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
 
   server.registerTool("investigate-event", {
     description:
-      "Build the best possible breadcrumb trail around a target event. If the target has a session_id, pulls the full session; otherwise falls back to a ±window_minutes time window on the same app. Then enriches with cross-app events for the same user in the same project (bounded by the session/window's time range) so backend and client events appear together even without a shared session_id. Results are merged, deduped by id, and sorted ascending by timestamp. Prefer this over query-events when drilling into a specific event. Set compact=true to drop verbose fields and stay under MCP token limits.",
+      "**The standard tool for investigating an issue's occurrences** — pass an occurrence's `event_id` from `get-issue` and receive the full breadcrumb trail leading to that error. If the target has a session_id, pulls the entire session (every event the SDK logged in that session); otherwise falls back to a ±window_minutes time window on the same app. Then enriches with cross-app events for the same user in the same project (bounded by the session/window's time range) so backend and client events appear together even without a shared session_id. Results are merged, deduped by id, and sorted ascending by timestamp. **Run this for multiple occurrences of the same issue** (not just one) to find common patterns — same screen, same `app_version`, same user flow — before commenting/resolving. Prefer this over query-events when drilling into a specific event. Set compact=true to drop verbose fields and stay under MCP token limits.",
     inputSchema: {
       event_id: z.string().uuid().describe("The target event ID"),
       window_minutes: z.number().optional().default(5).describe("Fallback time window in minutes, used only when the target has no session_id (default: 5)"),
