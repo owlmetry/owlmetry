@@ -171,9 +171,12 @@ export class JobRunner {
       .set({ status: "running", started_at: new Date() })
       .where(eq(jobRuns.id, run.id));
 
+    const progressRef: { last: JobProgress | null } = { last: null };
+
     const ctx: JobContext = {
       runId: run.id,
       updateProgress: async (progress) => {
+        progressRef.last = progress;
         await this.db
           .update(jobRuns)
           .set({ progress })
@@ -191,9 +194,16 @@ export class JobRunner {
     try {
       const result = await handler(ctx, params);
       const finalStatus = runningJob.cancelRequested ? "cancelled" : "completed";
+      // Snap progress to 100% on success — handlers don't always land their
+      // last updateProgress on the final item (e.g. `continue` paths). Cancelled
+      // and failed runs keep their partial value as a record of where they stopped.
+      const progressPatch =
+        finalStatus === "completed" && progressRef.last && progressRef.last.total > 0
+          ? { progress: { ...progressRef.last, processed: progressRef.last.total } }
+          : {};
       await this.db
         .update(jobRuns)
-        .set({ status: finalStatus, result, completed_at: new Date() })
+        .set({ status: finalStatus, result, completed_at: new Date(), ...progressPatch })
         .where(eq(jobRuns.id, run.id));
 
       if (finalStatus !== "completed" || !result._silent) {

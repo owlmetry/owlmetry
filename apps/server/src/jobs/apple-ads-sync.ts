@@ -91,50 +91,49 @@ export const appleAdsSyncHandler: JobHandler = async (ctx, params) => {
 
     if (allIdsAlreadyResolved(currentProps)) {
       skippedAllNamesPresent++;
-      continue;
-    }
+    } else {
+      examined++;
 
-    examined++;
+      try {
+        const outcome = await enrichAppleAdsNames(adsConfig, currentProps, cache);
 
-    try {
-      const outcome = await enrichAppleAdsNames(adsConfig, currentProps, cache);
+        if (outcome.authError) {
+          ctx.log.error(
+            { message: outcome.authError },
+            "Apple Ads sync aborting — auth error",
+          );
+          // Stamp the current user before returning so at least one user reflects
+          // the failure. The remaining users keep their previous diagnostic.
+          const diagnostic = buildEnrichmentDiagnostic(outcome, 0);
+          await mergeUserProperties(ctx.db, projectId, user.user_id, diagnostic);
+          return buildResult({
+            aborted: true,
+            abort_reason: `Apple Ads API rejected the credentials: ${outcome.authError}`,
+          });
+        }
 
-      if (outcome.authError) {
-        ctx.log.error(
-          { message: outcome.authError },
-          "Apple Ads sync aborting — auth error",
-        );
-        // Stamp the current user before returning so at least one user reflects
-        // the failure. The remaining users keep their previous diagnostic.
-        const diagnostic = buildEnrichmentDiagnostic(outcome, 0);
-        await mergeUserProperties(ctx.db, projectId, user.user_id, diagnostic);
-        return buildResult({
-          aborted: true,
-          abort_reason: `Apple Ads API rejected the credentials: ${outcome.authError}`,
-        });
-      }
+        for (const fe of outcome.fieldErrors) {
+          errors++;
+          const key = String(fe.statusCode);
+          errorStatusCounts[key] = (errorStatusCounts[key] ?? 0) + 1;
+          ctx.log.warn(
+            { userId: user.user_id, field: fe.field, statusCode: fe.statusCode, message: fe.message },
+            "Apple Ads field lookup failed (continuing)",
+          );
+        }
 
-      for (const fe of outcome.fieldErrors) {
+        const unsetProps = selectUnsetProps(outcome.props, currentProps);
+        const diagnostic = buildEnrichmentDiagnostic(outcome, Object.keys(unsetProps).length);
+        await mergeUserProperties(ctx.db, projectId, user.user_id, { ...unsetProps, ...diagnostic });
+        if (Object.keys(unsetProps).length === 0) {
+          skippedNoNewNames++;
+        } else {
+          enriched++;
+        }
+      } catch (err) {
         errors++;
-        const key = String(fe.statusCode);
-        errorStatusCounts[key] = (errorStatusCounts[key] ?? 0) + 1;
-        ctx.log.warn(
-          { userId: user.user_id, field: fe.field, statusCode: fe.statusCode, message: fe.message },
-          "Apple Ads field lookup failed (continuing)",
-        );
+        ctx.log.warn({ err, userId: user.user_id }, "Apple Ads enrichment failed for user");
       }
-
-      const unsetProps = selectUnsetProps(outcome.props, currentProps);
-      const diagnostic = buildEnrichmentDiagnostic(outcome, Object.keys(unsetProps).length);
-      await mergeUserProperties(ctx.db, projectId, user.user_id, { ...unsetProps, ...diagnostic });
-      if (Object.keys(unsetProps).length === 0) {
-        skippedNoNewNames++;
-      } else {
-        enriched++;
-      }
-    } catch (err) {
-      errors++;
-      ctx.log.warn({ err, userId: user.user_id }, "Apple Ads enrichment failed for user");
     }
 
     if ((i + 1) % 10 === 0 || i === users.length - 1) {
