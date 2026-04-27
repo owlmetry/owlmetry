@@ -88,6 +88,12 @@ export default function DashboardPage() {
     funnelsCompleted === undefined || funnelsStarted === undefined
       ? undefined
       : `${funnelsCompleted}/${funnelsStarted}`;
+  const funnelsPercent =
+    funnelsCompleted === undefined ||
+    funnelsStarted === undefined ||
+    funnelsStarted === 0
+      ? undefined
+      : `${Math.round((funnelsCompleted / funnelsStarted) * 100)}%`;
 
   const projectsAppsLoading = projectsLoading || appsLoading;
   const projectsAppsValue =
@@ -156,6 +162,7 @@ export default function DashboardPage() {
           label="Funnels · 24h"
           icon={Filter}
           value={funnelsValue}
+          secondary={funnelsPercent}
           isLoading={funnelsCompletedLoading}
           href="/dashboard/funnels"
         />

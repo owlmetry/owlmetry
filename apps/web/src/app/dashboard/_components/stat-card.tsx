@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 interface StatCardProps {
   label: string;
   value: string | number | null | undefined;
+  secondary?: string;
   icon: LucideIcon;
   href?: string;
   isLoading?: boolean;
@@ -16,12 +17,13 @@ interface StatCardProps {
 export function StatCard({
   label,
   value,
+  secondary,
   icon: Icon,
   href,
   isLoading,
 }: StatCardProps) {
   const body = (
-    <div className="group relative block px-5 py-5 transition-colors hover:bg-muted/40 h-full">
+    <div className="group relative block min-w-0 px-5 py-5 transition-colors hover:bg-muted/40 h-full">
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {label}
@@ -36,8 +38,18 @@ export function StatCard({
       {isLoading ? (
         <Skeleton className="h-9 w-16" />
       ) : (
-        <p className="font-semibold tabular-nums leading-none tracking-tight text-4xl">
+        <p
+          className={cn(
+            "font-semibold tabular-nums leading-none tracking-tight break-words",
+            secondary ? "text-3xl" : "text-4xl"
+          )}
+        >
           {value ?? "—"}
+          {secondary && (
+            <span className="ml-2 text-sm font-medium text-muted-foreground">
+              {secondary}
+            </span>
+          )}
         </p>
       )}
     </div>
