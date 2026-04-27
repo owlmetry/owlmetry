@@ -13,8 +13,8 @@ export const ISSUE_STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: st
 
 export const ISSUE_STATUS_COLUMNS: IssueStatus[] = [
   "new",
-  "in_progress",
   "regressed",
+  "in_progress",
   "resolved",
   "silenced",
 ];
