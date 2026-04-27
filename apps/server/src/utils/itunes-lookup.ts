@@ -30,6 +30,10 @@ export async function lookupItunes(bundleId: string, country: string): Promise<I
   try {
     const url = `${ITUNES_LOOKUP_URL}?bundleId=${encodeURIComponent(bundleId)}&country=${country}`;
     const res = await fetch(url, { signal: AbortSignal.timeout(ITUNES_TIMEOUT_MS) });
+    // iTunes 404s for storefronts where the app isn't sold — that's a normal
+    // "not in this region" signal, not an error. Treat any other non-200 as
+    // a real error (rate-limit, server-side issue, etc).
+    if (res.status === 404) return { kind: "not_found" };
     if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
     const data = (await res.json()) as ItunesLookupResponse;
     const result = data.results?.[0];
