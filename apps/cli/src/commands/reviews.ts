@@ -148,39 +148,6 @@ reviewsCommand
   });
 
 reviewsCommand
-  .command("by-country")
-  .description("Aggregate review count + average rating per country")
-  .requiredOption("--project-id <id>", "Project ID")
-  .option("--app-id <id>", "Scope to a single app")
-  .addOption(
-    new Option("--store <store>", "Scope to a single store").choices([...REVIEW_STORES]),
-  )
-  .action(async (opts: { projectId: string; appId?: string; store?: string }, cmd) => {
-    const { client, globals } = createClient(cmd);
-    const result = await client.listReviewsByCountry(opts.projectId, {
-      app_id: opts.appId,
-      store: opts.store,
-    });
-    output(globals.format as OutputFormat, result, () => {
-      if (result.countries.length === 0) return chalk.dim("No reviews yet");
-      const lines = [
-        chalk.bold("Country".padEnd(28) + "Reviews".padEnd(12) + "Avg rating"),
-        "─".repeat(60),
-      ];
-      for (const c of result.countries) {
-        const country = `${countryFlag(c.country_code)} ${countryName(c.country_code)}`;
-        lines.push(
-          country.padEnd(28) +
-            String(c.review_count).padEnd(12) +
-            stars(Math.round(c.average_rating)) + "  " +
-            chalk.dim(c.average_rating.toFixed(2)),
-        );
-      }
-      return lines.join("\n");
-    });
-  });
-
-reviewsCommand
   .command("delete <reviewId>")
   .description("Delete (hide) a review (user-only; agent keys are not allowed)")
   .requiredOption("--project-id <id>", "Project ID")

@@ -14,20 +14,12 @@ interface ItunesLookupResponse {
     trackId?: number;
     version?: string;
     bundleId?: string;
-    averageUserRating?: number;
-    userRatingCount?: number;
-    averageUserRatingForCurrentVersion?: number;
-    userRatingCountForCurrentVersion?: number;
   }>;
 }
 
 interface AppleAppMetadata {
   version: string;
   trackId: number | null;
-  averageUserRating: number | null;
-  userRatingCount: number | null;
-  averageUserRatingForCurrentVersion: number | null;
-  userRatingCountForCurrentVersion: number | null;
 }
 
 type LookupResult =
@@ -52,16 +44,6 @@ async function lookupAppleAppMetadata(bundleId: string): Promise<LookupResult> {
       metadata: {
         version: result.version,
         trackId: typeof result.trackId === "number" ? result.trackId : null,
-        averageUserRating: typeof result.averageUserRating === "number" ? result.averageUserRating : null,
-        userRatingCount: typeof result.userRatingCount === "number" ? result.userRatingCount : null,
-        averageUserRatingForCurrentVersion:
-          typeof result.averageUserRatingForCurrentVersion === "number"
-            ? result.averageUserRatingForCurrentVersion
-            : null,
-        userRatingCountForCurrentVersion:
-          typeof result.userRatingCountForCurrentVersion === "number"
-            ? result.userRatingCountForCurrentVersion
-            : null,
       },
     };
   } catch (err) {
@@ -153,26 +135,13 @@ export const appVersionSyncHandler: JobHandler = async (ctx, params) => {
         }
       }
 
-      // Build the update set. Rating fields are only written when iTunes Lookup
-      // succeeded; on fallback paths we leave whatever was previously stored alone.
       const updateSet: Record<string, unknown> = {
         latest_app_version: version,
         latest_app_version_source: source,
         latest_app_version_updated_at: new Date(),
       };
-      if (appleMetadata) {
-        if (appleMetadata.trackId !== null) {
-          updateSet.apple_app_store_id = appleMetadata.trackId;
-        }
-        updateSet.latest_rating =
-          appleMetadata.averageUserRating !== null ? appleMetadata.averageUserRating.toFixed(2) : null;
-        updateSet.latest_rating_count = appleMetadata.userRatingCount;
-        updateSet.current_version_rating =
-          appleMetadata.averageUserRatingForCurrentVersion !== null
-            ? appleMetadata.averageUserRatingForCurrentVersion.toFixed(2)
-            : null;
-        updateSet.current_version_rating_count = appleMetadata.userRatingCountForCurrentVersion;
-        updateSet.latest_rating_updated_at = new Date();
+      if (appleMetadata && appleMetadata.trackId !== null) {
+        updateSet.apple_app_store_id = appleMetadata.trackId;
       }
 
       await ctx.db.update(apps).set(updateSet).where(eq(apps.id, app.id));

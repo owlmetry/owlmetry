@@ -74,3 +74,18 @@ export function iso3ToIso2(code: string | null | undefined): string | null {
   if (!code) return null;
   return ISO3_TO_ISO2[code.toUpperCase()] ?? null;
 }
+
+// All Apple iTunes Lookup storefront codes (ISO 3166-1 alpha-2). Derived from the
+// ISO3 → ISO2 mapping above so the two stay in lockstep. Apple silently returns
+// `resultCount: 0` for storefronts where the app isn't sold, so it's cheap to
+// fan out across the full set in the daily ratings sync. Set-wrapped to dedupe
+// any ISO3 codes that share an ISO2 (none today, defensive for future rows).
+const APPLE_STOREFRONT_CODE_SET = new Set<string>(Object.values(ISO3_TO_ISO2));
+export const APPLE_STOREFRONT_CODES: readonly string[] = Object.freeze(
+  [...APPLE_STOREFRONT_CODE_SET].sort(),
+);
+
+export function isAppleStorefront(code: string | null | undefined): boolean {
+  if (!code) return false;
+  return APPLE_STOREFRONT_CODE_SET.has(code.toLowerCase());
+}

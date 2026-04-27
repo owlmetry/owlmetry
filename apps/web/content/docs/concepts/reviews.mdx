@@ -1,20 +1,21 @@
 ---
-title: Store Reviews
-description: Capture App Store reviews via the App Store Connect API per project, surfaced on the project dashboard alongside aggregate ratings from iTunes Lookup.
+title: Store Ratings & Reviews
+description: Per-country App Store rating aggregates from iTunes Lookup + individual customer reviews from the App Store Connect API.
 ---
 
-Owlmetry pulls **App Store reviews** via the App Store Connect (ASC) API so you can monitor sentiment alongside crashes, in-app feedback, and metrics. This is distinct from the in-app [Feedback](./feedback) system — store reviews come from external users via the App Store, not from your SDKs, so they have a numeric rating, no session context, and a separate triage flow.
+Owlmetry surfaces two independent App Store data feeds — **aggregate ratings** and **individual reviews** — pulled by separate jobs from different Apple endpoints. Both are distinct from the in-app [Feedback](./feedback) system: store data comes from external users via Apple, not from your SDKs.
 
 ## What Gets Captured
 
 For every Apple app with a `bundle_id`, Owlmetry tracks two things:
 
-**Aggregate ratings** (the "card" on each app, populated for free by the existing version-sync job):
-- All-time average rating + total rating count
-- Current-version rating + count
-- Numeric Apple App Store ID (resolved automatically)
+**Per-country aggregate ratings** (`app_store_ratings`, daily snapshot from iTunes Lookup, no auth):
+- Average rating + total rating count, **per Apple storefront** (~247 ISO2 country codes)
+- Current-version rating + count, per storefront
+- Snapshot date (one row per app × store × country × day — both "current state" and history live in the same table)
+- A worldwide rollup is denormalized back onto the `apps` table (`worldwide_average_rating`, `worldwide_rating_count`, `worldwide_current_version_rating`, `worldwide_current_version_rating_count`, `ratings_synced_at`) so dashboard cards stay one-row-read fast
 
-**Individual reviews** (the `app_store_reviews` table, populated via your ASC integration):
+**Individual reviews** (`app_store_reviews`, populated via your ASC integration):
 - Star rating (1–5)
 - Title (Apple only — Play has no title)
 - Body
@@ -28,12 +29,17 @@ For every Apple app with a `bundle_id`, Owlmetry tracks two things:
 
 | Job | Cadence | Source | What it does |
 |-----|---------|--------|--------------|
-| `app_version_sync` | hourly :15 (system) | iTunes Lookup API (no auth) | Refreshes `latest_app_version` and aggregate ratings + Apple App Store ID for every Apple app with a `bundle_id`. |
-| `app_store_connect_reviews_sync` | manual (project-scoped) | App Store Connect API | Pulls reviews via `GET /v1/apps/{id}/customerReviews` for every Apple app in the project that has an `apple_app_store_id`. |
+| `app_version_sync` | hourly :15 (system) | iTunes Lookup API (no auth) | Refreshes `latest_app_version` + the numeric Apple App Store ID for every Apple app with a `bundle_id`. |
+| `app_store_ratings_sync` | daily 04:30 UTC (system) | iTunes Lookup API (no auth) | Fans out across every Apple storefront for each Apple app with a `bundle_id` and snapshots per-country average rating + total count to `app_store_ratings`, then recomputes the worldwide cache on `apps`. |
+| `app_store_connect_reviews_sync` | manual (project-scoped) | App Store Connect API | Pulls individual reviews via `GET /v1/apps/{id}/customerReviews` for every Apple app in the project that has an `apple_app_store_id`. |
 
-The reviews job is **project-scoped, not system-scoped** — it requires the project to have an active App Store Connect integration. You trigger it manually from Dashboard → Integrations → Sync reviews, or via `owlmetry integrations sync app-store-connect --project-id <id>`, or via the `sync-integration` MCP tool.
+The reviews job is **project-scoped** — it requires an active App Store Connect integration on the project. Trigger it manually from Dashboard → Integrations → Sync reviews, via `owlmetry integrations sync app-store-connect --project-id <id>`, or via the `sync-integration` MCP tool.
 
-Aggregate ratings keep flowing automatically once an Apple app has a bundle ID — no integration setup needed. ASC is only required for individual review ingestion.
+Aggregate ratings keep flowing automatically once an Apple app has a bundle ID — no integration setup needed. ASC is only required for individual review ingestion. You can also manually trigger a ratings sync (e.g. right after creating a new app) via `owlmetry ratings sync --project-id <id>` / Dashboard → project → Sync ratings / `sync-app-ratings` MCP.
+
+### Storefront removal (tombstones)
+
+If an app was previously available in a region but iTunes returns nothing for that storefront on a later sync — manual delisting, Apple takedown, or a transient hiccup — the job writes a **tombstone row** (`average_rating IS NULL`, `rating_count = 0`) for that day. The latest-snapshot view (`DISTINCT ON (country_code) … ORDER BY snapshot_date DESC`) returns the tombstone so the UI correctly shows "no longer available". If iTunes returns data again on the next run, the tombstone is naturally superseded — tombstones self-heal.
 
 ## Setting Up the App Store Connect Integration
 
@@ -51,10 +57,15 @@ Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app
 
 ## Where to See Them
 
-- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search) and a "Top countries" panel.
-- **App overview card**: a `★ 4.6 (1,234)` badge on each Apple app card under `/dashboard/projects/<id>`, with a tooltip showing all-time vs. current-version split (sourced from iTunes Lookup, not ASC).
-- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews by-country`, `owlmetry reviews delete <id>`.
-- **MCP**: `list-reviews`, `get-review`, `list-reviews-by-country`.
+**Ratings** (per-country, incl. star-only ratings — not just text reviews):
+- **Web dashboard**: `/dashboard/projects/<id>` — `★ 4.6 (1,234)` badge on each Apple app card showing the worldwide rollup, plus a "Ratings by country" disclosure that lazy-loads the per-country grid. The reviews page has a "By country" panel covering every app in the project.
+- **CLI**: `owlmetry ratings list <appId> --project-id <id>`, `owlmetry ratings by-country --project-id <id>`, `owlmetry ratings sync --project-id <id>` (admin-only manual trigger).
+- **MCP**: `list-app-ratings`, `list-ratings-by-country`, `sync-app-ratings`.
+
+**Reviews** (individual customer reviews with text):
+- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search).
+- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews delete <id>`.
+- **MCP**: `list-reviews`, `get-review`.
 
 ## Copying the Integration to Other Projects
 
@@ -64,15 +75,20 @@ CLI: `owlmetry integrations copy app-store-connect --from <source-project-id> --
 
 ## Permissions
 
-- `reviews:read` — list / view (default for new agent keys)
-- `reviews:write` — soft-delete a review (user-only, agent keys 403 — same precedent as feedback)
+- `reviews:read` — list / view ratings or reviews (default for new agent keys; ratings reuse the same permission)
+- `reviews:write` — soft-delete a review **or** trigger a manual ratings sync (user-only for delete, admin role for sync; agent keys 403 on delete)
 - `integrations:write` — required to set up / update / sync the App Store Connect integration
 
-## When Reviews Don't Show Up
+## When Data Doesn't Show Up
 
-- **App platform isn't `apple`** — Play Store ingest is deferred to a future phase (would need a Google Play Console service-account integration).
-- **App has no `bundle_id`** — required for `app_version_sync` to populate `apple_app_store_id`, which the reviews job uses as ASC's app ID.
-- **App's `apple_app_store_id` hasn't been resolved yet** — wait for the next hourly `app_version_sync` tick (or trigger it manually via the Jobs API for the specific app).
+**Ratings missing**:
+- **App platform isn't `apple`** — Play Store rating ingest is deferred (would need a Google Play Console scrape or paid API).
+- **App has no `bundle_id`** — required for iTunes Lookup.
+- **Daily sync hasn't run yet for a brand-new app** — trigger `owlmetry ratings sync --project-id <id>` to populate immediately.
+- **App not for sale in any storefront iTunes returns data for** — every `(app, country)` lookup returned `resultCount: 0`.
+
+**Reviews missing**:
 - **No App Store Connect integration on the project** — the sync errors out with "App Store Connect integration not found or disabled".
+- **App's `apple_app_store_id` hasn't been resolved yet** — wait for the next hourly `app_version_sync` tick (or trigger it manually via the Jobs API for the specific app).
 - **`auth_error` on sync** — the `.p8` was revoked in App Store Connect, the issuer/key IDs are mismatched, or clock skew. Test Connection from the dashboard surfaces the precise Apple error message.
 - **App not visible to the key** — the Apple Developer team that owns the key doesn't have access to that app. ASC keys are scoped to a single team.

@@ -42,18 +42,4 @@ export function registerReviewsTools(server: McpServer, app: FastifyInstance, ag
     });
   });
 
-  server.registerTool("list-reviews-by-country", {
-    description:
-      "Group reviews by country and return the count + average rating per country. Useful for spotting regional sentiment differences. Optionally scope to a single app or store.",
-    inputSchema: {
-      project_id: z.string().uuid().describe("The project ID"),
-      app_id: z.string().uuid().optional().describe("Scope to a single app"),
-      store: z.enum(REVIEW_STORES).optional().describe("Scope to a single store"),
-    },
-  }, async ({ project_id, ...params }) => {
-    return callApi(app, agentKey, {
-      method: "GET",
-      url: `/v1/projects/${project_id}/reviews/by-country${buildQuery(params)}`,
-    });
-  });
 }

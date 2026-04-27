@@ -5,6 +5,7 @@ import {
   text,
   varchar,
   timestamp,
+  date,
   integer,
   bigint,
   smallint,
@@ -150,11 +151,11 @@ export const apps = pgTable(
     latest_app_version_updated_at: timestamp("latest_app_version_updated_at", { withTimezone: true }),
     latest_app_version_source: varchar("latest_app_version_source", { length: 20 }),
     apple_app_store_id: bigint("apple_app_store_id", { mode: "number" }),
-    latest_rating: numeric("latest_rating", { precision: 3, scale: 2 }),
-    latest_rating_count: integer("latest_rating_count"),
-    current_version_rating: numeric("current_version_rating", { precision: 3, scale: 2 }),
-    current_version_rating_count: integer("current_version_rating_count"),
-    latest_rating_updated_at: timestamp("latest_rating_updated_at", { withTimezone: true }),
+    worldwide_average_rating: numeric("worldwide_average_rating", { precision: 3, scale: 2 }),
+    worldwide_rating_count: integer("worldwide_rating_count"),
+    worldwide_current_version_rating: numeric("worldwide_current_version_rating", { precision: 3, scale: 2 }),
+    worldwide_current_version_rating_count: integer("worldwide_current_version_rating_count"),
+    ratings_synced_at: timestamp("ratings_synced_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -937,5 +938,48 @@ export const appStoreReviews = pgTable(
       .on(table.app_id, table.created_at_in_store)
       .where(sql`${table.deleted_at} IS NULL`),
     index("app_store_reviews_project_rating_idx").on(table.project_id, table.rating),
+  ]
+);
+
+// App Store Ratings — per-country aggregate ratings (avg + count) captured as a
+// daily snapshot from iTunes Lookup. Each (app, store, country, snapshot_date)
+// is a unique row; "current state" reads pick the latest snapshot via
+// DISTINCT ON ... ORDER BY snapshot_date DESC. A tombstone row is one with
+// average_rating IS NULL — written when iTunes returns no result for a
+// storefront that previously had data, signalling the app was delisted from
+// that region. Driven by app_store_ratings_sync (system-scoped, daily 04:30
+// UTC). The `apps` table caches a worldwide rollup recomputed at the end of
+// each sync so dashboard cards stay one-row-read fast.
+export const appStoreRatings = pgTable(
+  "app_store_ratings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    store: varchar("store", { length: 20 }).notNull(),
+    country_code: varchar("country_code", { length: 2 }).notNull(),
+    average_rating: numeric("average_rating", { precision: 3, scale: 2 }),
+    rating_count: integer("rating_count").notNull().default(0),
+    current_version_average_rating: numeric("current_version_average_rating", { precision: 3, scale: 2 }),
+    current_version_rating_count: integer("current_version_rating_count"),
+    app_version: varchar("app_version", { length: 50 }),
+    snapshot_date: date("snapshot_date", { mode: "string" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("app_store_ratings_app_store_country_date_idx").on(
+      table.app_id,
+      table.store,
+      table.country_code,
+      table.snapshot_date,
+    ),
+    index("app_store_ratings_project_date_idx").on(table.project_id, table.snapshot_date),
+    index("app_store_ratings_team_date_idx").on(table.team_id, table.snapshot_date),
   ]
 );

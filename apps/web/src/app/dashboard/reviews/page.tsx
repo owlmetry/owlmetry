@@ -11,7 +11,7 @@ import type {
   ReviewStore,
 } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
-import { useReviews, useReviewDetail, useReviewsByCountry, reviewActions } from "@/hooks/use-reviews";
+import { useReviews, useReviewDetail, useRatingsByCountry, reviewActions } from "@/hooks/use-reviews";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { ProjectDot } from "@/lib/project-color";
@@ -212,14 +212,14 @@ function ReviewDetailModal({
 }
 
 // Compute (weighted-average rating, total ratings) across a set of apps using
-// each app's Apple aggregate latest_rating × latest_rating_count. Mirrors the
-// math used on the main dashboard (apps/web/src/app/dashboard/page.tsx).
+// each app's worldwide cache (worldwide_average_rating × worldwide_rating_count).
+// Mirrors the math used on the main dashboard (apps/web/src/app/dashboard/page.tsx).
 function ratingSummary(apps: AppResponse[]): { avg: number; total: number } | null {
   let weighted = 0;
   let total = 0;
   for (const a of apps) {
-    const r = a.latest_rating;
-    const c = a.latest_rating_count ?? 0;
+    const r = a.worldwide_average_rating;
+    const c = a.worldwide_rating_count ?? 0;
     if (r === null || r === undefined || c <= 0) continue;
     weighted += r * c;
     total += c;
@@ -261,7 +261,7 @@ function RatingsPanel({
         .sort((a, b) => b.total - a.total)
     : [];
 
-  const { countries } = useReviewsByCountry(
+  const { countries } = useRatingsByCountry(
     {
       projectId: selectedProjectId || undefined,
       teamId: !selectedProjectId ? teamId : undefined,
@@ -327,7 +327,7 @@ function RatingsPanel({
           </div>
         )}
 
-        {/* By country */}
+        {/* By country (true storefront ratings — incl. star-only, not just text reviews) */}
         {topCountries.length > 0 && (
           <div className="space-y-2 pt-2 border-t">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">By country</p>
@@ -339,7 +339,7 @@ function RatingsPanel({
                   </p>
                   <p className="text-sm font-medium tabular-nums">
                     {c.average_rating.toFixed(1)} <span className="text-amber-500">★</span>{" "}
-                    <span className="text-muted-foreground">({c.review_count})</span>
+                    <span className="text-muted-foreground">({c.rating_count.toLocaleString()})</span>
                   </p>
                 </div>
               ))}
@@ -429,7 +429,7 @@ export default function ReviewsPage() {
 
   // Derive country options from what's actually present in the by-country aggregate
   // for the active scope — keeps the dropdown small and useful.
-  const { countries: countryFacets } = useReviewsByCountry(
+  const { countries: countryFacets } = useRatingsByCountry(
     {
       projectId: selectedProjectId || undefined,
       teamId: !selectedProjectId ? teamId : undefined,
@@ -531,7 +531,7 @@ export default function ReviewsPage() {
                 <SelectItem value={ALL}>All countries</SelectItem>
                 {countryFacets.map((c) => (
                   <SelectItem key={c.country_code} value={c.country_code}>
-                    {countryFlag(c.country_code)} {countryName(c.country_code)} ({c.review_count})
+                    {countryFlag(c.country_code)} {countryName(c.country_code)} ({c.rating_count.toLocaleString()})
                   </SelectItem>
                 ))}
               </SelectContent>

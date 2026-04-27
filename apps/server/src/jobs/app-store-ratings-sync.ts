@@ -1,0 +1,303 @@
+import { eq, and, isNull, sql } from "drizzle-orm";
+import { apps, appStoreRatings } from "@owlmetry/db";
+import { APPLE_STOREFRONT_CODES } from "@owlmetry/shared";
+import type { JobHandler } from "../services/job-runner.js";
+
+const ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup";
+const ITUNES_TIMEOUT_MS = 10_000;
+// 150ms between iTunes Lookup calls keeps us well under any rate limits Apple
+// imposes on the public endpoint. Skipped in test runs (otherwise a single
+// test takes 37s+ to fan out across ~247 storefronts).
+const ITUNES_INTER_REQUEST_DELAY_MS = process.env.NODE_ENV === "test" ? 0 : 150;
+const APP_STORE = "app_store" as const;
+
+interface ItunesLookupResponse {
+  resultCount: number;
+  results: Array<{
+    trackId?: number;
+    version?: string;
+    bundleId?: string;
+    averageUserRating?: number;
+    userRatingCount?: number;
+    averageUserRatingForCurrentVersion?: number;
+    userRatingCountForCurrentVersion?: number;
+  }>;
+}
+
+interface StorefrontRating {
+  averageRating: number | null;
+  ratingCount: number;
+  currentVersionAverageRating: number | null;
+  currentVersionRatingCount: number | null;
+  appVersion: string | null;
+}
+
+type LookupResult =
+  | { kind: "found"; rating: StorefrontRating }
+  | { kind: "not_found" }
+  | { kind: "error"; message: string };
+
+async function lookupStorefront(bundleId: string, country: string): Promise<LookupResult> {
+  try {
+    const url = `${ITUNES_LOOKUP_URL}?bundleId=${encodeURIComponent(bundleId)}&country=${country}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(ITUNES_TIMEOUT_MS) });
+    if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
+    const data = (await res.json()) as ItunesLookupResponse;
+    const result = data.results?.[0];
+    if (!result) return { kind: "not_found" };
+    const ratingCount = typeof result.userRatingCount === "number" ? result.userRatingCount : 0;
+    const averageRating = typeof result.averageUserRating === "number" ? result.averageUserRating : null;
+    // iTunes occasionally returns a result row with no rating data at all (e.g.
+    // an app present in the storefront but with zero ratings). Treat as
+    // not_found so we don't store a 0-count row that displaces a real one.
+    if (averageRating === null && ratingCount === 0) return { kind: "not_found" };
+    return {
+      kind: "found",
+      rating: {
+        averageRating,
+        ratingCount,
+        currentVersionAverageRating:
+          typeof result.averageUserRatingForCurrentVersion === "number"
+            ? result.averageUserRatingForCurrentVersion
+            : null,
+        currentVersionRatingCount:
+          typeof result.userRatingCountForCurrentVersion === "number"
+            ? result.userRatingCountForCurrentVersion
+            : null,
+        appVersion: typeof result.version === "string" ? result.version : null,
+      },
+    };
+  } catch (err) {
+    return { kind: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function todayUtcDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Daily Apple App Store ratings fan-out. For every Apple app with a bundle_id,
+ * loops every iTunes storefront (~247 ISO2 codes) and writes a daily snapshot
+ * row in app_store_ratings keyed on (app_id, store, country, snapshot_date).
+ *
+ * Tombstone rows (average_rating IS NULL, rating_count = 0) are written when a
+ * storefront previously had data but iTunes returns nothing today — signalling
+ * the app was delisted from that region. Storefronts that never had data are
+ * silently skipped to keep the table sparse.
+ *
+ * After all storefronts for an app are synced, recomputes the worldwide-cache
+ * columns on `apps` (denormalized weighted average + total count over the
+ * latest snapshot per country, ignoring tombstones).
+ */
+export const appStoreRatingsSyncHandler: JobHandler = async (ctx, params) => {
+  const targetAppId = typeof params.app_id === "string" ? params.app_id : null;
+  const targetProjectId = typeof params.project_id === "string" ? params.project_id : null;
+
+  const conditions = [
+    eq(apps.platform, "apple"),
+    isNull(apps.deleted_at),
+  ];
+  if (targetAppId) conditions.push(eq(apps.id, targetAppId));
+  if (targetProjectId) conditions.push(eq(apps.project_id, targetProjectId));
+
+  const targetApps = await ctx.db
+    .select({
+      id: apps.id,
+      team_id: apps.team_id,
+      project_id: apps.project_id,
+      bundle_id: apps.bundle_id,
+    })
+    .from(apps)
+    .where(and(...conditions));
+
+  let appsProcessed = 0;
+  let appsSkipped = 0;
+  let storefrontsFetched = 0;
+  let rowsUpserted = 0;
+  let tombstonesWritten = 0;
+  let errors = 0;
+
+  const client = ctx.createClient();
+  const today = todayUtcDateString();
+
+  try {
+    for (const app of targetApps) {
+      if (ctx.isCancelled()) break;
+      if (!app.bundle_id) {
+        appsSkipped++;
+        continue;
+      }
+
+      // Countries that previously had real (non-tombstone) data — if iTunes
+      // returns nothing for one of these today, write a tombstone.
+      const previouslyActive = await client<{ country_code: string }[]>`
+        SELECT DISTINCT country_code
+        FROM (
+          SELECT DISTINCT ON (country_code) country_code, average_rating
+          FROM app_store_ratings
+          WHERE app_id = ${app.id} AND store = ${APP_STORE}
+          ORDER BY country_code, snapshot_date DESC
+        ) latest
+        WHERE average_rating IS NOT NULL
+      `;
+      const previouslyActiveSet = new Set(previouslyActive.map((r) => r.country_code));
+
+      const upsertRows: Array<{
+        team_id: string;
+        project_id: string;
+        app_id: string;
+        store: string;
+        country_code: string;
+        average_rating: string | null;
+        rating_count: number;
+        current_version_average_rating: string | null;
+        current_version_rating_count: number | null;
+        app_version: string | null;
+        snapshot_date: string;
+      }> = [];
+
+      for (const country of APPLE_STOREFRONT_CODES) {
+        if (ctx.isCancelled()) break;
+        if (storefrontsFetched > 0) {
+          await new Promise((r) => setTimeout(r, ITUNES_INTER_REQUEST_DELAY_MS));
+        }
+
+        const result = await lookupStorefront(app.bundle_id, country);
+        storefrontsFetched++;
+
+        if (result.kind === "error") {
+          errors++;
+          continue;
+        }
+
+        if (result.kind === "found") {
+          upsertRows.push({
+            team_id: app.team_id,
+            project_id: app.project_id,
+            app_id: app.id,
+            store: APP_STORE,
+            country_code: country,
+            average_rating:
+              result.rating.averageRating !== null ? result.rating.averageRating.toFixed(2) : null,
+            rating_count: result.rating.ratingCount,
+            current_version_average_rating:
+              result.rating.currentVersionAverageRating !== null
+                ? result.rating.currentVersionAverageRating.toFixed(2)
+                : null,
+            current_version_rating_count: result.rating.currentVersionRatingCount,
+            app_version: result.rating.appVersion,
+            snapshot_date: today,
+          });
+        } else if (previouslyActiveSet.has(country)) {
+          upsertRows.push({
+            team_id: app.team_id,
+            project_id: app.project_id,
+            app_id: app.id,
+            store: APP_STORE,
+            country_code: country,
+            average_rating: null,
+            rating_count: 0,
+            current_version_average_rating: null,
+            current_version_rating_count: null,
+            app_version: null,
+            snapshot_date: today,
+          });
+          tombstonesWritten++;
+        }
+      }
+
+      if (upsertRows.length > 0) {
+        await ctx.db
+          .insert(appStoreRatings)
+          .values(upsertRows)
+          .onConflictDoUpdate({
+            target: [
+              appStoreRatings.app_id,
+              appStoreRatings.store,
+              appStoreRatings.country_code,
+              appStoreRatings.snapshot_date,
+            ],
+            set: {
+              average_rating: sql`EXCLUDED.average_rating`,
+              rating_count: sql`EXCLUDED.rating_count`,
+              current_version_average_rating: sql`EXCLUDED.current_version_average_rating`,
+              current_version_rating_count: sql`EXCLUDED.current_version_rating_count`,
+              app_version: sql`EXCLUDED.app_version`,
+            },
+          });
+        rowsUpserted += upsertRows.length;
+      }
+
+      // Recompute worldwide cache from the latest snapshot per country.
+      // Numeric columns come back as strings from postgres-js; parseFloat them.
+      const latest = await client<
+        {
+          country_code: string;
+          average_rating: string | null;
+          rating_count: number;
+          current_version_average_rating: string | null;
+          current_version_rating_count: number | null;
+        }[]
+      >`
+        SELECT DISTINCT ON (country_code)
+          country_code, average_rating, rating_count,
+          current_version_average_rating, current_version_rating_count
+        FROM app_store_ratings
+        WHERE app_id = ${app.id} AND store = ${APP_STORE}
+        ORDER BY country_code, snapshot_date DESC
+      `;
+
+      let weightedSum = 0;
+      let totalCount = 0;
+      let cvWeightedSum = 0;
+      let cvTotalCount = 0;
+      for (const row of latest) {
+        if (row.average_rating !== null && row.rating_count > 0) {
+          weightedSum += parseFloat(row.average_rating) * row.rating_count;
+          totalCount += row.rating_count;
+        }
+        if (
+          row.current_version_average_rating !== null &&
+          row.current_version_rating_count !== null &&
+          row.current_version_rating_count > 0
+        ) {
+          cvWeightedSum +=
+            parseFloat(row.current_version_average_rating) * row.current_version_rating_count;
+          cvTotalCount += row.current_version_rating_count;
+        }
+      }
+
+      await ctx.db
+        .update(apps)
+        .set({
+          worldwide_average_rating: totalCount > 0 ? (weightedSum / totalCount).toFixed(2) : null,
+          worldwide_rating_count: totalCount > 0 ? totalCount : null,
+          worldwide_current_version_rating:
+            cvTotalCount > 0 ? (cvWeightedSum / cvTotalCount).toFixed(2) : null,
+          worldwide_current_version_rating_count: cvTotalCount > 0 ? cvTotalCount : null,
+          ratings_synced_at: new Date(),
+        })
+        .where(eq(apps.id, app.id));
+
+      appsProcessed++;
+      await ctx.updateProgress({
+        processed: appsProcessed,
+        total: targetApps.length,
+        message: `Processed ${appsProcessed}/${targetApps.length} apps (${rowsUpserted} rows, ${tombstonesWritten} tombstones)`,
+      });
+    }
+  } finally {
+    await client.end();
+  }
+
+  return {
+    apps_processed: appsProcessed,
+    apps_skipped: appsSkipped,
+    storefronts_fetched: storefrontsFetched,
+    rows_upserted: rowsUpserted,
+    tombstones_written: tombstonesWritten,
+    errors,
+    _silent: appsProcessed === 0 && appsSkipped === 0 && errors === 0,
+  };
+};

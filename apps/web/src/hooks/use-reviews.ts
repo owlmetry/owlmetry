@@ -7,7 +7,7 @@ import type {
   ReviewsListResponse,
   ReviewResponse,
   ReviewsQueryParams,
-  ReviewsCountryFacets,
+  RatingsByCountryResponse,
 } from "@owlmetry/shared";
 
 export function useReviews(
@@ -37,7 +37,9 @@ export function useReviewDetail(projectId: string | undefined, reviewId: string 
   return { review: data ?? null, isLoading, error, mutate };
 }
 
-export function useReviewsByCountry(
+// Per-country App Store ratings (incl. star-only ratings, not just text reviews).
+// Backed by app_store_ratings, populated by the daily app_store_ratings_sync job.
+export function useRatingsByCountry(
   scope: { projectId?: string; teamId?: string },
   filters: { app_id?: string; store?: string } = {},
 ) {
@@ -46,12 +48,12 @@ export function useReviewsByCountry(
   // Project-scoped takes precedence; team-level used for "All projects" views.
   let key: string | null = null;
   if (projectId) {
-    key = `/v1/projects/${projectId}/reviews/by-country${qs ? `?${qs}` : ""}`;
+    key = `/v1/projects/${projectId}/ratings/by-country${qs ? `?${qs}` : ""}`;
   } else if (teamId) {
     const teamQs = buildQueryString({ ...filters, team_id: teamId });
-    key = `/v1/reviews/by-country${teamQs ? `?${teamQs}` : ""}`;
+    key = `/v1/ratings/by-country${teamQs ? `?${teamQs}` : ""}`;
   }
-  const { data, isLoading, error } = useSWR<ReviewsCountryFacets>(key, {
+  const { data, isLoading, error } = useSWR<RatingsByCountryResponse>(key, {
     refreshInterval: 60_000,
   });
   return { countries: data?.countries ?? [], isLoading, error };

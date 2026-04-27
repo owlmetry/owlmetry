@@ -183,11 +183,11 @@ export interface App {
   latest_app_version_updated_at: Date | null;
   latest_app_version_source: AppVersionSource | null;
   apple_app_store_id: number | null;
-  latest_rating: number | null;
-  latest_rating_count: number | null;
-  current_version_rating: number | null;
-  current_version_rating_count: number | null;
-  latest_rating_updated_at: Date | null;
+  worldwide_average_rating: number | null;
+  worldwide_rating_count: number | null;
+  worldwide_current_version_rating: number | null;
+  worldwide_current_version_rating_count: number | null;
+  ratings_synced_at: Date | null;
   created_at: Date;
   deleted_at: Date | null;
 }

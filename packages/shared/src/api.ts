@@ -184,12 +184,12 @@ export interface UpdateAppRequest {
 
 export type AppResponse = Omit<
   App,
-  "created_at" | "deleted_at" | "latest_app_version_updated_at" | "latest_rating_updated_at"
+  "created_at" | "deleted_at" | "latest_app_version_updated_at" | "ratings_synced_at"
 > & {
   created_at: string;
   client_secret: string | null;
   latest_app_version_updated_at: string | null;
-  latest_rating_updated_at: string | null;
+  ratings_synced_at: string | null;
 };
 
 // Store reviews — public reviews scraped from the App Store / Play Store.
@@ -222,16 +222,6 @@ export interface ReviewsListResponse {
   has_more: boolean;
 }
 
-export interface ReviewsByCountrySummary {
-  country_code: string;
-  review_count: number;
-  average_rating: number;
-}
-
-export interface ReviewsCountryFacets {
-  countries: ReviewsByCountrySummary[];
-}
-
 export interface ReviewsQueryParams {
   app_id?: string;
   store?: ReviewStore;
@@ -243,6 +233,42 @@ export interface ReviewsQueryParams {
   search?: string;
   cursor?: string;
   limit?: number;
+}
+
+// Per-country App Store rating aggregates. Populated daily by app_store_ratings_sync
+// from iTunes Lookup. Tombstone rows have average_rating === null when the app
+// previously had data in this storefront but iTunes returned no result this run.
+export interface PerCountryRating {
+  country_code: string;
+  average_rating: number | null;
+  rating_count: number;
+  current_version_average_rating: number | null;
+  current_version_rating_count: number | null;
+  app_version: string | null;
+  snapshot_date: string;
+}
+
+export interface AppRatingSummary {
+  worldwide_average: number | null;
+  worldwide_count: number;
+  current_version_average: number | null;
+  current_version_count: number | null;
+  synced_at: string | null;
+}
+
+export interface AppRatingsResponse {
+  ratings: PerCountryRating[];
+  summary: AppRatingSummary;
+}
+
+export interface RatingsByCountryRow {
+  country_code: string;
+  average_rating: number;
+  rating_count: number;
+}
+
+export interface RatingsByCountryResponse {
+  countries: RatingsByCountryRow[];
 }
 
 // Projects (serialized)

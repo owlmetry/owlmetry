@@ -18,6 +18,7 @@ import { jobsCommand } from "./commands/jobs.js";
 import { issuesCommand } from "./commands/issues.js";
 import { feedbackCommand } from "./commands/feedback.js";
 import { reviewsCommand } from "./commands/reviews.js";
+import { ratingsCommand } from "./commands/ratings.js";
 import { attachmentsCommand } from "./commands/attachments.js";
 import { notificationsCommand } from "./commands/notifications.js";
 
@@ -55,6 +56,7 @@ program.addCommand(jobsCommand);
 program.addCommand(issuesCommand);
 program.addCommand(feedbackCommand);
 program.addCommand(reviewsCommand);
+program.addCommand(ratingsCommand);
 program.addCommand(attachmentsCommand);
 program.addCommand(notificationsCommand);
 

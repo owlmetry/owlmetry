@@ -13,6 +13,7 @@ import { registerAuditLogsTools } from "./tools/audit-logs.js";
 import { registerIssuesTools } from "./tools/issues.js";
 import { registerFeedbackTools } from "./tools/feedback.js";
 import { registerReviewsTools } from "./tools/reviews.js";
+import { registerRatingsTools } from "./tools/ratings.js";
 import { registerAttachmentsTools } from "./tools/attachments.js";
 
 export function createMcpServer(app: FastifyInstance, agentKey: string): McpServer {
@@ -46,6 +47,7 @@ export function createMcpServer(app: FastifyInstance, agentKey: string): McpServ
   registerIssuesTools(server, app, agentKey);
   registerFeedbackTools(server, app, agentKey);
   registerReviewsTools(server, app, agentKey);
+  registerRatingsTools(server, app, agentKey);
   registerAttachmentsTools(server, app, agentKey);
 
   return server;

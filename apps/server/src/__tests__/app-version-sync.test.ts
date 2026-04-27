@@ -73,7 +73,13 @@ describe("app_version_sync", () => {
       expect(String(url)).toContain("itunes.apple.com");
       expect(String(url)).toContain("com.example.test");
       return new Response(
-        JSON.stringify({ resultCount: 1, results: [{ version: "5.4.2", bundleId: "com.example.test" }] }),
+        JSON.stringify({
+          resultCount: 1,
+          // Include a trackId so we can confirm apple_app_store_id capture.
+          // Rating fields (averageUserRating, userRatingCount, etc.) are
+          // intentionally absent — this job no longer writes them.
+          results: [{ trackId: 9876543, version: "5.4.2", bundleId: "com.example.test" }],
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     });
@@ -89,6 +95,11 @@ describe("app_version_sync", () => {
     expect(row.latest_app_version).toBe("5.4.2");
     expect(row.latest_app_version_source).toBe("app_store");
     expect(row.latest_app_version_updated_at).toBeTruthy();
+    expect(row.apple_app_store_id).toBe(9876543);
+    // Rating fields (now in app_store_ratings) are written by a different job.
+    expect(row.worldwide_average_rating).toBeNull();
+    expect(row.worldwide_rating_count).toBeNull();
+    expect(row.ratings_synced_at).toBeNull();
 
     vi.unstubAllGlobals();
   });

@@ -39,8 +39,9 @@ import type {
   CreateFeedbackCommentRequest,
   ReviewResponse,
   ReviewsListResponse,
-  ReviewsCountryFacets,
   ReviewsQueryParams,
+  AppRatingsResponse,
+  RatingsByCountryResponse,
   JobRunResponse,
   JobRunsQueryParams,
   JobRunsResponse,
@@ -431,16 +432,32 @@ export class OwlmetryClient {
     return this.request<ReviewResponse>("GET", `/v1/projects/${projectId}/reviews/${reviewId}`);
   }
 
-  async listReviewsByCountry(projectId: string, params: { app_id?: string; store?: string } = {}): Promise<ReviewsCountryFacets> {
+  async deleteReview(projectId: string, reviewId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/reviews/${reviewId}`);
+  }
+
+  // Per-country App Store rating aggregates (incl. star-only ratings).
+  async listAppRatings(projectId: string, appId: string, params: { store?: string } = {}): Promise<AppRatingsResponse> {
     const stringParams: Record<string, string | undefined> = {};
     for (const [k, v] of Object.entries(params)) {
       if (v !== undefined) stringParams[k] = String(v);
     }
-    return this.request<ReviewsCountryFacets>("GET", `/v1/projects/${projectId}/reviews/by-country`, { params: stringParams });
+    return this.request<AppRatingsResponse>("GET", `/v1/projects/${projectId}/apps/${appId}/ratings`, { params: stringParams });
   }
 
-  async deleteReview(projectId: string, reviewId: string): Promise<{ deleted: boolean }> {
-    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/reviews/${reviewId}`);
+  async listRatingsByCountry(projectId: string, params: { app_id?: string; store?: string } = {}): Promise<RatingsByCountryResponse> {
+    const stringParams: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) stringParams[k] = String(v);
+    }
+    return this.request<RatingsByCountryResponse>("GET", `/v1/projects/${projectId}/ratings/by-country`, { params: stringParams });
+  }
+
+  async syncRatings(projectId: string): Promise<{ syncing: boolean; total: number; job_run_id?: string }> {
+    return this.request<{ syncing: boolean; total: number; job_run_id?: string }>(
+      "POST",
+      `/v1/projects/${projectId}/ratings/sync`,
+    );
   }
 
   // Notifications

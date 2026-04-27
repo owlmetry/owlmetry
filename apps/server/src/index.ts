@@ -30,6 +30,7 @@ import { jobsRoutes, jobsByIdRoutes } from "./routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "./routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "./routes/feedback.js";
 import { reviewsRoutes, teamReviewsRoutes } from "./routes/reviews.js";
+import { ratingsRoutes, teamRatingsRoutes } from "./routes/ratings.js";
 import { notificationsRoutes } from "./routes/notifications.js";
 import { devicesRoutes } from "./routes/devices.js";
 import { mcpRoute } from "./mcp/index.js";
@@ -139,6 +140,14 @@ jobRunner.schedule({
   params: () => ({}),
 });
 jobRunner.schedule({
+  jobType: "app_store_ratings_sync",
+  // Daily 04:30 UTC in prod (between 04:00 partition_creation and 05:00
+  // attachment_cleanup). Dev runs every 30 min so iteration is observable.
+  cron: isDev ? "*/30 * * * *" : "30 4 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
   jobType: "notification_cleanup",
   cron: isDev ? "*/10 * * * *" : "0 6 * * *",
   enabled: () => true,
@@ -198,6 +207,8 @@ await app.register(feedbackRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamFeedbackRoutes, { prefix: "/v1" });
 await app.register(reviewsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamReviewsRoutes, { prefix: "/v1" });
+await app.register(ratingsRoutes, { prefix: "/v1/projects/:projectId" });
+await app.register(teamRatingsRoutes, { prefix: "/v1" });
 await app.register(notificationsRoutes, { prefix: "/v1" });
 await app.register(devicesRoutes, { prefix: "/v1" });
 await app.register(mcpRoute);

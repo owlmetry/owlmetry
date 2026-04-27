@@ -9,6 +9,7 @@ export const JOB_TYPES = [
   "attachment_cleanup",
   "apple_ads_sync",
   "app_version_sync",
+  "app_store_ratings_sync",
   "app_store_connect_reviews_sync",
   "notification_deliver",
   "notification_cleanup",
@@ -112,13 +113,34 @@ export const JOB_TYPE_META: Record<
   app_version_sync: {
     label: "App Version Sync",
     description:
-      "Refreshes latest_app_version, aggregate ratings (avg + count, current + all-time), and the numeric Apple App Store ID per app from the Apple App Store iTunes Lookup (for Apple apps with a bundle_id), or computes the version from production events (Android/Web/Backend)",
+      "Refreshes latest_app_version and the numeric Apple App Store ID per app from the Apple App Store iTunes Lookup (for Apple apps with a bundle_id), or computes the version from production events (Android/Web/Backend)",
     scope: "system",
     default_schedule: "15 * * * *",
     params: [
       {
         name: "app_id",
         description: "Sync only the given app instead of all apps",
+        type: "string",
+        required: false,
+      },
+    ],
+  },
+  app_store_ratings_sync: {
+    label: "App Store Ratings Sync",
+    description:
+      "Fans out across every Apple iTunes storefront for each Apple app with a bundle_id, recording per-country average rating and rating count as a daily snapshot in app_store_ratings, then refreshing the worldwide-cache columns on apps.",
+    scope: "system",
+    default_schedule: "30 4 * * *",
+    params: [
+      {
+        name: "app_id",
+        description: "Sync only the given app instead of all apps",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "project_id",
+        description: "Sync only apps within the given project",
         type: "string",
         required: false,
       },

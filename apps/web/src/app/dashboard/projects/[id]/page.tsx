@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/copy-button";
 import { RatingBadge } from "@/components/rating-badge";
+import { RatingByCountryGrid } from "@/components/rating-by-country-grid";
 import { api, ApiError } from "@/lib/api";
 import { ProjectDot } from "@/lib/project-color";
 import type { ProjectDetailResponse, AppResponse } from "@owlmetry/shared";
@@ -627,10 +628,10 @@ function AppCard({ app, projectColor, onChanged }: { app: AppResponse; projectCo
             <span className="text-muted-foreground">Store rating</span>
             {app.platform === "apple" ? (
               <RatingBadge
-                rating={app.latest_rating}
-                count={app.latest_rating_count}
-                currentVersionRating={app.current_version_rating}
-                currentVersionRatingCount={app.current_version_rating_count}
+                rating={app.worldwide_average_rating}
+                count={app.worldwide_rating_count}
+                currentVersionRating={app.worldwide_current_version_rating}
+                currentVersionRatingCount={app.worldwide_current_version_rating_count}
               />
             ) : (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -638,6 +639,9 @@ function AppCard({ app, projectColor, onChanged }: { app: AppResponse; projectCo
               </span>
             )}
           </div>
+        )}
+        {app.platform === "apple" && app.worldwide_rating_count !== null && app.worldwide_rating_count > 0 && (
+          <RatingByCountryGrid projectId={app.project_id} appId={app.id} />
         )}
         {app.client_secret && (
           <div className="flex items-center justify-between">
@@ -665,7 +669,7 @@ function AppCard({ app, projectColor, onChanged }: { app: AppResponse; projectCo
             <ScrollText className="h-3 w-3" />
             Events
           </Link>
-          {app.platform === "apple" && (app.latest_rating ?? 0) > 0 && (
+          {app.platform === "apple" && (app.worldwide_average_rating ?? 0) > 0 && (
             <Link
               href={`/dashboard/reviews?app_id=${app.id}`}
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"

@@ -113,17 +113,18 @@ export default function DashboardPage() {
       ? undefined
       : `${projectCount} · ${appCount}`;
 
-  // Aggregate rating across every Apple app in the team. Average is weighted
-  // by per-app rating count so a 5-star app with 1 rating doesn't outweigh
-  // a 4-star app with 50,000. Apps without an iTunes Lookup result yet are
-  // skipped (latest_rating null).
+  // Aggregate rating across every Apple app in the team. Worldwide cache on
+  // each app is itself a weighted aggregate across storefronts (recomputed
+  // daily by app_store_ratings_sync). Weight again here by per-app rating
+  // count so a 5-star app with 1 rating doesn't outweigh a 4-star app with
+  // 50,000. Apps without a synced rating yet are skipped.
   const ratingSummary = useMemo(() => {
     const apps = appsData?.apps ?? [];
     let totalRatings = 0;
     let weightedSum = 0;
     for (const a of apps) {
-      const rating = a.latest_rating;
-      const count = a.latest_rating_count ?? 0;
+      const rating = a.worldwide_average_rating;
+      const count = a.worldwide_rating_count ?? 0;
       if (rating === null || rating === undefined || count <= 0) continue;
       totalRatings += count;
       weightedSum += rating * count;
