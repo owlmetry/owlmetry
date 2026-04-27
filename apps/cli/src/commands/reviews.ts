@@ -6,11 +6,7 @@ import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
 import { paginationHint } from "../utils/pagination.js";
-
-function stars(rating: number): string {
-  const full = Math.max(0, Math.min(5, rating));
-  return chalk.yellow("★".repeat(full)) + chalk.gray("★".repeat(5 - full));
-}
+import { stars } from "../utils/stars.js";
 
 const STORE_BADGES: Record<ReviewStore, string> = {
   app_store: chalk.cyan("🍎 App Store"),

@@ -4,6 +4,7 @@ import { TEST_DB_URL } from "./setup.js";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, and } from "drizzle-orm";
 import { apps, teams, projects, appStoreRatings, schema } from "@owlmetry/db";
+import { todayUtcDateString } from "../jobs/app-store-ratings-sync.js";
 
 const dbClient = postgres(TEST_DB_URL, { max: 1 });
 const db = drizzle(dbClient, { schema });
@@ -107,7 +108,7 @@ describe("app_store_ratings_sync", () => {
 
     const rows = await db.select().from(appStoreRatings).where(eq(appStoreRatings.app_id, appleAppId));
     expect(rows).toHaveLength(3);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayUtcDateString();
     for (const r of rows) {
       expect(r.snapshot_date).toBe(today);
       expect(r.store).toBe("app_store");
@@ -148,8 +149,11 @@ describe("app_store_ratings_sync", () => {
     await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
 
     // Backdate the existing rows so the second run's "today" UPSERT inserts new
-    // rows rather than overwriting the seed snapshots.
-    await dbClient`UPDATE app_store_ratings SET snapshot_date = CURRENT_DATE - INTERVAL '1 day' WHERE app_id = ${appleAppId}`;
+    // rows rather than overwriting the seed snapshots. Compute yesterday in
+    // JS UTC to match production's snapshot_date semantics — using SQL
+    // CURRENT_DATE would drift if the Postgres session TZ isn't UTC.
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await dbClient`UPDATE app_store_ratings SET snapshot_date = ${yesterday}::date WHERE app_id = ${appleAppId}`;
 
     // Second run: only us populated; gb returns nothing → tombstone for gb.
     vi.stubGlobal("fetch", mockItunes({
@@ -158,7 +162,7 @@ describe("app_store_ratings_sync", () => {
     const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
     expect(result.tombstones_written).toBe(1);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayUtcDateString();
     const todayRows = await db
       .select()
       .from(appStoreRatings)

@@ -3,11 +3,7 @@ import chalk from "chalk";
 import { REVIEW_STORES, countryName, countryFlag } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
-
-function stars(rating: number): string {
-  const full = Math.max(0, Math.min(5, Math.round(rating)));
-  return chalk.yellow("★".repeat(full)) + chalk.gray("★".repeat(5 - full));
-}
+import { stars } from "../utils/stars.js";
 
 export const ratingsCommand = new Command("ratings")
   .description("View per-country App Store rating aggregates (incl. star-only ratings)");

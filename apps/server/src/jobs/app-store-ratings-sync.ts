@@ -2,27 +2,13 @@ import { eq, and, isNull, sql } from "drizzle-orm";
 import { apps, appStoreRatings } from "@owlmetry/db";
 import { APPLE_STOREFRONT_CODES } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
+import { lookupItunes } from "../utils/itunes-lookup.js";
 
-const ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup";
-const ITUNES_TIMEOUT_MS = 10_000;
 // 150ms between iTunes Lookup calls keeps us well under any rate limits Apple
 // imposes on the public endpoint. Skipped in test runs (otherwise a single
 // test takes 37s+ to fan out across ~247 storefronts).
 const ITUNES_INTER_REQUEST_DELAY_MS = process.env.NODE_ENV === "test" ? 0 : 150;
 const APP_STORE = "app_store" as const;
-
-interface ItunesLookupResponse {
-  resultCount: number;
-  results: Array<{
-    trackId?: number;
-    version?: string;
-    bundleId?: string;
-    averageUserRating?: number;
-    userRatingCount?: number;
-    averageUserRatingForCurrentVersion?: number;
-    userRatingCountForCurrentVersion?: number;
-  }>;
-}
 
 interface StorefrontRating {
   averageRating: number | null;
@@ -32,47 +18,40 @@ interface StorefrontRating {
   appVersion: string | null;
 }
 
-type LookupResult =
+type StorefrontOutcome =
   | { kind: "found"; rating: StorefrontRating }
   | { kind: "not_found" }
   | { kind: "error"; message: string };
 
-async function lookupStorefront(bundleId: string, country: string): Promise<LookupResult> {
-  try {
-    const url = `${ITUNES_LOOKUP_URL}?bundleId=${encodeURIComponent(bundleId)}&country=${country}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(ITUNES_TIMEOUT_MS) });
-    if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
-    const data = (await res.json()) as ItunesLookupResponse;
-    const result = data.results?.[0];
-    if (!result) return { kind: "not_found" };
-    const ratingCount = typeof result.userRatingCount === "number" ? result.userRatingCount : 0;
-    const averageRating = typeof result.averageUserRating === "number" ? result.averageUserRating : null;
-    // iTunes occasionally returns a result row with no rating data at all (e.g.
-    // an app present in the storefront but with zero ratings). Treat as
-    // not_found so we don't store a 0-count row that displaces a real one.
-    if (averageRating === null && ratingCount === 0) return { kind: "not_found" };
-    return {
-      kind: "found",
-      rating: {
-        averageRating,
-        ratingCount,
-        currentVersionAverageRating:
-          typeof result.averageUserRatingForCurrentVersion === "number"
-            ? result.averageUserRatingForCurrentVersion
-            : null,
-        currentVersionRatingCount:
-          typeof result.userRatingCountForCurrentVersion === "number"
-            ? result.userRatingCountForCurrentVersion
-            : null,
-        appVersion: typeof result.version === "string" ? result.version : null,
-      },
-    };
-  } catch (err) {
-    return { kind: "error", message: err instanceof Error ? err.message : String(err) };
-  }
+async function lookupStorefront(bundleId: string, country: string): Promise<StorefrontOutcome> {
+  const lookup = await lookupItunes(bundleId, country);
+  if (lookup.kind !== "found") return lookup;
+  const r = lookup.result;
+  const ratingCount = typeof r.userRatingCount === "number" ? r.userRatingCount : 0;
+  const averageRating = typeof r.averageUserRating === "number" ? r.averageUserRating : null;
+  // iTunes occasionally returns a result row with no rating data at all (e.g.
+  // an app present in the storefront but with zero ratings). Treat as
+  // not_found so we don't store a 0-count row that displaces a real one.
+  if (averageRating === null && ratingCount === 0) return { kind: "not_found" };
+  return {
+    kind: "found",
+    rating: {
+      averageRating,
+      ratingCount,
+      currentVersionAverageRating:
+        typeof r.averageUserRatingForCurrentVersion === "number"
+          ? r.averageUserRatingForCurrentVersion
+          : null,
+      currentVersionRatingCount:
+        typeof r.userRatingCountForCurrentVersion === "number"
+          ? r.userRatingCountForCurrentVersion
+          : null,
+      appVersion: typeof r.version === "string" ? r.version : null,
+    },
+  };
 }
 
-function todayUtcDateString(): string {
+export function todayUtcDateString(): string {
   return new Date().toISOString().slice(0, 10);
 }
 

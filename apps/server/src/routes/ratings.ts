@@ -21,6 +21,53 @@ function toFloat(v: string | number | null): number | null {
   return typeof v === "number" ? v : Number.parseFloat(v);
 }
 
+function parseStore(raw: string | undefined): ReviewStore {
+  return raw && (REVIEW_STORES as readonly string[]).includes(raw) ? (raw as ReviewStore) : APP_STORE;
+}
+
+// Latest snapshot per (app, country) for a project's `app_store_ratings`,
+// optionally filtered to a single app. Used by both the project-scoped and
+// team-scoped by-country endpoints — only the project-id filter shape differs.
+function latestPerAppCountry(opts: { projectFilter: ReturnType<typeof sql>; appId?: string; store: ReviewStore }) {
+  return sql`
+    SELECT DISTINCT ON (app_id, country_code)
+      app_id, country_code, average_rating, rating_count
+    FROM ${appStoreRatings}
+    WHERE ${opts.projectFilter}
+      AND store = ${opts.store}
+      ${opts.appId ? sql`AND app_id = ${opts.appId}` : sql``}
+    ORDER BY app_id, country_code, snapshot_date DESC
+  `;
+}
+
+function aggregateByCountrySql(latest: ReturnType<typeof sql>) {
+  return sql`
+    WITH latest AS (${latest})
+    SELECT
+      country_code,
+      (SUM(average_rating * rating_count) / NULLIF(SUM(rating_count), 0))::float AS average_rating,
+      SUM(rating_count)::int AS rating_count
+    FROM latest
+    WHERE average_rating IS NOT NULL AND rating_count > 0
+    GROUP BY country_code
+    ORDER BY rating_count DESC, country_code ASC
+  `;
+}
+
+type ByCountryDbRow = {
+  country_code: string;
+  average_rating: number;
+  rating_count: number;
+} & Record<string, unknown>;
+
+function serializeByCountry(rows: ByCountryDbRow[]): RatingsByCountryRow[] {
+  return rows.map((r) => ({
+    country_code: r.country_code,
+    average_rating: Math.round(Number(r.average_rating) * 100) / 100,
+    rating_count: Number(r.rating_count),
+  }));
+}
+
 export async function ratingsRoutes(app: FastifyInstance) {
   // Per-app per-country breakdown + worldwide summary. Tombstone rows
   // (average_rating IS NULL) are filtered out — the UI only cares about
@@ -33,43 +80,44 @@ export async function ratingsRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const store =
-        request.query.store && (REVIEW_STORES as readonly string[]).includes(request.query.store)
-          ? (request.query.store as ReviewStore)
-          : APP_STORE;
+      const store = parseStore(request.query.store);
 
-      const [appRow] = await app.db
-        .select({
-          worldwide_average_rating: apps.worldwide_average_rating,
-          worldwide_rating_count: apps.worldwide_rating_count,
-          worldwide_current_version_rating: apps.worldwide_current_version_rating,
-          worldwide_current_version_rating_count: apps.worldwide_current_version_rating_count,
-          ratings_synced_at: apps.ratings_synced_at,
-        })
-        .from(apps)
-        .where(and(eq(apps.id, appId), eq(apps.project_id, projectId), isNull(apps.deleted_at)))
-        .limit(1);
-      if (!appRow) return reply.code(404).send({ error: "App not found" });
-
-      const rows = await app.db
-        .select({
-          country_code: appStoreRatings.country_code,
-          average_rating: appStoreRatings.average_rating,
-          rating_count: appStoreRatings.rating_count,
-          current_version_average_rating: appStoreRatings.current_version_average_rating,
-          current_version_rating_count: appStoreRatings.current_version_rating_count,
-          app_version: appStoreRatings.app_version,
-          snapshot_date: appStoreRatings.snapshot_date,
-        })
-        .from(
-          sql`(SELECT DISTINCT ON (country_code)
-                country_code, average_rating, rating_count,
-                current_version_average_rating, current_version_rating_count,
-                app_version, snapshot_date
-              FROM ${appStoreRatings}
-              WHERE app_id = ${appId} AND store = ${store}
-              ORDER BY country_code, snapshot_date DESC) AS ${appStoreRatings}`,
-        );
+      // The aliased subquery on the FROM line uses `${appStoreRatings}` for both
+      // the inner FROM and the outer alias so Drizzle's column tags resolve.
+      const [appRow, rows] = await Promise.all([
+        app.db
+          .select({
+            worldwide_average_rating: apps.worldwide_average_rating,
+            worldwide_rating_count: apps.worldwide_rating_count,
+            worldwide_current_version_rating: apps.worldwide_current_version_rating,
+            worldwide_current_version_rating_count: apps.worldwide_current_version_rating_count,
+            ratings_synced_at: apps.ratings_synced_at,
+          })
+          .from(apps)
+          .where(and(eq(apps.id, appId), eq(apps.project_id, projectId), isNull(apps.deleted_at)))
+          .limit(1),
+        app.db
+          .select({
+            country_code: appStoreRatings.country_code,
+            average_rating: appStoreRatings.average_rating,
+            rating_count: appStoreRatings.rating_count,
+            current_version_average_rating: appStoreRatings.current_version_average_rating,
+            current_version_rating_count: appStoreRatings.current_version_rating_count,
+            app_version: appStoreRatings.app_version,
+            snapshot_date: appStoreRatings.snapshot_date,
+          })
+          .from(
+            sql`(SELECT DISTINCT ON (country_code)
+                  country_code, average_rating, rating_count,
+                  current_version_average_rating, current_version_rating_count,
+                  app_version, snapshot_date
+                FROM ${appStoreRatings}
+                WHERE app_id = ${appId} AND store = ${store}
+                ORDER BY country_code, snapshot_date DESC) AS ${appStoreRatings}`,
+          ),
+      ]);
+      if (!appRow[0]) return reply.code(404).send({ error: "App not found" });
+      const summaryRow = appRow[0];
 
       const ratings: PerCountryRating[] = rows
         .filter((r) => r.average_rating !== null && r.rating_count > 0)
@@ -85,11 +133,11 @@ export async function ratingsRoutes(app: FastifyInstance) {
         .sort((a, b) => b.rating_count - a.rating_count);
 
       const summary: AppRatingSummary = {
-        worldwide_average: toFloat(appRow.worldwide_average_rating),
-        worldwide_count: appRow.worldwide_rating_count ?? 0,
-        current_version_average: toFloat(appRow.worldwide_current_version_rating),
-        current_version_count: appRow.worldwide_current_version_rating_count,
-        synced_at: appRow.ratings_synced_at?.toISOString() ?? null,
+        worldwide_average: toFloat(summaryRow.worldwide_average_rating),
+        worldwide_count: summaryRow.worldwide_rating_count ?? 0,
+        current_version_average: toFloat(summaryRow.worldwide_current_version_rating),
+        current_version_count: summaryRow.worldwide_current_version_rating_count,
+        synced_at: summaryRow.ratings_synced_at?.toISOString() ?? null,
       };
 
       const response: AppRatingsResponse = { ratings, summary };
@@ -107,42 +155,19 @@ export async function ratingsRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const store =
-        request.query.store && (REVIEW_STORES as readonly string[]).includes(request.query.store)
-          ? (request.query.store as ReviewStore)
-          : APP_STORE;
+      const store = parseStore(request.query.store);
       const appId = request.query.app_id;
 
-      const rows = await app.db.execute<{
-        country_code: string;
-        average_rating: number;
-        rating_count: number;
-      }>(sql`
-        WITH latest AS (
-          SELECT DISTINCT ON (app_id, country_code)
-            app_id, country_code, average_rating, rating_count
-          FROM ${appStoreRatings}
-          WHERE project_id = ${projectId} AND store = ${store}
-            ${appId ? sql`AND app_id = ${appId}` : sql``}
-          ORDER BY app_id, country_code, snapshot_date DESC
-        )
-        SELECT
-          country_code,
-          (SUM(average_rating * rating_count) / NULLIF(SUM(rating_count), 0))::float AS average_rating,
-          SUM(rating_count)::int AS rating_count
-        FROM latest
-        WHERE average_rating IS NOT NULL AND rating_count > 0
-        GROUP BY country_code
-        ORDER BY rating_count DESC, country_code ASC
-      `);
+      const latest = latestPerAppCountry({
+        projectFilter: sql`project_id = ${projectId}`,
+        appId,
+        store,
+      });
+      const rows = await app.db.execute<ByCountryDbRow>(aggregateByCountrySql(latest));
 
-      const countries: RatingsByCountryRow[] = (rows as unknown as { country_code: string; average_rating: number; rating_count: number }[]).map((r) => ({
-        country_code: r.country_code,
-        average_rating: Math.round(Number(r.average_rating) * 100) / 100,
-        rating_count: Number(r.rating_count),
-      }));
-
-      const response: RatingsByCountryResponse = { countries };
+      const response: RatingsByCountryResponse = {
+        countries: serializeByCountry(rows),
+      };
       return response;
     },
   );
@@ -209,44 +234,17 @@ export async function teamRatingsRoutes(app: FastifyInstance) {
       if (accessibleProjects.length === 0) return { countries: [] } satisfies RatingsByCountryResponse;
 
       const projectIds = accessibleProjects.map((p) => p.id);
-      const storeFilter =
-        store && (REVIEW_STORES as readonly string[]).includes(store) ? (store as ReviewStore) : APP_STORE;
-
       const projectIdList = sql.join(
         projectIds.map((id) => sql`${id}::uuid`),
         sql`, `,
       );
-      const rows = await app.db.execute<{
-        country_code: string;
-        average_rating: number;
-        rating_count: number;
-      }>(sql`
-        WITH latest AS (
-          SELECT DISTINCT ON (app_id, country_code)
-            app_id, country_code, average_rating, rating_count
-          FROM ${appStoreRatings}
-          WHERE project_id IN (${projectIdList})
-            AND store = ${storeFilter}
-            ${app_id ? sql`AND app_id = ${app_id}` : sql``}
-          ORDER BY app_id, country_code, snapshot_date DESC
-        )
-        SELECT
-          country_code,
-          (SUM(average_rating * rating_count) / NULLIF(SUM(rating_count), 0))::float AS average_rating,
-          SUM(rating_count)::int AS rating_count
-        FROM latest
-        WHERE average_rating IS NOT NULL AND rating_count > 0
-        GROUP BY country_code
-        ORDER BY rating_count DESC, country_code ASC
-      `);
-
-      const countries: RatingsByCountryRow[] = (rows as unknown as { country_code: string; average_rating: number; rating_count: number }[]).map((r) => ({
-        country_code: r.country_code,
-        average_rating: Math.round(Number(r.average_rating) * 100) / 100,
-        rating_count: Number(r.rating_count),
-      }));
-
-      return { countries } satisfies RatingsByCountryResponse;
+      const latest = latestPerAppCountry({
+        projectFilter: sql`project_id IN (${projectIdList})`,
+        appId: app_id,
+        store: parseStore(store),
+      });
+      const rows = await app.db.execute<ByCountryDbRow>(aggregateByCountrySql(latest));
+      return { countries: serializeByCountry(rows) } satisfies RatingsByCountryResponse;
     },
   );
 }

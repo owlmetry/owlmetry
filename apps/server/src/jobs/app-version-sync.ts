@@ -3,52 +3,13 @@ import { apps } from "@owlmetry/db";
 import { compareVersions } from "@owlmetry/shared";
 import type postgres from "postgres";
 import type { JobHandler } from "../services/job-runner.js";
+import { lookupItunes } from "../utils/itunes-lookup.js";
 
-const ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup";
-const ITUNES_TIMEOUT_MS = 10_000;
 const ITUNES_INTER_REQUEST_DELAY_MS = 100;
-
-interface ItunesLookupResponse {
-  resultCount: number;
-  results: Array<{
-    trackId?: number;
-    version?: string;
-    bundleId?: string;
-  }>;
-}
 
 interface AppleAppMetadata {
   version: string;
   trackId: number | null;
-}
-
-type LookupResult =
-  | { kind: "found"; metadata: AppleAppMetadata }
-  | { kind: "not_found" }
-  | { kind: "error"; message: string };
-
-async function lookupAppleAppMetadata(bundleId: string): Promise<LookupResult> {
-  try {
-    const url = `${ITUNES_LOOKUP_URL}?bundleId=${encodeURIComponent(bundleId)}&country=us`;
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(ITUNES_TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      return { kind: "error", message: `HTTP ${res.status}` };
-    }
-    const data = (await res.json()) as ItunesLookupResponse;
-    const result = data.results?.[0];
-    if (!result?.version) return { kind: "not_found" };
-    return {
-      kind: "found",
-      metadata: {
-        version: result.version,
-        trackId: typeof result.trackId === "number" ? result.trackId : null,
-      },
-    };
-  } catch (err) {
-    return { kind: "error", message: err instanceof Error ? err.message : String(err) };
-  }
 }
 
 // 90-day window keeps partition pruning effective and matches the cadence at
@@ -109,15 +70,18 @@ export const appVersionSyncHandler: JobHandler = async (ctx, params) => {
 
       if (app.platform === "apple" && app.bundle_id) {
         if (i > 0) await new Promise((r) => setTimeout(r, ITUNES_INTER_REQUEST_DELAY_MS));
-        const result = await lookupAppleAppMetadata(app.bundle_id);
-        if (result.kind === "found") {
-          version = result.metadata.version;
+        const lookup = await lookupItunes(app.bundle_id, "us");
+        if (lookup.kind === "found" && lookup.result.version) {
+          version = lookup.result.version;
           source = "app_store";
-          appleMetadata = result.metadata;
+          appleMetadata = {
+            version: lookup.result.version,
+            trackId: typeof lookup.result.trackId === "number" ? lookup.result.trackId : null,
+          };
           appStoreSynced++;
-        } else if (result.kind === "error") {
+        } else if (lookup.kind === "error") {
           ctx.log.warn(
-            { app_id: app.id, bundle_id: app.bundle_id, message: result.message },
+            { app_id: app.id, bundle_id: app.bundle_id, message: lookup.message },
             "iTunes lookup failed, falling back to computed",
           );
           errors++;
