@@ -1,0 +1,65 @@
+---
+title: Store Reviews
+description: Capture public App Store and Play Store ratings and individual reviews per app, surfaced on the project dashboard, with an opinionated daily sync across every Apple storefront.
+---
+
+Owlmetry pulls **public ratings and reviews** from the app stores so you can monitor sentiment alongside crashes, in-app feedback, and metrics. This is distinct from the in-app [Feedback](./feedback) system — store reviews come from external users via the App Store / Play Store, not from your SDKs, so they have a numeric rating, no session context, and a separate triage flow.
+
+## What Gets Captured
+
+For every Apple app with a `bundle_id`, Owlmetry tracks two things:
+
+**Aggregate ratings** (the "card" on each app):
+- All-time average rating + total rating count
+- Current-version rating + count
+- Numeric Apple App Store ID (resolved automatically)
+
+**Individual reviews** (the `app_store_reviews` table):
+- Star rating (1–5)
+- Title (Apple only — Play has no title)
+- Body
+- Reviewer handle (store-side nickname)
+- Country code (the storefront the review was left in)
+- App version reviewed
+- Developer response + timestamp (when present)
+- When the review was posted in the store
+- When Owlmetry ingested it
+
+## How It Works
+
+Two background jobs drive it:
+
+| Job | Cadence | Source | What it does |
+|-----|---------|--------|--------------|
+| `app_version_sync` | hourly :15 | iTunes Lookup API | Refreshes `latest_app_version` and aggregate ratings + Apple App Store ID for every Apple app with a `bundle_id`. |
+| `app_reviews_sync` | daily 00:00 UTC | iTunes RSS reviews feed | Iterates **every Apple storefront** (~175 countries) per app, ingests new reviews, dedupes on `(app_id, store, external_id)`. |
+
+Both jobs also fire **immediately on Apple app create**, so a brand-new app shows ratings within seconds and starts pulling its review backlog without waiting for the next scheduled run.
+
+The reviews job tags each row with the country code of the storefront it came from. The same human reviewing in two storefronts gets two distinct rows because Apple issues separate `external_id`s per storefront — there's no cross-storefront deduplication to worry about.
+
+## Schema Caveats
+
+The `app_store_reviews` table supports both `app_store` and `play_store` from day 1 in the `store` column, but **only Apple is populated currently**. Play Store ingest requires a per-project Google Play integration with a service-account JSON (similar setup overhead to Apple Search Ads) and is planned for a future phase.
+
+Reviews are not partitioned (low volume relative to events), have a unique constraint on `(app_id, store, external_id)` for idempotent re-ingests, and are soft-deletable so you can hide a row from the dashboard without losing it on the next sync.
+
+## Where to See Them
+
+- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search) and a "Top countries" panel that surfaces where the app is most reviewed and how sentiment varies regionally.
+- **App overview card**: a `★ 4.6 (1,234)` badge on each Apple app card under `/dashboard/projects/<id>`, with a tooltip showing all-time vs. current-version split.
+- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews by-country`, `owlmetry reviews delete <id>`.
+- **MCP**: `list-reviews`, `get-review`, `list-reviews-by-country`.
+
+## Permissions
+
+- `reviews:read` — list / view (default for new agent keys)
+- `reviews:write` — soft-delete a review (user-only, agent keys 403 — same precedent as feedback)
+
+## When Reviews Don't Show Up
+
+- **App platform isn't `apple`** — Play Store ingest is deferred.
+- **App has no `bundle_id`** — required for the iTunes Lookup that resolves the numeric App Store ID.
+- **iTunes Lookup returns no results** — usually because the app isn't released yet or has been pulled from the store. The job logs and continues.
+- **The app has zero reviews in any storefront** — common for new apps. The job will pick them up on the next daily run after the first review lands.
+- **Fresh app, hasn't run yet** — the on-create fire-and-forget can take 1–2 minutes for the full storefront sweep. Refresh the dashboard.

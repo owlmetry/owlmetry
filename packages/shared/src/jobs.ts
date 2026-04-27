@@ -9,6 +9,7 @@ export const JOB_TYPES = [
   "attachment_cleanup",
   "apple_ads_sync",
   "app_version_sync",
+  "app_reviews_sync",
   "notification_deliver",
   "notification_cleanup",
 ] as const;
@@ -111,9 +112,24 @@ export const JOB_TYPE_META: Record<
   app_version_sync: {
     label: "App Version Sync",
     description:
-      "Refreshes latest_app_version per app from the Apple App Store (for Apple apps with a bundle_id) or computes it from production events (Android/Web/Backend)",
+      "Refreshes latest_app_version, aggregate ratings (avg + count, current + all-time), and the numeric Apple App Store ID per app from the Apple App Store iTunes Lookup (for Apple apps with a bundle_id), or computes the version from production events (Android/Web/Backend)",
     scope: "system",
     default_schedule: "15 * * * *",
+    params: [
+      {
+        name: "app_id",
+        description: "Sync only the given app instead of all apps",
+        type: "string",
+        required: false,
+      },
+    ],
+  },
+  app_reviews_sync: {
+    label: "App Reviews Sync",
+    description:
+      "Pulls public App Store / Play Store reviews and stores them in app_store_reviews. Phase 1 covers Apple only — iterates every storefront via the iTunes RSS reviews feed for each Apple app with an apple_app_store_id.",
+    scope: "system",
+    default_schedule: "0 0 * * *",
     params: [
       {
         name: "app_id",

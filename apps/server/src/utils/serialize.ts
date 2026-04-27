@@ -148,9 +148,20 @@ export function serializeApp(a: {
   latest_app_version?: string | null;
   latest_app_version_updated_at?: Date | null;
   latest_app_version_source?: string | null;
+  apple_app_store_id?: number | null;
+  latest_rating?: string | number | null;
+  latest_rating_count?: number | null;
+  current_version_rating?: string | number | null;
+  current_version_rating_count?: number | null;
+  latest_rating_updated_at?: Date | null;
   client_secret?: string | null;
   created_at: Date; deleted_at: Date | null;
 }) {
+  // numeric columns come back as strings from postgres-js — convert to number for the API.
+  const toNum = (v: string | number | null | undefined): number | null => {
+    if (v === null || v === undefined) return null;
+    return typeof v === "number" ? v : Number.parseFloat(v);
+  };
   return {
     id: a.id,
     team_id: a.team_id,
@@ -161,6 +172,12 @@ export function serializeApp(a: {
     latest_app_version: a.latest_app_version ?? null,
     latest_app_version_updated_at: a.latest_app_version_updated_at?.toISOString() ?? null,
     latest_app_version_source: (a.latest_app_version_source ?? null) as "app_store" | "computed" | null,
+    apple_app_store_id: a.apple_app_store_id ?? null,
+    latest_rating: toNum(a.latest_rating),
+    latest_rating_count: a.latest_rating_count ?? null,
+    current_version_rating: toNum(a.current_version_rating),
+    current_version_rating_count: a.current_version_rating_count ?? null,
+    latest_rating_updated_at: a.latest_rating_updated_at?.toISOString() ?? null,
     client_secret: a.client_secret ?? null,
     created_at: a.created_at.toISOString(),
   };

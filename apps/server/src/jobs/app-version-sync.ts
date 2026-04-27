@@ -10,15 +10,32 @@ const ITUNES_INTER_REQUEST_DELAY_MS = 100;
 
 interface ItunesLookupResponse {
   resultCount: number;
-  results: Array<{ version?: string; bundleId?: string }>;
+  results: Array<{
+    trackId?: number;
+    version?: string;
+    bundleId?: string;
+    averageUserRating?: number;
+    userRatingCount?: number;
+    averageUserRatingForCurrentVersion?: number;
+    userRatingCountForCurrentVersion?: number;
+  }>;
+}
+
+interface AppleAppMetadata {
+  version: string;
+  trackId: number | null;
+  averageUserRating: number | null;
+  userRatingCount: number | null;
+  averageUserRatingForCurrentVersion: number | null;
+  userRatingCountForCurrentVersion: number | null;
 }
 
 type LookupResult =
-  | { kind: "found"; version: string }
+  | { kind: "found"; metadata: AppleAppMetadata }
   | { kind: "not_found" }
   | { kind: "error"; message: string };
 
-async function lookupAppleAppVersion(bundleId: string): Promise<LookupResult> {
+async function lookupAppleAppMetadata(bundleId: string): Promise<LookupResult> {
   try {
     const url = `${ITUNES_LOOKUP_URL}?bundleId=${encodeURIComponent(bundleId)}&country=us`;
     const res = await fetch(url, {
@@ -28,9 +45,25 @@ async function lookupAppleAppVersion(bundleId: string): Promise<LookupResult> {
       return { kind: "error", message: `HTTP ${res.status}` };
     }
     const data = (await res.json()) as ItunesLookupResponse;
-    const version = data.results?.[0]?.version;
-    if (!version) return { kind: "not_found" };
-    return { kind: "found", version };
+    const result = data.results?.[0];
+    if (!result?.version) return { kind: "not_found" };
+    return {
+      kind: "found",
+      metadata: {
+        version: result.version,
+        trackId: typeof result.trackId === "number" ? result.trackId : null,
+        averageUserRating: typeof result.averageUserRating === "number" ? result.averageUserRating : null,
+        userRatingCount: typeof result.userRatingCount === "number" ? result.userRatingCount : null,
+        averageUserRatingForCurrentVersion:
+          typeof result.averageUserRatingForCurrentVersion === "number"
+            ? result.averageUserRatingForCurrentVersion
+            : null,
+        userRatingCountForCurrentVersion:
+          typeof result.userRatingCountForCurrentVersion === "number"
+            ? result.userRatingCountForCurrentVersion
+            : null,
+      },
+    };
   } catch (err) {
     return { kind: "error", message: err instanceof Error ? err.message : String(err) };
   }
@@ -90,13 +123,15 @@ export const appVersionSyncHandler: JobHandler = async (ctx, params) => {
 
       let version: string | null = null;
       let source: "app_store" | "computed" | null = null;
+      let appleMetadata: AppleAppMetadata | null = null;
 
       if (app.platform === "apple" && app.bundle_id) {
         if (i > 0) await new Promise((r) => setTimeout(r, ITUNES_INTER_REQUEST_DELAY_MS));
-        const result = await lookupAppleAppVersion(app.bundle_id);
+        const result = await lookupAppleAppMetadata(app.bundle_id);
         if (result.kind === "found") {
-          version = result.version;
+          version = result.metadata.version;
           source = "app_store";
+          appleMetadata = result.metadata;
           appStoreSynced++;
         } else if (result.kind === "error") {
           ctx.log.warn(
@@ -118,14 +153,29 @@ export const appVersionSyncHandler: JobHandler = async (ctx, params) => {
         }
       }
 
-      await ctx.db
-        .update(apps)
-        .set({
-          latest_app_version: version,
-          latest_app_version_source: source,
-          latest_app_version_updated_at: new Date(),
-        })
-        .where(eq(apps.id, app.id));
+      // Build the update set. Rating fields are only written when iTunes Lookup
+      // succeeded; on fallback paths we leave whatever was previously stored alone.
+      const updateSet: Record<string, unknown> = {
+        latest_app_version: version,
+        latest_app_version_source: source,
+        latest_app_version_updated_at: new Date(),
+      };
+      if (appleMetadata) {
+        if (appleMetadata.trackId !== null) {
+          updateSet.apple_app_store_id = appleMetadata.trackId;
+        }
+        updateSet.latest_rating =
+          appleMetadata.averageUserRating !== null ? appleMetadata.averageUserRating.toFixed(2) : null;
+        updateSet.latest_rating_count = appleMetadata.userRatingCount;
+        updateSet.current_version_rating =
+          appleMetadata.averageUserRatingForCurrentVersion !== null
+            ? appleMetadata.averageUserRatingForCurrentVersion.toFixed(2)
+            : null;
+        updateSet.current_version_rating_count = appleMetadata.userRatingCountForCurrentVersion;
+        updateSet.latest_rating_updated_at = new Date();
+      }
+
+      await ctx.db.update(apps).set(updateSet).where(eq(apps.id, app.id));
 
       processed++;
       if (processed % 10 === 0) {

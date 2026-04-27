@@ -150,8 +150,11 @@ export async function appsRoutes(app: FastifyInstance) {
         metadata: { name, platform, bundle_id: bundle_id || null },
       });
 
-      // Fire-and-forget: refresh latest_app_version immediately for Apple apps
-      // so the new app shows a version badge without waiting for the next hourly run.
+      // Fire-and-forget: refresh latest_app_version + ratings + apple_app_store_id
+      // immediately for Apple apps so the new app shows a version badge and rating
+      // card without waiting for the next hourly run. Reviews sync also runs
+      // immediately — it self-resolves apple_app_store_id from bundle_id if the
+      // version sync hasn't completed yet, so order doesn't matter.
       if (platform === "apple" && bundle_id) {
         app.jobRunner
           .trigger("app_version_sync", {
@@ -160,6 +163,14 @@ export async function appsRoutes(app: FastifyInstance) {
           })
           .catch((err) => {
             app.log.warn({ err, app_id: created.id }, "app_version_sync on-create failed (fire-and-forget)");
+          });
+        app.jobRunner
+          .trigger("app_reviews_sync", {
+            triggeredBy: "system:on-app-create",
+            params: { app_id: created.id },
+          })
+          .catch((err) => {
+            app.log.warn({ err, app_id: created.id }, "app_reviews_sync on-create failed (fire-and-forget)");
           });
       }
 

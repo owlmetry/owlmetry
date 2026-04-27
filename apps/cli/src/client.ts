@@ -37,6 +37,10 @@ import type {
   FeedbackCommentResponse,
   UpdateFeedbackRequest,
   CreateFeedbackCommentRequest,
+  ReviewResponse,
+  ReviewsListResponse,
+  ReviewsCountryFacets,
+  ReviewsQueryParams,
   JobRunResponse,
   JobRunsQueryParams,
   JobRunsResponse,
@@ -401,6 +405,31 @@ export class OwlmetryClient {
 
   async addFeedbackComment(projectId: string, feedbackId: string, body: CreateFeedbackCommentRequest): Promise<FeedbackCommentResponse> {
     return this.request<FeedbackCommentResponse>("POST", `/v1/projects/${projectId}/feedback/${feedbackId}/comments`, { body });
+  }
+
+  // Store reviews (App Store / Play Store)
+  async listReviews(projectId: string, params: Partial<ReviewsQueryParams> = {}): Promise<ReviewsListResponse> {
+    const stringParams: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) stringParams[k] = String(v);
+    }
+    return this.request<ReviewsListResponse>("GET", `/v1/projects/${projectId}/reviews`, { params: stringParams });
+  }
+
+  async getReview(projectId: string, reviewId: string): Promise<ReviewResponse> {
+    return this.request<ReviewResponse>("GET", `/v1/projects/${projectId}/reviews/${reviewId}`);
+  }
+
+  async listReviewsByCountry(projectId: string, params: { app_id?: string; store?: string } = {}): Promise<ReviewsCountryFacets> {
+    const stringParams: Record<string, string | undefined> = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) stringParams[k] = String(v);
+    }
+    return this.request<ReviewsCountryFacets>("GET", `/v1/projects/${projectId}/reviews/by-country`, { params: stringParams });
+  }
+
+  async deleteReview(projectId: string, reviewId: string): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/reviews/${reviewId}`);
   }
 
   // Notifications

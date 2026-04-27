@@ -44,6 +44,10 @@
     "./attribution": {
       "types": "./dist/attribution.d.ts",
       "import": "./dist/attribution.js"
+    },
+    "./app-store-countries": {
+      "types": "./dist/app-store-countries.d.ts",
+      "import": "./dist/app-store-countries.js"
     }
   },
   "scripts": {

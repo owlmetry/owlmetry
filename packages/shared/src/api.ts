@@ -184,12 +184,66 @@ export interface UpdateAppRequest {
 
 export type AppResponse = Omit<
   App,
-  "created_at" | "deleted_at" | "latest_app_version_updated_at"
+  "created_at" | "deleted_at" | "latest_app_version_updated_at" | "latest_rating_updated_at"
 > & {
   created_at: string;
   client_secret: string | null;
   latest_app_version_updated_at: string | null;
+  latest_rating_updated_at: string | null;
 };
+
+// Store reviews — public reviews scraped from the App Store / Play Store.
+export const REVIEW_STORES = ["app_store", "play_store"] as const;
+export type ReviewStore = (typeof REVIEW_STORES)[number];
+
+export interface ReviewResponse {
+  id: string;
+  app_id: string;
+  app_name: string;
+  project_id: string;
+  store: ReviewStore;
+  external_id: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  reviewer_name: string | null;
+  country_code: string | null;
+  app_version: string | null;
+  language_code: string | null;
+  developer_response: string | null;
+  developer_response_at: string | null;
+  created_at_in_store: string;
+  ingested_at: string;
+}
+
+export interface ReviewsListResponse {
+  reviews: ReviewResponse[];
+  cursor: string | null;
+  has_more: boolean;
+}
+
+export interface ReviewsByCountrySummary {
+  country_code: string;
+  review_count: number;
+  average_rating: number;
+}
+
+export interface ReviewsCountryFacets {
+  countries: ReviewsByCountrySummary[];
+}
+
+export interface ReviewsQueryParams {
+  app_id?: string;
+  store?: ReviewStore;
+  rating?: number;
+  rating_lte?: number;
+  rating_gte?: number;
+  country_code?: string;
+  has_developer_response?: boolean;
+  search?: string;
+  cursor?: string;
+  limit?: number;
+}
 
 // Projects (serialized)
 export type ProjectResponse = Omit<Project, "created_at" | "deleted_at"> & {

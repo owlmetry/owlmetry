@@ -7,6 +7,8 @@ import {
   timestamp,
   integer,
   bigint,
+  smallint,
+  numeric,
   boolean,
   jsonb,
   index,
@@ -147,6 +149,12 @@ export const apps = pgTable(
     latest_app_version: varchar("latest_app_version", { length: 50 }),
     latest_app_version_updated_at: timestamp("latest_app_version_updated_at", { withTimezone: true }),
     latest_app_version_source: varchar("latest_app_version_source", { length: 20 }),
+    apple_app_store_id: bigint("apple_app_store_id", { mode: "number" }),
+    latest_rating: numeric("latest_rating", { precision: 3, scale: 2 }),
+    latest_rating_count: integer("latest_rating_count"),
+    current_version_rating: numeric("current_version_rating", { precision: 3, scale: 2 }),
+    current_version_rating_count: integer("current_version_rating_count"),
+    latest_rating_updated_at: timestamp("latest_rating_updated_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -874,5 +882,60 @@ export const eventDeletions = pgTable(
   },
   (table) => [
     index("event_deletions_project_executed_at_idx").on(table.project_id, table.executed_at),
+  ]
+);
+
+// App Store Reviews — public reviews scraped from Apple App Store / Google Play Store.
+// Distinct from in-app `feedback` (which has a session+user+device context). Schema
+// supports both stores from day 1; phase 1 only populates Apple via the iTunes RSS feed.
+// Dedupe on (app_id, store, external_id). Soft-deletable so the dashboard can hide a row
+// without losing it on the next sync.
+export const appStoreReviews = pgTable(
+  "app_store_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    store: varchar("store", { length: 20 }).notNull(),
+    external_id: varchar("external_id", { length: 255 }).notNull(),
+    rating: smallint("rating").notNull(),
+    title: text("title"),
+    body: text("body").notNull(),
+    reviewer_name: varchar("reviewer_name", { length: 255 }),
+    country_code: varchar("country_code", { length: 2 }),
+    app_version: varchar("app_version", { length: 50 }),
+    language_code: varchar("language_code", { length: 10 }),
+    developer_response: text("developer_response"),
+    developer_response_at: timestamp("developer_response_at", { withTimezone: true }),
+    created_at_in_store: timestamp("created_at_in_store", { withTimezone: true }).notNull(),
+    ingested_at: timestamp("ingested_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("app_store_reviews_app_store_external_idx").on(
+      table.app_id,
+      table.store,
+      table.external_id,
+    ),
+    index("app_store_reviews_project_created_idx")
+      .on(table.project_id, table.created_at_in_store)
+      .where(sql`${table.deleted_at} IS NULL`),
+    index("app_store_reviews_app_created_idx")
+      .on(table.app_id, table.created_at_in_store)
+      .where(sql`${table.deleted_at} IS NULL`),
+    index("app_store_reviews_project_rating_idx").on(table.project_id, table.rating),
   ]
 );

@@ -43,7 +43,9 @@ export type Permission =
   | "issues:read"
   | "issues:write"
   | "feedback:read"
-  | "feedback:write";
+  | "feedback:write"
+  | "reviews:read"
+  | "reviews:write";
 
 export const VALID_PERMISSIONS: Permission[] = [
   "events:write",
@@ -66,17 +68,19 @@ export const VALID_PERMISSIONS: Permission[] = [
   "issues:write",
   "feedback:read",
   "feedback:write",
+  "reviews:read",
+  "reviews:write",
 ];
 
 export const ALLOWED_PERMISSIONS_BY_KEY_TYPE: Record<ApiKeyType, Permission[]> = {
   client: ["events:write", "users:write"],
-  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write", "feedback:read", "feedback:write"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write", "feedback:read", "feedback:write", "reviews:read", "reviews:write"],
   import: ["events:write", "users:write"],
 };
 
 export const DEFAULT_API_KEY_PERMISSIONS: Record<ApiKeyType, Permission[]> = {
   client: ["events:write", "users:write"],
-  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write", "feedback:read", "feedback:write"],
+  agent: ["events:read", "funnels:read", "funnels:write", "apps:read", "apps:write", "projects:read", "projects:write", "metrics:read", "metrics:write", "audit_logs:read", "users:write", "integrations:read", "integrations:write", "jobs:read", "jobs:write", "issues:read", "issues:write", "feedback:read", "feedback:write", "reviews:read", "reviews:write"],
   import: ["events:write", "users:write"],
 };
 
@@ -178,6 +182,12 @@ export interface App {
   latest_app_version: string | null;
   latest_app_version_updated_at: Date | null;
   latest_app_version_source: AppVersionSource | null;
+  apple_app_store_id: number | null;
+  latest_rating: number | null;
+  latest_rating_count: number | null;
+  current_version_rating: number | null;
+  current_version_rating_count: number | null;
+  latest_rating_updated_at: Date | null;
   created_at: Date;
   deleted_at: Date | null;
 }

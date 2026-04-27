@@ -10,6 +10,7 @@ import { issueNotifyHandler } from "./issue-notify.js";
 import { attachmentCleanupHandler } from "./attachment-cleanup.js";
 import { appleAdsSyncHandler } from "./apple-ads-sync.js";
 import { appVersionSyncHandler } from "./app-version-sync.js";
+import { appReviewsSyncHandler } from "./app-reviews-sync.js";
 import { notificationDeliverHandler } from "./notification-deliver.js";
 import { notificationCleanupHandler } from "./notification-cleanup.js";
 
@@ -27,6 +28,7 @@ export function registerAllJobs(
   runner.register("attachment_cleanup", attachmentCleanupHandler);
   runner.register("apple_ads_sync", appleAdsSyncHandler);
   runner.register("app_version_sync", appVersionSyncHandler);
+  runner.register("app_reviews_sync", appReviewsSyncHandler);
   runner.register("notification_deliver", notificationDeliverHandler(dispatcher));
   runner.register("notification_cleanup", notificationCleanupHandler);
 }
