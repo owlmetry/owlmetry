@@ -21,6 +21,7 @@ import { getAppleAdsAcls } from "../utils/apple-ads/client.js";
 import type { AppleAdsAuthConfig } from "../utils/apple-ads/config.js";
 import { listAppStoreConnectApps } from "../utils/app-store-connect/client.js";
 import type { AppStoreConnectConfig } from "../utils/app-store-connect/config.js";
+import { validateAppStoreConnectPem } from "../utils/app-store-connect/jwt.js";
 
 function serializeIntegration(row: typeof projectIntegrations.$inferSelect) {
   return {
@@ -122,7 +123,10 @@ export async function integrationsRoutes(app: FastifyInstance) {
         enabled = hasAllAppleAdsUserConfigKeys(integrationConfig);
       } else if (provider === INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT) {
         // Single-step setup — user pastes issuer_id, key_id, and the .p8
-        // contents up front. Validation already enforced presence above.
+        // contents up front. Reject malformed PEMs here so the user gets a
+        // useful error instead of an auth_error mid-sync later.
+        const pemError = validateAppStoreConnectPem(integrationConfig.private_key_p8 as string);
+        if (pemError) return reply.code(400).send({ error: pemError });
         enabled = hasAllAppStoreConnectConfigKeys(integrationConfig);
       }
 
@@ -425,8 +429,12 @@ export async function integrationsRoutes(app: FastifyInstance) {
         if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
           updates.enabled = hasAllAppleAdsUserConfigKeys(mergedConfig);
         } else if (provider === INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT) {
-          // ASC: enabled iff issuer_id, key_id, and private_key_p8 are all
-          // present. Same derivation pattern as ASA.
+          // If the PATCH supplied a new .p8, validate it. Skip the check when
+          // the user only updated issuer_id / key_id and kept the existing key.
+          if (typeof inboundConfig.private_key_p8 === "string" && inboundConfig.private_key_p8.length > 0) {
+            const pemError = validateAppStoreConnectPem(inboundConfig.private_key_p8);
+            if (pemError) return reply.code(400).send({ error: pemError });
+          }
           updates.enabled = hasAllAppStoreConnectConfigKeys(mergedConfig);
         }
       }

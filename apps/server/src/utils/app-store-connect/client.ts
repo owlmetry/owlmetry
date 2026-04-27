@@ -130,7 +130,7 @@ async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<Ap
 }
 
 // =====================================================================
-// Apps endpoint — used by the discover-apps route + connection test.
+// Apps endpoint — used by the connection-test route + copy-from live test.
 // =====================================================================
 
 export interface AppStoreConnectApp {

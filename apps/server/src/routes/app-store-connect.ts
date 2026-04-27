@@ -62,48 +62,10 @@ export async function appStoreConnectRoutes(app: FastifyInstance) {
     },
   );
 
-  // Discover apps — lists apps visible to the configured ASC key. Used by the
-  // setup UI so the user can confirm Owlmetry sees the apps they expect before
-  // triggering a sync.
-  app.post<{ Params: { projectId: string } }>(
-    "/projects/:projectId/integrations/app-store-connect/discover-apps",
-    { preHandler: [requirePermission("integrations:write")] },
-    async (request, reply) => {
-      const { projectId } = request.params;
-      const project = await resolveProject(app, projectId, request.auth, reply);
-      if (!project) return;
-
-      const roleError = assertTeamRole(request.auth, project.team_id, "admin");
-      if (roleError) return reply.code(403).send({ error: roleError });
-
-      const integration = await findActiveIntegration(app.db, projectId, PROVIDER);
-      if (!integration) {
-        return reply.code(404).send({ error: "App Store Connect integration not found or disabled" });
-      }
-
-      const ascConfig = integration.config as unknown as AppStoreConnectConfig;
-      const result = await listAppStoreConnectApps(ascConfig);
-
-      if (result.status === "auth_error") {
-        return reply.code(400).send({ error: result.message });
-      }
-      if (result.status === "error") {
-        return reply.code(502).send({ error: `App Store Connect returned ${result.statusCode}: ${result.message}` });
-      }
-      if (result.status === "not_found" || result.data.length === 0) {
-        return reply.code(404).send({ error: "App Store Connect returned no accessible apps for this key" });
-      }
-
-      return {
-        ok: true,
-        apps: result.data.map((a) => ({ id: a.id, name: a.name, bundle_id: a.bundleId })),
-      };
-    },
-  );
-
-  // Test connection — same as discover-apps but the UI button positions it as
-  // a credential validity check rather than discovery. Returns the visible-apps
-  // list so the operator can confirm the right ASC team is connected.
+  // Test connection — validates the .p8 against ASC by listing accessible apps.
+  // The returned `apps` list lets the operator confirm the right ASC team is
+  // connected and that their bundle IDs are visible. Doubles as the setup-time
+  // discovery call (no separate /discover-apps endpoint needed).
   app.post<{ Params: { projectId: string } }>(
     "/projects/:projectId/integrations/app-store-connect/test",
     { preHandler: [requirePermission("integrations:write")] },

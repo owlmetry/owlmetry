@@ -346,12 +346,6 @@ export class OwlmetryClient {
     return this.request("POST", `/v1/projects/${projectId}/integrations/app-store-connect/test`);
   }
 
-  async discoverAppStoreConnectApps(
-    projectId: string,
-  ): Promise<{ ok: boolean; apps: Array<{ id: string; name: string; bundle_id: string }> }> {
-    return this.request("POST", `/v1/projects/${projectId}/integrations/app-store-connect/discover-apps`);
-  }
-
   // Jobs
   async listJobRuns(teamId: string, params: Partial<JobRunsQueryParams> = {}): Promise<JobRunsResponse> {
     const stringParams: Record<string, string | undefined> = {

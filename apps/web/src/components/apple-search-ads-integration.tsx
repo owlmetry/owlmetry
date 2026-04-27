@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { IntegrationLastSyncStrip, type IntegrationLastSyncStatus } from "@/components/integration-last-sync-strip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CopyButton } from "@/components/copy-button";
@@ -62,18 +63,7 @@ interface TestResult {
 }
 
 interface LastSyncStatus {
-  last_sync: {
-    id: string;
-    status: string;
-    created_at: string;
-    completed_at: string | null;
-    aborted: boolean;
-    abort_reason: string | null;
-    enriched: number;
-    examined: number;
-    errors: number;
-    error_status_counts: Record<string, number>;
-  } | null;
+  last_sync: IntegrationLastSyncStatus | null;
 }
 
 export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) {
@@ -219,7 +209,12 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
               </div>
             </div>
 
-            <LastSyncStrip status={statusData?.last_sync ?? null} />
+            <IntegrationLastSyncStrip
+              status={statusData?.last_sync ?? null}
+              emptyHint="No syncs run yet — trigger one to backfill names on existing attributed users."
+              errorWord="field error"
+              renderSummary={(s) => `Enriched ${s.enriched} of ${s.examined} users examined`}
+            />
 
             {testResult && (
               <div
@@ -643,57 +638,3 @@ function UpdateConfigDialog({
   );
 }
 
-function LastSyncStrip({ status }: { status: LastSyncStatus["last_sync"] }) {
-  if (!status) {
-    return (
-      <div className="rounded-md border border-muted-foreground/20 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        No syncs run yet — trigger one to backfill names on existing attributed users.
-      </div>
-    );
-  }
-
-  const when = new Date(status.completed_at ?? status.created_at).toLocaleString();
-  const variant = status.aborted || status.status === "failed"
-    ? "error"
-    : status.status === "running" || status.status === "pending"
-      ? "running"
-      : status.errors > 0
-        ? "warn"
-        : "success";
-
-  const classes = {
-    error: "border-destructive/30 bg-destructive/10 text-destructive",
-    warn: "border-amber-600/30 bg-amber-950/20 text-amber-300",
-    success: "border-emerald-600/30 bg-emerald-950/20 text-emerald-300",
-    running: "border-muted-foreground/20 bg-muted/30 text-muted-foreground",
-  }[variant];
-
-  return (
-    <div className={`rounded-md border px-3 py-2 text-xs flex items-start gap-2 ${classes}`}>
-      {variant === "error" ? (
-        <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-      ) : variant === "running" ? (
-        <RefreshCw className="h-3.5 w-3.5 mt-0.5 shrink-0 animate-spin" />
-      ) : (
-        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-      )}
-      <div className="space-y-1 min-w-0">
-        <div className="font-medium">
-          {variant === "running" && `Sync ${status.status} — started ${when}`}
-          {variant === "error" && `Last sync aborted — ${when}`}
-          {variant === "warn" && `Last sync finished with ${status.errors} field error${status.errors === 1 ? "" : "s"} — ${when}`}
-          {variant === "success" && `Last sync OK — ${when}`}
-        </div>
-        {status.aborted && status.abort_reason && (
-          <div className="font-mono break-all opacity-90">{status.abort_reason}</div>
-        )}
-        {!status.aborted && status.examined > 0 && (
-          <div className="opacity-80">
-            Enriched {status.enriched} of {status.examined} users examined
-            {status.errors > 0 && ` — ${JSON.stringify(status.error_status_counts)}`}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}

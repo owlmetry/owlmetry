@@ -1,6 +1,6 @@
 import { eq, and, isNull, isNotNull } from "drizzle-orm";
 import { apps, appStoreReviews } from "@owlmetry/db";
-import { iso3ToIso2 } from "@owlmetry/shared/app-store-countries";
+import { iso3ToIso2, INTEGRATION_PROVIDER_IDS } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import { findActiveIntegration } from "../utils/integrations.js";
 import {
@@ -25,7 +25,11 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
   const projectId = params.project_id as string;
   if (!projectId) throw new Error("project_id is required");
 
-  const integration = await findActiveIntegration(ctx.db, projectId, "app-store-connect");
+  const integration = await findActiveIntegration(
+    ctx.db,
+    projectId,
+    INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT,
+  );
   if (!integration) {
     throw new Error("App Store Connect integration not found or disabled");
   }
