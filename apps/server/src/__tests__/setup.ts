@@ -576,7 +576,9 @@ export async function seedTestData() {
     RETURNING id
   `;
 
-  // Backend client key (events:write, scoped to backend app)
+  // Backend client key (events:write + users:write, scoped to backend app)
+  // Both perms because the Node SDK integration suite both ingests events and
+  // sets user properties — same shape as the apple TEST_CLIENT_KEY above.
   await client`
     INSERT INTO api_keys (secret, key_type, app_id, team_id, name, created_by, permissions)
     VALUES (
@@ -586,7 +588,7 @@ export async function seedTestData() {
       ${team.id},
       'Test Backend Client Key',
       ${user.id},
-      ${JSON.stringify(["events:write"])}::jsonb
+      ${JSON.stringify(["events:write", "users:write"])}::jsonb
     )
   `;
 
