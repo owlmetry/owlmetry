@@ -147,7 +147,7 @@ Every capture attempt emits an `sdk:attribution_capture` event so you can spot f
 | `pending` | info | `_attempt`, `_max_attempts` | Apple 404 — record not ready yet. Will retry on next launch. |
 | `gave_up` | warn | `_attempts` | Hit the 5-pending cap; SDK wrote `attribution_source = "none"`. |
 | `token_fetch_failed` | warn | `_error` | `AAAttribution.attributionToken()` threw on-device. |
-| `invalid_token` | error | — | Apple rejected the token (400); never retried. |
+| `invalid_token` | warn | — | Owlmetry rejected the token as empty or malformed; never retried. Common in regions where AdServices is unavailable or the user disabled personalized ads. |
 | `transport_failure` | error | — | Owlmetry POST failed after transport retries. |
 
 Filter the dashboard events list by `sdk:attribution_capture` to see the capture outcome for each install.
