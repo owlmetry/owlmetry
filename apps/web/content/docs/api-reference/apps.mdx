@@ -162,6 +162,8 @@ List users seen by a specific app, ordered by most recently seen.
       "last_seen_at": "2024-01-15T10:30:00.000Z",
       "last_country_code": "US",
       "last_app_version": "1.2.0",
+      "last_sdk_name": "owlmetry-swift",
+      "last_sdk_version": "0.1.0",
       "claimed_from": null,
       "properties": {},
       "apps": [
@@ -184,6 +186,8 @@ App users are project-scoped: the `project_id` identifies the project, and the `
 `last_country_code` is a 2-letter ISO country code derived server-side from the Cloudflare `CF-IPCountry` header on the most recent ingest request that carried one. It is never sent by SDKs, and is `null` until a request with a recognised country header arrives. Users seen only through backend apps stay `null` — the country header is dropped at ingest for backend apps because the request originates from a hosting datacenter rather than the end user. See [Events › Country](/docs/concepts/events#country-server-derived).
 
 `last_app_version` is the `app_version` string from the most recent event ingested for this user. It mirrors the `last_country_code` pattern — updated on every batch from the incoming events — and is `null` until an event with a non-empty `app_version` arrives.
+
+`last_sdk_name` and `last_sdk_version` are the SDK identifier and version from the most recent event ingested for this user (e.g. `owlmetry-swift` / `0.1.0`). Auto-stamped by official SDKs and updated alongside `last_app_version`. Useful for spotting users on stale SDK versions.
 
 ## GET /v1/app-users
 

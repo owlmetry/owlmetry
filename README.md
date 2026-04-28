@@ -50,7 +50,7 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **Event ingestion** — batch ingest up to 100 events per request with deduplication; gzip-compressed payloads supported
 - **Bulk historical import** — import keys (`owl_import_`) scoped per project; `POST /v1/import` accepts up to 1000 events per request and upserts duplicates
 - **Projects & apps** — organize apps by product across platforms (`apple`, `android`, `web`, `backend`); one Apple app covers iOS, iPadOS, and macOS
-- **Device tracking** — environment, OS version, app version, device model, locale, build number; latest released version auto-detected per app (iTunes Lookup for Apple, max event version for others) and stale versions badged across surfaces
+- **Device tracking** — environment, OS version, app version, device model, locale, build number, SDK name + version (auto-stamped by official SDKs); latest released version auto-detected per app (iTunes Lookup for Apple, max event version for others) and stale versions badged across surfaces
 - **Country tracking** — server auto-derives country from Cloudflare's `CF-IPCountry` header at ingest; rendered as flags across the dashboard
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user, including late-arriving events after the claim
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request

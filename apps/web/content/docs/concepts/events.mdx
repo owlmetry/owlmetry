@@ -35,6 +35,8 @@ Each event contains the following fields:
 | `environment` | string | No | Runtime environment (`ios`, `ipados`, `macos`, `android`, `web`, `backend`) |
 | `os_version` | string | No | Operating system version |
 | `app_version` | string | No | App version string |
+| `sdk_name` | string | No | Identifier of the Owlmetry SDK that produced the event (e.g. `owlmetry-swift`, `owlmetry-node`). Auto-set by official SDKs. |
+| `sdk_version` | string | No | Version of the Owlmetry SDK that produced the event. Auto-set by official SDKs. |
 | `build_number` | string | No | App build number |
 | `device_model` | string | No | Device hardware model |
 | `locale` | string | No | User locale (e.g., `en_US`) |
@@ -112,6 +114,8 @@ The SDKs automatically populate device and app metadata on every event without a
 - **`build_number`** -- the app's build number
 - **`locale`** -- the device locale (e.g., "en_US")
 - **`environment`** -- the runtime platform (ios, ipados, macos, android, web, backend)
+- **`sdk_name`** -- identifier of the Owlmetry SDK producing the event (e.g. `owlmetry-swift`, `owlmetry-node`)
+- **`sdk_version`** -- version of the Owlmetry SDK producing the event
 - **`is_dev`** -- whether this is a development build (see [Data Mode](/docs/concepts/data-mode))
 
 For SDK-specific details, see the [Swift SDK events guide](/docs/sdks/swift/events) or the [Node SDK events guide](/docs/sdks/node/events).
