@@ -29,11 +29,15 @@ List all apps the caller has access to.
       "platform": "apple",
       "bundle_id": "com.example.myapp",
       "client_secret": "owl_client_abc123...",
+      "worldwide_rating_count": 1234,
+      "worldwide_rating_count_delta": 8,
       "created_at": "2024-01-01T00:00:00.000Z"
     }
   ]
 }
 ```
+
+For Apple-platform apps, each row also carries the denormalized worldwide ratings rollup from the `app_store_ratings_sync` job: `worldwide_average_rating`, `worldwide_rating_count`, `worldwide_current_version_rating`, `worldwide_current_version_rating_count`, and `ratings_synced_at`. `worldwide_rating_count_delta` is the change in `worldwide_rating_count` since the previous daily snapshot — sum across countries of `(latest − previous) rating_count`, only counting countries with a prior snapshot. Tombstones contribute negatively; brand-new countries contribute 0. `null` when no app/country has prior data. Non-Apple platforms return `null` for all rating fields.
 
 ## GET /v1/apps/:id
 

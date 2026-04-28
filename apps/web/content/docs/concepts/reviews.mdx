@@ -13,6 +13,7 @@ For every Apple app with a `bundle_id`, Owlmetry tracks two things:
 - Average rating + total rating count, **per Apple storefront** (~247 ISO2 country codes)
 - Current-version rating + count, per storefront
 - Snapshot date (one row per app × store × country × day — both "current state" and history live in the same table)
+- Per-country `rating_count_delta` (change in `rating_count` since the previous daily snapshot — null on first sight of a country, negative on tombstones), and a worldwide `worldwide_rating_count_delta` summed across countries with prior data
 - A worldwide rollup is denormalized back onto the `apps` table (`worldwide_average_rating`, `worldwide_rating_count`, `worldwide_current_version_rating`, `worldwide_current_version_rating_count`, `ratings_synced_at`) so dashboard cards stay one-row-read fast
 
 **Individual reviews** (`app_store_reviews`, populated via your ASC integration):
@@ -69,7 +70,7 @@ Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app
 ## Where to See Them
 
 **Ratings** (per-country, incl. star-only ratings — not just text reviews):
-- **Web dashboard**: `/dashboard/projects/<id>` — `★ 4.6 (1,234)` badge on each Apple app card showing the worldwide rollup, plus a "Ratings by country" disclosure that lazy-loads the per-country grid. The reviews page has a "By country" panel covering every app in the project.
+- **Web dashboard**: `/dashboard/projects/<id>` — `★ 4.6 (1,234)` badge on each Apple app card showing the worldwide rollup, plus a "Ratings by country" disclosure that lazy-loads the per-country grid. The reviews page has a "By country" panel covering every app in the project. Daily deltas (`+8 since yesterday`) appear next to counts on the dashboard, the Reviews "By country" panel, and the per-country grid wherever a prior snapshot exists.
 - **CLI**: `owlmetry ratings list <appId> --project-id <id>`, `owlmetry ratings by-country --project-id <id>`, `owlmetry ratings sync --project-id <id>` (admin-only manual trigger).
 - **MCP**: `list-app-ratings`, `list-ratings-by-country`, `sync-app-ratings`.
 
