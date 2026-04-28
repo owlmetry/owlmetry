@@ -80,6 +80,7 @@ export function appStoreConnectReviewsSyncHandler(
     let errors = 0;
     let rateLimitWaits = 0;
     const errorStatusCounts: Record<string, number> = {};
+    const teamMemberCache = new Map<string, string[]>();
     let aborted = false;
     let abortReason: string | null = null;
     // Cap total rate-limit waiting at 10 minutes per run to avoid syncs that
@@ -133,7 +134,7 @@ export function appStoreConnectReviewsSyncHandler(
             "App Store Connect rate-limited, sleeping",
           );
           await new Promise((r) => setTimeout(r, result.retryAfterSeconds * 1000));
-          continue; // retry the same cursor
+          continue;
         }
         if (result.status === "error") {
           errors++;
@@ -188,7 +189,11 @@ export function appStoreConnectReviewsSyncHandler(
       // about the rows we did manage to insert — the next run will catch up
       // without double-notifying because those rows now count as existing.
       if (existingBefore > 0 && perAppNewCount > 0) {
-        const userIds = await resolveTeamMemberUserIds(ctx.db, app.team_id);
+        let userIds = teamMemberCache.get(app.team_id);
+        if (!userIds) {
+          userIds = await resolveTeamMemberUserIds(ctx.db, app.team_id);
+          teamMemberCache.set(app.team_id, userIds);
+        }
         if (userIds.length > 0) {
           const snippet = firstNewReview ? truncate(firstNewReview.body, REVIEW_BODY_SNIPPET_MAX) : "";
           const stars = firstNewReview

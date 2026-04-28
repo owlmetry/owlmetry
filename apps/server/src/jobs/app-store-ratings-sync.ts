@@ -155,6 +155,7 @@ export function appStoreRatingsSyncHandler(
     let tombstonesWritten = 0;
     let errors = 0;
     let notificationsSent = 0;
+    const teamMemberCache = new Map<string, string[]>();
     const stats: SyncStats = {
       throttleHits: 0,
       transientHits: 0,
@@ -337,7 +338,11 @@ export function appStoreRatingsSyncHandler(
         const oldCount = app.worldwide_rating_count_before;
         if (oldCount !== null && newCount !== null && newCount > oldCount) {
           const delta = newCount - oldCount;
-          const userIds = await resolveTeamMemberUserIds(ctx.db, app.team_id);
+          let userIds = teamMemberCache.get(app.team_id);
+          if (!userIds) {
+            userIds = await resolveTeamMemberUserIds(ctx.db, app.team_id);
+            teamMemberCache.set(app.team_id, userIds);
+          }
           if (userIds.length > 0) {
             await dispatcher.enqueue({
               type: "app.rating_changed",
