@@ -32,9 +32,9 @@ Each notification has a `type` that determines its formatters and which channels
 | Type | Trigger | Channels | Default On |
 |------|---------|----------|------------|
 | `issue.new` | Fires from the `issue_scan` job at the end of every run when one or more **production** issues were created or regressed. One push per team per scan, summarizing all of that run's new + regressed issues — bypasses the per-project digest cadence so push lands in close to real time. Dev-build crashes are excluded. | `in_app`, `email`, `mobile_push` | `in_app`, `mobile_push` (email off by default) |
-| `issue.digest` | Per-project periodic digest of new and regressed issues, sent by the `issue_notify` job at the project's configured frequency. | `in_app`, `email`, `mobile_push` | All three |
+| `issue.digest` | Per-project periodic digest of new and regressed issues, sent by the `issue_notify` job at the project's configured frequency. | `in_app`, `email`, `mobile_push` | `email` only (in_app + mobile_push off so the digest doesn't double up with the instant `issue.new` push) |
 | `feedback.new` | A user submitted feedback in one of the team's apps. | `in_app`, `email`, `mobile_push` | All three |
-| `job.completed` | A manual job run with `--notify` finished — only the triggering user is notified, never the whole team. | `in_app`, `email`, `mobile_push` | `in_app`, `email` (push off by default) |
+| `job.completed` | A manual job run with `--notify` finished — only the triggering user is notified, never the whole team. | `in_app`, `email`, `mobile_push` | All three |
 | `team.invitation` | Listed for documentation but **not** routed through the dispatcher. Sent transactionally via `EmailService` directly because the recipient may not yet be a user. | — | — |
 
 Adding a new type is three steps: append to `NOTIFICATION_TYPES`, add an entry to `NOTIFICATION_TYPE_META` with default channel state, and wire a producer call site to `dispatcher.enqueue(...)`.

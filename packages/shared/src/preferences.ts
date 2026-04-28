@@ -76,7 +76,7 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
     label: "Issue digests",
     description: "Periodic summary of new or regressed issues for your projects.",
     channels: ["in_app", "email", "mobile_push"],
-    defaults: { in_app: true, email: true, mobile_push: true },
+    defaults: { in_app: false, email: true, mobile_push: false },
   },
   "feedback.new": {
     label: "New feedback",
@@ -88,7 +88,7 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
     label: "Job completion",
     description: "When a manual job you triggered with --notify finishes. Only the triggering user is notified.",
     channels: ["in_app", "email", "mobile_push"],
-    defaults: { in_app: true, email: true, mobile_push: false },
+    defaults: { in_app: true, email: true, mobile_push: true },
   },
   // No "system.alert" type. System job failures (db_pruning, partition_creation,
   // attachment_cleanup, app_version_sync) are server-owner concerns; they keep

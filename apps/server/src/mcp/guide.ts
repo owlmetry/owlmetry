@@ -210,7 +210,7 @@ Owlmetry has a unified, multi-channel notification system: each user-facing even
 
 **Issue notification types** — there are two:
 - \`issue.new\` fires from \`issue_scan\` at the end of every hourly run, with one push per team summarizing all production issues that were just created or regressed. Defaults: in_app + mobile_push on, email off. Bypasses any cadence throttle, so push lands within ~5 min of detection.
-- \`issue.digest\` fires from \`issue_notify\` at the project's \`issue_alert_frequency\` (none/hourly/6-hourly/daily/weekly). Defaults: all three channels on. Project-level rate limit / batching policy.
+- \`issue.digest\` fires from \`issue_notify\` at the project's \`issue_alert_frequency\` (none/hourly/6-hourly/daily/weekly). Defaults: email only (in_app + mobile_push off so the digest doesn't double up with the instant \`issue.new\` push). Project-level rate limit / batching policy.
 
 ### Audit Trail
 Every mutation (create, update, delete) on resources is recorded in audit logs with the actor, action, resource type, resource ID, and metadata. Query with \`list-audit-logs\`.

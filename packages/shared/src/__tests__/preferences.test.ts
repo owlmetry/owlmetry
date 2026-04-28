@@ -94,12 +94,12 @@ describe("isDefaultColumnOrder", () => {
 
 describe("isChannelEnabled", () => {
   it("falls back to NOTIFICATION_TYPE_META defaults when prefs is null", () => {
-    // issue.digest defaults: in_app + email + mobile_push all true.
-    expect(isChannelEnabled(null, "issue.digest", "in_app")).toBe(true);
+    // issue.digest defaults: email only (in_app + mobile_push off so digests don't double up with issue.new).
+    expect(isChannelEnabled(null, "issue.digest", "in_app")).toBe(false);
     expect(isChannelEnabled(null, "issue.digest", "email")).toBe(true);
-    expect(isChannelEnabled(null, "issue.digest", "mobile_push")).toBe(true);
-    // job.completed defaults: mobile_push false.
-    expect(isChannelEnabled(null, "job.completed", "mobile_push")).toBe(false);
+    expect(isChannelEnabled(null, "issue.digest", "mobile_push")).toBe(false);
+    // job.completed defaults: all three on so the triggering user always sees completion.
+    expect(isChannelEnabled(null, "job.completed", "mobile_push")).toBe(true);
   });
 
   it("falls back to defaults when prefs has no notifications block", () => {
@@ -112,17 +112,17 @@ describe("isChannelEnabled", () => {
       notifications: { types: { "issue.digest": { email: false } } },
     };
     expect(isChannelEnabled(prefs, "issue.digest", "email")).toBe(false);
-    // Channels not overridden still use defaults.
-    expect(isChannelEnabled(prefs, "issue.digest", "in_app")).toBe(true);
+    // Channels not overridden still use defaults — issue.digest.in_app is default-false.
+    expect(isChannelEnabled(prefs, "issue.digest", "in_app")).toBe(false);
     // Other types unaffected.
     expect(isChannelEnabled(prefs, "feedback.new", "email")).toBe(true);
   });
 
   it("treats explicit `true` as enabling even when default is false", () => {
     const prefs = {
-      notifications: { types: { "job.completed": { mobile_push: true } } },
+      notifications: { types: { "issue.digest": { mobile_push: true } } },
     };
-    expect(isChannelEnabled(prefs, "job.completed", "mobile_push")).toBe(true);
+    expect(isChannelEnabled(prefs, "issue.digest", "mobile_push")).toBe(true);
   });
 
   it("returns false for team.invitation channels (transactional, no channels configured)", () => {

@@ -144,9 +144,11 @@ describe("NotificationDispatcher", () => {
 
     const inbox = await dbClient`SELECT id FROM notifications`;
     expect(inbox).toHaveLength(21);
-    const inApp = await dbClient`
-      SELECT count(*)::int AS n FROM notification_deliveries WHERE channel = 'in_app'
+    // issue.digest defaults to email-only, so we expect 21 email deliveries
+    // queued (one per recipient) but no in_app deliveries.
+    const email = await dbClient`
+      SELECT count(*)::int AS n FROM notification_deliveries WHERE channel = 'email'
     `;
-    expect(inApp[0].n).toBe(21);
+    expect(email[0].n).toBe(21);
   });
 });
