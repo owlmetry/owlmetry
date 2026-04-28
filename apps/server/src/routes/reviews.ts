@@ -18,6 +18,7 @@ import { findActiveIntegration } from "../utils/integrations.js";
 import {
   createCustomerReviewResponse,
   deleteCustomerReviewResponse,
+  fetchCustomerReviewResponseId,
 } from "../utils/app-store-connect/client.js";
 import type { AppStoreConnectConfig } from "../utils/app-store-connect/config.js";
 import {
@@ -277,10 +278,32 @@ export async function reviewsRoutes(app: FastifyInstance) {
       const ascConfig = integration.config as unknown as AppStoreConnectConfig;
 
       // Delete the existing response (if any) first — Apple has no PATCH, so
-      // edit = DELETE-then-POST. not_found is acceptable; Apple may have already
-      // removed it externally.
-      if (row.developer_response_id) {
-        const deleteResult = await deleteCustomerReviewResponse(ascConfig, row.developer_response_id);
+      // edit = DELETE-then-POST. If the row has a body but no ASC id (e.g. the
+      // reply was created in ASC's web UI before this feature shipped), recover
+      // the id via a single GET so we can DELETE it cleanly instead of letting
+      // the POST below 409 against the still-live old reply.
+      let existingResponseId = row.developer_response_id;
+      if (!existingResponseId && row.developer_response) {
+        const lookup = await fetchCustomerReviewResponseId(ascConfig, row.external_id);
+        if (lookup.status === "auth_error") {
+          return reply.code(502).send({ error: lookup.message });
+        }
+        if (lookup.status === "rate_limited") {
+          reply.header("Retry-After", String(lookup.retryAfterSeconds));
+          return reply.code(429).send({ error: lookup.message });
+        }
+        if (lookup.status === "error") {
+          return reply
+            .code(502)
+            .send({ error: `App Store Connect lookup failed: ${lookup.message}` });
+        }
+        // not_found here means Apple has no response on file, so the local
+        // body was stale — fall through to a fresh POST.
+        existingResponseId = lookup.status === "found" ? lookup.data : null;
+      }
+
+      if (existingResponseId) {
+        const deleteResult = await deleteCustomerReviewResponse(ascConfig, existingResponseId);
         if (deleteResult.status === "auth_error") {
           return reply.code(502).send({ error: deleteResult.message });
         }
@@ -293,6 +316,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
             .code(502)
             .send({ error: `App Store Connect rejected the delete: ${deleteResult.message}` });
         }
+        // not_found is acceptable; Apple may have already removed it externally.
       }
 
       const created = await createCustomerReviewResponse(ascConfig, row.external_id, trimmed);
@@ -335,7 +359,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
         resource_type: "app_store_review",
         resource_id: reviewId,
         metadata: {
-          action: row.developer_response_id ? "edit_response" : "respond",
+          action: existingResponseId ? "edit_response" : "respond",
           state: created.data.state,
         },
       });
@@ -361,13 +385,8 @@ export async function reviewsRoutes(app: FastifyInstance) {
       ]);
       if (!loaded) return reply.code(404).send({ error: "Review not found" });
       const { row, appName } = loaded;
-      if (!row.developer_response_id) {
-        // No ASC id on file: either the reply pre-dated this feature (sync hasn't
-        // re-fetched it) or there's no reply at all.
-        return reply.code(404).send({
-          error:
-            "No reply on file for this review — sync the integration to pull the latest state, or post a fresh reply via PUT",
-        });
+      if (!row.developer_response && !row.developer_response_id) {
+        return reply.code(404).send({ error: "No reply on file for this review" });
       }
       if (!integration) {
         return reply.code(404).send({
@@ -376,7 +395,49 @@ export async function reviewsRoutes(app: FastifyInstance) {
       }
       const ascConfig = integration.config as unknown as AppStoreConnectConfig;
 
-      const result = await deleteCustomerReviewResponse(ascConfig, row.developer_response_id);
+      // Recover the ASC response id when the reply was created outside Owlmetry
+      // (sync ingested the body but never recorded an id).
+      let responseId = row.developer_response_id;
+      if (!responseId) {
+        const lookup = await fetchCustomerReviewResponseId(ascConfig, row.external_id);
+        if (lookup.status === "auth_error") {
+          return reply.code(502).send({ error: lookup.message });
+        }
+        if (lookup.status === "rate_limited") {
+          reply.header("Retry-After", String(lookup.retryAfterSeconds));
+          return reply.code(429).send({ error: lookup.message });
+        }
+        if (lookup.status === "error") {
+          return reply
+            .code(502)
+            .send({ error: `App Store Connect lookup failed: ${lookup.message}` });
+        }
+        if (lookup.status === "not_found") {
+          // Apple already removed it externally; clear local fields to match.
+          const [cleared] = await app.db
+            .update(appStoreReviews)
+            .set({
+              developer_response: null,
+              developer_response_at: null,
+              developer_response_id: null,
+              developer_response_state: null,
+              responded_by_user_id: null,
+            })
+            .where(eq(appStoreReviews.id, reviewId))
+            .returning();
+          logAuditEvent(app.db, request.auth, {
+            team_id: project.team_id,
+            action: "update",
+            resource_type: "app_store_review",
+            resource_id: reviewId,
+            metadata: { action: "delete_response", note: "already removed on Apple's side" },
+          });
+          return serializeReview(cleared, appName);
+        }
+        responseId = lookup.data;
+      }
+
+      const result = await deleteCustomerReviewResponse(ascConfig, responseId);
       if (result.status === "auth_error") {
         return reply.code(502).send({ error: result.message });
       }

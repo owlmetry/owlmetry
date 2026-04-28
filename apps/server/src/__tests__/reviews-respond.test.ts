@@ -204,6 +204,98 @@ describe("PUT /v1/projects/:projectId/reviews/:reviewId/response", () => {
     vi.unstubAllGlobals();
   });
 
+  it("recovers an external reply's ASC id before DELETE+POST when only the body is on file", async () => {
+    await setIntegration();
+    const review = await insertReview({
+      external_id: "ext-edit-external",
+      developer_response: "Externally created reply",
+      developer_response_at: new Date(),
+      // developer_response_id intentionally null
+    });
+
+    const calls: Array<{ method: string; url: string }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      calls.push({ method, url: String(url) });
+      if (method === "GET") {
+        return new Response(
+          JSON.stringify({
+            data: { id: "ext-edit-external", type: "customerReviews", attributes: {} },
+            included: [{
+              id: "asc-recovered-edit",
+              type: "customerReviewResponses",
+              attributes: { state: "PUBLISHED" },
+            }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+      return new Response(JSON.stringify(ascResponseFixture({ id: "asc-replacement" })), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/projects/${projectId}/reviews/${review.id}/response`,
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { body: "Replacing the externally-created reply" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(calls.map((c) => c.method)).toEqual(["GET", "DELETE", "POST"]);
+    expect(calls[0].url).toContain("/v1/customerReviews/ext-edit-external");
+    expect(calls[1].url).toContain("/v1/customerReviewResponses/asc-recovered-edit");
+    expect(res.json().developer_response_id).toBe("asc-replacement");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("rejects play_store reviews with 400 (Apple-only feature)", async () => {
+    await setIntegration();
+    const review = await insertReview({
+      external_id: "ext-play",
+      store: "play_store",
+    });
+
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/projects/${projectId}/reviews/${review.id}/response`,
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { body: "Reply to a Play Store review" },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/App Store/);
+  });
+
+  it("propagates ASC's 429 Retry-After header when Apple rate-limits", async () => {
+    await setIntegration();
+    const review = await insertReview({ external_id: "ext-rate-limited" });
+
+    const fetchMock = vi.fn(
+      async () => new Response(null, { status: 429, headers: { "Retry-After": "42" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.inject({
+      method: "PUT",
+      url: `/v1/projects/${projectId}/reviews/${review.id}/response`,
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { body: "rate limited please" },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.headers["retry-after"]).toBe("42");
+
+    vi.unstubAllGlobals();
+  });
+
   it("rejects empty body with 400", async () => {
     await setIntegration();
     const review = await insertReview();
@@ -334,13 +426,11 @@ describe("DELETE /v1/projects/:projectId/reviews/:reviewId/response", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns 404 when there's no ASC id on file (legacy or never-replied review)", async () => {
+  it("returns 404 when the review has no reply on file at all", async () => {
     await setIntegration();
     const review = await insertReview({
-      external_id: "ext-no-id",
-      developer_response: "Old reply we don't know the id of",
-      developer_response_at: new Date(),
-      // developer_response_id intentionally null
+      external_id: "ext-never-replied",
+      // developer_response* all intentionally null
     });
 
     const res = await app.inject({
@@ -350,6 +440,88 @@ describe("DELETE /v1/projects/:projectId/reviews/:reviewId/response", () => {
     });
 
     expect(res.statusCode).toBe(404);
+  });
+
+  it("recovers the ASC response id from Apple when only the body is on file (external reply)", async () => {
+    await setIntegration();
+    const review = await insertReview({
+      external_id: "ext-external-reply",
+      developer_response: "Reply that someone else posted in ASC's web UI",
+      developer_response_at: new Date(),
+      // developer_response_id intentionally null
+    });
+
+    const calls: Array<{ method: string; url: string }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      calls.push({ method, url: String(url) });
+      if (method === "GET") {
+        return new Response(
+          JSON.stringify({
+            data: { id: "ext-external-reply", type: "customerReviews", attributes: {} },
+            included: [
+              {
+                id: "asc-recovered",
+                type: "customerReviewResponses",
+                attributes: { state: "PUBLISHED" },
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${projectId}/reviews/${review.id}/response`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(calls[0].method).toBe("GET");
+    expect(calls[0].url).toContain("/v1/customerReviews/ext-external-reply");
+    expect(calls[1].method).toBe("DELETE");
+    expect(calls[1].url).toContain("/v1/customerReviewResponses/asc-recovered");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("clears local state when the lookup says Apple has no response (already removed externally)", async () => {
+    await setIntegration();
+    const review = await insertReview({
+      external_id: "ext-stale-body",
+      developer_response: "Stale body — Apple has already removed it",
+      developer_response_at: new Date(),
+    });
+
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(init?.method ?? "GET").toBe("GET");
+      // No `included` array → not_found from fetchCustomerReviewResponseId.
+      return new Response(
+        JSON.stringify({
+          data: { id: "ext-stale-body", type: "customerReviews", attributes: {} },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/v1/projects/${projectId}/reviews/${review.id}/response`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.developer_response).toBeNull();
+    expect(body.developer_response_id).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // GET only — no DELETE attempted.
+
+    vi.unstubAllGlobals();
   });
 
   it("treats Apple's not_found as success (response was already removed externally)", async () => {

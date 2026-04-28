@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { formatDate } from "@/lib/format-date";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,14 @@ import {
 } from "@owlmetry/shared/auth";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { TableSkeleton } from "@/components/ui/skeletons";
+
+// Warnings shown under specific permissions when granted to an agent key.
+// Add an entry here when a permission grants the agent the ability to take an
+// action with public-facing or otherwise high-blast-radius consequences.
+const PERMISSION_WARNINGS: Partial<Record<Permission, string>> = {
+  "reviews:write":
+    "Agent keys with this permission can post, edit, and delete public App Store review replies on your team's behalf — these replies are visible to anyone reading the listing.",
+};
 
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
@@ -247,21 +255,33 @@ function CreateKeyDialog({
             <div className="space-y-2">
               <Label>Permissions</Label>
               <div className="space-y-2">
-                {allowedPermissions.map((perm) => (
-                  <div key={perm} className="flex items-center gap-2">
-                    <Checkbox
-                      id={`perm-${perm}`}
-                      checked={permissions.includes(perm)}
-                      onCheckedChange={() => togglePermission(perm)}
-                    />
-                    <label
-                      htmlFor={`perm-${perm}`}
-                      className="text-sm cursor-pointer"
-                    >
-                      {perm}
-                    </label>
-                  </div>
-                ))}
+                {allowedPermissions.map((perm) => {
+                  const warning = PERMISSION_WARNINGS[perm];
+                  const granted = permissions.includes(perm);
+                  return (
+                    <div key={perm} className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`perm-${perm}`}
+                          checked={granted}
+                          onCheckedChange={() => togglePermission(perm)}
+                        />
+                        <label
+                          htmlFor={`perm-${perm}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {perm}
+                        </label>
+                      </div>
+                      {warning && granted && (
+                        <p className="ml-6 text-xs text-amber-700 dark:text-amber-400 inline-flex items-start gap-1">
+                          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                          <span>{warning}</span>
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -376,21 +396,33 @@ function EditKeyDialog({
           <div className="space-y-2">
             <Label>Permissions</Label>
             <div className="space-y-2">
-              {allowedPermissions.map((perm) => (
-                <div key={perm} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`edit-perm-${perm}`}
-                    checked={permissions.includes(perm)}
-                    onCheckedChange={() => togglePermission(perm)}
-                  />
-                  <label
-                    htmlFor={`edit-perm-${perm}`}
-                    className="text-sm cursor-pointer"
-                  >
-                    {perm}
-                  </label>
-                </div>
-              ))}
+              {allowedPermissions.map((perm) => {
+                const warning = PERMISSION_WARNINGS[perm];
+                const granted = permissions.includes(perm);
+                return (
+                  <div key={perm} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`edit-perm-${perm}`}
+                        checked={granted}
+                        onCheckedChange={() => togglePermission(perm)}
+                      />
+                      <label
+                        htmlFor={`edit-perm-${perm}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {perm}
+                      </label>
+                    </div>
+                    {warning && granted && (
+                      <p className="ml-6 text-xs text-amber-700 dark:text-amber-400 inline-flex items-start gap-1">
+                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                        <span>{warning}</span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 

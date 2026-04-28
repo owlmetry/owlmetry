@@ -131,7 +131,7 @@ async function ascSend<T>(
       status: "auth_error",
       message:
         respBody ||
-        "App Store Connect returned 403 — the API key needs Customer Support role or higher to manage review responses",
+        "App Store Connect returned 403 — the API key needs Customer Support role or higher (covers reading reviews and managing review responses)",
     };
   }
 
@@ -354,6 +354,35 @@ export interface AppStoreConnectReviewResponse {
 
 interface AscResponsePayload {
   data: AscResponseRow;
+}
+
+/**
+ * GET /v1/customerReviews/{id}?include=response — used as a fallback to recover
+ * the ASC response id when a reply was created outside Owlmetry (so the daily
+ * sync ingested the body but never recorded a `developer_response_id`). Returns
+ * `not_found` if Apple has no response on file (already deleted externally).
+ */
+export async function fetchCustomerReviewResponseId(
+  config: AppStoreConnectConfig,
+  reviewExternalId: string,
+): Promise<AppStoreConnectResult<string>> {
+  const params = new URLSearchParams({
+    include: "response",
+    "fields[customerReviews]": "rating",
+    "fields[customerReviewResponses]": "state",
+  });
+  const url = `${ASC_BASE}/v1/customerReviews/${encodeURIComponent(reviewExternalId)}?${params.toString()}`;
+  const result = await ascSend<{ data: AscReviewRow; included?: AscResponseRow[] }>(
+    config,
+    "GET",
+    url,
+  );
+  if (result.status !== "found") return result;
+  const includedId = (result.data.included ?? []).find(
+    (row) => row.type === "customerReviewResponses",
+  )?.id;
+  if (!includedId) return { status: "not_found" };
+  return { status: "found", data: includedId };
 }
 
 /**
