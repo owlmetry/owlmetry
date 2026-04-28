@@ -274,8 +274,8 @@ function ReviewDetailModal({
     setSubmitting(true);
     setErrorMessage(null);
     try {
-      await reviewActions.respond(projectId, reviewId, body);
-      await mutateDetail();
+      const updated = await reviewActions.respond(projectId, reviewId, body);
+      await mutateDetail(updated, { revalidate: false });
       onMutate();
       setReplyMode("idle");
     } catch (err) {
@@ -289,8 +289,8 @@ function ReviewDetailModal({
     setSubmitting(true);
     setErrorMessage(null);
     try {
-      await reviewActions.deleteResponse(projectId, reviewId);
-      await mutateDetail();
+      const updated = await reviewActions.deleteResponse(projectId, reviewId);
+      await mutateDetail(updated, { revalidate: false });
       onMutate();
       setReplyMode("idle");
     } catch (err) {

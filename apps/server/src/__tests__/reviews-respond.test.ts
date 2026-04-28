@@ -234,7 +234,7 @@ describe("PUT /v1/projects/:projectId/reviews/:reviewId/response", () => {
     expect(res.json().error).toMatch(/5970/);
   });
 
-  it("returns 409 when the project has no active ASC integration", async () => {
+  it("returns 404 when the project has no active ASC integration", async () => {
     const review = await insertReview();
 
     const res = await app.inject({
@@ -244,7 +244,8 @@ describe("PUT /v1/projects/:projectId/reviews/:reviewId/response", () => {
       payload: { body: "hi" },
     });
 
-    expect(res.statusCode).toBe(409);
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toMatch(/integration not found/);
   });
 
   it("surfaces ASC 403 with a role-hint message", async () => {

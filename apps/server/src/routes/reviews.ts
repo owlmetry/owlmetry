@@ -26,6 +26,34 @@ import {
   decodeKeysetCursor,
 } from "../utils/pagination.js";
 
+/**
+ * Single-query review-with-app-name load (LEFT JOIN). Returns null when the
+ * review doesn't exist for the given project or has been soft-deleted.
+ */
+async function loadReviewWithAppName(
+  app: FastifyInstance,
+  projectId: string,
+  reviewId: string,
+): Promise<{ row: typeof appStoreReviews.$inferSelect; appName: string } | null> {
+  const [joined] = await app.db
+    .select({
+      review: appStoreReviews,
+      appName: apps.name,
+    })
+    .from(appStoreReviews)
+    .leftJoin(apps, eq(apps.id, appStoreReviews.app_id))
+    .where(
+      and(
+        eq(appStoreReviews.id, reviewId),
+        eq(appStoreReviews.project_id, projectId),
+        isNull(appStoreReviews.deleted_at),
+      ),
+    )
+    .limit(1);
+  if (!joined) return null;
+  return { row: joined.review, appName: joined.appName ?? "" };
+}
+
 function serializeReview(
   row: typeof appStoreReviews.$inferSelect,
   appName: string,
@@ -155,27 +183,10 @@ export async function reviewsRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const [row] = await app.db
-        .select()
-        .from(appStoreReviews)
-        .where(
-          and(
-            eq(appStoreReviews.id, reviewId),
-            eq(appStoreReviews.project_id, projectId),
-            isNull(appStoreReviews.deleted_at),
-          ),
-        )
-        .limit(1);
+      const loaded = await loadReviewWithAppName(app, projectId, reviewId);
+      if (!loaded) return reply.code(404).send({ error: "Review not found" });
 
-      if (!row) return reply.code(404).send({ error: "Review not found" });
-
-      const [appRow] = await app.db
-        .select({ name: apps.name })
-        .from(apps)
-        .where(eq(apps.id, row.app_id))
-        .limit(1);
-
-      return serializeReview(row, appRow?.name ?? "");
+      return serializeReview(loaded.row, loaded.appName);
     },
   );
 
@@ -219,13 +230,9 @@ export async function reviewsRoutes(app: FastifyInstance) {
     },
   );
 
-  // Create or replace the developer response on an App Store review.
-  //
   // Apple has no PATCH for review responses, so editing an existing reply is
-  // implemented as DELETE-then-POST against ASC. This is gated by
-  // `reviews:write` and intentionally allowed for agent keys: the surface
-  // (CLI/MCP/iOS/web) is responsible for any "this is destructive" UX since the
-  // mutation is real and visible publicly on the App Store listing.
+  // DELETE-then-POST against ASC. Agent keys with reviews:write are intentionally
+  // allowed — the surface (CLI/MCP/iOS/web) handles destructive-action UX.
   app.put<{
     Params: { projectId: string; reviewId: string };
     Body: UpdateReviewResponseRequest;
@@ -251,40 +258,27 @@ export async function reviewsRoutes(app: FastifyInstance) {
         });
       }
 
-      const [row] = await app.db
-        .select()
-        .from(appStoreReviews)
-        .where(
-          and(
-            eq(appStoreReviews.id, reviewId),
-            eq(appStoreReviews.project_id, projectId),
-            isNull(appStoreReviews.deleted_at),
-          ),
-        )
-        .limit(1);
-
-      if (!row) return reply.code(404).send({ error: "Review not found" });
+      const [loaded, integration] = await Promise.all([
+        loadReviewWithAppName(app, projectId, reviewId),
+        findActiveIntegration(app.db, projectId, INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT),
+      ]);
+      if (!loaded) return reply.code(404).send({ error: "Review not found" });
+      const { row, appName } = loaded;
       if (row.store !== "app_store") {
         return reply.code(400).send({
           error: "Replying is only supported for App Store reviews today",
         });
       }
-
-      const integration = await findActiveIntegration(
-        app.db,
-        projectId,
-        INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT,
-      );
       if (!integration) {
-        return reply.code(409).send({
-          error: "Project has no active App Store Connect integration",
+        return reply.code(404).send({
+          error: "App Store Connect integration not found or disabled",
         });
       }
       const ascConfig = integration.config as unknown as AppStoreConnectConfig;
 
-      // If a reply already exists with a known ASC id, delete it first so the
-      // POST can create a fresh one. Apple has no PATCH endpoint for review
-      // responses, so DELETE-then-POST is the documented edit path.
+      // Delete the existing response (if any) first — Apple has no PATCH, so
+      // edit = DELETE-then-POST. not_found is acceptable; Apple may have already
+      // removed it externally.
       if (row.developer_response_id) {
         const deleteResult = await deleteCustomerReviewResponse(ascConfig, row.developer_response_id);
         if (deleteResult.status === "auth_error") {
@@ -299,7 +293,6 @@ export async function reviewsRoutes(app: FastifyInstance) {
             .code(502)
             .send({ error: `App Store Connect rejected the delete: ${deleteResult.message}` });
         }
-        // not_found is acceptable — Apple already removed it. Fall through to POST.
       }
 
       const created = await createCustomerReviewResponse(ascConfig, row.external_id, trimmed);
@@ -347,13 +340,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
         },
       });
 
-      const [appRow] = await app.db
-        .select({ name: apps.name })
-        .from(apps)
-        .where(eq(apps.id, updated.app_id))
-        .limit(1);
-
-      return serializeReview(updated, appRow?.name ?? "");
+      return serializeReview(updated, appName);
     },
   );
 
@@ -368,36 +355,23 @@ export async function reviewsRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const [row] = await app.db
-        .select()
-        .from(appStoreReviews)
-        .where(
-          and(
-            eq(appStoreReviews.id, reviewId),
-            eq(appStoreReviews.project_id, projectId),
-            isNull(appStoreReviews.deleted_at),
-          ),
-        )
-        .limit(1);
-
-      if (!row) return reply.code(404).send({ error: "Review not found" });
+      const [loaded, integration] = await Promise.all([
+        loadReviewWithAppName(app, projectId, reviewId),
+        findActiveIntegration(app.db, projectId, INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT),
+      ]);
+      if (!loaded) return reply.code(404).send({ error: "Review not found" });
+      const { row, appName } = loaded;
       if (!row.developer_response_id) {
-        // No ASC id on file means we can't issue the DELETE. Either the reply
-        // was created outside Owlmetry pre-feature, or there's no reply at all.
+        // No ASC id on file: either the reply pre-dated this feature (sync hasn't
+        // re-fetched it) or there's no reply at all.
         return reply.code(404).send({
           error:
             "No reply on file for this review — sync the integration to pull the latest state, or post a fresh reply via PUT",
         });
       }
-
-      const integration = await findActiveIntegration(
-        app.db,
-        projectId,
-        INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT,
-      );
       if (!integration) {
-        return reply.code(409).send({
-          error: "Project has no active App Store Connect integration",
+        return reply.code(404).send({
+          error: "App Store Connect integration not found or disabled",
         });
       }
       const ascConfig = integration.config as unknown as AppStoreConnectConfig;
@@ -415,7 +389,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
           .code(502)
           .send({ error: `App Store Connect rejected the delete: ${result.message}` });
       }
-      // not_found is treated as success — Apple may have already removed it.
+      // not_found is success — Apple already removed it externally.
 
       const [updated] = await app.db
         .update(appStoreReviews)
@@ -437,13 +411,7 @@ export async function reviewsRoutes(app: FastifyInstance) {
         metadata: { action: "delete_response" },
       });
 
-      const [appRow] = await app.db
-        .select({ name: apps.name })
-        .from(apps)
-        .where(eq(apps.id, updated.app_id))
-        .limit(1);
-
-      return serializeReview(updated, appRow?.name ?? "");
+      return serializeReview(updated, appName);
     },
   );
 }
