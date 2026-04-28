@@ -8,7 +8,7 @@ import {
   getTokenAndTeamId,
   TEST_DB_URL,
 } from "./setup.js";
-import { createIosPushAdapter } from "../services/notifications/adapters/ios-push.js";
+import { createMobilePushAdapter } from "../services/notifications/adapters/mobile-push.js";
 import type { ApnsClient } from "../utils/apns/client.js";
 import type { ChannelDeliveryContext } from "../services/notifications/types.js";
 
@@ -51,17 +51,44 @@ beforeEach(async () => {
   ownerUserId = owner.id;
 });
 
-describe("createIosPushAdapter", () => {
-  it("routes each device to the client matching its environment", async () => {
+describe("createMobilePushAdapter", () => {
+  it("skips android-only registrations until FCM transport lands", async () => {
     await dbClient`
-      INSERT INTO user_devices (user_id, channel, token, environment) VALUES
-        (${ownerUserId}, 'ios_push', 'sandbox-token-aaa', 'sandbox'),
-        (${ownerUserId}, 'ios_push', 'production-token-bbb', 'production')
+      INSERT INTO user_devices (user_id, channel, platform, token, environment) VALUES
+        (${ownerUserId}, 'mobile_push', 'android', 'fcm-token-zzz', 'production')
     `;
 
     const sandbox = makeStubClient();
     const production = makeStubClient();
-    const adapter = createIosPushAdapter({ sandbox: sandbox.client, production: production.client });
+    const adapter = createMobilePushAdapter({ sandbox: sandbox.client, production: production.client });
+
+    const result = await adapter.deliver({
+      db: app.db,
+      notificationId: "00000000-0000-0000-0000-0000000000a1",
+      deliveryId: "00000000-0000-0000-0000-0000000000a2",
+      userId: ownerUserId,
+      userEmail: "test@owlmetry.com",
+      type: "feedback.new",
+      payload: { title: "Android skip" },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+
+    expect(result.status).toBe("skipped");
+    expect(sandbox.calls).toEqual([]);
+    expect(production.calls).toEqual([]);
+  });
+
+
+  it("routes each device to the client matching its environment", async () => {
+    await dbClient`
+      INSERT INTO user_devices (user_id, channel, platform, token, environment) VALUES
+        (${ownerUserId}, 'mobile_push', 'ios', 'sandbox-token-aaa', 'sandbox'),
+        (${ownerUserId}, 'mobile_push', 'ios', 'production-token-bbb', 'production')
+    `;
+
+    const sandbox = makeStubClient();
+    const production = makeStubClient();
+    const adapter = createMobilePushAdapter({ sandbox: sandbox.client, production: production.client });
 
     const result = await adapter.deliver({
       db: app.db,
@@ -81,14 +108,14 @@ describe("createIosPushAdapter", () => {
 
   it("routes only sandbox-tagged devices through the sandbox client", async () => {
     await dbClient`
-      INSERT INTO user_devices (user_id, channel, token, environment) VALUES
-        (${ownerUserId}, 'ios_push', 'sandbox-only-1', 'sandbox'),
-        (${ownerUserId}, 'ios_push', 'sandbox-only-2', 'sandbox')
+      INSERT INTO user_devices (user_id, channel, platform, token, environment) VALUES
+        (${ownerUserId}, 'mobile_push', 'ios', 'sandbox-only-1', 'sandbox'),
+        (${ownerUserId}, 'mobile_push', 'ios', 'sandbox-only-2', 'sandbox')
     `;
 
     const sandbox = makeStubClient();
     const production = makeStubClient();
-    const adapter = createIosPushAdapter({ sandbox: sandbox.client, production: production.client });
+    const adapter = createMobilePushAdapter({ sandbox: sandbox.client, production: production.client });
 
     await adapter.deliver({
       db: app.db,
@@ -108,7 +135,7 @@ describe("createIosPushAdapter", () => {
   it("skips when the user has no registered devices", async () => {
     const sandbox = makeStubClient();
     const production = makeStubClient();
-    const adapter = createIosPushAdapter({ sandbox: sandbox.client, production: production.client });
+    const adapter = createMobilePushAdapter({ sandbox: sandbox.client, production: production.client });
 
     const result = await adapter.deliver({
       db: app.db,

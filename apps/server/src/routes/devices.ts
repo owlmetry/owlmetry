@@ -4,13 +4,17 @@ import { userDevices } from "@owlmetry/db";
 import type { RegisterDeviceRequest } from "@owlmetry/shared";
 import { requireUser, userAuth } from "../middleware/auth.js";
 
-const PUSH_CHANNELS = ["ios_push"] as const;
+const PUSH_CHANNELS = ["mobile_push"] as const;
 type PushChannel = (typeof PUSH_CHANNELS)[number];
+
+const PUSH_PLATFORMS = ["ios", "android"] as const;
+type PushPlatform = (typeof PUSH_PLATFORMS)[number];
 
 function serializeDevice(row: typeof userDevices.$inferSelect) {
   return {
     id: row.id,
     channel: row.channel,
+    platform: row.platform,
     environment: row.environment,
     app_version: row.app_version,
     device_model: row.device_model,
@@ -32,6 +36,9 @@ export async function devicesRoutes(app: FastifyInstance) {
       if (!(PUSH_CHANNELS as readonly string[]).includes(body.channel)) {
         return reply.code(400).send({ error: `Invalid channel '${body.channel}'` });
       }
+      if (!(PUSH_PLATFORMS as readonly string[]).includes(body.platform)) {
+        return reply.code(400).send({ error: `Invalid platform '${body.platform}'` });
+      }
       if (!body.token || typeof body.token !== "string") {
         return reply.code(400).send({ error: "token is required" });
       }
@@ -43,6 +50,7 @@ export async function devicesRoutes(app: FastifyInstance) {
         .values({
           user_id: userAuth(request).user_id,
           channel: body.channel as PushChannel,
+          platform: body.platform as PushPlatform,
           token: body.token,
           environment: env,
           app_version: body.app_version ?? null,
@@ -55,6 +63,7 @@ export async function devicesRoutes(app: FastifyInstance) {
           set: {
             user_id: userAuth(request).user_id,
             channel: body.channel as PushChannel,
+            platform: body.platform as PushPlatform,
             environment: env,
             app_version: body.app_version ?? null,
             device_model: body.device_model ?? null,

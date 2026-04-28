@@ -5,8 +5,8 @@
  *   cd /opt/owlmetry && export $(grep ^DATABASE_URL /opt/owlmetry/.env | head -1)
  *   tsx apps/server/src/scripts/test-push.ts [email]
  *
- * Defaults to the auto-memory user email. Looks up every ios_push device for
- * that user, picks the matching APNs host per `environment`, sends one push,
+ * Defaults to the auto-memory user email. Looks up every iOS mobile_push device
+ * for that user, picks the matching APNs host per `environment`, sends one push,
  * and prints the raw ApnsResult so we can see status / reason / apnsId.
  */
 import { config } from "../config.js";
@@ -38,12 +38,12 @@ const result = await db.execute<{
   SELECT ud.id, ud.token, ud.environment, ud.created_at, ud.last_seen_at
   FROM user_devices ud
   JOIN users u ON ud.user_id = u.id
-  WHERE u.email = ${targetEmail} AND ud.channel = 'ios_push'
+  WHERE u.email = ${targetEmail} AND ud.channel = 'mobile_push' AND ud.platform = 'ios'
   ORDER BY ud.created_at DESC
 `);
 
 if (result.length === 0) {
-  console.error(`\nNo ios_push devices registered for ${targetEmail}.`);
+  console.error(`\nNo iOS mobile_push devices registered for ${targetEmail}.`);
   console.error(`→ Open the Owlmetry iOS app on the device and accept push permission. The app posts the token to /v1/devices on launch.`);
   await sandbox.close();
   await production.close();

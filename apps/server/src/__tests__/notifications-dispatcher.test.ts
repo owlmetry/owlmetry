@@ -43,8 +43,8 @@ async function setUserPreference(userId: string, prefs: Record<string, unknown>)
 
 async function registerDevice(userId: string, token: string) {
   await dbClient`
-    INSERT INTO user_devices (user_id, channel, token, environment)
-    VALUES (${userId}, 'ios_push', ${token}, 'production')
+    INSERT INTO user_devices (user_id, channel, platform, token, environment)
+    VALUES (${userId}, 'mobile_push', 'ios', ${token}, 'production')
   `;
 }
 
@@ -71,11 +71,11 @@ describe("NotificationDispatcher", () => {
     const deliveries = await dbClient`
       SELECT channel, status FROM notification_deliveries
     `;
-    // Defaults: in_app + email + ios_push for feedback.new × 2 users = 6 deliveries.
+    // Defaults: in_app + email + mobile_push for feedback.new × 2 users = 6 deliveries.
     expect(deliveries).toHaveLength(6);
     const inApp = deliveries.filter((d) => d.channel === "in_app");
     const email = deliveries.filter((d) => d.channel === "email");
-    const push = deliveries.filter((d) => d.channel === "ios_push");
+    const push = deliveries.filter((d) => d.channel === "mobile_push");
     expect(inApp).toHaveLength(2);
     expect(email).toHaveLength(2);
     expect(push).toHaveLength(2);
@@ -88,7 +88,7 @@ describe("NotificationDispatcher", () => {
 
   it("respects per-channel preference overrides", async () => {
     await setUserPreference(ownerUserId, {
-      notifications: { types: { "feedback.new": { email: false, ios_push: false } } },
+      notifications: { types: { "feedback.new": { email: false, mobile_push: false } } },
     });
 
     await app.notificationDispatcher.enqueue({

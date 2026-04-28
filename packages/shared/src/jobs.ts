@@ -157,7 +157,7 @@ export const JOB_TYPE_META: Record<
   notification_deliver: {
     label: "Notification Delivery",
     description:
-      "Delivers a single queued notification to one external channel (email, iOS push). One job per pending row in notification_deliveries.",
+      "Delivers a single queued notification to one external channel (email, mobile push). One job per pending row in notification_deliveries.",
     scope: "system",
     default_schedule: null,
     params: [

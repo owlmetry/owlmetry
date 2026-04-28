@@ -695,7 +695,8 @@ export interface MarkAllReadResponse {
 
 // Devices (push token registry)
 export interface RegisterDeviceRequest {
-  channel: "ios_push";
+  channel: "mobile_push";
+  platform: "ios" | "android";
   token: string;
   environment?: "production" | "sandbox";
   app_version?: string;
@@ -706,6 +707,7 @@ export interface RegisterDeviceRequest {
 export interface DeviceResponse {
   id: string;
   channel: string;
+  platform: string;
   environment: string;
   app_version: string | null;
   device_model: string | null;

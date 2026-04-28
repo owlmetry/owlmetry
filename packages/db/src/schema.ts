@@ -849,6 +849,7 @@ export const userDevices = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     channel: varchar("channel", { length: 32 }).notNull(),
+    platform: varchar("platform", { length: 16 }).notNull(),
     token: text("token").notNull(),
     environment: varchar("environment", { length: 16 }).notNull().default("production"),
     app_version: varchar("app_version", { length: 50 }),

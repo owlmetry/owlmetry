@@ -55,7 +55,7 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-sm font-medium">Notification preferences</p>
                   <p className="text-xs text-muted-foreground">
-                    Choose channels (in-app, email, iOS push) for each notification type.
+                    Choose channels (in-app, email, mobile push) for each notification type.
                   </p>
                 </div>
               </div>

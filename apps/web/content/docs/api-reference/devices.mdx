@@ -1,11 +1,11 @@
 ---
 title: Devices
-description: Push token registry API — register, list, and revoke devices used for iOS push notifications.
+description: Push token registry API — register, list, and revoke devices used for mobile push notifications.
 ---
 
 Manage the per-user push token registry. Each row in `user_devices` is one channel-tagged endpoint that the [notification dispatcher](/docs/concepts/notifications) targets when fanning out a notification to that channel.
 
-The current set of channels is `ios_push`. Adding Android FCM, Telegram chat IDs, or webhook URLs in the future will reuse this same table.
+The current set of channels is `mobile_push`. Each row also carries a `platform` (`ios` | `android`) so the adapter can route per-device — iOS rows go to APNs today, Android rows are reserved for the FCM transport that will land later. Future channels (Telegram chat IDs, webhook URLs, etc.) will reuse this same table.
 
 **All endpoints are user-only.** Agent API keys receive 403. Auth is via the standard JWT cookie.
 
@@ -17,9 +17,10 @@ Register or refresh a device. The `token` is the unique key — re-registering t
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `channel` | string | Yes | Push channel. Currently only `ios_push` is accepted; unknown values return 400. |
-| `token` | string | Yes | Channel-specific device token. For `ios_push` this is the hex APNs device token. |
-| `environment` | string | No | `sandbox` or `production`. Anything other than `sandbox` is treated as `production`. |
+| `channel` | string | Yes | Push channel. Currently only `mobile_push` is accepted; unknown values return 400. |
+| `platform` | string | Yes | `ios` or `android`. Determines which transport the dispatcher uses for this row. |
+| `token` | string | Yes | Channel-specific device token. For `platform: "ios"` this is the hex APNs device token. |
+| `environment` | string | No | `sandbox` or `production`. Anything other than `sandbox` is treated as `production`. iOS-only — picked from the embedded provisioning profile by the Swift client. |
 | `app_version` | string | No | App version for diagnostics (e.g., `2.1.0`). |
 | `device_model` | string | No | Device model (e.g., `iPhone15,3`). |
 | `os_version` | string | No | OS version (e.g., `iOS 18.2`). |
@@ -31,7 +32,8 @@ Register or refresh a device. The `token` is the unique key — re-registering t
 {
   "device": {
     "id": "uuid",
-    "channel": "ios_push",
+    "channel": "mobile_push",
+    "platform": "ios",
     "environment": "production",
     "app_version": "2.1.0",
     "device_model": "iPhone15,3",
@@ -53,7 +55,8 @@ List the authenticated user's registered devices, ordered by `last_seen_at` desc
   "devices": [
     {
       "id": "uuid",
-      "channel": "ios_push",
+      "channel": "mobile_push",
+      "platform": "ios",
       "environment": "production",
       "app_version": "2.1.0",
       "device_model": "iPhone15,3",

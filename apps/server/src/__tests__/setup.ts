@@ -374,11 +374,11 @@ export interface TestPushDelivery {
   payload: NotificationPayload;
 }
 
-/** Records iOS push deliveries instead of hitting APNs. Cleared in truncateAll(). */
+/** Records mobile push deliveries instead of hitting APNs. Cleared in truncateAll(). */
 export const testPushDeliveries: TestPushDelivery[] = [];
 
 export const testPushAdapter: ChannelAdapter = {
-  channel: "ios_push",
+  channel: "mobile_push",
   async deliver(ctx: ChannelDeliveryContext): Promise<ChannelDeliveryResult> {
     testPushDeliveries.push({ userId: ctx.userId, type: ctx.type, payload: ctx.payload });
     return { status: "sent" };

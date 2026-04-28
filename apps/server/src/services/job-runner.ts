@@ -321,7 +321,7 @@ export class JobRunner {
     }
 
     // User-notify path: enqueue via dispatcher so the user gets it on every
-    // channel they've enabled (in-app + email + iOS push).
+    // channel they've enabled (in-app + email + mobile push).
     if (opts.notify) {
       const userId = await this.resolveTriggeredByUserId(opts.triggeredBy);
       if (userId && this.notificationDispatcher) {

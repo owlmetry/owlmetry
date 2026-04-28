@@ -21,7 +21,7 @@ import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 const CHANNEL_LABEL: Record<NotificationChannel, string> = {
   in_app: "In-app",
   email: "Email",
-  ios_push: "iOS push",
+  mobile_push: "Mobile push",
 };
 
 export default function NotificationPreferencesPage() {

@@ -41,7 +41,7 @@ import { registerAllJobs } from "./jobs/index.js";
 import { NotificationDispatcher } from "./services/notifications/dispatcher.js";
 import { inAppAdapter } from "./services/notifications/adapters/in-app.js";
 import { createEmailAdapter } from "./services/notifications/adapters/email.js";
-import { createIosPushAdapter } from "./services/notifications/adapters/ios-push.js";
+import { createMobilePushAdapter } from "./services/notifications/adapters/mobile-push.js";
 import { ApnsClient } from "./utils/apns/client.js";
 import type { ChannelAdapter } from "./services/notifications/types.js";
 
@@ -62,9 +62,9 @@ const jobRunner = new JobRunner({
   systemJobsAlertEmail: config.systemJobsAlertEmail,
 });
 
-// Notification dispatcher — drops in iOS push adapter only when APNS_* env vars are set.
-// Two APNs clients side-by-side: each owns its own HTTP/2 session, adapter routes
-// per device.environment. Same auth key works for both hosts.
+// Notification dispatcher — drops in the mobile_push adapter only when APNS_* env
+// vars are set. Two APNs clients side-by-side: each owns its own HTTP/2 session,
+// adapter routes per device.environment. Same auth key works for both hosts.
 const adapters: ChannelAdapter[] = [inAppAdapter, createEmailAdapter(emailService)];
 const apnsClients = config.apns
   ? {
@@ -73,10 +73,10 @@ const apnsClients = config.apns
     }
   : null;
 if (apnsClients && config.apns) {
-  adapters.push(createIosPushAdapter(apnsClients));
+  adapters.push(createMobilePushAdapter(apnsClients));
   app.log.info(`APNs configured for ${config.apns.bundleId} — per-device sandbox/production routing`);
 } else {
-  app.log.info("APNs not configured (APNS_KEY_P8 unset) — iOS push deliveries will be skipped");
+  app.log.info("APNs not configured (APNS_KEY_P8 unset) — mobile push deliveries will be skipped");
 }
 
 const notificationDispatcher = new NotificationDispatcher({

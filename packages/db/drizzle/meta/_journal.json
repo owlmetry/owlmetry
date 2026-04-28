@@ -316,6 +316,13 @@
       "when": 1777301939906,
       "tag": "0044_per_country_ratings",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1777353331421,
+      "tag": "0045_mobile_push_rename",
+      "breakpoints": true
     }
   ]
 }

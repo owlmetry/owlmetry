@@ -450,7 +450,7 @@ function IssueAlertSettings({ project, onSaved }: { project: ProjectDetailRespon
         </div>
         <p className="text-xs text-muted-foreground">
           Controls how often new or regressed issues batch into a notification for this project.
-          Per-channel toggles (in-app, email, iOS push) live on your{" "}
+          Per-channel toggles (in-app, email, mobile push) live on your{" "}
           <Link href="/dashboard/profile/notifications" className="underline">
             notification preferences
           </Link>{" "}

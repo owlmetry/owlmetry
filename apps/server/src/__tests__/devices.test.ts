@@ -43,7 +43,7 @@ describe("POST /v1/devices", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${token}` },
-      payload: { channel: "ios_push", token: "abc123", environment: "production", app_version: "1.0" },
+      payload: { channel: "mobile_push", platform: "ios", token: "abc123", environment: "production", app_version: "1.0" },
     });
     expect(res.statusCode).toBe(201);
     const row = await dbClient`SELECT user_id, channel, token FROM user_devices WHERE token = 'abc123'`;
@@ -57,13 +57,13 @@ describe("POST /v1/devices", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${token}` },
-      payload: { channel: "ios_push", token: "shared-token" },
+      payload: { channel: "mobile_push", platform: "ios", token: "shared-token" },
     });
     await app.inject({
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${u2.token}` },
-      payload: { channel: "ios_push", token: "shared-token" },
+      payload: { channel: "mobile_push", platform: "ios", token: "shared-token" },
     });
     const rows = await dbClient`SELECT user_id FROM user_devices WHERE token = 'shared-token'`;
     expect(rows).toHaveLength(1);
@@ -75,7 +75,27 @@ describe("POST /v1/devices", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${token}` },
-      payload: { channel: "bogus", token: "x" },
+      payload: { channel: "bogus", platform: "ios", token: "x" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects invalid platform", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/devices",
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { channel: "mobile_push", platform: "windows", token: "x" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("rejects missing platform", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/devices",
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { channel: "mobile_push", token: "x" },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -86,7 +106,7 @@ describe("POST /v1/devices", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${agentKey}` },
-      payload: { channel: "ios_push", token: "x" },
+      payload: { channel: "mobile_push", platform: "ios", token: "x" },
     });
     expect(res.statusCode).toBe(403);
   });
@@ -99,13 +119,13 @@ describe("GET /v1/devices", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${token}` },
-      payload: { channel: "ios_push", token: "mine-1" },
+      payload: { channel: "mobile_push", platform: "ios", token: "mine-1" },
     });
     await app.inject({
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${u2.token}` },
-      payload: { channel: "ios_push", token: "theirs-1" },
+      payload: { channel: "mobile_push", platform: "ios", token: "theirs-1" },
     });
     const res = await app.inject({
       method: "GET",
@@ -124,7 +144,7 @@ describe("DELETE /v1/devices/:id", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${token}` },
-      payload: { channel: "ios_push", token: "to-delete" },
+      payload: { channel: "mobile_push", platform: "ios", token: "to-delete" },
     });
     const id = create.json().device.id;
     const res = await app.inject({
@@ -143,7 +163,7 @@ describe("DELETE /v1/devices/:id", () => {
       method: "POST",
       url: "/v1/devices",
       headers: { Authorization: `Bearer ${u2.token}` },
-      payload: { channel: "ios_push", token: "their-device" },
+      payload: { channel: "mobile_push", platform: "ios", token: "their-device" },
     });
     const id = create.json().device.id;
     const res = await app.inject({

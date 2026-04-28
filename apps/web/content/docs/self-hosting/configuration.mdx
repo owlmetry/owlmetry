@@ -32,7 +32,7 @@ The API server auto-loads `.env` via dotenv on startup. The web dashboard reads 
 | `SYSTEM_JOBS_ALERT_EMAIL` | (empty) | If set, system job runs send a completion/failure email to this address. Leave empty to disable system-job alerts. |
 | `OWLMETRY_ATTACHMENTS_PATH` | `./data/attachments` (dev) / `/opt/owlmetry-attachments` (prod) | Directory on disk where event attachment bytes are stored. Must be writable by the API server process. Exclude from `pg_dump` backups — attachments live on disk, not in Postgres. |
 | `OWLMETRY_ATTACHMENTS_INTERNAL_URI` | (empty) | Optional internal URI prefix used by nginx `X-Accel-Redirect` when serving attachment downloads. See `deploy/attachments-nginx-snippet.conf`. |
-| `APNS_KEY_ID` | (empty) | Apple `.p8` key id (10-char) from Apple Developer → Keys. Required to enable iOS push deliveries. |
+| `APNS_KEY_ID` | (empty) | Apple `.p8` key id (10-char) from Apple Developer → Keys. Required to enable the iOS branch of mobile push deliveries. |
 | `APNS_TEAM_ID` | (empty) | Apple Developer team id (10-char). |
 | `APNS_KEY_P8` | (empty) | Full PEM contents of the `.p8` key downloaded from Apple Developer. Wrap in double quotes in `.env` — dotenv 16 preserves real newlines inside quoted values. Treat as a secret. |
 | `APNS_BUNDLE_ID` | (empty) | Bundle id of the iOS app (e.g., `com.owlmetry.dashboard`). Sent as `apns-topic` on every push. |
@@ -59,7 +59,7 @@ OWLMETRY_ATTACHMENTS_PATH=/opt/owlmetry-attachments
 OWLMETRY_ATTACHMENTS_SIGNING_SECRET=your-random-hex-string-32-bytes
 OWLMETRY_ATTACHMENTS_INTERNAL_URI=/_attachments/
 
-# iOS push (optional — leave unset to disable iOS push deliveries)
+# Mobile push — iOS via APNs (optional; leave unset to disable iOS push deliveries)
 APNS_KEY_ID=ABC1234567
 APNS_TEAM_ID=XYZ7654321
 APNS_KEY_P8="-----BEGIN PRIVATE KEY-----
@@ -98,9 +98,9 @@ When `MAX_DATABASE_SIZE_GB` is set to a positive value:
 
 Set this to a value safely below your disk capacity (e.g., `8` for a 25 GB disk) to prevent the server from running out of storage.
 
-## iOS push (APNs)
+## Mobile push (APNs)
 
-The notification dispatcher's iOS push channel uses **token-based auth** with an Apple `.p8` key — the same ES256 / EC P-256 pattern used by App Store Connect API, Apple Search Ads, and Sign in with Apple. One Apple Developer account → one set of env vars covers the whole server.
+The `mobile_push` channel routes per device by `user_devices.platform`. iOS rows go through APNs using **token-based auth** with an Apple `.p8` key — the same ES256 / EC P-256 pattern used by App Store Connect API, Apple Search Ads, and Sign in with Apple. One Apple Developer account → one set of env vars covers the whole server. Android rows are reserved for the FCM transport that will land later.
 
 | Variable | Description |
 |----------|-------------|
@@ -111,7 +111,7 @@ The notification dispatcher's iOS push channel uses **token-based auth** with an
 
 The server auto-routes each push to `api.sandbox.push.apple.com` or `api.push.apple.com` based on the per-device value the iOS client reports at registration time (read from `aps-environment` in the embedded provisioning profile). One server can serve Debug installs, TestFlight, and App Store builds side-by-side — no env flag, no manual flip.
 
-These are **all optional**. If `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8`, or `APNS_BUNDLE_ID` is missing the iOS push adapter logs once at boot and silently marks every push delivery `skipped` — local dev and self-hosted setups without iOS push setup keep working. Inbox and email channels are unaffected.
+These are **all optional**. If `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8`, or `APNS_BUNDLE_ID` is missing the `mobile_push` adapter is omitted at boot and every iOS push delivery is silently marked `skipped` — local dev and self-hosted setups without iOS push setup keep working. Inbox and email channels are unaffected.
 
 The server hard-deletes a `user_devices` row when APNs returns **410 Unregistered** or **400 BadDeviceToken**, so stale tokens self-clean on the next push attempt.
 

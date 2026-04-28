@@ -5,9 +5,9 @@
  * (.p8 key) reuses the same ES256 / EC P-256 pattern Apple uses everywhere
  * (App Store Connect API, Apple Search Ads, Sign in with Apple).
  *
- * If `APNS_KEY_P8` is unset the iOS push adapter logs once at boot and marks
- * every push delivery `skipped` — this keeps dev / local environments working
- * without push setup.
+ * If `APNS_KEY_P8` is unset the mobile_push adapter is omitted at boot and
+ * every iOS push delivery is `skipped` — this keeps dev / local environments
+ * working without push setup.
  *
  * Sandbox vs production routing is per-device — the iOS client tells the
  * server which APNs environment its token belongs to at registration time

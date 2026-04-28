@@ -9,27 +9,39 @@ export interface ApnsClientPair {
 }
 
 /**
- * Sends an iOS APNs push to every user_devices row registered for this user
- * with channel="ios_push". Routes each device to its registered APNs host
- * (sandbox / production) — the iOS client declares the env at registration.
- * Apple-side revocation (410 Unregistered, 400 BadDeviceToken) hard-deletes
- * the offending row so we stop retrying.
+ * Sends a push to every user_devices row registered for this user with
+ * channel="mobile_push". Routes per-device by `platform`: ios rows go to APNs
+ * (sandbox / production picked from the row's environment, declared by the
+ * client at registration), android rows are skipped until the FCM transport
+ * lands. Apple-side revocation (410 Unregistered, 400 BadDeviceToken)
+ * hard-deletes the offending row so we stop retrying.
  */
-export function createIosPushAdapter(clients: ApnsClientPair): ChannelAdapter {
+export function createMobilePushAdapter(clients: ApnsClientPair): ChannelAdapter {
   return {
-    channel: "ios_push",
+    channel: "mobile_push",
     async deliver(ctx: ChannelDeliveryContext): Promise<ChannelDeliveryResult> {
       const devices = await ctx.db
         .select({
           id: userDevices.id,
           token: userDevices.token,
           environment: userDevices.environment,
+          platform: userDevices.platform,
         })
         .from(userDevices)
-        .where(and(eq(userDevices.user_id, ctx.userId), eq(userDevices.channel, "ios_push")));
+        .where(and(eq(userDevices.user_id, ctx.userId), eq(userDevices.channel, "mobile_push")));
 
       if (devices.length === 0) {
-        return { status: "skipped", reason: "no ios_push devices for user" };
+        return { status: "skipped", reason: "no mobile_push devices for user" };
+      }
+
+      const iosDevices = devices.filter((d) => d.platform === "ios");
+      const androidDevices = devices.filter((d) => d.platform === "android");
+
+      if (iosDevices.length === 0) {
+        return {
+          status: "skipped",
+          reason: `android push not yet implemented (${androidDevices.length} device(s) skipped)`,
+        };
       }
 
       const [{ count: unreadCount }] = await ctx.db
@@ -44,7 +56,7 @@ export function createIosPushAdapter(clients: ApnsClientPair): ChannelAdapter {
         );
 
       const results = await Promise.all(
-        devices.map((device) => {
+        iosDevices.map((device) => {
           const client = device.environment === "sandbox" ? clients.sandbox : clients.production;
           return client
             .push(device.token, {
@@ -87,7 +99,11 @@ export function createIosPushAdapter(clients: ApnsClientPair): ChannelAdapter {
       if (deliveredIds.length > 0) {
         return {
           status: "sent",
-          metadata: { devices_targeted: devices.length, devices_delivered: deliveredIds.length },
+          metadata: {
+            devices_targeted: iosDevices.length,
+            devices_delivered: deliveredIds.length,
+            android_skipped: androidDevices.length,
+          },
         };
       }
 
@@ -98,7 +114,7 @@ export function createIosPushAdapter(clients: ApnsClientPair): ChannelAdapter {
       return {
         status: "failed",
         error: firstError ? `apns ${firstError.statusCode}: ${firstError.reason}` : "all pushes failed",
-        metadata: { devices_targeted: devices.length, failures },
+        metadata: { devices_targeted: iosDevices.length, failures },
       };
     },
   };

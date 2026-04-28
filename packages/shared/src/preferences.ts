@@ -18,7 +18,7 @@ export interface ColumnConfig {
 }
 
 /** Channels a notification can be delivered through. Future-extensible varchar. */
-export const NOTIFICATION_CHANNELS = ["in_app", "email", "ios_push"] as const;
+export const NOTIFICATION_CHANNELS = ["in_app", "email", "mobile_push"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /**
@@ -60,26 +60,26 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
   "issue.new": {
     label: "New issues",
     description: "Push as soon as a new or regressed issue is detected by the hourly scan. Bypasses the per-project digest cadence.",
-    channels: ["in_app", "email", "ios_push"],
-    defaults: { in_app: true, email: false, ios_push: true },
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: false, mobile_push: true },
   },
   "issue.digest": {
     label: "Issue digests",
     description: "Periodic summary of new or regressed issues for your projects.",
-    channels: ["in_app", "email", "ios_push"],
-    defaults: { in_app: true, email: true, ios_push: true },
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: true, mobile_push: true },
   },
   "feedback.new": {
     label: "New feedback",
     description: "When a user submits feedback in one of your apps.",
-    channels: ["in_app", "email", "ios_push"],
-    defaults: { in_app: true, email: true, ios_push: true },
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: true, mobile_push: true },
   },
   "job.completed": {
     label: "Job completion",
     description: "When a manual job you triggered with --notify finishes. Only the triggering user is notified.",
-    channels: ["in_app", "email", "ios_push"],
-    defaults: { in_app: true, email: true, ios_push: false },
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: true, mobile_push: false },
   },
   // No "system.alert" type. System job failures (db_pruning, partition_creation,
   // attachment_cleanup, app_version_sync) are server-owner concerns; they keep
