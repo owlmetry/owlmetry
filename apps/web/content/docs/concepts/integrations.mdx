@@ -148,6 +148,7 @@ Pulls App Store **reviews** via Apple's App Store Connect (ASC) API. The reviews
 - Powers `app_store_connect_reviews_sync` — a project-scoped job that calls `GET /v1/apps/{id}/customerReviews` for every Apple app in the project that has an `apple_app_store_id`.
 - Returns rating, title, body, reviewer nickname, territory (mapped from ISO 3166 alpha-3 to alpha-2), developer response, and dev-response timestamp.
 - Paginates 200 reviews per page, newest-first, and stops as soon as a page contains a review already in the DB. Re-runs are cheap.
+- Dispatches an [`app.review_new`](/docs/concepts/notifications#notification-types) notification per app when at least one new review row was inserted *and* the app already had reviews on file (so the first ASC sync after setup doesn't flood inboxes). The notification body shows the count plus a snippet of the newest review.
 
 ### Setup
 

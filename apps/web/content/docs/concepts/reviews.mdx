@@ -39,6 +39,15 @@ The reviews job is **project-scoped** — it requires an active App Store Connec
 
 Aggregate ratings keep flowing automatically once an Apple app has a bundle ID — no integration setup needed. ASC is only required for individual review ingestion. You can also manually trigger a ratings sync (e.g. right after creating a new app) via `owlmetry ratings sync --project-id <id>` / Dashboard → project → Sync ratings / `sync-app-ratings` MCP.
 
+### Notifications on new ratings & reviews
+
+Both jobs fan out to every team member via the [notification dispatcher](/docs/concepts/notifications):
+
+- `app_store_ratings_sync` dispatches an **`app.rating_changed`** notification for each app whose worldwide rating count increased between runs — i.e. new ratings have appeared on the App Store. The first sync for an app (no prior baseline) is suppressed so onboarding doesn't flood inboxes.
+- `app_store_connect_reviews_sync` dispatches an **`app.review_new`** notification for each app where at least one new review was inserted on this run *and* the app already had reviews on file. The body includes the count and a snippet of the newest inserted review.
+
+Per-channel toggles (in-app, email, mobile push) live under each user's [notification preferences](/docs/concepts/notifications#per-user-preferences). `app.rating_changed` defaults to in-app + mobile push (email off); `app.review_new` defaults to all three channels on.
+
 ### Storefront removal (tombstones)
 
 If an app was previously available in a region but iTunes returns nothing for that storefront on a later sync — manual delisting, Apple takedown, or a transient hiccup — the job writes a **tombstone row** (`average_rating IS NULL`, `rating_count = 0`) for that day. The latest-snapshot view (`DISTINCT ON (country_code) … ORDER BY snapshot_date DESC`) returns the tombstone so the UI correctly shows "no longer available". If iTunes returns data again on the next run, the tombstone is naturally superseded — tombstones self-heal.
