@@ -1,0 +1,131 @@
+name: Auto-tag and publish CLI
+
+# Triggered by pushes to main that touch CLI-relevant paths. The CLI bundles
+# @owlmetry/shared inline (noExternal in apps/cli/tsup.config.ts), so changes
+# under packages/shared also need to ship a new CLI artifact.
+#
+# The bot's release commit uses [skip ci]; GITHUB_TOKEN-pushed commits also
+# don't trigger workflows by default — belt-and-suspenders against loops.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/cli/**'
+      - 'packages/shared/**'
+
+concurrency:
+  group: release-cli
+  cancel-in-progress: false
+
+jobs:
+  wait-for-tests:
+    name: Wait for Test workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Workspace + CLI
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: "Workspace + CLI"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20
+          allowed-conclusions: success
+
+  tag-and-publish:
+    name: Bump, tag, publish
+    needs: wait-for-tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.0 --activate
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute next version
+        id: ver
+        run: |
+          latest=$(git tag -l 'cli-v*' --sort=-v:refname | head -n1)
+          if [[ -z "$latest" ]]; then
+            # No cli-v* tags yet — seed from apps/cli/package.json so we don't
+            # collide with versions already published to npm.
+            current=$(node -p "require('./apps/cli/package.json').version")
+          else
+            current=${latest#cli-v}
+          fi
+          IFS='.' read -r MAJ MIN PAT <<< "$current"
+
+          msg=$(git log -1 --pretty=%s ${{ github.sha }})
+          # feat!:/fix!:/BREAKING CHANGE → major; feat:/feat(...) → minor; else patch.
+          if [[ "$msg" == *"!:"* || "$msg" == *"BREAKING CHANGE"* ]]; then
+            MAJ=$((MAJ+1)); MIN=0; PAT=0
+          elif [[ "$msg" == feat:* || "$msg" == feat\(* ]]; then
+            MIN=$((MIN+1)); PAT=0
+          else
+            PAT=$((PAT+1))
+          fi
+
+          version="${MAJ}.${MIN}.${PAT}"
+          next="cli-v${version}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "Next CLI version: $next (from '$msg')"
+
+      - name: Bump apps/cli/package.json
+        working-directory: apps/cli
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Build
+        run: pnpm build
+
+      - name: Commit, tag, push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/cli/package.json
+          git commit -m "chore: release ${{ steps.ver.outputs.next }} [skip ci]"
+          git tag "${{ steps.ver.outputs.next }}"
+          git push origin main
+          git push origin "${{ steps.ver.outputs.next }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.ver.outputs.next }}" \
+            --title "@owlmetry/cli ${{ steps.ver.outputs.version }}" \
+            --generate-notes
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: apps/cli
+        run: npm publish --access public
