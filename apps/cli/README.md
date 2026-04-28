@@ -30,13 +30,13 @@ owlmetry funnels
 
 ## AI Skills
 
-This package bundles skill files that teach AI agents (Claude Code, Codex, etc.) how to use Owlmetry — including the CLI, Node SDK, and Swift SDK.
+Owlmetry's three Claude Code skills (`owlmetry-cli`, `owlmetry-node`, `owlmetry-swift`) live in the [owlmetry-skills](https://github.com/owlmetry/owlmetry-skills) plugin marketplace. Run:
 
 ```bash
 owlmetry skills
 ```
 
-This prints the absolute paths to each skill file. Point your agent to these files to give it full Owlmetry knowledge.
+for the install snippet (`/plugin marketplace add` + `/plugin install`).
 
 ## Links
 
