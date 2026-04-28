@@ -12,6 +12,8 @@ export function formatVersion(
   return version;
 }
 
+/** Renders an SDK identity pair as `"<name> <version>"`, or an empty string
+ * if both inputs are missing. Callers handle the empty case (typically as `"—"`). */
 export function formatSdkLabel(
   name: string | null | undefined,
   version: string | null | undefined,
