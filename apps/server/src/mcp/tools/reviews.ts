@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { REVIEW_STORES } from "@owlmetry/shared";
+import { MAX_REVIEW_RESPONSE_LENGTH, REVIEW_STORES } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
 export function registerReviewsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
@@ -42,4 +42,37 @@ export function registerReviewsTools(server: McpServer, app: FastifyInstance, ag
     });
   });
 
+  server.registerTool("respond-to-review", {
+    description:
+      "Reply to an App Store review. Sends the response to App Store Connect — it becomes publicly visible on the App Store listing once Apple publishes it. If a reply already exists, it is replaced (Apple has no PATCH for review responses, so this internally deletes-then-creates). Requires the project to have an active App Store Connect integration whose API key has Customer Support role or higher. Only confirm and call this when the user has explicitly approved the exact response text — the published reply is publicly visible.",
+    inputSchema: {
+      project_id: z.string().uuid().describe("The project ID"),
+      review_id: z.string().uuid().describe("The review ID (Owlmetry's UUID, not the App Store's external ID)"),
+      body: z
+        .string()
+        .min(1)
+        .max(MAX_REVIEW_RESPONSE_LENGTH)
+        .describe(`Reply text (max ${MAX_REVIEW_RESPONSE_LENGTH} characters — Apple's limit)`),
+    },
+  }, async ({ project_id, review_id, body }) => {
+    return callApi(app, agentKey, {
+      method: "PUT",
+      url: `/v1/projects/${project_id}/reviews/${review_id}/response`,
+      payload: { body },
+    });
+  });
+
+  server.registerTool("delete-review-response", {
+    description:
+      "⚠️ Destructive: removes the developer response from the public App Store listing. This is a real Apple-side mutation and is irrecoverable — the only way back is to post a new reply. Use only when the user has explicitly asked you to delete the reply.",
+    inputSchema: {
+      project_id: z.string().uuid().describe("The project ID"),
+      review_id: z.string().uuid().describe("The review ID"),
+    },
+  }, async ({ project_id, review_id }) => {
+    return callApi(app, agentKey, {
+      method: "DELETE",
+      url: `/v1/projects/${project_id}/reviews/${review_id}/response`,
+    });
+  });
 }

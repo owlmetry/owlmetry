@@ -1,10 +1,25 @@
 import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, isNotNull, sql, desc, asc } from "drizzle-orm";
 import { appStoreReviews, apps, projects } from "@owlmetry/db";
-import { REVIEW_STORES, type ReviewStore, type ReviewsQueryParams } from "@owlmetry/shared";
+import {
+  INTEGRATION_PROVIDER_IDS,
+  MAX_REVIEW_RESPONSE_LENGTH,
+  REVIEW_RESPONSE_STATES,
+  REVIEW_STORES,
+  type ReviewResponseState,
+  type ReviewStore,
+  type ReviewsQueryParams,
+  type UpdateReviewResponseRequest,
+} from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
 import { resolveProject } from "../utils/project.js";
+import { findActiveIntegration } from "../utils/integrations.js";
+import {
+  createCustomerReviewResponse,
+  deleteCustomerReviewResponse,
+} from "../utils/app-store-connect/client.js";
+import type { AppStoreConnectConfig } from "../utils/app-store-connect/config.js";
 import {
   normalizeLimit,
   encodeKeysetCursor,
@@ -31,6 +46,9 @@ function serializeReview(
     language_code: row.language_code,
     developer_response: row.developer_response,
     developer_response_at: row.developer_response_at?.toISOString() ?? null,
+    developer_response_id: row.developer_response_id,
+    developer_response_state: (row.developer_response_state as ReviewResponseState | null) ?? null,
+    responded_by_user_id: row.responded_by_user_id,
     created_at_in_store: row.created_at_in_store.toISOString(),
     ingested_at: row.ingested_at.toISOString(),
   };
@@ -198,6 +216,234 @@ export async function reviewsRoutes(app: FastifyInstance) {
       });
 
       return { deleted: true };
+    },
+  );
+
+  // Create or replace the developer response on an App Store review.
+  //
+  // Apple has no PATCH for review responses, so editing an existing reply is
+  // implemented as DELETE-then-POST against ASC. This is gated by
+  // `reviews:write` and intentionally allowed for agent keys: the surface
+  // (CLI/MCP/iOS/web) is responsible for any "this is destructive" UX since the
+  // mutation is real and visible publicly on the App Store listing.
+  app.put<{
+    Params: { projectId: string; reviewId: string };
+    Body: UpdateReviewResponseRequest;
+  }>(
+    "/reviews/:reviewId/response",
+    { preHandler: requirePermission("reviews:write") },
+    async (request, reply) => {
+      const { projectId, reviewId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const rawBody = request.body?.body;
+      if (typeof rawBody !== "string") {
+        return reply.code(400).send({ error: "body is required" });
+      }
+      const trimmed = rawBody.trim();
+      if (!trimmed) {
+        return reply.code(400).send({ error: "body is required" });
+      }
+      if (trimmed.length > MAX_REVIEW_RESPONSE_LENGTH) {
+        return reply.code(400).send({
+          error: `body exceeds App Store Connect's ${MAX_REVIEW_RESPONSE_LENGTH}-character limit`,
+        });
+      }
+
+      const [row] = await app.db
+        .select()
+        .from(appStoreReviews)
+        .where(
+          and(
+            eq(appStoreReviews.id, reviewId),
+            eq(appStoreReviews.project_id, projectId),
+            isNull(appStoreReviews.deleted_at),
+          ),
+        )
+        .limit(1);
+
+      if (!row) return reply.code(404).send({ error: "Review not found" });
+      if (row.store !== "app_store") {
+        return reply.code(400).send({
+          error: "Replying is only supported for App Store reviews today",
+        });
+      }
+
+      const integration = await findActiveIntegration(
+        app.db,
+        projectId,
+        INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT,
+      );
+      if (!integration) {
+        return reply.code(409).send({
+          error: "Project has no active App Store Connect integration",
+        });
+      }
+      const ascConfig = integration.config as unknown as AppStoreConnectConfig;
+
+      // If a reply already exists with a known ASC id, delete it first so the
+      // POST can create a fresh one. Apple has no PATCH endpoint for review
+      // responses, so DELETE-then-POST is the documented edit path.
+      if (row.developer_response_id) {
+        const deleteResult = await deleteCustomerReviewResponse(ascConfig, row.developer_response_id);
+        if (deleteResult.status === "auth_error") {
+          return reply.code(502).send({ error: deleteResult.message });
+        }
+        if (deleteResult.status === "rate_limited") {
+          reply.header("Retry-After", String(deleteResult.retryAfterSeconds));
+          return reply.code(429).send({ error: deleteResult.message });
+        }
+        if (deleteResult.status === "error") {
+          return reply
+            .code(502)
+            .send({ error: `App Store Connect rejected the delete: ${deleteResult.message}` });
+        }
+        // not_found is acceptable — Apple already removed it. Fall through to POST.
+      }
+
+      const created = await createCustomerReviewResponse(ascConfig, row.external_id, trimmed);
+      if (created.status === "auth_error") {
+        return reply.code(502).send({ error: created.message });
+      }
+      if (created.status === "rate_limited") {
+        reply.header("Retry-After", String(created.retryAfterSeconds));
+        return reply.code(429).send({ error: created.message });
+      }
+      if (created.status === "not_found") {
+        return reply.code(502).send({
+          error: "App Store Connect could not find the review — it may have been deleted on Apple's side",
+        });
+      }
+      if (created.status === "error") {
+        return reply
+          .code(502)
+          .send({ error: `App Store Connect rejected the response: ${created.message}` });
+      }
+
+      const respondedAt = created.data.last_modified_at ?? new Date();
+      const respondedByUserId = request.auth.type === "user" ? request.auth.user_id : null;
+
+      const [updated] = await app.db
+        .update(appStoreReviews)
+        .set({
+          developer_response: created.data.body,
+          developer_response_at: respondedAt,
+          developer_response_id: created.data.id,
+          developer_response_state: created.data.state,
+          responded_by_user_id: respondedByUserId,
+        })
+        .where(eq(appStoreReviews.id, reviewId))
+        .returning();
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "update",
+        resource_type: "app_store_review",
+        resource_id: reviewId,
+        metadata: {
+          action: row.developer_response_id ? "edit_response" : "respond",
+          state: created.data.state,
+        },
+      });
+
+      const [appRow] = await app.db
+        .select({ name: apps.name })
+        .from(apps)
+        .where(eq(apps.id, updated.app_id))
+        .limit(1);
+
+      return serializeReview(updated, appRow?.name ?? "");
+    },
+  );
+
+  // Delete the developer response on an App Store review. Real ASC mutation —
+  // the public reply disappears from the listing. Calling surfaces (CLI/iOS/
+  // dashboard/MCP) are expected to confirm with the user before invoking.
+  app.delete<{ Params: { projectId: string; reviewId: string } }>(
+    "/reviews/:reviewId/response",
+    { preHandler: requirePermission("reviews:write") },
+    async (request, reply) => {
+      const { projectId, reviewId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const [row] = await app.db
+        .select()
+        .from(appStoreReviews)
+        .where(
+          and(
+            eq(appStoreReviews.id, reviewId),
+            eq(appStoreReviews.project_id, projectId),
+            isNull(appStoreReviews.deleted_at),
+          ),
+        )
+        .limit(1);
+
+      if (!row) return reply.code(404).send({ error: "Review not found" });
+      if (!row.developer_response_id) {
+        // No ASC id on file means we can't issue the DELETE. Either the reply
+        // was created outside Owlmetry pre-feature, or there's no reply at all.
+        return reply.code(404).send({
+          error:
+            "No reply on file for this review — sync the integration to pull the latest state, or post a fresh reply via PUT",
+        });
+      }
+
+      const integration = await findActiveIntegration(
+        app.db,
+        projectId,
+        INTEGRATION_PROVIDER_IDS.APP_STORE_CONNECT,
+      );
+      if (!integration) {
+        return reply.code(409).send({
+          error: "Project has no active App Store Connect integration",
+        });
+      }
+      const ascConfig = integration.config as unknown as AppStoreConnectConfig;
+
+      const result = await deleteCustomerReviewResponse(ascConfig, row.developer_response_id);
+      if (result.status === "auth_error") {
+        return reply.code(502).send({ error: result.message });
+      }
+      if (result.status === "rate_limited") {
+        reply.header("Retry-After", String(result.retryAfterSeconds));
+        return reply.code(429).send({ error: result.message });
+      }
+      if (result.status === "error") {
+        return reply
+          .code(502)
+          .send({ error: `App Store Connect rejected the delete: ${result.message}` });
+      }
+      // not_found is treated as success — Apple may have already removed it.
+
+      const [updated] = await app.db
+        .update(appStoreReviews)
+        .set({
+          developer_response: null,
+          developer_response_at: null,
+          developer_response_id: null,
+          developer_response_state: null,
+          responded_by_user_id: null,
+        })
+        .where(eq(appStoreReviews.id, reviewId))
+        .returning();
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "update",
+        resource_type: "app_store_review",
+        resource_id: reviewId,
+        metadata: { action: "delete_response" },
+      });
+
+      const [appRow] = await app.db
+        .select({ name: apps.name })
+        .from(apps)
+        .where(eq(apps.id, updated.app_id))
+        .limit(1);
+
+      return serializeReview(updated, appRow?.name ?? "");
     },
   );
 }

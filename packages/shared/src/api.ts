@@ -198,6 +198,9 @@ export type AppResponse = Omit<
 export const REVIEW_STORES = ["app_store", "play_store"] as const;
 export type ReviewStore = (typeof REVIEW_STORES)[number];
 
+export const REVIEW_RESPONSE_STATES = ["PUBLISHED", "PENDING_PUBLISH"] as const;
+export type ReviewResponseState = (typeof REVIEW_RESPONSE_STATES)[number];
+
 export interface ReviewResponse {
   id: string;
   app_id: string;
@@ -214,8 +217,17 @@ export interface ReviewResponse {
   language_code: string | null;
   developer_response: string | null;
   developer_response_at: string | null;
+  /** ASC's customerReviewResponses.id — needed for DELETE; null for replies created outside Owlmetry pre-feature. */
+  developer_response_id: string | null;
+  developer_response_state: ReviewResponseState | null;
+  /** Owlmetry user who submitted the reply via the API; null for sync-ingested or agent-key replies. */
+  responded_by_user_id: string | null;
   created_at_in_store: string;
   ingested_at: string;
+}
+
+export interface UpdateReviewResponseRequest {
+  body: string;
 }
 
 export interface ReviewsListResponse {

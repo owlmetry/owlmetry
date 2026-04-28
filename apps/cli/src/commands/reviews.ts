@@ -1,7 +1,13 @@
+import { readFileSync } from "node:fs";
 import { Command, Option } from "commander";
 import chalk from "chalk";
 import type { ReviewResponse, ReviewStore } from "@owlmetry/shared";
-import { REVIEW_STORES, countryName, countryFlag } from "@owlmetry/shared";
+import {
+  MAX_REVIEW_RESPONSE_LENGTH,
+  REVIEW_STORES,
+  countryName,
+  countryFlag,
+} from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output, type OutputFormat } from "../formatters/index.js";
 import { parsePositiveInt } from "../utils/parse.js";
@@ -63,9 +69,16 @@ function formatReviewDetail(r: ReviewResponse): string {
   }
   lines.push("", chalk.bold("  Body:"), ...r.body.split("\n").map((line) => `    ${line}`));
   if (r.developer_response) {
+    const stateLabel =
+      r.developer_response_state === "PENDING_PUBLISH"
+        ? chalk.yellow("  [pending publish]")
+        : r.developer_response_state === "PUBLISHED"
+          ? chalk.green("  [published]")
+          : "";
     lines.push(
       "",
       chalk.bold("  Developer response:") +
+        stateLabel +
         (r.developer_response_at ? chalk.dim(`  (${new Date(r.developer_response_at).toLocaleString()})`) : ""),
       ...r.developer_response.split("\n").map((line) => `    ${line}`),
     );
@@ -151,4 +164,72 @@ reviewsCommand
     const { client, globals } = createClient(cmd);
     const result = await client.deleteReview(opts.projectId, reviewId);
     output(globals.format as OutputFormat, result, () => chalk.green("Review deleted"));
+  });
+
+reviewsCommand
+  .command("respond <reviewId>")
+  .description("Reply to an App Store review (creates or replaces the developer response on Apple's side)")
+  .requiredOption("--project-id <id>", "Project ID")
+  .option("--body <text>", "Reply body (use --body-file for multi-line)")
+  .option("--body-file <path>", "Read reply body from a file (e.g. - for stdin)")
+  .action(async (
+    reviewId: string,
+    opts: { projectId: string; body?: string; bodyFile?: string },
+    cmd,
+  ) => {
+    let body = opts.body;
+    if (opts.bodyFile) {
+      body = readFileSync(opts.bodyFile === "-" ? 0 : opts.bodyFile, "utf8");
+    }
+    if (!body || !body.trim()) {
+      console.error(chalk.red("Pass --body \"...\" or --body-file <path>"));
+      process.exit(1);
+    }
+    const trimmed = body.trim();
+    if (trimmed.length > MAX_REVIEW_RESPONSE_LENGTH) {
+      console.error(
+        chalk.red(
+          `Reply is ${trimmed.length} characters; App Store Connect's limit is ${MAX_REVIEW_RESPONSE_LENGTH}.`,
+        ),
+      );
+      process.exit(1);
+    }
+    const { client, globals } = createClient(cmd);
+    const result = await client.respondToReview(opts.projectId, reviewId, trimmed);
+    output(
+      globals.format as OutputFormat,
+      result,
+      () => {
+        const stateLabel =
+          result.developer_response_state === "PENDING_PUBLISH"
+            ? chalk.yellow("pending publish on Apple's side")
+            : result.developer_response_state === "PUBLISHED"
+              ? chalk.green("published")
+              : chalk.dim("state unknown");
+        return `${chalk.green("Reply sent")} — ${stateLabel}.`;
+      },
+    );
+  });
+
+reviewsCommand
+  .command("delete-response <reviewId>")
+  .description("⚠️ Delete the developer response from the App Store listing (irrecoverable)")
+  .requiredOption("--project-id <id>", "Project ID")
+  .option("--yes", "Confirm — required because this removes the public reply from the App Store")
+  .action(async (reviewId: string, opts: { projectId: string; yes?: boolean }, cmd) => {
+    if (!opts.yes) {
+      console.error(
+        chalk.red(
+          "This will remove the reply from the public App Store listing. Re-run with --yes to confirm.",
+        ),
+      );
+      process.exit(1);
+    }
+    const { client, globals } = createClient(cmd);
+    const result = await client.deleteReviewResponse(opts.projectId, reviewId);
+    output(
+      globals.format as OutputFormat,
+      result,
+      () => chalk.green("Response removed from the App Store"),
+    );
   });

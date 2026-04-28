@@ -69,16 +69,39 @@ function getToken(
   return mintToken(config);
 }
 
-async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<AppStoreConnectResult<T>> {
+type AscMethod = "GET" | "POST" | "DELETE";
+
+interface AscSendOptions {
+  /** Treat a 200 with no body (or 204) as success. The caller doesn't need a payload. */
+  expectNoBody?: boolean;
+}
+
+async function ascSend<T>(
+  config: AppStoreConnectConfig,
+  method: AscMethod,
+  url: string,
+  body?: unknown,
+  opts: AscSendOptions = {},
+): Promise<AppStoreConnectResult<T>> {
   const tokenResult = getToken(config);
   if (tokenResult.status !== "found") return tokenResult;
 
-  const doRequest = async (jwt: string) =>
-    fetch(url, {
-      method: "GET",
-      headers: { Authorization: `Bearer ${jwt}`, Accept: "application/json" },
+  const doRequest = async (jwt: string) => {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${jwt}`,
+      Accept: "application/json",
+    };
+    const init: RequestInit = {
+      method,
+      headers,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    };
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
+    return fetch(url, init);
+  };
 
   let response: Response;
   try {
@@ -87,7 +110,6 @@ async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<Ap
     return networkError(err, "calling App Store Connect API");
   }
 
-  // 401 → JWT may have been server-side revoked or clock-skewed. Re-mint once.
   if (response.status === 401) {
     tokenCache.delete(cacheKey(config));
     const refreshed = getToken(config, { forceRefresh: true });
@@ -98,14 +120,19 @@ async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<Ap
       return networkError(err, "on App Store Connect retry");
     }
     if (response.status === 401) {
-      const body = await response.text().catch(() => "");
-      return { status: "auth_error", message: body || "Apple rejected the JWT twice" };
+      const respBody = await response.text().catch(() => "");
+      return { status: "auth_error", message: respBody || "Apple rejected the JWT twice" };
     }
   }
 
   if (response.status === 403) {
-    const body = await response.text().catch(() => "");
-    return { status: "auth_error", message: body || "App Store Connect returned 403 — check the key role (needs Customer Support or higher for read-only access)" };
+    const respBody = await response.text().catch(() => "");
+    return {
+      status: "auth_error",
+      message:
+        respBody ||
+        "App Store Connect returned 403 — the API key needs Customer Support role or higher to manage review responses",
+    };
   }
 
   if (response.status === 404) {
@@ -113,23 +140,24 @@ async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<Ap
   }
 
   if (response.status === 429) {
-    // Apple's docs say to honour Retry-After (seconds). Default to 60s if the
-    // header is absent or unparseable. Surfaced as a distinct status so the
-    // job can pause-and-resume rather than just counting it as a generic error.
     const headerValue = response.headers.get("retry-after");
     const parsed = headerValue ? Number.parseInt(headerValue, 10) : NaN;
     const retryAfterSeconds = Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
-    const body = await response.text().catch(() => "");
+    const respBody = await response.text().catch(() => "");
     return {
       status: "rate_limited",
       retryAfterSeconds,
-      message: body || `App Store Connect rate-limited (retry after ${retryAfterSeconds}s)`,
+      message: respBody || `App Store Connect rate-limited (retry after ${retryAfterSeconds}s)`,
     };
   }
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    return { status: "error", statusCode: response.status, message: body || `upstream ${response.status}` };
+    const respBody = await response.text().catch(() => "");
+    return { status: "error", statusCode: response.status, message: respBody || `upstream ${response.status}` };
+  }
+
+  if (opts.expectNoBody || response.status === 204) {
+    return { status: "found", data: undefined as T };
   }
 
   let payload: T;
@@ -143,6 +171,10 @@ async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<Ap
     };
   }
   return { status: "found", data: payload };
+}
+
+async function ascGet<T>(config: AppStoreConnectConfig, url: string): Promise<AppStoreConnectResult<T>> {
+  return ascSend<T>(config, "GET", url);
 }
 
 // =====================================================================
@@ -181,6 +213,8 @@ export async function listAppStoreConnectApps(
 // developer response include.
 // =====================================================================
 
+export type AppStoreConnectResponseState = "PUBLISHED" | "PENDING_PUBLISH";
+
 export interface AppStoreConnectReview {
   id: string;
   rating: number;
@@ -192,6 +226,8 @@ export interface AppStoreConnectReview {
   created_at: Date;
   developer_response: string | null;
   developer_response_at: Date | null;
+  developer_response_id: string | null;
+  developer_response_state: AppStoreConnectResponseState | null;
 }
 
 interface AscReviewRow {
@@ -215,6 +251,7 @@ interface AscResponseRow {
   attributes?: {
     responseBody?: string;
     lastModifiedDate?: string;
+    state?: string;
   };
 }
 
@@ -235,9 +272,14 @@ function buildReviewsFirstUrl(appleAppStoreId: number): string {
     limit: "200",
     include: "response",
     "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory",
-    "fields[customerReviewResponses]": "responseBody,lastModifiedDate",
+    "fields[customerReviewResponses]": "responseBody,lastModifiedDate,state",
   });
   return `${ASC_BASE}/v1/apps/${appleAppStoreId}/customerReviews?${params.toString()}`;
+}
+
+function normalizeResponseState(raw: string | undefined): AppStoreConnectResponseState | null {
+  if (raw === "PUBLISHED" || raw === "PENDING_PUBLISH") return raw;
+  return null;
 }
 
 function parseDate(raw: string | undefined): Date | null {
@@ -283,6 +325,8 @@ export async function listAppStoreConnectReviews(
       created_at: created,
       developer_response: responseRow?.attributes?.responseBody ?? null,
       developer_response_at: parseDate(responseRow?.attributes?.lastModifiedDate),
+      developer_response_id: responseRow?.id ?? null,
+      developer_response_state: normalizeResponseState(responseRow?.attributes?.state),
     });
   }
 
@@ -293,4 +337,70 @@ export async function listAppStoreConnectReviews(
       nextCursor: result.data.links?.next ?? null,
     },
   };
+}
+
+// =====================================================================
+// Customer review responses — POST creates a reply to a review, DELETE
+// removes it. Apple has no PATCH endpoint for review responses, so editing
+// an existing reply is implemented at the call site as DELETE-then-POST.
+// =====================================================================
+
+export interface AppStoreConnectReviewResponse {
+  id: string;
+  body: string;
+  state: AppStoreConnectResponseState | null;
+  last_modified_at: Date | null;
+}
+
+interface AscResponsePayload {
+  data: AscResponseRow;
+}
+
+/**
+ * POST /v1/customerReviewResponses — Apple's character ceiling on responseBody is 5970.
+ * The caller is expected to validate length before calling this.
+ */
+export async function createCustomerReviewResponse(
+  config: AppStoreConnectConfig,
+  reviewExternalId: string,
+  body: string,
+): Promise<AppStoreConnectResult<AppStoreConnectReviewResponse>> {
+  const url = `${ASC_BASE}/v1/customerReviewResponses`;
+  const payload = {
+    data: {
+      type: "customerReviewResponses",
+      attributes: { responseBody: body },
+      relationships: {
+        review: {
+          data: { type: "customerReviews", id: reviewExternalId },
+        },
+      },
+    },
+  };
+  const result = await ascSend<AscResponsePayload>(config, "POST", url, payload);
+  if (result.status !== "found") return result;
+
+  const row = result.data.data;
+  return {
+    status: "found",
+    data: {
+      id: row.id,
+      body: row.attributes?.responseBody ?? body,
+      state: normalizeResponseState(row.attributes?.state),
+      last_modified_at: parseDate(row.attributes?.lastModifiedDate),
+    },
+  };
+}
+
+/**
+ * DELETE /v1/customerReviewResponses/{id} — irrecoverable on Apple's side; the
+ * public reply disappears from the App Store listing. Caller is expected to
+ * have prompted for confirmation before calling.
+ */
+export async function deleteCustomerReviewResponse(
+  config: AppStoreConnectConfig,
+  responseId: string,
+): Promise<AppStoreConnectResult<void>> {
+  const url = `${ASC_BASE}/v1/customerReviewResponses/${encodeURIComponent(responseId)}`;
+  return ascSend<void>(config, "DELETE", url, undefined, { expectNoBody: true });
 }

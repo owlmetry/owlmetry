@@ -12,7 +12,7 @@ interface InjectResult {
 }
 
 type ApiOpts = {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   payload?: Record<string, unknown> | Array<unknown>;
 };

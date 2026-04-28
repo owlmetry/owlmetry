@@ -90,6 +90,9 @@ export const MAX_USER_PROPERTY_KEY_LENGTH = 50;
 export const MAX_USER_PROPERTY_VALUE_LENGTH = 200;
 export const MAX_USER_PROPERTIES_COUNT = 50;
 
+// App Store Connect's hard limit on a developer response body.
+export const MAX_REVIEW_RESPONSE_LENGTH = 5970;
+
 export const PG_UNIQUE_VIOLATION = "23505";
 
 // Data retention defaults (in days)

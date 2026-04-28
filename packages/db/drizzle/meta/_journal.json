@@ -323,6 +323,13 @@
       "when": 1777353331421,
       "tag": "0045_mobile_push_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1777361993482,
+      "tag": "0046_lethal_gateway",
+      "breakpoints": true
     }
   ]
 }

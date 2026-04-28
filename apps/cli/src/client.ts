@@ -436,6 +436,21 @@ export class OwlmetryClient {
     return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/reviews/${reviewId}`);
   }
 
+  async respondToReview(projectId: string, reviewId: string, body: string): Promise<ReviewResponse> {
+    return this.request<ReviewResponse>(
+      "PUT",
+      `/v1/projects/${projectId}/reviews/${reviewId}/response`,
+      { body: { body } },
+    );
+  }
+
+  async deleteReviewResponse(projectId: string, reviewId: string): Promise<ReviewResponse> {
+    return this.request<ReviewResponse>(
+      "DELETE",
+      `/v1/projects/${projectId}/reviews/${reviewId}/response`,
+    );
+  }
+
   // Per-country App Store rating aggregates (incl. star-only ratings).
   async listAppRatings(projectId: string, appId: string, params: { store?: string } = {}): Promise<AppRatingsResponse> {
     const stringParams: Record<string, string | undefined> = {};

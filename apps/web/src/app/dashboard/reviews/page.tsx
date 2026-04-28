@@ -10,6 +10,7 @@ import type {
   ReviewResponse,
   ReviewStore,
 } from "@owlmetry/shared";
+import { MAX_REVIEW_RESPONSE_LENGTH } from "@owlmetry/shared/constants";
 import { useTeam } from "@/contexts/team-context";
 import { useReviews, useReviewDetail, useRatingsByCountry, reviewActions } from "@/hooks/use-reviews";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
@@ -18,6 +19,7 @@ import { ProjectDot } from "@/lib/project-color";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -32,7 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
-import { Star, MessageCircle, Trash2 } from "lucide-react";
+import { Star, MessageCircle, Trash2, Reply, Pencil } from "lucide-react";
 import { countryName, countryFlag } from "@owlmetry/shared/app-store-countries";
 
 const STORE_LABELS: Record<ReviewStore, string> = {
@@ -102,6 +104,133 @@ function ReviewCard({
   );
 }
 
+function ResponseStatePill({ state }: { state: ReviewResponse["developer_response_state"] }) {
+  if (state === "PENDING_PUBLISH") {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300">
+        Pending publish
+      </span>
+    );
+  }
+  if (state === "PUBLISHED") {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300">
+        Published
+      </span>
+    );
+  }
+  return null;
+}
+
+function ReplyComposer({
+  initialBody,
+  onSubmit,
+  onCancel,
+  submitLabel,
+  submitting,
+  errorMessage,
+}: {
+  initialBody: string;
+  onSubmit: (body: string) => Promise<void>;
+  onCancel?: () => void;
+  submitLabel: string;
+  submitting: boolean;
+  errorMessage?: string | null;
+}) {
+  const [draft, setDraft] = useState(initialBody);
+  const trimmed = draft.trim();
+  const tooLong = trimmed.length > MAX_REVIEW_RESPONSE_LENGTH;
+  const canSubmit = trimmed.length > 0 && !tooLong && !submitting;
+
+  return (
+    <div className="space-y-2">
+      <Textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={5}
+        placeholder="Reply to the reviewer. This will appear publicly on the App Store listing."
+        className="resize-y"
+      />
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">
+          Visible publicly on the App Store. Apple may take a few minutes to publish.
+        </span>
+        <span className={tooLong ? "text-destructive font-medium" : "text-muted-foreground tabular-nums"}>
+          {trimmed.length} / {MAX_REVIEW_RESPONSE_LENGTH}
+        </span>
+      </div>
+      {errorMessage && (
+        <p className="text-xs text-destructive">{errorMessage}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={submitting}>
+            Cancel
+          </Button>
+        )}
+        <Button
+          size="sm"
+          onClick={() => void onSubmit(trimmed)}
+          disabled={!canSubmit}
+        >
+          {submitLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DeleteResponseConfirm({
+  onConfirm,
+  onCancel,
+  submitting,
+  errorMessage,
+}: {
+  onConfirm: () => Promise<void>;
+  onCancel: () => void;
+  submitting: boolean;
+  errorMessage?: string | null;
+}) {
+  const [typed, setTyped] = useState("");
+  const armed = typed.trim().toLowerCase() === "delete" && !submitting;
+
+  return (
+    <div className="space-y-3 border border-destructive/40 bg-destructive/5 rounded-md p-3">
+      <p className="text-sm">
+        This removes your reply from the public App Store listing. <strong>It cannot be undone.</strong>
+      </p>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">
+          Type <span className="font-mono font-semibold">delete</span> to confirm
+        </label>
+        <Input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder="delete"
+          className="h-8 text-xs"
+        />
+      </div>
+      {errorMessage && (
+        <p className="text-xs text-destructive">{errorMessage}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => void onConfirm()}
+          disabled={!armed}
+        >
+          <Trash2 className="h-3.5 w-3.5 mr-1" />
+          Delete reply
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ReviewDetailModal({
   projectId,
   reviewId,
@@ -115,8 +244,19 @@ function ReviewDetailModal({
   onClose: () => void;
   onMutate: () => void;
 }) {
-  const { review, isLoading } = useReviewDetail(projectId, reviewId);
+  const { review, isLoading, mutate: mutateDetail } = useReviewDetail(projectId, reviewId);
   const [deleting, setDeleting] = useState(false);
+
+  // Reply UI state
+  const [replyMode, setReplyMode] = useState<"idle" | "compose" | "edit" | "delete">("idle");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Reset reply state when the modal switches to a different review.
+  useEffect(() => {
+    setReplyMode("idle");
+    setErrorMessage(null);
+  }, [reviewId]);
 
   async function handleDelete() {
     if (!review) return;
@@ -129,6 +269,38 @@ function ReviewDetailModal({
       setDeleting(false);
     }
   }
+
+  async function handleSubmitReply(body: string) {
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await reviewActions.respond(projectId, reviewId, body);
+      await mutateDetail();
+      onMutate();
+      setReplyMode("idle");
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to send reply");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteResponse() {
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      await reviewActions.deleteResponse(projectId, reviewId);
+      await mutateDetail();
+      onMutate();
+      setReplyMode("idle");
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to delete reply");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const canRespond = review?.store === "app_store";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -178,21 +350,85 @@ function ReviewDetailModal({
               </div>
             </div>
 
-            {review.developer_response && (
-              <div className="border-t pt-3 space-y-1">
-                <p className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                  <MessageCircle className="h-3 w-3" /> Developer response
-                  {review.developer_response_at && (
-                    <span className="ml-1">
-                      ({new Date(review.developer_response_at).toLocaleString()})
-                    </span>
-                  )}
+            {review.developer_response ? (
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                    <MessageCircle className="h-3 w-3" /> Developer response
+                    {review.developer_response_at && (
+                      <span className="ml-1">
+                        ({new Date(review.developer_response_at).toLocaleString()})
+                      </span>
+                    )}
+                  </p>
+                  <ResponseStatePill state={review.developer_response_state} />
+                </div>
+                <p className="text-sm whitespace-pre-wrap rounded-md bg-muted/40 border p-3">
+                  {review.developer_response}
                 </p>
-                <p className="text-sm whitespace-pre-wrap">{review.developer_response}</p>
+                {canRespond && replyMode === "idle" && (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setReplyMode("edit")}>
+                      <Pencil className="h-3.5 w-3.5 mr-1" /> Edit reply
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => setReplyMode("delete")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete reply
+                    </Button>
+                  </div>
+                )}
+                {replyMode === "edit" && (
+                  <ReplyComposer
+                    initialBody={review.developer_response ?? ""}
+                    onSubmit={handleSubmitReply}
+                    onCancel={() => {
+                      setReplyMode("idle");
+                      setErrorMessage(null);
+                    }}
+                    submitLabel="Save reply"
+                    submitting={submitting}
+                    errorMessage={errorMessage}
+                  />
+                )}
+                {replyMode === "delete" && (
+                  <DeleteResponseConfirm
+                    onConfirm={handleDeleteResponse}
+                    onCancel={() => {
+                      setReplyMode("idle");
+                      setErrorMessage(null);
+                    }}
+                    submitting={submitting}
+                    errorMessage={errorMessage}
+                  />
+                )}
               </div>
-            )}
+            ) : canRespond ? (
+              <div className="border-t pt-3">
+                {replyMode === "compose" ? (
+                  <ReplyComposer
+                    initialBody=""
+                    onSubmit={handleSubmitReply}
+                    onCancel={() => {
+                      setReplyMode("idle");
+                      setErrorMessage(null);
+                    }}
+                    submitLabel="Send reply"
+                    submitting={submitting}
+                    errorMessage={errorMessage}
+                  />
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setReplyMode("compose")}>
+                    <Reply className="h-3.5 w-3.5 mr-1" /> Reply on the App Store
+                  </Button>
+                )}
+              </div>
+            ) : null}
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 border-t">
               <Button
                 variant="ghost"
                 size="sm"

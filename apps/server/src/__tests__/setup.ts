@@ -33,6 +33,7 @@ import { appleSearchAdsRoutes } from "../routes/apple-search-ads.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
+import { reviewsRoutes, teamReviewsRoutes } from "../routes/reviews.js";
 import { notificationsRoutes } from "../routes/notifications.js";
 import { devicesRoutes } from "../routes/devices.js";
 import { mcpRoute } from "../mcp/index.js";
@@ -459,6 +460,8 @@ export async function buildApp() {
   await app.register(teamIssuesRoutes, { prefix: "/v1" });
   await app.register(feedbackRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamFeedbackRoutes, { prefix: "/v1" });
+  await app.register(reviewsRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(teamReviewsRoutes, { prefix: "/v1" });
   await app.register(notificationsRoutes, { prefix: "/v1" });
   await app.register(devicesRoutes, { prefix: "/v1" });
   await app.register(mcpRoute);

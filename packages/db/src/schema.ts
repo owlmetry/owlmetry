@@ -916,6 +916,17 @@ export const appStoreReviews = pgTable(
     language_code: varchar("language_code", { length: 10 }),
     developer_response: text("developer_response"),
     developer_response_at: timestamp("developer_response_at", { withTimezone: true }),
+    // ASC's customerReviewResponses.id — needed to DELETE the response on Apple's side.
+    // Replies that arrived via the daily sync before the reply feature shipped will have
+    // this null until they're either re-fetched or replaced via the PUT route.
+    developer_response_id: varchar("developer_response_id", { length: 255 }),
+    // ASC's response state: PUBLISHED | PENDING_PUBLISH.
+    developer_response_state: varchar("developer_response_state", { length: 20 }),
+    // Owlmetry user who submitted the reply via the PUT route. Null when the
+    // reply was created outside Owlmetry (sync-job ingested) or by an agent key.
+    responded_by_user_id: uuid("responded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     created_at_in_store: timestamp("created_at_in_store", { withTimezone: true }).notNull(),
     ingested_at: timestamp("ingested_at", { withTimezone: true })
       .notNull()

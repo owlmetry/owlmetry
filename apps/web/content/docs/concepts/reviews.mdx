@@ -21,7 +21,9 @@ For every Apple app with a `bundle_id`, Owlmetry tracks two things:
 - Body
 - Reviewer handle (App Store nickname)
 - Country code (the storefront the review was left in, mapped from ASC's ISO 3166 alpha-3 territory codes)
-- Developer response + timestamp (when present)
+- Developer response + timestamp + state (`PUBLISHED` | `PENDING_PUBLISH`) when present
+- ASC's `customerReviewResponses.id` (so we can DELETE the reply later)
+- The Owlmetry user who submitted the reply via Owlmetry (null for replies that arrived via sync — i.e. created in ASC's web UI directly — or that came through an agent key)
 - When the review was posted in the store
 - When Owlmetry ingested it
 
@@ -63,9 +65,30 @@ Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app
 - **MCP**: `list-app-ratings`, `list-ratings-by-country`, `sync-app-ratings`.
 
 **Reviews** (individual customer reviews with text):
-- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search).
-- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews delete <id>`.
-- **MCP**: `list-reviews`, `get-review`.
+- **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search). The detail dialog has the full reply round-trip.
+- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews delete <id>`, `owlmetry reviews respond <id>`, `owlmetry reviews delete-response <id> --yes`.
+- **MCP**: `list-reviews`, `get-review`, `respond-to-review`, `delete-review-response`.
+
+## Replying to App Store Reviews
+
+You can reply to an Apple review directly from the dashboard, CLI, MCP, or the iOS companion app — Owlmetry calls App Store Connect's `customerReviewResponses` endpoint, persists the resulting reply ID + state, and shows it on every surface so you can see at a glance which reviews you've already responded to.
+
+**Where the reply is sent**: directly to App Store Connect. It becomes publicly visible on the App Store listing once Apple publishes it (usually within minutes; Owlmetry shows `PENDING_PUBLISH` until then).
+
+**Editing**: Apple has no PATCH endpoint for review responses. Owlmetry implements edit as DELETE-then-POST against ASC. From your perspective it's a single PUT — the existing reply is replaced atomically.
+
+**Deleting**: removes the reply from the public App Store listing. **Irrecoverable** — the only way back is to post a new reply. The dashboard requires you to type `delete` to confirm, the CLI requires `--yes`, the iOS app uses a destructive alert, and the MCP tool description leads with a destructive-action warning.
+
+**Limits**: 5,970 characters maximum (Apple's `responseBody` limit, surfaced as `MAX_REVIEW_RESPONSE_LENGTH` in `@owlmetry/shared/constants`).
+
+**Role required**: the App Store Connect API key needs **Customer Support** role or higher. If Apple returns 403, the server surfaces a role-hint message — rotate the key in **Dashboard → Integrations → App Store Connect**.
+
+**Permissions**:
+- Replies are gated on `reviews:write`. Both **users** and **agent keys** with that permission can reply, edit, and delete a reply (matches the user's flow when an agent triages public reviews via MCP).
+- The `responded_by_user_id` column attributes user-submitted replies. Agent-submitted replies leave it null.
+- The pre-existing soft-delete-review action (which only hides the review from the dashboard, doesn't touch ASC) is unchanged: still `reviews:write`, still user-only.
+
+**Replies that arrived from outside Owlmetry** (created in ASC's web UI before this feature, or by another team member directly in ASC): the daily sync ingests them with the response body but without a `developer_response_id`, so Owlmetry can't DELETE them directly. Re-posting through Owlmetry's PUT route works — it'll fall through to the POST path. To delete one via Owlmetry, sync the integration first to pick up the response ID Apple returns.
 
 ## Copying the Integration to Other Projects
 
@@ -76,7 +99,7 @@ CLI: `owlmetry integrations copy app-store-connect --from <source-project-id> --
 ## Permissions
 
 - `reviews:read` — list / view ratings or reviews (default for new agent keys; ratings reuse the same permission)
-- `reviews:write` — soft-delete a review **or** trigger a manual ratings sync (user-only for delete, admin role for sync; agent keys 403 on delete)
+- `reviews:write` — soft-delete a review (user-only), trigger a manual ratings sync (admin role), **and** post / edit / delete a reply via Apple (users and agent keys both allowed for the reply round-trip)
 - `integrations:write` — required to set up / update / sync the App Store Connect integration
 
 ## When Data Doesn't Show Up

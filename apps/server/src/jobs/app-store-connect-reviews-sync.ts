@@ -187,6 +187,8 @@ async function insertReviewsPage(
     language_code: null,
     developer_response: review.developer_response,
     developer_response_at: review.developer_response_at,
+    developer_response_id: review.developer_response_id,
+    developer_response_state: review.developer_response_state,
     created_at_in_store: review.created_at,
   }));
 
