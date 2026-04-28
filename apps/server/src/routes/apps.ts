@@ -4,7 +4,12 @@ import { apps, projects, apiKeys } from "@owlmetry/db";
 import type { CreateAppRequest, UpdateAppRequest } from "@owlmetry/shared";
 import { APP_PLATFORMS, DEFAULT_API_KEY_PERMISSIONS, generateApiKeySecret } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
-import { serializeApp, getClientSecret, getClientSecretMap } from "../utils/serialize.js";
+import {
+  serializeApp,
+  getClientSecret,
+  getClientSecretMap,
+  getWorldwideRatingDeltaMap,
+} from "../utils/serialize.js";
 import { logAuditEvent } from "../utils/audit.js";
 
 export async function appsRoutes(app: FastifyInstance) {
@@ -32,10 +37,17 @@ export async function appsRoutes(app: FastifyInstance) {
         .where(and(inArray(apps.team_id, teamIds), isNull(apps.deleted_at)))
         .orderBy(asc(apps.created_at), asc(apps.id));
 
-      const secretMap = await getClientSecretMap(app.db, rows.map(r => r.id));
+      const [secretMap, deltaMap] = await Promise.all([
+        getClientSecretMap(app.db, rows.map(r => r.id)),
+        getWorldwideRatingDeltaMap(app.db, teamIds),
+      ]);
 
       return {
-        apps: rows.map(r => serializeApp({ ...r, client_secret: secretMap.get(r.id) ?? null })),
+        apps: rows.map(r => serializeApp({
+          ...r,
+          client_secret: secretMap.get(r.id) ?? null,
+          worldwide_rating_count_delta: deltaMap.get(r.id) ?? null,
+        })),
       };
     }
   );

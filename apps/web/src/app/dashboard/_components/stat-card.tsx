@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DeltaIndicator } from "@/components/delta-indicator";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -12,6 +13,10 @@ interface StatCardProps {
   icon: LucideIcon;
   href?: string;
   isLoading?: boolean;
+  // Optional trailing "+N" / "-N" indicator (e.g. ratings since previous sync).
+  // Defaults to muted tone — colored stats opt in explicitly.
+  delta?: number | null;
+  deltaTone?: "muted" | "colored";
 }
 
 export function StatCard({
@@ -21,6 +26,8 @@ export function StatCard({
   icon: Icon,
   href,
   isLoading,
+  delta,
+  deltaTone = "muted",
 }: StatCardProps) {
   const body = (
     <div className="group relative block min-w-0 px-5 py-5 transition-colors hover:bg-muted/40 h-full">
@@ -50,6 +57,7 @@ export function StatCard({
               {secondary}
             </span>
           )}
+          <DeltaIndicator delta={delta} tone={deltaTone} className="text-sm font-medium" />
         </p>
       )}
     </div>

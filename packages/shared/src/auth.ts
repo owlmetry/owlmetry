@@ -185,6 +185,7 @@ export interface App {
   apple_app_store_id: number | null;
   worldwide_average_rating: number | null;
   worldwide_rating_count: number | null;
+  worldwide_rating_count_delta: number | null;
   worldwide_current_version_rating: number | null;
   worldwide_current_version_rating_count: number | null;
   ratings_synced_at: Date | null;

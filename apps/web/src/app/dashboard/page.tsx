@@ -135,17 +135,24 @@ export default function DashboardPage() {
     const apps = appsData?.apps ?? [];
     let totalRatings = 0;
     let weightedSum = 0;
+    let delta = 0;
+    let hasDelta = false;
     for (const a of apps) {
       const rating = a.worldwide_average_rating;
       const count = a.worldwide_rating_count ?? 0;
       if (rating === null || rating === undefined || count <= 0) continue;
       totalRatings += count;
       weightedSum += rating * count;
+      if (a.worldwide_rating_count_delta != null) {
+        delta += a.worldwide_rating_count_delta;
+        hasDelta = true;
+      }
     }
-    if (totalRatings === 0) return { avg: undefined, total: undefined };
+    if (totalRatings === 0) return { avg: undefined, total: undefined, delta: null };
     return {
       avg: (weightedSum / totalRatings).toFixed(2),
       total: totalRatings,
+      delta: hasDelta ? delta : null,
     };
   }, [appsData]);
   const ratingValue = ratingSummary.avg !== undefined ? `★ ${ratingSummary.avg}` : "—";
@@ -237,6 +244,7 @@ export default function DashboardPage() {
           icon={Star}
           value={ratingValue}
           secondary={ratingSecondary}
+          delta={ratingSummary.delta}
           isLoading={appsLoading}
           href="/dashboard/projects"
         />

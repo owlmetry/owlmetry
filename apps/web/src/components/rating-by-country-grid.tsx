@@ -5,6 +5,7 @@ import useSWR from "swr";
 import type { AppRatingsResponse } from "@owlmetry/shared";
 import { countryName, countryFlag } from "@owlmetry/shared/app-store-countries";
 import { ChevronDown, ChevronRight, Star } from "lucide-react";
+import { DeltaIndicator } from "@/components/delta-indicator";
 
 interface RatingByCountryGridProps {
   projectId: string;
@@ -60,6 +61,7 @@ export function RatingByCountryGrid({ projectId, appId, initialCount = 12 }: Rat
                       {r.average_rating !== null ? r.average_rating.toFixed(2) : "—"}{" "}
                       <Star className="inline h-3 w-3 fill-amber-400 text-amber-400 align-text-bottom" />{" "}
                       <span className="text-muted-foreground">({r.rating_count.toLocaleString()})</span>
+                      <DeltaIndicator delta={r.rating_count_delta} />
                     </span>
                   </div>
                 ))}

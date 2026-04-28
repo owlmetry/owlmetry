@@ -256,6 +256,9 @@ export interface PerCountryRating {
   country_code: string;
   average_rating: number | null;
   rating_count: number;
+  // Change in rating_count since the previous daily snapshot. Null when no
+  // prior snapshot exists for this country (first-day data).
+  rating_count_delta: number | null;
   current_version_average_rating: number | null;
   current_version_rating_count: number | null;
   app_version: string | null;
@@ -265,6 +268,9 @@ export interface PerCountryRating {
 export interface AppRatingSummary {
   worldwide_average: number | null;
   worldwide_count: number;
+  // Sum of rating_count_delta across countries with prior data; null if no
+  // country has a prior snapshot for this app.
+  worldwide_rating_count_delta: number | null;
   current_version_average: number | null;
   current_version_count: number | null;
   synced_at: string | null;
@@ -279,6 +285,7 @@ export interface RatingsByCountryRow {
   country_code: string;
   average_rating: number;
   rating_count: number;
+  rating_count_delta: number | null;
 }
 
 export interface RatingsByCountryResponse {

@@ -36,6 +36,7 @@ import {
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { Star, MessageCircle, Trash2, Reply, Pencil } from "lucide-react";
 import { countryName, countryFlag } from "@owlmetry/shared/app-store-countries";
+import { DeltaIndicator } from "@/components/delta-indicator";
 
 const STORE_LABELS: Record<ReviewStore, string> = {
   app_store: "🍎 App Store",
@@ -424,18 +425,26 @@ function ReviewDetailModal({
 // Compute (weighted-average rating, total ratings) across a set of apps using
 // each app's worldwide cache (worldwide_average_rating × worldwide_rating_count).
 // Mirrors the math used on the main dashboard (apps/web/src/app/dashboard/page.tsx).
-function ratingSummary(apps: AppResponse[]): { avg: number; total: number } | null {
+function ratingSummary(
+  apps: AppResponse[],
+): { avg: number; total: number; delta: number | null } | null {
   let weighted = 0;
   let total = 0;
+  let delta = 0;
+  let hasDelta = false;
   for (const a of apps) {
     const r = a.worldwide_average_rating;
     const c = a.worldwide_rating_count ?? 0;
     if (r === null || r === undefined || c <= 0) continue;
     weighted += r * c;
     total += c;
+    if (a.worldwide_rating_count_delta != null) {
+      delta += a.worldwide_rating_count_delta;
+      hasDelta = true;
+    }
   }
   if (total === 0) return null;
-  return { avg: weighted / total, total };
+  return { avg: weighted / total, total, delta: hasDelta ? delta : null };
 }
 
 function RatingsPanel({
@@ -467,7 +476,10 @@ function RatingsPanel({
           const summary = ratingSummary(apps.filter((a) => a.project_id === p.id));
           return summary ? { project: p, ...summary } : null;
         })
-        .filter((x): x is { project: ProjectResponse; avg: number; total: number } => x !== null)
+        .filter(
+          (x): x is { project: ProjectResponse; avg: number; total: number; delta: number | null } =>
+            x !== null,
+        )
         .sort((a, b) => b.total - a.total)
     : [];
 
@@ -502,6 +514,7 @@ function RatingsPanel({
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {heroSummary.total.toLocaleString()} ratings
+                  <DeltaIndicator delta={heroSummary.delta} />
                 </span>
               </div>
             ) : (
@@ -530,6 +543,7 @@ function RatingsPanel({
                   <span className="text-sm tabular-nums whitespace-nowrap">
                     <span className="text-amber-500">★</span> {row.avg.toFixed(2)}{" "}
                     <span className="text-muted-foreground">({row.total.toLocaleString()})</span>
+                    <DeltaIndicator delta={row.delta} />
                   </span>
                 </div>
               ))}
@@ -550,6 +564,7 @@ function RatingsPanel({
                   <p className="text-sm font-medium tabular-nums">
                     {c.average_rating.toFixed(2)} <span className="text-amber-500">★</span>{" "}
                     <span className="text-muted-foreground">({c.rating_count.toLocaleString()})</span>
+                    <DeltaIndicator delta={c.rating_count_delta} />
                   </p>
                 </div>
               ))}
