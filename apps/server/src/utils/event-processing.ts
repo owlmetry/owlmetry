@@ -28,6 +28,20 @@ export function parseCountryHeader(
 }
 
 /**
+ * Resolve the country code for an ingested row given the request's
+ * `CF-IPCountry` header and the app's platform. Backend apps' requests come
+ * from the customer's server (a hosting datacenter), not real users — the
+ * header value is meaningless there, so it's dropped.
+ */
+export function resolveIngestCountryCode(
+  header: string | string[] | undefined,
+  platform: string
+): string | null {
+  if (platform === "backend") return null;
+  return parseCountryHeader(header);
+}
+
+/**
  * Validate common event fields (message, level, session_id, timestamp format, future check).
  * If `maxAgeDays` is provided, also rejects timestamps older than that many days.
  */

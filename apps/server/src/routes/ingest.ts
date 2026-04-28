@@ -13,7 +13,7 @@ import {
   buildEventRow,
   dualWriteSpecializedEvents,
   upsertAppUsers,
-  parseCountryHeader,
+  resolveIngestCountryCode,
 } from "../utils/event-processing.js";
 import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
 
@@ -56,12 +56,10 @@ export async function ingestRoutes(app: FastifyInstance) {
           .send({ error: "App associated with this API key no longer exists" });
       }
 
-      // Backend apps' requests come from the customer's server (a hosting
-      // provider), not real users — the CF-IPCountry value is meaningless.
-      const countryCode =
-        appRow.platform === "backend"
-          ? null
-          : parseCountryHeader(request.headers["cf-ipcountry"]);
+      const countryCode = resolveIngestCountryCode(
+        request.headers["cf-ipcountry"],
+        appRow.platform
+      );
 
       if (appRow.bundle_id) {
         if (!bundle_id || typeof bundle_id !== "string") {
