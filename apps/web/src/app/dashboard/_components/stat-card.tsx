@@ -13,10 +13,9 @@ interface StatCardProps {
   icon: LucideIcon;
   href?: string;
   isLoading?: boolean;
-  // Optional trailing "+N" / "-N" indicator (e.g. ratings since previous sync).
-  // Defaults to muted tone — colored stats opt in explicitly.
+  // Optional trailing "+N" / "-N" indicator (muted; colored deltas live on
+  // dedicated rating surfaces, not on dashboard stat tiles).
   delta?: number | null;
-  deltaTone?: "muted" | "colored";
 }
 
 export function StatCard({
@@ -27,7 +26,6 @@ export function StatCard({
   href,
   isLoading,
   delta,
-  deltaTone = "muted",
 }: StatCardProps) {
   const body = (
     <div className="group relative block min-w-0 px-5 py-5 transition-colors hover:bg-muted/40 h-full">
@@ -57,7 +55,7 @@ export function StatCard({
               {secondary}
             </span>
           )}
-          <DeltaIndicator delta={delta} tone={deltaTone} className="text-sm font-medium" />
+          <DeltaIndicator delta={delta} tone="muted" className="text-sm font-medium" />
         </p>
       )}
     </div>

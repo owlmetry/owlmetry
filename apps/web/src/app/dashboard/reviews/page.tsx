@@ -37,6 +37,7 @@ import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { Star, MessageCircle, Trash2, Reply, Pencil } from "lucide-react";
 import { countryName, countryFlag } from "@owlmetry/shared/app-store-countries";
 import { DeltaIndicator } from "@/components/delta-indicator";
+import { computeRatingSummary } from "@/lib/rating-summary";
 
 const STORE_LABELS: Record<ReviewStore, string> = {
   app_store: "🍎 App Store",
@@ -422,31 +423,6 @@ function ReviewDetailModal({
   );
 }
 
-// Compute (weighted-average rating, total ratings) across a set of apps using
-// each app's worldwide cache (worldwide_average_rating × worldwide_rating_count).
-// Mirrors the math used on the main dashboard (apps/web/src/app/dashboard/page.tsx).
-function ratingSummary(
-  apps: AppResponse[],
-): { avg: number; total: number; delta: number | null } | null {
-  let weighted = 0;
-  let total = 0;
-  let delta = 0;
-  let hasDelta = false;
-  for (const a of apps) {
-    const r = a.worldwide_average_rating;
-    const c = a.worldwide_rating_count ?? 0;
-    if (r === null || r === undefined || c <= 0) continue;
-    weighted += r * c;
-    total += c;
-    if (a.worldwide_rating_count_delta != null) {
-      delta += a.worldwide_rating_count_delta;
-      hasDelta = true;
-    }
-  }
-  if (total === 0) return null;
-  return { avg: weighted / total, total, delta: hasDelta ? delta : null };
-}
-
 function RatingsPanel({
   apps,
   projects,
@@ -468,12 +444,12 @@ function RatingsPanel({
     if (appId !== ALL && a.id !== appId) return false;
     return true;
   });
-  const heroSummary = ratingSummary(scopedApps);
+  const heroSummary = computeRatingSummary(scopedApps);
 
   const perProject = !selectedProjectId
     ? projects
         .map((p) => {
-          const summary = ratingSummary(apps.filter((a) => a.project_id === p.id));
+          const summary = computeRatingSummary(apps.filter((a) => a.project_id === p.id));
           return summary ? { project: p, ...summary } : null;
         })
         .filter(

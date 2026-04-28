@@ -25,18 +25,11 @@ function parseStore(raw: string | undefined): ReviewStore {
   return raw && (REVIEW_STORES as readonly string[]).includes(raw) ? (raw as ReviewStore) : APP_STORE;
 }
 
-// Aggregate ratings by country across the projects matching `projectFilter`
-// (and optionally a single app), using the latest snapshot per (app, country)
-// and including a delta vs the second-latest snapshot. Window function pulls
-// the top 2 snapshots per (app, country); LEFT JOIN exposes both as one row.
-//
-// rating_count_delta semantics:
-//   - Sum (latest.rating_count − previous.rating_count) per country, across
-//     apps that have a previous snapshot. Apps with no previous snapshot
-//     contribute 0 (we don't know if their ratings actually grew, just that
-//     we have data now).
-//   - Result is NULL when no app/country pair has a previous snapshot —
-//     keeps the UI silent rather than rendering "+0".
+// rating_count_delta semantics: sum (latest − previous) per country across
+// apps that have a previous snapshot. Apps with no previous snapshot
+// contribute 0 (we don't know if their ratings actually grew, just that we
+// have data now). NULL when no app/country pair has a previous snapshot —
+// keeps the UI silent rather than rendering "+0".
 function aggregateByCountryWithDeltas(opts: {
   projectFilter: ReturnType<typeof sql>;
   appId?: string;
@@ -105,9 +98,6 @@ export async function ratingsRoutes(app: FastifyInstance) {
 
       const store = parseStore(request.query.store);
 
-      // ROW_NUMBER() pivots the latest two snapshots per country into one row
-      // so we can compute (latest − previous) without a second round-trip.
-      // previous_rating_count is null when this country has no prior snapshot.
       type PerCountryDbRow = {
         country_code: string;
         average_rating: string | null;

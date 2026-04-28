@@ -2,16 +2,11 @@ import { cn } from "@/lib/utils";
 
 interface DeltaIndicatorProps {
   delta: number | null | undefined;
-  // "muted" → text-muted-foreground; "colored" → emerald (positive) / red (negative).
-  // Defaults to "colored" since most surfaces want the green/red signal; the
-  // dashboard StatCard opts into "muted".
   tone?: "muted" | "colored";
   className?: string;
 }
 
-// Renders "+1,234" / "-1,234" next to a count. Hides when no signal (null,
-// undefined, or 0) — keeps the surrounding row visually quiet on first-day
-// data and on stable counts.
+// Hides on null/undefined/0 — keeps stable rows visually quiet.
 export function DeltaIndicator({ delta, tone = "colored", className }: DeltaIndicatorProps) {
   if (delta == null || delta === 0) return null;
   const formatted = delta > 0 ? `+${delta.toLocaleString()}` : delta.toLocaleString();

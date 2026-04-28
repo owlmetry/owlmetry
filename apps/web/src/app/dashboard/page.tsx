@@ -14,6 +14,7 @@ import { useUser } from "@/hooks/use-user";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
+import { computeRatingSummary } from "@/lib/rating-summary";
 import { StatCard, StatRow } from "./_components/stat-card";
 import { OpenIssuesPanel } from "./_components/open-issues-panel";
 import { RecentEventsPanel } from "./_components/recent-events-panel";
@@ -131,33 +132,12 @@ export default function DashboardPage() {
   // daily by app_store_ratings_sync). Weight again here by per-app rating
   // count so a 5-star app with 1 rating doesn't outweigh a 4-star app with
   // 50,000. Apps without a synced rating yet are skipped.
-  const ratingSummary = useMemo(() => {
-    const apps = appsData?.apps ?? [];
-    let totalRatings = 0;
-    let weightedSum = 0;
-    let delta = 0;
-    let hasDelta = false;
-    for (const a of apps) {
-      const rating = a.worldwide_average_rating;
-      const count = a.worldwide_rating_count ?? 0;
-      if (rating === null || rating === undefined || count <= 0) continue;
-      totalRatings += count;
-      weightedSum += rating * count;
-      if (a.worldwide_rating_count_delta != null) {
-        delta += a.worldwide_rating_count_delta;
-        hasDelta = true;
-      }
-    }
-    if (totalRatings === 0) return { avg: undefined, total: undefined, delta: null };
-    return {
-      avg: (weightedSum / totalRatings).toFixed(2),
-      total: totalRatings,
-      delta: hasDelta ? delta : null,
-    };
-  }, [appsData]);
-  const ratingValue = ratingSummary.avg !== undefined ? `★ ${ratingSummary.avg}` : "—";
-  const ratingSecondary =
-    ratingSummary.total !== undefined ? ratingSummary.total.toLocaleString() : undefined;
+  const ratingSummary = useMemo(
+    () => computeRatingSummary(appsData?.apps ?? []),
+    [appsData],
+  );
+  const ratingValue = ratingSummary ? `★ ${ratingSummary.avg.toFixed(2)}` : "—";
+  const ratingSecondary = ratingSummary ? ratingSummary.total.toLocaleString() : undefined;
 
   const today = formatLongDate(new Date());
   const firstName = user?.name?.split(" ")[0];
@@ -244,7 +224,7 @@ export default function DashboardPage() {
           icon={Star}
           value={ratingValue}
           secondary={ratingSecondary}
-          delta={ratingSummary.delta}
+          delta={ratingSummary?.delta}
           isLoading={appsLoading}
           href="/dashboard/projects"
         />
