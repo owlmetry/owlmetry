@@ -157,16 +157,6 @@ reviewsCommand
   });
 
 reviewsCommand
-  .command("delete <reviewId>")
-  .description("Delete (hide) a review (user-only; agent keys are not allowed)")
-  .requiredOption("--project-id <id>", "Project ID")
-  .action(async (reviewId: string, opts: { projectId: string }, cmd) => {
-    const { client, globals } = createClient(cmd);
-    const result = await client.deleteReview(opts.projectId, reviewId);
-    output(globals.format as OutputFormat, result, () => chalk.green("Review deleted"));
-  });
-
-reviewsCommand
   .command("respond <reviewId>")
   .description("Reply to an App Store review (creates or replaces the developer response on Apple's side)")
   .requiredOption("--project-id <id>", "Project ID")

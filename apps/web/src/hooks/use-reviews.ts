@@ -60,8 +60,6 @@ export function useRatingsByCountry(
 }
 
 export const reviewActions = {
-  remove: (projectId: string, reviewId: string) =>
-    api.delete(`/v1/projects/${projectId}/reviews/${reviewId}`),
   respond: (projectId: string, reviewId: string, body: string) =>
     api.put<ReviewResponse>(`/v1/projects/${projectId}/reviews/${reviewId}/response`, { body }),
   deleteResponse: (projectId: string, reviewId: string) =>

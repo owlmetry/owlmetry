@@ -29,7 +29,7 @@ import {
 
 /**
  * Single-query review-with-app-name load (LEFT JOIN). Returns null when the
- * review doesn't exist for the given project or has been soft-deleted.
+ * review doesn't exist for the given project.
  */
 async function loadReviewWithAppName(
   app: FastifyInstance,
@@ -43,13 +43,7 @@ async function loadReviewWithAppName(
     })
     .from(appStoreReviews)
     .leftJoin(apps, eq(apps.id, appStoreReviews.app_id))
-    .where(
-      and(
-        eq(appStoreReviews.id, reviewId),
-        eq(appStoreReviews.project_id, projectId),
-        isNull(appStoreReviews.deleted_at),
-      ),
-    )
+    .where(and(eq(appStoreReviews.id, reviewId), eq(appStoreReviews.project_id, projectId)))
     .limit(1);
   if (!joined) return null;
   return { row: joined.review, appName: joined.appName ?? "" };
@@ -166,7 +160,6 @@ export async function reviewsRoutes(app: FastifyInstance) {
 
       const conditions = [
         eq(appStoreReviews.project_id, projectId),
-        isNull(appStoreReviews.deleted_at),
         ...buildFilterConditions(filters),
       ];
       const cursorClause = cursorCondition(cursor);
@@ -188,46 +181,6 @@ export async function reviewsRoutes(app: FastifyInstance) {
       if (!loaded) return reply.code(404).send({ error: "Review not found" });
 
       return serializeReview(loaded.row, loaded.appName);
-    },
-  );
-
-  // Soft-delete a review (hide from dashboard). User-only — agent keys 403,
-  // matching the feedback delete precedent.
-  app.delete<{ Params: { projectId: string; reviewId: string } }>(
-    "/reviews/:reviewId",
-    { preHandler: requirePermission("reviews:write") },
-    async (request, reply) => {
-      if (request.auth.type !== "user") {
-        return reply.code(403).send({ error: "Only users can delete reviews" });
-      }
-      const { projectId, reviewId } = request.params;
-      const project = await resolveProject(app, projectId, request.auth, reply);
-      if (!project) return;
-
-      const deleted = await app.db
-        .update(appStoreReviews)
-        .set({ deleted_at: new Date() })
-        .where(
-          and(
-            eq(appStoreReviews.id, reviewId),
-            eq(appStoreReviews.project_id, projectId),
-            isNull(appStoreReviews.deleted_at),
-          ),
-        )
-        .returning({ id: appStoreReviews.id });
-
-      if (deleted.length === 0) {
-        return reply.code(404).send({ error: "Review not found" });
-      }
-
-      logAuditEvent(app.db, request.auth, {
-        team_id: project.team_id,
-        action: "delete",
-        resource_type: "app_store_review",
-        resource_id: reviewId,
-      });
-
-      return { deleted: true };
     },
   );
 
@@ -481,8 +434,8 @@ export async function reviewsRoutes(app: FastifyInstance) {
 // "all projects" view works.
 export async function teamReviewsRoutes(app: FastifyInstance) {
   // Lightweight count endpoint for the dashboard stat card. Returns total
-  // active (non-deleted) reviews across every project the caller can see.
-  // Optionally narrowed to a single team or project.
+  // reviews across every project the caller can see. Optionally narrowed to a
+  // single team or project.
   app.get<{ Querystring: { team_id?: string; project_id?: string; since?: string } }>(
     "/reviews/count",
     { preHandler: requirePermission("reviews:read") },
@@ -503,10 +456,7 @@ export async function teamReviewsRoutes(app: FastifyInstance) {
       if (accessibleProjects.length === 0) return { count: 0 };
 
       const projectIds = accessibleProjects.map((p) => p.id);
-      const conditions = [
-        inArray(appStoreReviews.project_id, projectIds),
-        isNull(appStoreReviews.deleted_at),
-      ];
+      const conditions = [inArray(appStoreReviews.project_id, projectIds)];
       if (since) {
         conditions.push(sql`${appStoreReviews.created_at_in_store} >= ${since}::timestamptz`);
       }
@@ -555,7 +505,6 @@ export async function teamReviewsRoutes(app: FastifyInstance) {
       const projectIds = accessibleProjects.map((p) => p.id);
       const conditions = [
         inArray(appStoreReviews.project_id, projectIds),
-        isNull(appStoreReviews.deleted_at),
         ...buildFilterConditions(filters),
       ];
       const cursorClause = cursorCondition(cursor);

@@ -432,10 +432,6 @@ export class OwlmetryClient {
     return this.request<ReviewResponse>("GET", `/v1/projects/${projectId}/reviews/${reviewId}`);
   }
 
-  async deleteReview(projectId: string, reviewId: string): Promise<{ deleted: boolean }> {
-    return this.request<{ deleted: boolean }>("DELETE", `/v1/projects/${projectId}/reviews/${reviewId}`);
-  }
-
   async respondToReview(projectId: string, reviewId: string, body: string): Promise<ReviewResponse> {
     return this.request<ReviewResponse>(
       "PUT",

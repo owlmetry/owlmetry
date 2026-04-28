@@ -891,7 +891,8 @@ export const eventDeletions = pgTable(
 // Distinct from in-app `feedback` (which has a session+user+device context). Schema
 // supports both stores from day 1; Apple reviews are populated via the App Store
 // Connect API (per-project integration). Dedupe on (app_id, store, external_id).
-// Soft-deletable so the dashboard can hide a row without losing it on the next sync.
+// Hard-deleted by the sync job when a review disappears from ASC — App Store is
+// the sole source of truth.
 export const appStoreReviews = pgTable(
   "app_store_reviews",
   {
@@ -935,7 +936,6 @@ export const appStoreReviews = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
-    deleted_at: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("app_store_reviews_app_store_external_idx").on(
@@ -943,12 +943,11 @@ export const appStoreReviews = pgTable(
       table.store,
       table.external_id,
     ),
-    index("app_store_reviews_project_created_idx")
-      .on(table.project_id, table.created_at_in_store)
-      .where(sql`${table.deleted_at} IS NULL`),
-    index("app_store_reviews_app_created_idx")
-      .on(table.app_id, table.created_at_in_store)
-      .where(sql`${table.deleted_at} IS NULL`),
+    index("app_store_reviews_project_created_idx").on(
+      table.project_id,
+      table.created_at_in_store,
+    ),
+    index("app_store_reviews_app_created_idx").on(table.app_id, table.created_at_in_store),
     index("app_store_reviews_project_rating_idx").on(table.project_id, table.rating),
   ]
 );

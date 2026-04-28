@@ -53,9 +53,9 @@ Each Apple Developer account needs its own integration row — ASC keys can't be
 4. Copy the **Issuer ID** (top of the page) and **Key ID** (10-character alphanumeric, also embedded in the `.p8` filename like `AuthKey_ABC1234567.p8`).
 5. In Owlmetry, go to **Dashboard → Integrations → App Store Connect → Set up**, paste all three (Issuer ID, Key ID, full `.p8` contents).
 6. Click **Test connection** to confirm Apple accepts the key — it returns the list of apps visible to the key. If your Owlmetry app's bundle ID isn't in the list, the key was generated under the wrong Apple Developer team.
-7. Click **Sync reviews**. The first sync ingests every review Apple has on file (paginated 200 at a time, newest-first). Subsequent syncs stop at the first review they've already seen, so they're cheap.
+7. Click **Sync reviews**. Every sync paginates through all reviews Apple has on file (200 at a time, newest-first) and reconciles — anything that vanished from ASC since the last run is hard-deleted locally.
 
-Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app_id, store, external_id)` so re-runs never insert duplicates. Reviews are soft-deletable so you can hide a row from the dashboard without losing it on the next sync.
+Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app_id, store, external_id)` so re-runs never insert duplicates. App Store Connect is the single source of truth — there is no local hide/un-hide. If a review disappears from ASC (Apple takedown, reviewer deletion, moderation), the next sync drops it from Owlmetry too. Partial sync failures (transport errors, rate-limit aborts) skip the reconciliation step for the affected app so an incomplete view never wipes real rows.
 
 ## Where to See Them
 
@@ -66,7 +66,7 @@ Schemas + idempotency: the `app_store_reviews` table has a unique index on `(app
 
 **Reviews** (individual customer reviews with text):
 - **Web dashboard**: `/dashboard/reviews` — list view with filters (app, store, rating, country, has-developer-response, full-text search). The detail dialog has the full reply round-trip.
-- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews delete <id>`, `owlmetry reviews respond <id>`, `owlmetry reviews delete-response <id> --yes`.
+- **CLI**: `owlmetry reviews list`, `owlmetry reviews view <id>`, `owlmetry reviews respond <id>`, `owlmetry reviews delete-response <id> --yes`.
 - **MCP**: `list-reviews`, `get-review`, `respond-to-review`, `delete-review-response`.
 
 ## Replying to App Store Reviews
@@ -86,7 +86,6 @@ You can reply to an Apple review directly from the dashboard, CLI, MCP, or the i
 **Permissions**:
 - Replies are gated on `reviews:write`. Both **users** and **agent keys** with that permission can reply, edit, and delete a reply (matches the user's flow when an agent triages public reviews via MCP).
 - The `responded_by_user_id` column attributes user-submitted replies. Agent-submitted replies leave it null.
-- The pre-existing soft-delete-review action (which only hides the review from the dashboard, doesn't touch ASC) is unchanged: still `reviews:write`, still user-only.
 
 **Replies that arrived from outside Owlmetry** (created in ASC's web UI before this feature, or by another team member directly in ASC): the daily sync ingests them with the response body but without a `developer_response_id`, so Owlmetry can't DELETE them directly. Re-posting through Owlmetry's PUT route works — it'll fall through to the POST path. To delete one via Owlmetry, sync the integration first to pick up the response ID Apple returns.
 
@@ -99,7 +98,7 @@ CLI: `owlmetry integrations copy app-store-connect --from <source-project-id> --
 ## Permissions
 
 - `reviews:read` — list / view ratings or reviews (default for new agent keys; ratings reuse the same permission)
-- `reviews:write` — soft-delete a review (user-only), trigger a manual ratings sync (admin role), **and** post / edit / delete a reply via Apple (users and agent keys both allowed for the reply round-trip)
+- `reviews:write` — trigger a manual ratings sync (admin role) **and** post / edit / delete a reply via Apple (users and agent keys both allowed for the reply round-trip)
 - `integrations:write` — required to set up / update / sync the App Store Connect integration
 
 ## When Data Doesn't Show Up

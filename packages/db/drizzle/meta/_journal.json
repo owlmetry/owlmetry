@@ -330,6 +330,13 @@
       "when": 1777361993482,
       "tag": "0046_lethal_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1777382716827,
+      "tag": "0047_aromatic_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

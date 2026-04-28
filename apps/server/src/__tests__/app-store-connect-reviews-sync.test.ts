@@ -192,30 +192,27 @@ describe("app_store_connect_reviews_sync", () => {
     vi.unstubAllGlobals();
   });
 
-  it("stops paginating an app when a known external_id appears mid-page", async () => {
+  it("paginates through every page until next link is absent", async () => {
     await setIntegration();
-    // Pre-seed one review so the first page has 1 known + 1 new.
-    await db.insert(appStoreReviews).values({
-      team_id: teamId,
-      project_id: projectId,
-      app_id: appleAppId,
-      store: "app_store",
-      external_id: "known-1",
-      rating: 5,
-      body: "old",
-      country_code: "us",
-      created_at_in_store: new Date("2026-01-10"),
-    });
 
     let callCount = 0;
     const fetchMock = vi.fn(async () => {
       callCount++;
-      // First (and only) page returns known-1 + new-1, with a next link.
-      // The job should stop after this page because of the duplicate.
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({
+            data: [makeReviewPayload("rev-1"), makeReviewPayload("rev-2")],
+            links: {
+              next: "https://api.appstoreconnect.apple.com/v1/apps/999999999/customerReviews?cursor=PAGE2",
+            },
+          }),
+          { status: 200 },
+        );
+      }
       return new Response(
         JSON.stringify({
-          data: [makeReviewPayload("new-1"), makeReviewPayload("known-1")],
-          links: { next: "https://api.appstoreconnect.apple.com/v1/apps/999999999/customerReviews?cursor=NEXT" },
+          data: [makeReviewPayload("rev-3")],
+          links: {},
         }),
         { status: 200 },
       );
@@ -227,10 +224,151 @@ describe("app_store_connect_reviews_sync", () => {
     );
     const result = await appStoreConnectReviewsSyncHandler(jobCtx(), { project_id: projectId });
 
-    expect(callCount).toBe(1);
-    expect(result.pages_fetched).toBe(1);
+    expect(callCount).toBe(2);
+    expect(result.pages_fetched).toBe(2);
+    expect(result.reviews_ingested).toBe(3);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("hard-deletes reviews missing from ASC after a successful full sync", async () => {
+    await setIntegration();
+    // Pre-seed two rows: one that ASC will return ("kept"), one it won't ("gone").
+    await db.insert(appStoreReviews).values([
+      {
+        team_id: teamId,
+        project_id: projectId,
+        app_id: appleAppId,
+        store: "app_store",
+        external_id: "kept-1",
+        rating: 5,
+        body: "still on apple",
+        country_code: "us",
+        created_at_in_store: new Date("2026-01-10"),
+      },
+      {
+        team_id: teamId,
+        project_id: projectId,
+        app_id: appleAppId,
+        store: "app_store",
+        external_id: "gone-1",
+        rating: 1,
+        body: "removed by apple",
+        country_code: "us",
+        created_at_in_store: new Date("2026-01-09"),
+      },
+    ]);
+
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [makeReviewPayload("kept-1"), makeReviewPayload("new-1")],
+          links: {},
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    const result = await appStoreConnectReviewsSyncHandler(jobCtx(), { project_id: projectId });
+
     expect(result.reviews_ingested).toBe(1);
     expect(result.reviews_skipped_duplicate).toBe(1);
+    expect(result.reviews_deleted).toBe(1);
+
+    const remaining = await db
+      .select({ external_id: appStoreReviews.external_id })
+      .from(appStoreReviews)
+      .where(eq(appStoreReviews.app_id, appleAppId));
+    expect(remaining.map((r) => r.external_id).sort()).toEqual(["kept-1", "new-1"]);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("does not delete anything when pagination errors out partway", async () => {
+    await setIntegration();
+    await db.insert(appStoreReviews).values({
+      team_id: teamId,
+      project_id: projectId,
+      app_id: appleAppId,
+      store: "app_store",
+      external_id: "preexisting-1",
+      rating: 5,
+      body: "untouched",
+      country_code: "us",
+      created_at_in_store: new Date("2026-01-10"),
+    });
+
+    let callCount = 0;
+    const fetchMock = vi.fn(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return new Response(
+          JSON.stringify({
+            data: [makeReviewPayload("rev-1")],
+            links: {
+              next: "https://api.appstoreconnect.apple.com/v1/apps/999999999/customerReviews?cursor=PAGE2",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("upstream blew up", { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    const result = await appStoreConnectReviewsSyncHandler(jobCtx(), { project_id: projectId });
+
+    expect(result.errors).toBeGreaterThan(0);
+    expect(result.reviews_deleted).toBe(0);
+
+    const remaining = await db
+      .select({ external_id: appStoreReviews.external_id })
+      .from(appStoreReviews)
+      .where(eq(appStoreReviews.app_id, appleAppId));
+    expect(remaining.map((r) => r.external_id).sort()).toEqual(["preexisting-1", "rev-1"]);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("wipes all rows for an app when ASC reports zero reviews", async () => {
+    await setIntegration();
+    await db.insert(appStoreReviews).values({
+      team_id: teamId,
+      project_id: projectId,
+      app_id: appleAppId,
+      store: "app_store",
+      external_id: "stale-1",
+      rating: 5,
+      body: "no longer on asc",
+      country_code: "us",
+      created_at_in_store: new Date("2026-01-10"),
+    });
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: [], links: {} }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    const result = await appStoreConnectReviewsSyncHandler(jobCtx(), { project_id: projectId });
+
+    expect(result.reviews_ingested).toBe(0);
+    expect(result.reviews_deleted).toBe(1);
+
+    const rows = await db
+      .select()
+      .from(appStoreReviews)
+      .where(eq(appStoreReviews.app_id, appleAppId));
+    expect(rows).toHaveLength(0);
 
     vi.unstubAllGlobals();
   });

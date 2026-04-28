@@ -1,4 +1,4 @@
-import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, notInArray } from "drizzle-orm";
 import { apps, appStoreReviews } from "@owlmetry/db";
 import { iso3ToIso2, INTEGRATION_PROVIDER_IDS } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
@@ -14,9 +14,15 @@ const APP_STORE = "app_store" as const;
 /**
  * Sweeps every Apple app in the project that has a populated apple_app_store_id
  * and pulls App Store reviews via the customerReviews endpoint. Newest-first
- * pagination — for each page we insert with ON CONFLICT DO NOTHING and stop the
- * whole sync for that app as soon as a page contains a review we already have
- * (the unique index on `(app_id, store, external_id)` makes re-runs cheap).
+ * pagination — pages all the way through for every app so we have a complete
+ * picture of what ASC currently exposes, then reconciles: anything in our DB
+ * for that app whose `external_id` didn't show up in ASC is hard-deleted.
+ * Inserts use ON CONFLICT DO NOTHING on `(app_id, store, external_id)` so
+ * already-present rows stay put across re-runs.
+ *
+ * Reconciliation only runs when pagination completed cleanly for that app —
+ * partial failures (transport error, rate-limit abort, cancellation) skip the
+ * delete step so we never wipe rows from an incomplete view.
  *
  * Auth failures abort the entire run early — every subsequent app would fail
  * the same way against the same credentials.
@@ -56,6 +62,7 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
   let pagesFetched = 0;
   let reviewsIngested = 0;
   let reviewsSkippedDuplicate = 0;
+  let reviewsDeleted = 0;
   let errors = 0;
   let rateLimitWaits = 0;
   const errorStatusCounts: Record<string, number> = {};
@@ -73,9 +80,10 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
 
     let cursorUrl: string | undefined;
     let appPagesFetched = 0;
-    let stopThisApp = false;
+    let paginatedFully = false;
+    const seenExternalIds = new Set<string>();
 
-    while (!stopThisApp) {
+    while (true) {
       if (ctx.isCancelled()) break outer;
 
       const result = await listAppStoreConnectReviews(ascConfig, app.apple_app_store_id, {
@@ -114,7 +122,8 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
       }
       if (result.status === "not_found") {
         // App not visible to this ASC key (e.g. removed from sale, or key
-        // doesn't have access to that team's apps). Move on quietly.
+        // doesn't have access to that team's apps). Move on quietly without
+        // reconciling — a transient access loss must not wipe rows.
         break;
       }
 
@@ -122,26 +131,31 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
       pagesFetched++;
       appPagesFetched++;
 
-      if (reviews.length === 0) break;
+      for (const review of reviews) seenExternalIds.add(review.id);
 
-      const inserted = await insertReviewsPage(ctx.db, app, reviews);
-      reviewsIngested += inserted.inserted;
-      reviewsSkippedDuplicate += inserted.duplicates;
+      if (reviews.length > 0) {
+        const inserted = await insertReviewsPage(ctx.db, app, reviews);
+        reviewsIngested += inserted.inserted;
+        reviewsSkippedDuplicate += inserted.duplicates;
+      }
 
-      // Stop pagination if any review on this page was already in the DB —
-      // because reviews come back newest-first, anything older than the first
-      // duplicate is also already present.
-      if (inserted.duplicates > 0) stopThisApp = true;
-
-      if (!nextCursor) break;
+      if (!nextCursor) {
+        paginatedFully = true;
+        break;
+      }
       cursorUrl = nextCursor;
+    }
+
+    if (paginatedFully) {
+      const deleted = await reconcileApp(ctx.db, app, seenExternalIds);
+      reviewsDeleted += deleted;
     }
 
     appsProcessed++;
     await ctx.updateProgress({
       processed: appsProcessed,
       total: targetApps.length,
-      message: `Processed ${appsProcessed}/${targetApps.length} apps (${reviewsIngested} new reviews, ${appPagesFetched} pages this app)`,
+      message: `Processed ${appsProcessed}/${targetApps.length} apps (${reviewsIngested} new, ${reviewsDeleted} removed, ${appPagesFetched} pages this app)`,
     });
   }
 
@@ -150,15 +164,51 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
     pages_fetched: pagesFetched,
     reviews_ingested: reviewsIngested,
     reviews_skipped_duplicate: reviewsSkippedDuplicate,
+    reviews_deleted: reviewsDeleted,
     errors,
     error_status_counts: errorStatusCounts,
     rate_limit_waits: rateLimitWaits,
     rate_limit_wait_seconds: totalRateLimitWaitSeconds,
     aborted,
     abort_reason: abortReason,
-    _silent: !aborted && reviewsIngested === 0 && errors === 0 && rateLimitWaits === 0,
+    _silent:
+      !aborted &&
+      reviewsIngested === 0 &&
+      reviewsDeleted === 0 &&
+      errors === 0 &&
+      rateLimitWaits === 0,
   };
 };
+
+async function reconcileApp(
+  db: Parameters<JobHandler>[0]["db"],
+  app: { id: string },
+  seenExternalIds: Set<string>,
+): Promise<number> {
+  // notInArray with an empty array is a SQL no-op in some Drizzle versions and
+  // would translate to "NOT IN ()" which Postgres rejects. Special-case it:
+  // an empty seen-set after a successful pagination means the app has zero
+  // reviews on ASC, so wipe everything we have for that app.
+  if (seenExternalIds.size === 0) {
+    const deleted = await db
+      .delete(appStoreReviews)
+      .where(and(eq(appStoreReviews.app_id, app.id), eq(appStoreReviews.store, APP_STORE)))
+      .returning({ id: appStoreReviews.id });
+    return deleted.length;
+  }
+
+  const deleted = await db
+    .delete(appStoreReviews)
+    .where(
+      and(
+        eq(appStoreReviews.app_id, app.id),
+        eq(appStoreReviews.store, APP_STORE),
+        notInArray(appStoreReviews.external_id, [...seenExternalIds]),
+      ),
+    )
+    .returning({ id: appStoreReviews.id });
+  return deleted.length;
+}
 
 interface InsertResult {
   inserted: number;

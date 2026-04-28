@@ -245,7 +245,6 @@ function ReviewDetailModal({
   onMutate: () => void;
 }) {
   const { review, isLoading, mutate: mutateDetail } = useReviewDetail(projectId, reviewId);
-  const [deleting, setDeleting] = useState(false);
 
   // Reply UI state
   const [replyMode, setReplyMode] = useState<"idle" | "compose" | "edit" | "delete">("idle");
@@ -257,18 +256,6 @@ function ReviewDetailModal({
     setReplyMode("idle");
     setErrorMessage(null);
   }, [reviewId]);
-
-  async function handleDelete() {
-    if (!review) return;
-    setDeleting(true);
-    try {
-      await reviewActions.remove(projectId, review.id);
-      onMutate();
-      onClose();
-    } finally {
-      setDeleting(false);
-    }
-  }
 
   async function handleSubmitReply(body: string) {
     setSubmitting(true);
@@ -427,19 +414,6 @@ function ReviewDetailModal({
                 )}
               </div>
             ) : null}
-
-            <div className="flex justify-end pt-2 border-t">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                Hide review
-              </Button>
-            </div>
           </div>
         )}
       </DialogContent>
