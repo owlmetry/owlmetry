@@ -114,9 +114,9 @@ describe("POST /v1/ingest", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().accepted).toBe(2);
 
-    // The dual-write to metric_events / funnel_events / app_users is fire-and-forget;
-    // give the event loop a tick for the inserts to land.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The dual-write to metric_events / funnel_events / app_users is fire-and-forget.
+    // 200ms matches the wait used in metrics.test.ts — 50ms is reliably too short on CI.
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
     const [eventRow] = await app.db
       .select({ sdk_name: events.sdk_name, sdk_version: events.sdk_version })
