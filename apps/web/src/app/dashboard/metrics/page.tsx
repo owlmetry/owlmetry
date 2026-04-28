@@ -14,7 +14,8 @@ function validateMetricSlug(slug: string): string | null {
   return null;
 }
 import { useTeam } from "@/contexts/team-context";
-import { useMetricDefinitions } from "@/hooks/use-metrics";
+import { useDataMode } from "@/contexts/data-mode-context";
+import { useMetricDefinitions, useMetricStats } from "@/hooks/use-metrics";
 import { useLastSelectedProject } from "@/hooks/use-last-selected-project";
 import { ProjectDot } from "@/lib/project-color";
 import { api } from "@/lib/api";
@@ -76,6 +77,10 @@ export default function MetricsPage() {
   }, [selectedProjectId, stored, lastProject]);
 
   const { metrics, isLoading, mutate } = useMetricDefinitions(selectedProjectId || undefined);
+  const { dataMode } = useDataMode();
+  const { statsBySlug } = useMetricStats(selectedProjectId || undefined, {
+    data_mode: dataMode,
+  });
 
   // Create modal state
   const [createOpen, setCreateOpen] = useState(false);
@@ -217,25 +222,41 @@ export default function MetricsPage() {
         </div>
       ) : (
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {metrics.map((m) => (
-            <Card
-              key={m.id}
-              className="cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() =>
-                router.push(`/dashboard/metrics/${m.id}`)
-              }
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">{m.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground font-mono">{m.slug}</p>
-                {m.description && (
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.description}</p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+          {metrics.map((m) => {
+            const stats = statsBySlug.get(m.slug);
+            const total = stats ? stats.complete_count + stats.fail_count : 0;
+            const pct =
+              stats && total > 0
+                ? Math.round((stats.complete_count / total) * 100)
+                : null;
+            return (
+              <Card
+                key={m.id}
+                className="cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() =>
+                  router.push(`/dashboard/metrics/${m.id}`)
+                }
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">{m.name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground font-mono">{m.slug}</p>
+                  {m.description && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.description}</p>
+                  )}
+                  {stats && total > 0 && (
+                    <p className="text-sm font-semibold tabular-nums mt-2">
+                      {stats.complete_count}/{total}
+                      <span className="ml-1.5 text-xs font-medium text-muted-foreground">
+                        {pct}%
+                      </span>
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
       </StaggerItem>

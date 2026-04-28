@@ -10,6 +10,8 @@ import type {
   MetricAggregationResult,
   MetricPhase,
   CompletionsCountQueryParams,
+  MetricStatsParams,
+  MetricStatsEntry,
 } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
@@ -70,6 +72,71 @@ export async function metricsRoutes(app: FastifyInstance) {
         );
 
       return { metrics: rows.map(serializeMetricDefinition) };
+    },
+  );
+
+  // Per-metric success/fail stats for the project, used by metrics list cards.
+  // One DB round-trip; LEFT JOIN keeps metrics with zero events visible.
+  app.get<{ Params: { projectId: string }; Querystring: MetricStatsParams }>(
+    "/metric-stats",
+    { preHandler: requirePermission("metrics:read") },
+    async (request, reply) => {
+      const { projectId } = request.params;
+      const { since, until, data_mode } = request.query;
+
+      const appIds = await resolveProjectAppIds(app, projectId, request.auth, reply);
+      if (!appIds) return;
+
+      const sinceDate = since
+        ? parseTimeParam(since)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const untilDate = until ? parseTimeParam(until) : null;
+      const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
+
+      const joinConditions = [
+        eq(metricEvents.metric_slug, metricDefinitions.slug),
+        gte(metricEvents.timestamp, sinceDate),
+      ];
+      if (appIds.length > 0) {
+        joinConditions.push(inArray(metricEvents.app_id, appIds));
+      } else {
+        // No apps in project → force the LEFT JOIN to never match by using a
+        // filter that cannot be satisfied. We still want metric definitions
+        // listed with 0/0 counts.
+        joinConditions.push(sql`false`);
+      }
+      if (untilDate) joinConditions.push(lte(metricEvents.timestamp, untilDate));
+      if (devCondition) joinConditions.push(devCondition);
+
+      const rows = await app.db
+        .select({
+          slug: metricDefinitions.slug,
+          complete_count: sql<number>`COUNT(${metricEvents.id}) FILTER (WHERE ${metricEvents.phase} = 'complete')::int`,
+          fail_count: sql<number>`COUNT(${metricEvents.id}) FILTER (WHERE ${metricEvents.phase} = 'fail')::int`,
+        })
+        .from(metricDefinitions)
+        .leftJoin(metricEvents, and(...joinConditions))
+        .where(
+          and(
+            eq(metricDefinitions.project_id, projectId),
+            isNull(metricDefinitions.deleted_at),
+          ),
+        )
+        .groupBy(metricDefinitions.slug);
+
+      const stats: MetricStatsEntry[] = rows.map((r) => {
+        const denom = r.complete_count + r.fail_count;
+        const successRate =
+          denom > 0 ? Math.round((r.complete_count / denom) * 10000) / 100 : null;
+        return {
+          slug: r.slug,
+          complete_count: r.complete_count,
+          fail_count: r.fail_count,
+          success_rate: successRate,
+        };
+      });
+
+      return { stats };
     },
   );
 
@@ -560,10 +627,12 @@ export async function metricByIdRoutes(app: FastifyInstance) {
         ? (allTeamIds.includes(team_id) ? [team_id] : [])
         : allTeamIds;
 
-      const empty = { count: 0 };
+      const empty = { count: 0, failed: 0 };
       if (teamIds.length === 0) return empty;
 
-      const conditions = [eq(metricEvents.phase, "complete" as MetricPhase)];
+      const conditions = [
+        inArray(metricEvents.phase, ["complete", "fail"] as MetricPhase[]),
+      ];
 
       if (app_id) {
         const [appRow] = await app.db
@@ -597,11 +666,14 @@ export async function metricByIdRoutes(app: FastifyInstance) {
       if (until) conditions.push(lte(metricEvents.timestamp, parseTimeParam(until)));
 
       const [row] = await app.db
-        .select({ count: sql<number>`count(*)::int` })
+        .select({
+          count: sql<number>`COUNT(*) FILTER (WHERE ${metricEvents.phase} = 'complete')::int`,
+          failed: sql<number>`COUNT(*) FILTER (WHERE ${metricEvents.phase} = 'fail')::int`,
+        })
         .from(metricEvents)
         .where(and(...conditions));
 
-      return { count: row?.count ?? 0 };
+      return { count: row?.count ?? 0, failed: row?.failed ?? 0 };
     },
   );
 

@@ -94,6 +94,19 @@ export default function DashboardPage() {
   const uniqueUsers = eventsCountData?.unique_users;
   const uniqueSessions = eventsCountData?.unique_sessions;
   const metricsCompleted = metricsCompletedData?.count;
+  const metricsFailed = metricsCompletedData?.failed;
+  const metricsTotal =
+    metricsCompleted === undefined
+      ? undefined
+      : metricsCompleted + (metricsFailed ?? 0);
+  const metricsValue =
+    metricsCompleted === undefined || metricsTotal === undefined
+      ? undefined
+      : `${metricsCompleted}/${metricsTotal}`;
+  const metricsPercent =
+    metricsCompleted === undefined || metricsTotal === undefined || metricsTotal === 0
+      ? undefined
+      : `${Math.round((metricsCompleted / metricsTotal) * 100)}%`;
   const funnelsCompleted = funnelsCompletedData?.count;
   const funnelsStarted = funnelsCompletedData?.started;
   const funnelsValue =
@@ -192,7 +205,8 @@ export default function DashboardPage() {
         <StatCard
           label="Metrics · 24h"
           icon={CheckCircle2}
-          value={metricsCompleted}
+          value={metricsValue}
+          secondary={metricsPercent}
           isLoading={metricsCompletedLoading}
           href="/dashboard/metrics"
         />

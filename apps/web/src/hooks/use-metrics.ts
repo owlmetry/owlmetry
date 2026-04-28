@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import useSWR from "swr";
 import { buildQueryString } from "@/lib/query";
 import type {
@@ -8,6 +9,9 @@ import type {
   MetricEventsResponse,
   MetricQueryParams,
   MetricEventsQueryParams,
+  MetricStatsParams,
+  MetricStatsResponse,
+  MetricStatsEntry,
 } from "@owlmetry/shared";
 
 export function useMetricDefinitions(projectId: string | undefined) {
@@ -34,6 +38,36 @@ export function useMetricQuery(slug: string | undefined, projectId: string | und
 
   return {
     data: data ?? null,
+    isLoading,
+    error,
+  };
+}
+
+export function useMetricStats(
+  projectId: string | undefined,
+  params: Partial<MetricStatsParams> = {},
+) {
+  const qs = projectId ? buildQueryString(params) : null;
+  const key =
+    qs !== null && projectId
+      ? `/v1/projects/${projectId}/metric-stats${qs ? `?${qs}` : ""}`
+      : null;
+
+  const { data, isLoading, error } = useSWR<MetricStatsResponse>(key, {
+    refreshInterval: 30_000,
+  });
+
+  const statsBySlug = useMemo(() => {
+    const map = new Map<string, MetricStatsEntry>();
+    for (const entry of data?.stats ?? []) {
+      map.set(entry.slug, entry);
+    }
+    return map;
+  }, [data]);
+
+  return {
+    stats: data?.stats ?? [],
+    statsBySlug,
     isLoading,
     error,
   };

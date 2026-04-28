@@ -346,6 +346,7 @@ export interface CompletionsCountQueryParams {
 export interface CompletionsCountResponse {
   count: number;
   started?: number;
+  failed?: number;
 }
 
 // Funnels
@@ -608,6 +609,23 @@ export interface MetricAggregationResult {
 export interface MetricQueryResponse {
   slug: string;
   aggregation: MetricAggregationResult;
+}
+
+export interface MetricStatsEntry {
+  slug: string;
+  complete_count: number;
+  fail_count: number;
+  success_rate: number | null;
+}
+
+export interface MetricStatsParams {
+  since?: string;
+  until?: string;
+  data_mode?: DataMode;
+}
+
+export interface MetricStatsResponse {
+  stats: MetricStatsEntry[];
 }
 
 export type StoredMetricEventResponse = Omit<StoredMetricEvent, "timestamp" | "received_at"> & {
