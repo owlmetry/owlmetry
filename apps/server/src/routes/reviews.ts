@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, isNotNull, sql, desc, asc } from "drizzle-orm";
+import { eq, and, inArray, isNull, isNotNull, sql, desc } from "drizzle-orm";
 import { appStoreReviews, apps, projects } from "@owlmetry/db";
 import {
   INTEGRATION_PROVIDER_IDS,

@@ -1,5 +1,5 @@
-import { eq, and, isNull, isNotNull, notInArray } from "drizzle-orm";
-import { apps, appStoreReviews } from "@owlmetry/db";
+import { eq, and, isNull, isNotNull, inArray } from "drizzle-orm";
+import { apps, appStoreReviews, type Db } from "@owlmetry/db";
 import { iso3ToIso2, INTEGRATION_PROVIDER_IDS } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import { findActiveIntegration } from "../utils/integrations.js";
@@ -147,7 +147,7 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
     }
 
     if (paginatedFully) {
-      const deleted = await reconcileApp(ctx.db, app, seenExternalIds);
+      const deleted = await reconcileApp(ctx.db, app.id, seenExternalIds);
       reviewsDeleted += deleted;
     }
 
@@ -180,34 +180,35 @@ export const appStoreConnectReviewsSyncHandler: JobHandler = async (ctx, params)
   };
 };
 
+// Diff existing-by-app against the seen set in JS, then delete the stale rows
+// in chunks. Avoids `NOT IN (... 50k params)` blowing past Postgres's ~32k
+// bind-parameter ceiling on apps with very large review catalogs, and lets
+// the empty-seen-set case fall out of the same code path.
+const RECONCILE_DELETE_CHUNK = 1000;
+
 async function reconcileApp(
-  db: Parameters<JobHandler>[0]["db"],
-  app: { id: string },
+  db: Db,
+  appId: string,
   seenExternalIds: Set<string>,
 ): Promise<number> {
-  // notInArray with an empty array is a SQL no-op in some Drizzle versions and
-  // would translate to "NOT IN ()" which Postgres rejects. Special-case it:
-  // an empty seen-set after a successful pagination means the app has zero
-  // reviews on ASC, so wipe everything we have for that app.
-  if (seenExternalIds.size === 0) {
-    const deleted = await db
-      .delete(appStoreReviews)
-      .where(and(eq(appStoreReviews.app_id, app.id), eq(appStoreReviews.store, APP_STORE)))
-      .returning({ id: appStoreReviews.id });
-    return deleted.length;
-  }
+  const existing = await db
+    .select({ id: appStoreReviews.id, external_id: appStoreReviews.external_id })
+    .from(appStoreReviews)
+    .where(and(eq(appStoreReviews.app_id, appId), eq(appStoreReviews.store, APP_STORE)));
 
-  const deleted = await db
-    .delete(appStoreReviews)
-    .where(
-      and(
-        eq(appStoreReviews.app_id, app.id),
-        eq(appStoreReviews.store, APP_STORE),
-        notInArray(appStoreReviews.external_id, [...seenExternalIds]),
-      ),
-    )
-    .returning({ id: appStoreReviews.id });
-  return deleted.length;
+  const staleIds = existing.filter((r) => !seenExternalIds.has(r.external_id)).map((r) => r.id);
+  if (staleIds.length === 0) return 0;
+
+  let deleted = 0;
+  for (let i = 0; i < staleIds.length; i += RECONCILE_DELETE_CHUNK) {
+    const chunk = staleIds.slice(i, i + RECONCILE_DELETE_CHUNK);
+    const removed = await db
+      .delete(appStoreReviews)
+      .where(inArray(appStoreReviews.id, chunk))
+      .returning({ id: appStoreReviews.id });
+    deleted += removed.length;
+  }
+  return deleted;
 }
 
 interface InsertResult {
@@ -216,7 +217,7 @@ interface InsertResult {
 }
 
 async function insertReviewsPage(
-  db: Parameters<JobHandler>[0]["db"],
+  db: Db,
   app: { id: string; team_id: string; project_id: string },
   reviews: AppStoreConnectReview[],
 ): Promise<InsertResult> {
