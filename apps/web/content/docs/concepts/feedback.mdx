@@ -40,7 +40,7 @@ Submitted from the SDK:
 
 Derived server-side:
 
-- **country_code** — from the Cloudflare `CF-IPCountry` header when available
+- **country_code** — from the Cloudflare `CF-IPCountry` header when available. Skipped (always `null`) for backend apps, since the header reflects the customer's hosting datacenter rather than the end user.
 
 ## Comments
 

@@ -142,6 +142,21 @@ describe("POST /v1/feedback", () => {
     expect(rows[0].country_code).toBeNull();
   });
 
+  it("ignores CF-IPCountry for backend apps", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/feedback",
+      headers: {
+        Authorization: `Bearer ${TEST_BACKEND_CLIENT_KEY}`,
+        "CF-IPCountry": "NL",
+      },
+      payload: { message: "from a backend service" },
+    });
+    expect(res.statusCode).toBe(201);
+    const rows = await dbClient`SELECT country_code FROM feedback WHERE id = ${res.json().id}`;
+    expect(rows[0].country_code).toBeNull();
+  });
+
   it("rewrites user_id through claim map when anon id has been claimed", async () => {
     const [project] = await dbClient`SELECT id FROM projects WHERE slug = 'test-project' LIMIT 1`;
     const projectId = project.id;

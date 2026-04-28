@@ -99,7 +99,7 @@ Some event fields are populated by the server and cannot be sent by the SDK. Any
 
 | Field | Source |
 |-------|--------|
-| `country_code` | 2-letter ISO country code derived from the Cloudflare `CF-IPCountry` header on the ingest request. `null` when the header is missing (self-hosted without Cloudflare, direct-to-origin dev requests) or reports `XX`/`T1`. IP addresses themselves are never stored. |
+| `country_code` | 2-letter ISO country code derived from the Cloudflare `CF-IPCountry` header on the ingest request. `null` when the header is missing (self-hosted without Cloudflare, direct-to-origin dev requests) or reports `XX`/`T1`. Also `null` for events from backend apps — those requests come from a hosting datacenter rather than an end user. IP addresses themselves are never stored. |
 
 ### Gzip compression
 

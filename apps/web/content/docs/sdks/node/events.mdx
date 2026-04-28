@@ -22,9 +22,9 @@ Each method accepts:
 | `attrs` | `Record<string, unknown>` | Optional custom attributes. Values are converted to strings and truncated to 200 characters. |
 | `options` | `{ attachments?, sessionId? }` | Optional. `attachments` attaches files to the event. `sessionId` overrides the SDK's default session ID for just this event -- useful for linking backend events to a client's session. See [Identity › withSession](/docs/sdks/node/identity#withsession). |
 
-## Country Is Server-Derived
+## Country Is Skipped For Backend Apps
 
-Each event's `country_code` is resolved server-side from the Cloudflare `CF-IPCountry` header on the ingest request. The SDK never sends it, and raw IP addresses are not stored. If the server is self-hosted without Cloudflare (or the request didn't pass through it), `country_code` is `null`. See [Events › Country](/docs/concepts/events#country-server-derived).
+The Node SDK is for backend services, where the request origin is your own server (a hosting datacenter), not an end user. Events ingested under an app with `platform: "backend"` always have `country_code: null` — capturing the Cloudflare-derived country would just reflect where your server runs, not where your users are. If you want per-user geography on backend events, attach it as a custom attribute or set it via the user-properties API. See [Events › Country](/docs/concepts/events#country-server-derived).
 
 ## Automatic Source Module
 

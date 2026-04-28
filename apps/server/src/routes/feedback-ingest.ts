@@ -40,7 +40,6 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
 
       const body = request.body ?? ({} as IngestFeedbackRequest);
       const { bundle_id } = body;
-      const countryCode = parseCountryHeader(request.headers["cf-ipcountry"]);
 
       if (!auth.app_id) {
         return reply.code(400).send({ error: "API key must be scoped to an app" });
@@ -64,6 +63,13 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
           .code(400)
           .send({ error: "App associated with this API key no longer exists" });
       }
+
+      // Backend apps' requests come from the customer's server (a hosting
+      // provider), not real users — the CF-IPCountry value is meaningless.
+      const countryCode =
+        appRow.platform === "backend"
+          ? null
+          : parseCountryHeader(request.headers["cf-ipcountry"]);
 
       if (appRow.bundle_id) {
         if (!bundle_id || typeof bundle_id !== "string") {

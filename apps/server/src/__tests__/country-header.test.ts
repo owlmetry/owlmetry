@@ -1,20 +1,27 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import postgres from "postgres";
 import {
   buildApp,
   truncateAll,
   seedTestData,
   TEST_CLIENT_KEY,
+  TEST_BACKEND_CLIENT_KEY,
   TEST_BUNDLE_ID,
   TEST_SESSION_ID,
   TEST_AGENT_KEY,
 } from "./setup.js";
 import { parseCountryHeader } from "../utils/event-processing.js";
 
+const TEST_DB_URL =
+  process.env.TEST_DATABASE_URL || "postgresql://localhost:5432/owlmetry_test";
+
 let app: FastifyInstance;
+let dbClient: postgres.Sql;
 
 beforeAll(async () => {
   app = await buildApp();
+  dbClient = postgres(TEST_DB_URL, { max: 1 });
 });
 
 beforeEach(async () => {
@@ -23,6 +30,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  await dbClient.end();
   await app.close();
 });
 
@@ -148,5 +156,60 @@ describe("CF-IPCountry ingest round-trip", () => {
     await ingestWithCountry(undefined, "second-country-event");
     const user = await pollForUser("JP");
     expect(user.last_country_code).toBe("JP");
+  });
+});
+
+describe("backend apps drop CF-IPCountry", () => {
+  async function ingestBackend(country: string | undefined, message: string, userId: string) {
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${TEST_BACKEND_CLIENT_KEY}`,
+    };
+    if (country !== undefined) headers["cf-ipcountry"] = country;
+    return app.inject({
+      method: "POST",
+      url: "/v1/ingest",
+      headers,
+      payload: {
+        events: [
+          {
+            level: "info",
+            message,
+            session_id: TEST_SESSION_ID,
+            environment: "backend",
+            user_id: userId,
+          },
+        ],
+      },
+    });
+  }
+
+  it("ignores CF-IPCountry on /v1/ingest for backend apps", async () => {
+    const res = await ingestBackend("DE", "backend-country-de", "backend-user-1");
+    expect(res.statusCode).toBe(200);
+
+    const rows = await dbClient`
+      SELECT country_code FROM events WHERE message = 'backend-country-de'
+    `;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].country_code).toBeNull();
+  });
+
+  it("does not stamp last_country_code on app_users for backend apps", async () => {
+    await ingestBackend("DE", "backend-user-event", "backend-user-2");
+
+    // upsertAppUsers is fire-and-forget — poll until the row materializes.
+    let row: { last_country_code: string | null } | undefined;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const rows = await dbClient<{ last_country_code: string | null }[]>`
+        SELECT last_country_code FROM app_users WHERE user_id = 'backend-user-2'
+      `;
+      if (rows.length > 0) {
+        row = rows[0];
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(row).toBeDefined();
+    expect(row?.last_country_code).toBeNull();
   });
 });

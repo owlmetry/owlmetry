@@ -38,7 +38,7 @@ Each event contains the following fields:
 | `build_number` | string | No | App build number |
 | `device_model` | string | No | Device hardware model |
 | `locale` | string | No | User locale (e.g., `en_US`) |
-| `country_code` | string | No | 2-letter ISO country code, derived server-side from the request IP via Cloudflare. Never sent by SDKs. |
+| `country_code` | string | No | 2-letter ISO country code, derived server-side from the request IP via Cloudflare. Never sent by SDKs. Always `null` for backend apps. |
 | `is_dev` | boolean | No | Whether the event came from a development build |
 | `experiments` | object | No | Active A/B experiment variant assignments |
 | `timestamp` | string (ISO 8601) | No | When the event occurred (server uses receipt time if omitted) |
@@ -124,6 +124,11 @@ country code (e.g. `US`, `DE`). It's derived server-side from Cloudflare's
 stored. If the request didn't pass through Cloudflare (self-hosted without a
 CDN, direct-to-origin dev requests), the field is `null`. Historical events
 ingested before the feature was introduced are also `null`.
+
+**Backend apps**: events from apps with `platform: "backend"` always have
+`country_code: null`. The header on those requests reflects the customer's
+hosting datacenter, not the end user, so capturing it would just pollute
+geographic reporting.
 
 ## Partitioned Storage
 

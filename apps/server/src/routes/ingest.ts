@@ -24,7 +24,6 @@ export async function ingestRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { bundle_id, events: payloads } = request.body;
-      const countryCode = parseCountryHeader(request.headers["cf-ipcountry"]);
 
       if (!Array.isArray(payloads) || payloads.length === 0) {
         return reply.code(400).send({ error: "events array is required" });
@@ -56,6 +55,13 @@ export async function ingestRoutes(app: FastifyInstance) {
           .code(400)
           .send({ error: "App associated with this API key no longer exists" });
       }
+
+      // Backend apps' requests come from the customer's server (a hosting
+      // provider), not real users — the CF-IPCountry value is meaningless.
+      const countryCode =
+        appRow.platform === "backend"
+          ? null
+          : parseCountryHeader(request.headers["cf-ipcountry"]);
 
       if (appRow.bundle_id) {
         if (!bundle_id || typeof bundle_id !== "string") {
