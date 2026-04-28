@@ -7,6 +7,7 @@ import { VersionBadge } from "@/components/version-badge";
 import { CountryCell } from "@/components/country-flag";
 import { ProjectDot } from "@/lib/project-color";
 import { formatShortDate, formatTime, formatDateTime } from "@/lib/format-date";
+import { formatSdkLabel } from "@/lib/format-sdk";
 
 export interface EventColumnHelpers {
   appNameMap: Map<string, string>;
@@ -109,10 +110,7 @@ export const EVENT_COLUMN_REGISTRY: Record<string, EventColumnDef> = {
     label: "SDK",
     headerClassName: "w-[140px]",
     cellClassName: "font-mono text-xs py-1.5 truncate max-w-[160px]",
-    render: (event) => {
-      if (!event.sdk_name && !event.sdk_version) return "—";
-      return [event.sdk_name, event.sdk_version].filter(Boolean).join(" ");
-    },
+    render: (event) => formatSdkLabel(event.sdk_name, event.sdk_version) || "—",
   },
 };
 

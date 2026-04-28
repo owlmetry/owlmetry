@@ -13,6 +13,7 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { useFeedback, useFeedbackDetail, feedbackActions } from "@/hooks/use-feedback";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
+import { formatSdkLabel } from "@/lib/format-sdk";
 import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { CountryEmoji } from "@/components/country-flag";
 import { Button } from "@/components/ui/button";
@@ -195,7 +196,7 @@ function FeedbackDetailModal({
               )}
               <div><span className="text-muted-foreground">Version:</span> {feedback.app_version ?? "—"}{feedback.environment ? ` (${feedback.environment})` : ""}</div>
               {(feedback.sdk_name || feedback.sdk_version) && (
-                <div className="font-mono"><span className="text-muted-foreground">SDK:</span> {[feedback.sdk_name, feedback.sdk_version].filter(Boolean).join(" ")}</div>
+                <div className="font-mono"><span className="text-muted-foreground">SDK:</span> {formatSdkLabel(feedback.sdk_name, feedback.sdk_version)}</div>
               )}
               <div><span className="text-muted-foreground">Device:</span> {feedback.device_model ?? "—"}{feedback.os_version ? `  OS ${feedback.os_version}` : ""}</div>
               <div><span className="text-muted-foreground">User ID:</span> {feedback.user_id ?? "anonymous"}</div>

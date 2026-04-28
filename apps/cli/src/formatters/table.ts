@@ -2,7 +2,7 @@ import Table from "cli-table3";
 import chalk from "chalk";
 import type { ProjectResponse, ProjectDetailResponse, AppResponse, AppUserResponse, StoredEventResponse, StoredMetricEventResponse } from "@owlmetry/shared";
 import { truncate, getTerminalWidth } from "../utils/truncate.js";
-import { formatVersion } from "./version.js";
+import { formatVersion, formatSdkLabel } from "./version.js";
 
 export function formatProjectsTable(projects: ProjectResponse[]): string {
   const table = new Table({
@@ -123,7 +123,7 @@ export function formatEventDetail(event: StoredEventResponse, latestAppVersion: 
     `${chalk.bold("Environment:")}     ${event.environment ?? "—"}`,
     `${chalk.bold("OS Version:")}      ${event.os_version ?? "—"}`,
     `${chalk.bold("App Version:")}     ${event.app_version ? formatVersion(event.app_version, latestAppVersion) : "—"}`,
-    `${chalk.bold("SDK:")}             ${[event.sdk_name, event.sdk_version].filter(Boolean).join(" ") || "—"}`,
+    `${chalk.bold("SDK:")}             ${formatSdkLabel(event.sdk_name, event.sdk_version) || "—"}`,
     `${chalk.bold("Build Number:")}    ${event.build_number ?? "—"}`,
     `${chalk.bold("Device Model:")}    ${event.device_model ?? "—"}`,
     `${chalk.bold("Locale:")}          ${event.locale ?? "—"}`,

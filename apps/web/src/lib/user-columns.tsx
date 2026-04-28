@@ -12,6 +12,7 @@ import { AttributionBadge } from "@/components/attribution-badge";
 import { AppBadge } from "@/components/badges/app-badge";
 import { UserTypeBadge } from "@/components/badges/user-type-badge";
 import { formatDateTime } from "@/lib/format-date";
+import { formatSdkLabel } from "@/lib/format-sdk";
 import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
 
 export interface UserColumnHelpers {
@@ -158,10 +159,8 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
     headerClassName: "w-[140px]",
     cellClassName: "font-mono text-xs py-1.5 truncate max-w-[160px]",
     render: (user) => {
-      if (!user.last_sdk_name && !user.last_sdk_version) {
-        return <span className="text-muted-foreground">—</span>;
-      }
-      return [user.last_sdk_name, user.last_sdk_version].filter(Boolean).join(" ");
+      const label = formatSdkLabel(user.last_sdk_name, user.last_sdk_version);
+      return label || <span className="text-muted-foreground">—</span>;
     },
   },
 };

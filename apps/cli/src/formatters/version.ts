@@ -11,3 +11,10 @@ export function formatVersion(
   if (result === false) return chalk.yellow(version);
   return version;
 }
+
+export function formatSdkLabel(
+  name: string | null | undefined,
+  version: string | null | undefined,
+): string {
+  return [name, version].filter(Boolean).join(" ");
+}

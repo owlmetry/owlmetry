@@ -20,6 +20,7 @@ import {
 } from "@/components/attachment-download-button";
 import { ProjectDot } from "@/lib/project-color";
 import { formatDateTime } from "@/lib/format-date";
+import { formatSdkLabel } from "@/lib/format-sdk";
 import { countryFlag } from "@/lib/country-flag";
 import { api } from "@/lib/api";
 // Deep import bypasses the barrel export which pulls in node:crypto
@@ -107,7 +108,7 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
             <DetailRow label="Environment" value={event.environment} onFilter={onFilter && event.environment ? () => onFilter("environment", event.environment!) : undefined} />
             <DetailRow label="OS Version" value={event.os_version} />
             <VersionRow label="App Version" version={event.app_version} latestVersion={latestAppVersion} />
-            <DetailRow label="SDK" value={event.sdk_name && event.sdk_version ? `${event.sdk_name} ${event.sdk_version}` : event.sdk_name ?? event.sdk_version} />
+            <DetailRow label="SDK" value={formatSdkLabel(event.sdk_name, event.sdk_version) || null} />
             <DetailRow label="Build Number" value={event.build_number} />
             <DetailRow label="Device Model" value={event.device_model} />
             <DetailRow label="Locale" value={event.locale} />
