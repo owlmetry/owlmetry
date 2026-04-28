@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
@@ -6,6 +8,11 @@ import jwt from "@fastify/jwt";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
+
+const MIGRATIONS_FOLDER = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../packages/db/drizzle",
+);
 import * as schema from "@owlmetry/db";
 import { createDatabaseConnection, ensurePartitions, ensureMetricEventPartitions, ensureFunnelEventPartitions } from "@owlmetry/db";
 import type { Permission, TeamRole } from "@owlmetry/shared";
@@ -184,7 +191,7 @@ export async function setupTestDb() {
 
   const migrationDb = drizzle(migrationClient);
   await migrate(migrationDb, {
-    migrationsFolder: "../../packages/db/drizzle",
+    migrationsFolder: MIGRATIONS_FOLDER,
   });
 
   // After migration, ensure 'server' and 'import' exist in api_key_type

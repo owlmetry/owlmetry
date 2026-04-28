@@ -91,9 +91,11 @@ describe("issue_notify producer", () => {
     await seedQualifyingIssue();
     const u2 = await createUserAndGetToken(app, "muted@owlmetry.com");
     await addTeamMember(teamId, u2.userId, "member");
+    // issue.digest defaults to email-only; opt in_app on so we can verify
+    // email-off is respected without the user falling silent everywhere.
     await dbClient`
       UPDATE users
-      SET preferences = '{"notifications":{"types":{"issue.digest":{"email":false}}}}'::jsonb
+      SET preferences = '{"notifications":{"types":{"issue.digest":{"email":false,"in_app":true}}}}'::jsonb
       WHERE id = ${u2.userId}
     `;
 
