@@ -111,6 +111,8 @@ export function buildEventRow(
     environment: e.environment || null,
     os_version: e.os_version || null,
     app_version: e.app_version || null,
+    sdk_name: e.sdk_name || null,
+    sdk_version: e.sdk_version || null,
     device_model: e.device_model || null,
     build_number: e.build_number || null,
     locale: e.locale || null,
@@ -148,6 +150,8 @@ export function buildMetricRows(
       environment: ev.environment ?? null,
       os_version: ev.os_version ?? null,
       app_version: ev.app_version ?? null,
+      sdk_name: ev.sdk_name ?? null,
+      sdk_version: ev.sdk_version ?? null,
       device_model: ev.device_model ?? null,
       build_number: ev.build_number ?? null,
       country_code: ev.country_code ?? null,
@@ -182,6 +186,8 @@ export function buildFunnelRows(
       environment: ev.environment ?? null,
       os_version: ev.os_version ?? null,
       app_version: ev.app_version ?? null,
+      sdk_name: ev.sdk_name ?? null,
+      sdk_version: ev.sdk_version ?? null,
       device_model: ev.device_model ?? null,
       build_number: ev.build_number ?? null,
       country_code: ev.country_code ?? null,
@@ -236,6 +242,8 @@ export function upsertAppUsers(
 
   const countryCode = validEvents.find((e) => e.country_code)?.country_code ?? null;
   const appVersion = validEvents.find((e) => e.app_version)?.app_version ?? null;
+  const sdkName = validEvents.find((e) => e.sdk_name)?.sdk_name ?? null;
+  const sdkVersion = validEvents.find((e) => e.sdk_version)?.sdk_version ?? null;
 
   const userRows = uniqueUserIds.map((uid) => ({
     project_id,
@@ -243,6 +251,8 @@ export function upsertAppUsers(
     is_anonymous: uid.startsWith(ANONYMOUS_ID_PREFIX),
     last_country_code: countryCode,
     last_app_version: appVersion,
+    last_sdk_name: sdkName,
+    last_sdk_version: sdkVersion,
   }));
   // Don't wipe a previously-resolved country/version when this batch came without one.
   db.insert(appUsers)
@@ -253,6 +263,8 @@ export function upsertAppUsers(
         last_seen_at: sql`NOW()`,
         ...(countryCode ? { last_country_code: countryCode } : {}),
         ...(appVersion ? { last_app_version: appVersion } : {}),
+        ...(sdkName ? { last_sdk_name: sdkName } : {}),
+        ...(sdkVersion ? { last_sdk_version: sdkVersion } : {}),
       },
     })
     .returning({ id: appUsers.id, user_id: appUsers.user_id })

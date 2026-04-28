@@ -123,6 +123,7 @@ export function formatEventDetail(event: StoredEventResponse, latestAppVersion: 
     `${chalk.bold("Environment:")}     ${event.environment ?? "—"}`,
     `${chalk.bold("OS Version:")}      ${event.os_version ?? "—"}`,
     `${chalk.bold("App Version:")}     ${event.app_version ? formatVersion(event.app_version, latestAppVersion) : "—"}`,
+    `${chalk.bold("SDK:")}             ${[event.sdk_name, event.sdk_version].filter(Boolean).join(" ") || "—"}`,
     `${chalk.bold("Build Number:")}    ${event.build_number ?? "—"}`,
     `${chalk.bold("Device Model:")}    ${event.device_model ?? "—"}`,
     `${chalk.bold("Locale:")}          ${event.locale ?? "—"}`,

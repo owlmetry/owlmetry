@@ -189,6 +189,14 @@ function IssueDetailModal({
               {issue.last_seen_app_version && (
                 <div className="flex items-center gap-2"><span className="text-muted-foreground">Last Seen In:</span> <VersionBadge version={issue.last_seen_app_version} latestVersion={latestAppVersion} /></div>
               )}
+              {(issue.first_seen_sdk_version || issue.last_seen_sdk_version) && (
+                <div className="col-span-2 font-mono">
+                  <span className="text-muted-foreground">SDK:</span>{" "}
+                  {issue.first_seen_sdk_version === issue.last_seen_sdk_version
+                    ? issue.last_seen_sdk_version
+                    : `${issue.first_seen_sdk_version ?? "?"} → ${issue.last_seen_sdk_version ?? "?"}`}
+                </div>
+              )}
               {issue.resolved_at_version && (
                 <div className="col-span-2"><span className="text-muted-foreground">Resolved In:</span> v{issue.resolved_at_version}</div>
               )}

@@ -18,6 +18,8 @@ const COMPACT_FIELDS = [
   "session_id",
   "environment",
   "app_version",
+  "sdk_name",
+  "sdk_version",
   "is_dev",
 ] as const;
 

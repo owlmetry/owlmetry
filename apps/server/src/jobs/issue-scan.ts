@@ -20,6 +20,8 @@ interface ErrorEvent {
   message: string;
   source_module: string | null;
   app_version: string | null;
+  sdk_name: string | null;
+  sdk_version: string | null;
   environment: string | null;
   country_code: string | null;
   is_dev: boolean;
@@ -146,7 +148,7 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
         const scanSinceIso = scanSince.toISOString();
         const errorEvents = await client<ErrorEvent[]>`
           SELECT id, app_id, client_event_id, session_id, user_id, message, source_module,
-                 app_version, environment, country_code, is_dev, "timestamp"
+                 app_version, sdk_name, sdk_version, environment, country_code, is_dev, "timestamp"
           FROM events
           WHERE app_id = ${appRow.id}
             AND level = 'error'
@@ -295,8 +297,8 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
 
               const eventTimestamp = new Date(event.timestamp).toISOString();
               const result = await client`
-                INSERT INTO issue_occurrences (issue_id, session_id, user_id, app_version, environment, event_id, country_code, "timestamp")
-                VALUES (${issueId}, ${event.session_id}, ${event.user_id}, ${event.app_version}, ${event.environment}::environment, ${event.id}, ${event.country_code}, ${eventTimestamp}::timestamptz)
+                INSERT INTO issue_occurrences (issue_id, session_id, user_id, app_version, sdk_name, sdk_version, environment, event_id, country_code, "timestamp")
+                VALUES (${issueId}, ${event.session_id}, ${event.user_id}, ${event.app_version}, ${event.sdk_name}, ${event.sdk_version}, ${event.environment}::environment, ${event.id}, ${event.country_code}, ${eventTimestamp}::timestamptz)
                 ON CONFLICT (issue_id, session_id) DO NOTHING
               `;
               if (result.count > 0) occurrencesCreated++;
@@ -365,6 +367,17 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
                 issues.first_seen_app_version,
                 (SELECT app_version FROM issue_occurrences
                  WHERE issue_id = issues.id AND app_version IS NOT NULL
+                 ORDER BY "timestamp" ASC LIMIT 1)
+              ),
+              last_seen_sdk_version = (
+                SELECT sdk_version FROM issue_occurrences
+                WHERE issue_id = issues.id AND sdk_version IS NOT NULL
+                ORDER BY "timestamp" DESC LIMIT 1
+              ),
+              first_seen_sdk_version = COALESCE(
+                issues.first_seen_sdk_version,
+                (SELECT sdk_version FROM issue_occurrences
+                 WHERE issue_id = issues.id AND sdk_version IS NOT NULL
                  ORDER BY "timestamp" ASC LIMIT 1)
               ),
               updated_at = NOW()

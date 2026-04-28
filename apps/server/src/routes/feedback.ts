@@ -46,6 +46,8 @@ function serializeFeedback(
     environment: row.environment,
     os_version: row.os_version,
     app_version: row.app_version,
+    sdk_name: row.sdk_name,
+    sdk_version: row.sdk_version,
     device_model: row.device_model,
     country_code: row.country_code,
     created_at: row.created_at.toISOString(),

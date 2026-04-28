@@ -167,6 +167,8 @@ export async function importRoutes(app: FastifyInstance) {
               environment: ev.environment,
               os_version: ev.os_version,
               app_version: ev.app_version,
+              sdk_name: ev.sdk_name,
+              sdk_version: ev.sdk_version,
               device_model: ev.device_model,
               build_number: ev.build_number,
               locale: ev.locale,

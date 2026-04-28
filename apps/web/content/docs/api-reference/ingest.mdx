@@ -34,6 +34,8 @@ Accept a batch of events for a specific app.
       "environment": "ios",
       "os_version": "17.4",
       "app_version": "1.2.0",
+      "sdk_name": "owlmetry-swift",
+      "sdk_version": "0.1.0",
       "build_number": "42",
       "device_model": "iPhone15,2",
       "locale": "en_US",
@@ -69,6 +71,8 @@ Accept a batch of events for a specific app.
 | `environment` | string | No | Runtime environment. Must match the app's platform. See table below. |
 | `os_version` | string | No | Operating system version. |
 | `app_version` | string | No | Application version string. |
+| `sdk_name` | string | No | Identifier of the Owlmetry SDK that produced the event (e.g. `owlmetry-swift`, `owlmetry-node`). Auto-set by official SDKs. |
+| `sdk_version` | string | No | Version of the Owlmetry SDK that produced the event. Auto-set by official SDKs. |
 | `build_number` | string | No | Build number. |
 | `device_model` | string | No | Device model identifier. |
 | `locale` | string | No | User locale (e.g., `en_US`). |

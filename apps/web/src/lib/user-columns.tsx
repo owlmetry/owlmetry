@@ -152,6 +152,18 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
     cellClassName: "text-xs py-1.5",
     render: (user) => <CountryCell code={user.last_country_code} />,
   },
+  sdk: {
+    id: "sdk",
+    label: "SDK",
+    headerClassName: "w-[140px]",
+    cellClassName: "font-mono text-xs py-1.5 truncate max-w-[160px]",
+    render: (user) => {
+      if (!user.last_sdk_name && !user.last_sdk_version) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return [user.last_sdk_name, user.last_sdk_version].filter(Boolean).join(" ");
+    },
+  },
 };
 
 const attributionColumns: Record<string, UserColumnDef> = Object.fromEntries(

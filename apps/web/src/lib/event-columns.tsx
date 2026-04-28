@@ -104,6 +104,16 @@ export const EVENT_COLUMN_REGISTRY: Record<string, EventColumnDef> = {
     cellClassName: "text-xs py-1.5 truncate max-w-[120px]",
     render: (event) => event.screen_name ?? "—",
   },
+  sdk: {
+    id: "sdk",
+    label: "SDK",
+    headerClassName: "w-[140px]",
+    cellClassName: "font-mono text-xs py-1.5 truncate max-w-[160px]",
+    render: (event) => {
+      if (!event.sdk_name && !event.sdk_version) return "—";
+      return [event.sdk_name, event.sdk_version].filter(Boolean).join(" ");
+    },
+  },
 };
 
 export const DEFAULT_EVENT_COLUMN_ORDER: string[] = [

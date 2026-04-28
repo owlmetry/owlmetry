@@ -16,6 +16,8 @@ export interface IngestFeedbackRequest {
   submitter_name?: string | null;
   submitter_email?: string | null;
   app_version?: string;
+  sdk_name?: string;
+  sdk_version?: string;
   environment?: string;
   device_model?: string;
   os_version?: string;
@@ -56,6 +58,8 @@ export interface FeedbackResponse {
   environment: string | null;
   os_version: string | null;
   app_version: string | null;
+  sdk_name: string | null;
+  sdk_version: string | null;
   device_model: string | null;
   country_code: string | null;
   created_at: string;

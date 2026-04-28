@@ -21,6 +21,8 @@ export interface IssueResponse {
   resolved_at_version: string | null;
   first_seen_app_version: string | null;
   last_seen_app_version: string | null;
+  first_seen_sdk_version: string | null;
+  last_seen_sdk_version: string | null;
   first_seen_at: string;
   last_seen_at: string;
   last_notified_at: string | null;
@@ -38,6 +40,8 @@ export interface IssueOccurrenceResponse {
   user_id: string | null;
   app_user_id: string | null;
   app_version: string | null;
+  sdk_name: string | null;
+  sdk_version: string | null;
   environment: string | null;
   event_id: string | null;
   country_code: string | null;

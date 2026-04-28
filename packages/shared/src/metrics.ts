@@ -61,6 +61,8 @@ export interface StoredMetricEvent {
   environment: string | null;
   os_version: string | null;
   app_version: string | null;
+  sdk_name: string | null;
+  sdk_version: string | null;
   device_model: string | null;
   build_number: string | null;
   country_code: string | null;

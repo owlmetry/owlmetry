@@ -140,6 +140,8 @@ export async function feedbackIngestRoutes(app: FastifyInstance) {
           environment: environment as any,
           os_version: trimOrNull(body.os_version, 50),
           app_version: trimOrNull(body.app_version, 50),
+          sdk_name: trimOrNull(body.sdk_name, 50),
+          sdk_version: trimOrNull(body.sdk_version, 50),
           device_model: trimOrNull(body.device_model, 100),
           country_code: countryCode,
         })

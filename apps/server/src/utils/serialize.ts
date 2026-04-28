@@ -49,6 +49,8 @@ export function serializeAppUser(u: {
   first_seen_at: Date; last_seen_at: Date;
   last_country_code?: string | null;
   last_app_version?: string | null;
+  last_sdk_name?: string | null;
+  last_sdk_version?: string | null;
 }) {
   return {
     id: u.id,
@@ -67,6 +69,8 @@ export function serializeAppUser(u: {
     last_seen_at: u.last_seen_at.toISOString(),
     last_country_code: u.last_country_code ?? null,
     last_app_version: u.last_app_version ?? null,
+    last_sdk_name: u.last_sdk_name ?? null,
+    last_sdk_version: u.last_sdk_version ?? null,
   };
 }
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { gzipSync } from "node:zlib";
+import { eq } from "drizzle-orm";
+import { events, metricEvents, funnelEvents, appUsers } from "@owlmetry/db";
 import {
   buildApp,
   truncateAll,
@@ -78,6 +80,8 @@ describe("POST /v1/ingest", () => {
         environment: "ios",
         os_version: "18.2",
         app_version: "2.1.0",
+        sdk_name: "owlmetry-swift",
+        sdk_version: "0.1.0",
         device_model: "iPhone 15 Pro",
         build_number: "142",
         locale: "en_US",
@@ -86,6 +90,63 @@ describe("POST /v1/ingest", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().accepted).toBe(1);
+  });
+
+  it("persists sdk_name + sdk_version on the event row and propagates to app_users", async () => {
+    const res = await ingest([
+      {
+        level: "info",
+        message: "metric:photo-conversion:start",
+        session_id: TEST_SESSION_ID,
+        user_id: "user-sdk",
+        sdk_name: "owlmetry-swift",
+        sdk_version: "0.4.2",
+      },
+      {
+        level: "info",
+        message: "step:checkout-complete",
+        session_id: TEST_SESSION_ID,
+        user_id: "user-sdk",
+        sdk_name: "owlmetry-swift",
+        sdk_version: "0.4.2",
+      },
+    ]);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().accepted).toBe(2);
+
+    // The dual-write to metric_events / funnel_events / app_users is fire-and-forget;
+    // give the event loop a tick for the inserts to land.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const [eventRow] = await app.db
+      .select({ sdk_name: events.sdk_name, sdk_version: events.sdk_version })
+      .from(events)
+      .where(eq(events.message, "metric:photo-conversion:start"))
+      .limit(1);
+    expect(eventRow.sdk_name).toBe("owlmetry-swift");
+    expect(eventRow.sdk_version).toBe("0.4.2");
+
+    const [metricRow] = await app.db
+      .select({ sdk_version: metricEvents.sdk_version })
+      .from(metricEvents)
+      .where(eq(metricEvents.metric_slug, "photo-conversion"))
+      .limit(1);
+    expect(metricRow.sdk_version).toBe("0.4.2");
+
+    const [funnelRow] = await app.db
+      .select({ sdk_version: funnelEvents.sdk_version })
+      .from(funnelEvents)
+      .where(eq(funnelEvents.step_name, "checkout-complete"))
+      .limit(1);
+    expect(funnelRow.sdk_version).toBe("0.4.2");
+
+    const [userRow] = await app.db
+      .select({ last_sdk_name: appUsers.last_sdk_name, last_sdk_version: appUsers.last_sdk_version })
+      .from(appUsers)
+      .where(eq(appUsers.user_id, "user-sdk"))
+      .limit(1);
+    expect(userRow.last_sdk_name).toBe("owlmetry-swift");
+    expect(userRow.last_sdk_version).toBe("0.4.2");
   });
 
   it("rejects batch over 100 events", async () => {

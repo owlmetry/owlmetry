@@ -19,6 +19,8 @@ export interface IngestEventPayload {
   environment?: Environment;
   os_version?: string;
   app_version?: string;
+  sdk_name?: string;
+  sdk_version?: string;
   build_number?: string;
   device_model?: string;
   locale?: string;
@@ -40,6 +42,8 @@ export interface StoredEvent {
   environment: Environment | null;
   os_version: string | null;
   app_version: string | null;
+  sdk_name: string | null;
+  sdk_version: string | null;
   build_number: string | null;
   device_model: string | null;
   locale: string | null;

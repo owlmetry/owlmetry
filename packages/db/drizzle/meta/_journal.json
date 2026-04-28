@@ -337,6 +337,13 @@
       "when": 1777382716827,
       "tag": "0047_aromatic_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1777388737475,
+      "tag": "0048_sdk_version",
+      "breakpoints": true
     }
   ]
 }

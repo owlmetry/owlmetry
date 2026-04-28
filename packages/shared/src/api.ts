@@ -489,6 +489,8 @@ export interface AppUserResponse {
   last_seen_at: string;
   last_country_code: string | null;
   last_app_version: string | null;
+  last_sdk_name: string | null;
+  last_sdk_version: string | null;
 }
 
 export interface AppUsersResponse {
