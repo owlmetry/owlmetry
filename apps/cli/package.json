@@ -1,6 +1,6 @@
 {
   "name": "@owlmetry/cli",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Owlmetry CLI — manage projects, apps, metrics, funnels, and events from the terminal.",
   "type": "module",
   "license": "MIT",
