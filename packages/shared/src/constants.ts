@@ -20,6 +20,16 @@ export const MAX_PAGE_SIZE = 200;
 export const APP_PLATFORMS = ["apple", "android", "web", "backend"] as const;
 export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
 
+/**
+ * Platforms a registered push device (`user_devices.platform`) can be on. The
+ * mobile_push adapter routes per-row by this field — iOS goes through APNs
+ * today, Android is reserved for the FCM transport that will land later.
+ * Distinct from `APP_PLATFORMS` (which classifies an app's broad surface) and
+ * from `ENVIRONMENTS` (which records the OS an event was emitted from).
+ */
+export const DEVICE_PLATFORMS = ["ios", "android"] as const;
+export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
+
 export const ALLOWED_ENVIRONMENTS_FOR_PLATFORM: Record<
   (typeof APP_PLATFORMS)[number],
   readonly (typeof ENVIRONMENTS)[number][]

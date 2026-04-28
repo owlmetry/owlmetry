@@ -4,6 +4,8 @@ import type { FunnelDefinition, FunnelStep, FunnelAnalytics, FunnelDefinitionRes
 import type { MetricDefinition, MetricSchemaDefinition, MetricAggregationRules, MetricPhase, StoredMetricEvent } from "./metrics.js";
 import type { AuditAction, AuditActorType, AuditResourceType } from "./audit.js";
 import type { IssueAlertFrequency } from "./issues.js";
+import type { PushChannel } from "./preferences.js";
+import type { DevicePlatform } from "./constants.js";
 
 // Data mode for global development/production filtering
 export type DataMode = "production" | "development" | "all";
@@ -695,8 +697,8 @@ export interface MarkAllReadResponse {
 
 // Devices (push token registry)
 export interface RegisterDeviceRequest {
-  channel: "mobile_push";
-  platform: "ios" | "android";
+  channel: PushChannel;
+  platform: DevicePlatform;
   token: string;
   environment?: "production" | "sandbox";
   app_version?: string;

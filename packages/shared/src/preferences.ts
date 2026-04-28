@@ -22,6 +22,15 @@ export const NOTIFICATION_CHANNELS = ["in_app", "email", "mobile_push"] as const
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /**
+ * Subset of `NOTIFICATION_CHANNELS` that registers a per-device endpoint via
+ * `POST /v1/devices`. `in_app` and `email` deliver without a device row, so
+ * they're excluded. Adding a new push channel (Telegram, etc.) means appending
+ * here too.
+ */
+export const PUSH_CHANNELS = ["mobile_push"] as const satisfies readonly NotificationChannel[];
+export type PushChannel = (typeof PUSH_CHANNELS)[number];
+
+/**
  * Notification types known to the system. Adding a new type means:
  *   1. Append to this tuple.
  *   2. Add an entry to NOTIFICATION_TYPE_META.

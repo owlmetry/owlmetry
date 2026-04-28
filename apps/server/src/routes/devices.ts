@@ -2,13 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
 import { userDevices } from "@owlmetry/db";
 import type { RegisterDeviceRequest } from "@owlmetry/shared";
+import { PUSH_CHANNELS, DEVICE_PLATFORMS } from "@owlmetry/shared";
 import { requireUser, userAuth } from "../middleware/auth.js";
-
-const PUSH_CHANNELS = ["mobile_push"] as const;
-type PushChannel = (typeof PUSH_CHANNELS)[number];
-
-const PUSH_PLATFORMS = ["ios", "android"] as const;
-type PushPlatform = (typeof PUSH_PLATFORMS)[number];
 
 function serializeDevice(row: typeof userDevices.$inferSelect) {
   return {
@@ -36,7 +31,7 @@ export async function devicesRoutes(app: FastifyInstance) {
       if (!(PUSH_CHANNELS as readonly string[]).includes(body.channel)) {
         return reply.code(400).send({ error: `Invalid channel '${body.channel}'` });
       }
-      if (!(PUSH_PLATFORMS as readonly string[]).includes(body.platform)) {
+      if (!(DEVICE_PLATFORMS as readonly string[]).includes(body.platform)) {
         return reply.code(400).send({ error: `Invalid platform '${body.platform}'` });
       }
       if (!body.token || typeof body.token !== "string") {
@@ -49,8 +44,8 @@ export async function devicesRoutes(app: FastifyInstance) {
         .insert(userDevices)
         .values({
           user_id: userAuth(request).user_id,
-          channel: body.channel as PushChannel,
-          platform: body.platform as PushPlatform,
+          channel: body.channel,
+          platform: body.platform,
           token: body.token,
           environment: env,
           app_version: body.app_version ?? null,
@@ -62,8 +57,8 @@ export async function devicesRoutes(app: FastifyInstance) {
           target: userDevices.token,
           set: {
             user_id: userAuth(request).user_id,
-            channel: body.channel as PushChannel,
-            platform: body.platform as PushPlatform,
+            channel: body.channel,
+            platform: body.platform,
             environment: env,
             app_version: body.app_version ?? null,
             device_model: body.device_model ?? null,
