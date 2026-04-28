@@ -299,7 +299,7 @@ Run an aggregation query over metric events.
 
 ## GET /v1/metrics/completions/count
 
-Aggregate count of metric completions (events with `phase = "complete"`) across all metrics the caller can access. Used by the all-projects dashboard stat HUD.
+Aggregate count of metric completions (events with `phase = "complete"`) and failures (events with `phase = "fail"`) across all metrics the caller can access. Used by the all-projects dashboard stat HUD to render success/total + success rate.
 
 **Auth required:** Yes (`metrics:read` permission or JWT)
 
@@ -318,6 +318,40 @@ Aggregate count of metric completions (events with `phase = "complete"`) across 
 
 ```json
 {
-  "count": 1284
+  "count": 1284,
+  "failed": 96
 }
 ```
+
+`count` is complete-phase events; `failed` is fail-phase events. Cancels and `record`-phase events are excluded. Compute success rate as `count / (count + failed)`.
+
+## GET /v1/projects/:projectId/metric-stats
+
+Per-metric success/fail counts for every metric definition in a project. One row per metric, including metrics with zero events (returned as `0/0`). Used by the metrics list cards.
+
+**Auth required:** Yes (`metrics:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `since` | string | Start time. Relative or ISO 8601. Defaults to 24 hours ago. |
+| `until` | string | End time. Relative or ISO 8601. |
+| `data_mode` | string | `production` (default), `development`, or `all`. |
+
+### Response
+
+```json
+{
+  "stats": [
+    {
+      "slug": "photo-conversion",
+      "complete_count": 150,
+      "fail_count": 50,
+      "success_rate": 75.0
+    }
+  ]
+}
+```
+
+`success_rate` is `complete_count / (complete_count + fail_count) * 100`, rounded to two decimals, or `null` when both counts are zero.
