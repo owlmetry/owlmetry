@@ -48,6 +48,28 @@ export function createEmailAdapter(emailService: EmailService): ChannelAdapter {
             await emailService.sendJobAlert(ctx.userEmail, params);
             return { status: "sent", metadata: { template: "job.completed" } };
           }
+          case "app.rating_changed": {
+            await emailService.sendGenericNotification(ctx.userEmail, {
+              subject: ctx.payload.title,
+              body: ctx.payload.body ?? "",
+              link: ctx.payload.link
+                ? `${process.env.WEB_APP_URL ?? "https://owlmetry.com"}${ctx.payload.link}`
+                : undefined,
+              link_text: "View app",
+            });
+            return { status: "sent", metadata: { template: "app.rating_changed" } };
+          }
+          case "app.review_new": {
+            await emailService.sendGenericNotification(ctx.userEmail, {
+              subject: ctx.payload.title,
+              body: ctx.payload.body ?? "",
+              link: ctx.payload.link
+                ? `${process.env.WEB_APP_URL ?? "https://owlmetry.com"}${ctx.payload.link}`
+                : undefined,
+              link_text: "View reviews",
+            });
+            return { status: "sent", metadata: { template: "app.review_new" } };
+          }
           case "team.invitation":
             return { status: "skipped", reason: "team.invitation is transactional, not dispatched" };
           default:

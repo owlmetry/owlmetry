@@ -3,8 +3,9 @@ import postgres from "postgres";
 import { TEST_DB_URL } from "./setup.js";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { eq, and } from "drizzle-orm";
-import { apps, teams, projects, appStoreRatings, schema } from "@owlmetry/db";
+import { apps, teams, teamMembers, users, projects, appStoreRatings, schema } from "@owlmetry/db";
 import { todayUtcDateString } from "../jobs/app-store-ratings-sync.js";
+import type { NotificationDispatcher } from "../services/notifications/dispatcher.js";
 
 const dbClient = postgres(TEST_DB_URL, { max: 1 });
 const db = drizzle(dbClient, { schema });
@@ -12,6 +13,14 @@ const db = drizzle(dbClient, { schema });
 let teamId: string;
 let projectId: string;
 let appleAppId: string;
+let userId: string;
+
+const enqueueMock = vi.fn(
+  async (_input: Parameters<NotificationDispatcher["enqueue"]>[0]) => ({
+    notificationIds: [] as string[],
+  }),
+);
+const mockDispatcher = { enqueue: enqueueMock } as unknown as NotificationDispatcher;
 
 beforeAll(async () => {
   const [team] = await db
@@ -24,9 +33,16 @@ beforeAll(async () => {
     .values({ team_id: teamId, name: "ASRS Test", slug: `asrs-${Date.now()}`, color: "#00ff00" })
     .returning({ id: projects.id });
   projectId = project.id;
+  const [user] = await db
+    .insert(users)
+    .values({ email: `asrs-${Date.now()}@example.com`, name: "ASRS Tester" })
+    .returning({ id: users.id });
+  userId = user.id;
+  await db.insert(teamMembers).values({ team_id: teamId, user_id: userId, role: "owner" });
 });
 
 beforeEach(async () => {
+  enqueueMock.mockClear();
   await db.delete(appStoreRatings).where(eq(appStoreRatings.team_id, teamId));
   await db.delete(apps).where(eq(apps.team_id, teamId));
   const [row] = await db
@@ -45,6 +61,8 @@ beforeEach(async () => {
 afterAll(async () => {
   await db.delete(appStoreRatings).where(eq(appStoreRatings.team_id, teamId));
   await db.delete(apps).where(eq(apps.team_id, teamId));
+  await db.delete(teamMembers).where(eq(teamMembers.team_id, teamId));
+  await db.delete(users).where(eq(users.id, userId));
   await db.delete(projects).where(eq(projects.team_id, teamId));
   await db.delete(teams).where(eq(teams.id, teamId));
   await dbClient.end();
@@ -100,7 +118,7 @@ describe("app_store_ratings_sync", () => {
     }));
 
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     expect(result.apps_processed).toBe(1);
     expect(result.rows_upserted).toBe(3);
@@ -128,7 +146,7 @@ describe("app_store_ratings_sync", () => {
     }));
 
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     const [row] = await db.select().from(apps).where(eq(apps.id, appleAppId));
     // (5.0 * 1000 + 4.0 * 1000) / 2000 = 4.5
@@ -146,7 +164,7 @@ describe("app_store_ratings_sync", () => {
       gb: { averageUserRating: 4.2, userRatingCount: 50 },
     }));
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     // Backdate the existing rows so the second run's "today" UPSERT inserts new
     // rows rather than overwriting the seed snapshots. Compute yesterday in
@@ -159,7 +177,7 @@ describe("app_store_ratings_sync", () => {
     vi.stubGlobal("fetch", mockItunes({
       us: { averageUserRating: 4.5, userRatingCount: 100 },
     }));
-    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
     expect(result.tombstones_written).toBe(1);
 
     const today = todayUtcDateString();
@@ -183,7 +201,7 @@ describe("app_store_ratings_sync", () => {
   it("does not write rows for storefronts that never had data and return nothing today", async () => {
     vi.stubGlobal("fetch", mockItunes({ us: { averageUserRating: 4.5, userRatingCount: 100 } }));
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     const rows = await db.select().from(appStoreRatings).where(eq(appStoreRatings.app_id, appleAppId));
     // Only the us row was written. None of the ~246 other storefronts produced
@@ -200,13 +218,13 @@ describe("app_store_ratings_sync", () => {
     }));
 
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     // Re-run with a slightly different rating; same snapshot_date.
     vi.stubGlobal("fetch", mockItunes({
       us: { averageUserRating: 4.6, userRatingCount: 110 },
     }));
-    await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     const rows = await db.select().from(appStoreRatings).where(eq(appStoreRatings.app_id, appleAppId));
     expect(rows).toHaveLength(1);
@@ -248,7 +266,7 @@ describe("app_store_ratings_sync", () => {
     );
 
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     expect(result.rows_upserted).toBe(1);
     expect(result.errors).toBe(0);
@@ -278,7 +296,7 @@ describe("app_store_ratings_sync", () => {
     );
 
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     expect(result.errors).toBe(1);
     expect(result.retries_exhausted).toBe(1);
@@ -319,7 +337,7 @@ describe("app_store_ratings_sync", () => {
     );
 
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    const result = await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     expect(result.rows_upserted).toBe(1);
     expect(result.transient_hits).toBe(1);
@@ -344,7 +362,7 @@ describe("app_store_ratings_sync", () => {
 
     vi.stubGlobal("fetch", mockItunes({ us: { averageUserRating: 4.7, userRatingCount: 200 } }));
     const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
-    await appStoreRatingsSyncHandler(jobCtx(), { app_id: appleAppId });
+    await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
 
     const latest = await dbClient<{ average_rating: string; rating_count: number; snapshot_date: string }[]>`
       SELECT DISTINCT ON (country_code) average_rating, rating_count, snapshot_date::text AS snapshot_date
@@ -355,6 +373,65 @@ describe("app_store_ratings_sync", () => {
     expect(latest[0].rating_count).toBe(200);
     expect(parseFloat(latest[0].average_rating)).toBeCloseTo(4.7, 2);
 
+    vi.unstubAllGlobals();
+  });
+
+  it("does not fire app.rating_changed on the first sync (oldCount is null)", async () => {
+    vi.stubGlobal("fetch", mockItunes({ us: { averageUserRating: 4.5, userRatingCount: 200 } }));
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
+
+    expect(result.notifications_sent).toBe(0);
+    expect(enqueueMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("fires app.rating_changed when the worldwide rating count goes up", async () => {
+    // Seed an existing baseline: app already has count=100 from a prior sync.
+    await db.update(apps).set({ worldwide_rating_count: 100 }).where(eq(apps.id, appleAppId));
+
+    vi.stubGlobal("fetch", mockItunes({ us: { averageUserRating: 4.5, userRatingCount: 105 } }));
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
+
+    expect(result.notifications_sent).toBe(1);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    const call = enqueueMock.mock.calls[0][0];
+    expect(call.type).toBe("app.rating_changed");
+    expect(call.userIds).toEqual([userId]);
+    expect(call.teamId).toBe(teamId);
+    expect(call.payload.title).toBe("5 new ratings on Apple App");
+    expect(call.payload.link).toBe(`/dashboard/projects/${projectId}`);
+    const data = call.payload.data as Record<string, unknown>;
+    expect(data.delta).toBe(5);
+    expect(data.old_count).toBe(100);
+    expect(data.new_count).toBe(105);
+    expect(data.app_id).toBe(appleAppId);
+    vi.unstubAllGlobals();
+  });
+
+  it("does not fire app.rating_changed when the count is unchanged", async () => {
+    await db.update(apps).set({ worldwide_rating_count: 100 }).where(eq(apps.id, appleAppId));
+
+    vi.stubGlobal("fetch", mockItunes({ us: { averageUserRating: 4.5, userRatingCount: 100 } }));
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
+
+    expect(result.notifications_sent).toBe(0);
+    expect(enqueueMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not fire app.rating_changed when the count decreases", async () => {
+    // Decreases shouldn't notify — we only alert on positive deltas (= new ratings).
+    await db.update(apps).set({ worldwide_rating_count: 100 }).where(eq(apps.id, appleAppId));
+
+    vi.stubGlobal("fetch", mockItunes({ us: { averageUserRating: 4.5, userRatingCount: 90 } }));
+    const { appStoreRatingsSyncHandler } = await import("../jobs/app-store-ratings-sync.js");
+    const result = await appStoreRatingsSyncHandler(mockDispatcher)(jobCtx(), { app_id: appleAppId });
+
+    expect(result.notifications_sent).toBe(0);
+    expect(enqueueMock).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 });

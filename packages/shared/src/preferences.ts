@@ -53,6 +53,8 @@ export const NOTIFICATION_TYPES = [
   "feedback.new",
   "job.completed",
   "team.invitation",
+  "app.rating_changed",
+  "app.review_new",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -87,6 +89,18 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
   "job.completed": {
     label: "Job completion",
     description: "When a manual job you triggered with --notify finishes. Only the triggering user is notified.",
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: true, mobile_push: true },
+  },
+  "app.rating_changed": {
+    label: "New ratings",
+    description: "When an app's rating count increases on the App Store — i.e., new ratings have appeared.",
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: false, mobile_push: true },
+  },
+  "app.review_new": {
+    label: "New reviews",
+    description: "When new written reviews are pulled from App Store Connect for one of your apps.",
     channels: ["in_app", "email", "mobile_push"],
     defaults: { in_app: true, email: true, mobile_push: true },
   },
