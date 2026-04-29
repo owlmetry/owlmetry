@@ -76,7 +76,9 @@ export default function DashboardPage() {
 
   const { data: feedbackCountData, isLoading: feedbackCountLoading } =
     useSWR<{ count: number }>(
-      teamId ? `/v1/feedback/count?team_id=${teamId}&status=new` : null,
+      teamId
+        ? `/v1/feedback/count?team_id=${teamId}&status=new&data_mode=${dataMode}`
+        : null,
       { refreshInterval: 60_000 }
     );
 

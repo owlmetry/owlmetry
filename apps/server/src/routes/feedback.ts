@@ -478,13 +478,13 @@ export async function teamFeedbackRoutes(app: FastifyInstance) {
   // Lightweight count endpoint for the dashboard stat card. Returns total
   // active (non-deleted) feedback across every project the caller can see,
   // optionally narrowed by status / time window.
-  app.get<{ Querystring: { team_id?: string; project_id?: string; status?: string; since?: string } }>(
+  app.get<{ Querystring: { team_id?: string; project_id?: string; status?: string; since?: string; data_mode?: string } }>(
     "/feedback/count",
     { preHandler: requirePermission("feedback:read") },
     async (request) => {
       const auth = request.auth;
       const allTeamIds = getAuthTeamIds(auth);
-      const { team_id, project_id, status, since } = request.query;
+      const { team_id, project_id, status, since, data_mode } = request.query;
 
       const teamIds = team_id ? (allTeamIds.includes(team_id) ? [team_id] : []) : allTeamIds;
       if (teamIds.length === 0) return { count: 0 };
@@ -505,6 +505,8 @@ export async function teamFeedbackRoutes(app: FastifyInstance) {
       if (since) {
         conditions.push(sql`${feedback.created_at} >= ${since}::timestamptz`);
       }
+      const devCondition = dataModeToDrizzle(feedback.is_dev, data_mode as any);
+      if (devCondition) conditions.push(devCondition);
 
       const [row] = await app.db
         .select({ count: sql<number>`COUNT(*)::int` })
