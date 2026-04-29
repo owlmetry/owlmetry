@@ -56,6 +56,17 @@ const EMPTY_UPDATE_FORM: AppleAdsUpdateForm = {
   org_id: "",
 };
 
+function configToForm(config: Record<string, unknown> | null | undefined): AppleAdsUpdateForm {
+  if (!config) return EMPTY_UPDATE_FORM;
+  const str = (v: unknown) => (v == null ? "" : String(v));
+  return {
+    client_id: str(config.client_id),
+    team_id: str(config.team_id),
+    key_id: str(config.key_id),
+    org_id: str(config.org_id),
+  };
+}
+
 interface TestResult {
   ok: boolean;
   message: string;
@@ -85,6 +96,12 @@ export function AppleSearchAdsIntegration({ projectId }: { projectId: string }) 
 
   const integration = data?.integrations?.find((i) => i.provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS);
   const setupComplete = integration ? hasAllAppleAdsUserConfigKeys(integration.config) : false;
+
+  useEffect(() => {
+    if (updateDialogOpen) {
+      setUpdateForm(configToForm(integration?.config));
+    }
+  }, [updateDialogOpen, integration]);
 
   function setUpdateField<K extends keyof AppleAdsUpdateForm>(key: K, value: AppleAdsUpdateForm[K]) {
     setUpdateForm((f) => ({ ...f, [key]: value }));
@@ -586,7 +603,7 @@ function UpdateConfigDialog({
         <DialogHeader>
           <DialogTitle>Update Apple Search Ads IDs</DialogTitle>
           <DialogDescription>
-            Leave a field blank to keep the existing value. To rotate the keypair itself, remove the integration and reconnect — the server generates the private key.
+            Edit any field to update it. To rotate the keypair itself, remove the integration and reconnect — the server generates the private key.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-3">
