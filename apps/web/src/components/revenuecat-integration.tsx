@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { IntegrationStatusBadge } from "@/components/badges/integration-status-badge";
 import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError, API_URL } from "@/lib/api";
-import type { IntegrationResponse } from "@owlmetry/shared";
+import type { IntegrationResponse, CreateIntegrationResponse, WebhookSetup } from "@owlmetry/shared";
 
 export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   const { data, mutate, isLoading } = useSWR<{ integrations: IntegrationResponse[] }>(
@@ -32,6 +32,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [pendingWebhookSetup, setPendingWebhookSetup] = useState<WebhookSetup | null>(null);
 
   const integration = data?.integrations?.find((i) => i.provider === "revenuecat");
 
@@ -46,7 +47,13 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
       if (integration) {
         await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { config });
       } else {
-        await api.post(`/v1/projects/${projectId}/integrations`, { provider: "revenuecat", config });
+        const response = await api.post<CreateIntegrationResponse>(
+          `/v1/projects/${projectId}/integrations`,
+          { provider: "revenuecat", config }
+        );
+        if (response.webhook_setup) {
+          setPendingWebhookSetup(response.webhook_setup);
+        }
       }
       setDialogOpen(false);
       setApiKey("");
@@ -86,13 +93,21 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     setError("");
     try {
       await api.delete(`/v1/projects/${projectId}/integrations/revenuecat`);
+      setPendingWebhookSetup(null);
       mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to remove");
     }
   }
 
+  function handleFinishSetup() {
+    setPendingWebhookSetup(null);
+    mutate();
+    handleSync();
+  }
+
   const webhookUrl = `${API_URL}/v1/webhooks/revenuecat/${projectId}`;
+  const showPending = Boolean(pendingWebhookSetup && integration);
 
   return (
     <Card>
@@ -102,10 +117,16 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-2">
             {integration && (
               <>
-                <IntegrationStatusBadge enabled={integration.enabled} />
-                <Button variant="ghost" size="sm" onClick={handleToggle}>
-                  {integration.enabled ? "Disable" : "Enable"}
-                </Button>
+                {showPending ? (
+                  <IntegrationStatusBadge enabled={false} disabledLabel="Pending setup" />
+                ) : (
+                  <>
+                    <IntegrationStatusBadge enabled={integration.enabled} />
+                    <Button variant="ghost" size="sm" onClick={handleToggle}>
+                      {integration.enabled ? "Disable" : "Enable"}
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -114,6 +135,12 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
       <CardContent className="space-y-4">
         {isLoading && !integration ? (
           <DetailSkeleton />
+        ) : showPending && pendingWebhookSetup ? (
+          <PendingWebhookSetup
+            webhookSetup={pendingWebhookSetup}
+            onDone={handleFinishSetup}
+            onCancel={handleRemove}
+          />
         ) : integration ? (
           <>
             <div className="space-y-2 text-sm">
@@ -145,6 +172,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                     <DialogDescription>Update your RevenueCat API credentials.</DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleSave} className="space-y-4">
+                    <PermissionsCallout />
                     <div className="space-y-2">
                       <Label htmlFor="rc-api-key">API Key (Secret)</Label>
                       <Input id="rc-api-key" type="password" placeholder="sk_..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
@@ -184,14 +212,23 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                 <DialogHeader>
                   <DialogTitle>Connect RevenueCat</DialogTitle>
                   <DialogDescription>
-                    Enter your RevenueCat API credentials. You can find these in your RevenueCat dashboard under Project Settings &gt; API Keys.
+                    Generate a V2 Secret API key at{" "}
+                    <a
+                      href="https://app.revenuecat.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-foreground"
+                    >
+                      RevenueCat → Project Settings → API Keys
+                    </a>
+                    {" "}(+ New secret API key). After connecting, we&apos;ll show you the webhook configuration to paste into RevenueCat.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSave} className="space-y-4">
+                  <PermissionsCallout />
                   <div className="space-y-2">
                     <Label htmlFor="rc-api-key-new">API Key (Secret)</Label>
                     <Input id="rc-api-key-new" type="password" placeholder="sk_..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} required />
-                    <p className="text-xs text-muted-foreground">V2 Secret API key from RevenueCat → Project Settings → API Keys.</p>
                   </div>
                   {error && <p className="text-sm text-destructive">{error}</p>}
                   <DialogFooter>
@@ -214,3 +251,81 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   );
 }
 
+function PermissionsCallout() {
+  return (
+    <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1.5">
+      <p className="font-medium text-foreground">Required permissions</p>
+      <p className="text-muted-foreground">
+        Set both sections to <span className="font-medium text-foreground">Read only</span> using the dropdown at the top-right of each section. All other sections: <span className="font-medium text-foreground">No access</span>.
+      </p>
+      <ul className="ml-4 list-disc text-muted-foreground space-y-0.5">
+        <li>Customer information → Read only</li>
+        <li>Project configuration → Read only</li>
+      </ul>
+    </div>
+  );
+}
+
+function PendingWebhookSetup({
+  webhookSetup,
+  onDone,
+  onCancel,
+}: {
+  webhookSetup: WebhookSetup;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-amber-600/30 bg-amber-950/20 text-amber-200 px-3 py-2 text-xs flex items-start gap-2">
+        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <div>
+          <p className="font-medium">Save the authorization header now</p>
+          <p className="opacity-90">It contains the webhook secret and won&apos;t be shown again. Lose it and you&apos;ll need to remove + re-add the integration.</p>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-sm font-medium">Configure the webhook in RevenueCat</p>
+        <p className="text-xs text-muted-foreground">
+          In{" "}
+          <a
+            href="https://app.revenuecat.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            RevenueCat → Project Settings → Integrations → Webhooks
+          </a>
+          {" "}choose <span className="font-medium text-foreground">+ New Webhook</span> and paste the four values below.
+        </p>
+      </div>
+
+      <WebhookSetupRow label="Webhook URL" value={webhookSetup.webhook_url} mono />
+      <WebhookSetupRow label="Authorization header" value={webhookSetup.authorization_header} mono />
+      <WebhookSetupRow label="Environment" value={webhookSetup.environment} />
+      <WebhookSetupRow label="Events filter" value={webhookSetup.events_filter} />
+
+      <div className="flex gap-2 flex-wrap pt-1">
+        <Button size="sm" onClick={onDone}>I&apos;ve saved the webhook</Button>
+        <Button size="sm" variant="ghost" onClick={onCancel} className="text-destructive hover:text-destructive ml-auto">
+          <Trash2 className="h-3.5 w-3.5 mr-1" /> Cancel setup
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function WebhookSetupRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <Label className="text-xs">{label}</Label>
+        <CopyButton text={value} />
+      </div>
+      <pre className={`text-[11px] bg-muted/50 border rounded-md p-2 overflow-auto break-all whitespace-pre-wrap ${mono ? "font-mono" : ""}`}>
+        {value}
+      </pre>
+    </div>
+  );
+}
