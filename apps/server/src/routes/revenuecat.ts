@@ -12,21 +12,24 @@ import {
 } from "../utils/attribution/revenuecat.js";
 import {
   type RevenueCatConfig,
-  mapSubscriberToProperties,
-  fetchRevenueCatSubscriber,
-  fetchRevenueCatSubscriptions,
-  fetchRevenueCatCustomerAttributes,
   fetchRevenueCatProjectId,
   computeBillingPeriod,
 } from "../utils/revenuecat.js";
+import { syncRevenueCatUserProperties } from "../utils/revenuecat-user-sync.js";
 
 interface RevenueCatWebhookEvent {
   type: string;
   id: string;
   event_timestamp_ms: number;
   app_user_id?: string | null;
-  original_app_user_id: string;
-  aliases: string[];
+  // TRANSFER events have neither `original_app_user_id` nor `aliases` — RC
+  // ships the affected user IDs in `transferred_from` / `transferred_to`
+  // instead. Both fields are optional so the type covers TRANSFER alongside
+  // the standard subscription event shape.
+  original_app_user_id?: string;
+  aliases?: string[];
+  transferred_from?: string[];
+  transferred_to?: string[];
   product_id?: string;
   entitlement_id?: string | null;
   entitlement_ids?: string[] | null;
@@ -161,7 +164,83 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Invalid webhook payload: missing event" });
       }
 
-      // Resolve user ID: app_user_id may be null (e.g. TRANSFER), fall back to original_app_user_id
+      // TRANSFER events ship neither `app_user_id` nor `original_app_user_id` —
+      // affected user IDs are in `transferred_from` / `transferred_to`. The
+      // payload itself carries no actionable subscription state, so we ack
+      // immediately and re-sync each affected user against RC's V2 API in the
+      // background. RC's `$RCAnonymousID:*` form doesn't map to Owlmetry
+      // user_ids and is dropped from the candidate list.
+      // https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields#transfer
+      if (event.type === "TRANSFER") {
+        const candidates = [
+          ...(event.transferred_from ?? []),
+          ...(event.transferred_to ?? []),
+        ].filter(
+          (id): id is string =>
+            typeof id === "string" && id.length > 0 && !id.startsWith("$RCAnonymousID:"),
+        );
+
+        if (candidates.length > 0) {
+          void (async () => {
+            try {
+              const projectIdResult = await fetchRevenueCatProjectId(config.api_key);
+              if (projectIdResult.status !== "found") {
+                request.log.warn(
+                  { projectId, eventId: event.id, status: projectIdResult.status },
+                  "TRANSFER reconciliation aborted — could not resolve RevenueCat project",
+                );
+                return;
+              }
+              await Promise.all(
+                candidates.map(async (userId) => {
+                  try {
+                    const result = await syncRevenueCatUserProperties({
+                      db: app.db,
+                      log: request.log,
+                      projectId,
+                      rcProjectId: projectIdResult.projectId,
+                      config,
+                      userId,
+                    });
+                    if (result.status === "not_found") {
+                      request.log.info(
+                        { projectId, userId, eventId: event.id },
+                        "TRANSFER user not found in RC (skipped)",
+                      );
+                    } else if (result.status === "error") {
+                      request.log.warn(
+                        {
+                          projectId,
+                          userId,
+                          eventId: event.id,
+                          statusCode: result.statusCode,
+                          message: result.message,
+                        },
+                        "TRANSFER user resync got RC error",
+                      );
+                    }
+                  } catch (err) {
+                    request.log.error(
+                      { err, projectId, userId, eventId: event.id },
+                      "TRANSFER user resync failed",
+                    );
+                  }
+                }),
+              );
+            } catch (err) {
+              request.log.error(
+                { err, projectId, eventId: event.id },
+                "TRANSFER reconciliation failed",
+              );
+            }
+          })();
+        }
+
+        return { received: true };
+      }
+
+      // Standard subscription events use `app_user_id`, falling back to
+      // `original_app_user_id` if the SDK aliased the user (e.g. anon → real).
       const userId = event.app_user_id || event.original_app_user_id;
       if (!userId) {
         return reply.code(400).send({ error: "Invalid webhook payload: no user ID" });
@@ -282,60 +361,31 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         });
       }
 
-      const subscriberResult = await fetchRevenueCatSubscriber(rcConfig.api_key, projectIdResult.projectId, userId);
-      if (subscriberResult.status === "not_found") {
+      const result = await syncRevenueCatUserProperties({
+        db: app.db,
+        log: app.log,
+        projectId,
+        rcProjectId: projectIdResult.projectId,
+        config: rcConfig,
+        userId,
+      });
+
+      if (result.status === "not_found") {
         return reply.code(404).send({ error: "Subscriber not found in RevenueCat" });
       }
-      if (subscriberResult.status === "error") {
+      if (result.status === "error") {
         app.log.warn(
-          { projectId, userId, statusCode: subscriberResult.statusCode, message: subscriberResult.message },
+          { projectId, userId, statusCode: result.statusCode, message: result.message },
           "RevenueCat API error during single-user sync",
         );
         return reply.code(502).send({
           error: "RevenueCat API error",
-          statusCode: subscriberResult.statusCode,
-          message: subscriberResult.message,
+          statusCode: result.statusCode,
+          message: result.message,
         });
       }
 
-      // Fetch subscriptions and attributes concurrently — independent of the
-      // entitlements call we already awaited. Fail-soft on both.
-      const [subsResult, attrsResult] = await Promise.all([
-        fetchRevenueCatSubscriptions(rcConfig.api_key, projectIdResult.projectId, userId),
-        fetchRevenueCatCustomerAttributes(rcConfig.api_key, projectIdResult.projectId, userId),
-      ]);
-      const subsData = subsResult.status === "found" ? subsResult.data : undefined;
-      if (subsResult.status === "error") {
-        app.log.warn(
-          { projectId, userId, statusCode: subsResult.statusCode, message: subsResult.message },
-          "RC subscriptions fetch failed (continuing with entitlements-only props)",
-        );
-      }
-
-      let attributionProps: Record<string, string> = {};
-      if (attrsResult.status === "found") {
-        const mapped = mapRevenueCatAttributesToAttributionProperties(attrsResult.attributes);
-        if (Object.keys(mapped).length > 0) {
-          const [userRow] = await app.db
-            .select({ properties: appUsers.properties })
-            .from(appUsers)
-            .where(and(eq(appUsers.project_id, projectId), eq(appUsers.user_id, userId)))
-            .limit(1);
-          const currentProps = (userRow?.properties ?? {}) as Record<string, unknown>;
-          attributionProps = selectUnsetProps(mapped, currentProps);
-        }
-      } else if (attrsResult.status === "error") {
-        app.log.warn(
-          { projectId, userId, statusCode: attrsResult.statusCode, message: attrsResult.message },
-          "RC attributes fetch failed (continuing without attribution backfill)",
-        );
-      }
-
-      const subscriberProps = mapSubscriberToProperties(subscriberResult.data, subsData);
-      const props = { ...subscriberProps, ...attributionProps };
-      await mergeUserProperties(app.db, projectId, userId, props);
-
-      return { updated: 1, properties: props };
+      return { updated: 1, properties: result.properties };
     }
   );
 }

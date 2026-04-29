@@ -726,6 +726,124 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
     const props = await getUserProperties("rc_user_123");
     expect(props?.rc_subscriber).toBe("true");
   });
+
+  // TRANSFER events lack app_user_id/original_app_user_id; affected users live
+  // in transferred_from/transferred_to and the webhook re-syncs each non-anon
+  // user from RC's V2 API in the background.
+
+  it("TRANSFER triggers per-user RC resync for real user IDs and skips $RCAnonymousID entries", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("xfer_real_user");
+
+    const calledUrls: string[] = [];
+    const cleanup = mockRevenueCatV2({
+      capturedUrl: (url) => calledUrls.push(url),
+    });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("TRANSFER", {
+          app_user_id: undefined,
+          original_app_user_id: undefined,
+          aliases: undefined,
+          product_id: undefined,
+          entitlement_ids: undefined,
+          period_type: undefined,
+          purchased_at_ms: undefined,
+          expiration_at_ms: undefined,
+          currency: undefined,
+          price: undefined,
+          price_in_purchased_currency: undefined,
+          country_code: undefined,
+          transaction_id: undefined,
+          original_transaction_id: undefined,
+          transferred_from: ["xfer_real_user"],
+          transferred_to: ["$RCAnonymousID:abc123def456"],
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ received: true });
+
+      // Fire-and-forget resync runs after the webhook acks
+      await new Promise((r) => setTimeout(r, 300));
+
+      const customerCalls = calledUrls.filter((u) => u.includes("/customers/"));
+      expect(customerCalls.some((u) => u.includes(encodeURIComponent("xfer_real_user")))).toBe(true);
+      expect(customerCalls.some((u) => u.includes("RCAnonymousID"))).toBe(false);
+
+      const props = await getUserProperties("xfer_real_user");
+      expect(props?.rc_subscriber).toBe("true");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("TRANSFER with only $RCAnonymousID candidates makes no RC API calls", async () => {
+    await createRevenueCatIntegration();
+
+    const calledUrls: string[] = [];
+    const cleanup = mockRevenueCatV2({
+      capturedUrl: (url) => calledUrls.push(url),
+    });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("TRANSFER", {
+          app_user_id: undefined,
+          original_app_user_id: undefined,
+          aliases: undefined,
+          transferred_from: ["$RCAnonymousID:foo"],
+          transferred_to: ["$RCAnonymousID:bar"],
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+
+      // Allow time for any (unwanted) fire-and-forget calls to land
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(calledUrls).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("TRANSFER acks 200 even when the per-user RC fetch fails", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("xfer_will_fail");
+
+    const cleanup = mockRevenueCatV2({ entitlementsStatus: 500 });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("TRANSFER", {
+          app_user_id: undefined,
+          original_app_user_id: undefined,
+          aliases: undefined,
+          transferred_from: ["xfer_will_fail"],
+          transferred_to: [],
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ received: true });
+
+      // Let the fire-and-forget resync hit the failing endpoint and log
+      await new Promise((r) => setTimeout(r, 200));
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ==========================================================================

@@ -1,17 +1,11 @@
 import { eq, and, isNull } from "drizzle-orm";
 import { projectIntegrations, appUsers } from "@owlmetry/db";
-import { ATTRIBUTION_SOURCE_PROPERTY, ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
-import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.js";
-import { mapRevenueCatAttributesToAttributionProperties } from "../utils/attribution/revenuecat.js";
 import {
   type RevenueCatConfig,
-  mapSubscriberToProperties,
-  fetchRevenueCatSubscriber,
-  fetchRevenueCatSubscriptions,
-  fetchRevenueCatCustomerAttributes,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
+import { syncRevenueCatUserProperties } from "../utils/revenuecat-user-sync.js";
 
 export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   const projectId = params.project_id as string;
@@ -151,61 +145,24 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
 
     const user = users[i];
     try {
-      const result = await fetchRevenueCatSubscriber(rcConfig.api_key, rcProjectId, user.user_id);
-      if (result.status === "found") {
-        // Fetch subscriptions and attributes concurrently — both are independent
-        // of the entitlements response and share the ~350ms throttle window
-        // against RC's 480/min Customer Information rate limit. Fail-soft on
-        // both: an error on either doesn't abort the other merge.
-        const [subsResult, attrsResult] = await Promise.all([
-          fetchRevenueCatSubscriptions(rcConfig.api_key, rcProjectId, user.user_id),
-          fetchRevenueCatCustomerAttributes(rcConfig.api_key, rcProjectId, user.user_id),
-        ]);
-        const subsData = subsResult.status === "found" ? subsResult.data : undefined;
-        if (subsResult.status === "error") {
-          ctx.log.warn(
-            { userId: user.user_id, statusCode: subsResult.statusCode, message: subsResult.message },
-            "RC subscriptions fetch failed (continuing with entitlements-only props)",
-          );
-        }
+      const result = await syncRevenueCatUserProperties({
+        db: ctx.db,
+        log: ctx.log,
+        projectId,
+        rcProjectId,
+        config: rcConfig,
+        userId: user.user_id,
+        currentProps: (user.properties ?? {}) as Record<string, unknown>,
+      });
 
-        let attributionProps: Record<string, string> = {};
-        if (attrsResult.status === "found") {
-          const mapped = mapRevenueCatAttributesToAttributionProperties(attrsResult.attributes);
-          if (Object.keys(mapped).length === 0) {
-            attributionSkippedNoAsa++;
-          } else {
-            const currentProps = (user.properties ?? {}) as Record<string, unknown>;
-            attributionProps = selectUnsetProps(mapped, currentProps);
-            if (Object.keys(attributionProps).length > 0) {
-              const isOrganic = mapped[ATTRIBUTION_SOURCE_PROPERTY] === ATTRIBUTION_SOURCE_VALUES.none;
-              if (isOrganic) {
-                attributionMarkedOrganic++;
-              } else if (currentProps[ATTRIBUTION_SOURCE_PROPERTY] !== undefined) {
-                attributionEnrichedExisting++;
-              } else {
-                attributionSynced++;
-              }
-            }
-          }
-        } else if (attrsResult.status === "error") {
-          ctx.log.warn(
-            { userId: user.user_id, statusCode: attrsResult.statusCode, message: attrsResult.message },
-            "RC attributes fetch failed (continuing without attribution backfill)",
-          );
-        }
-
-        const subscriberProps = mapSubscriberToProperties(result.data, subsData);
-        await mergeUserProperties(ctx.db, projectId, user.user_id, {
-          ...subscriberProps,
-          ...attributionProps,
-        });
+      if (result.status === "synced") {
         synced++;
-        if (subscriberProps.rc_status === "active") {
-          active++;
-        } else {
-          inactive++;
-        }
+        if (result.isActive) active++;
+        else inactive++;
+        if (result.attribution.synced) attributionSynced++;
+        if (result.attribution.enriched) attributionEnrichedExisting++;
+        if (result.attribution.markedOrganic) attributionMarkedOrganic++;
+        if (result.attribution.skippedNoAsa) attributionSkippedNoAsa++;
       } else if (result.status === "not_found") {
         notFound++;
         if (notFoundUsers.length < MAX_USER_IDS) notFoundUsers.push(user.user_id);

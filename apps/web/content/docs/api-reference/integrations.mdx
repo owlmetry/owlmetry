@@ -211,7 +211,9 @@ Receive RevenueCat webhook events. This endpoint is called by RevenueCat itself,
 
 **Auth required:** No (uses the webhook `Authorization: Bearer <webhook_secret>` header from the integration config)
 
-Handled event types: `INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `UNCANCELLATION`, `CANCELLATION`, `BILLING_ISSUE`, `EXPIRATION`. Event properties (`rc_subscriber`, `rc_status`, `rc_will_renew`, `rc_product`, `rc_last_purchase`, `rc_entitlements`, `rc_period_type`, `rc_billing_period`) are merged onto the user identified by `event.app_user_id` (or `event.original_app_user_id` when the former is null — e.g. `TRANSFER` events).
+Handled event types: `INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `UNCANCELLATION`, `CANCELLATION`, `BILLING_ISSUE`, `EXPIRATION`. Event properties (`rc_subscriber`, `rc_status`, `rc_will_renew`, `rc_product`, `rc_last_purchase`, `rc_entitlements`, `rc_period_type`, `rc_billing_period`) are merged onto the user identified by `event.app_user_id` (falling back to `event.original_app_user_id`).
+
+`TRANSFER` events are also handled but follow a different flow: they ship neither `app_user_id` nor `original_app_user_id` — affected users live in `event.transferred_from` and `event.transferred_to`. The webhook acks immediately and re-syncs each non-anonymous affected user (RC's `$RCAnonymousID:*` form is dropped) against RC's V2 API in the background, so post-transfer `rc_*` properties match RC's authoritative state.
 
 ```json
 // Response (200)
@@ -220,4 +222,4 @@ Handled event types: `INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `UNCANCELL
 }
 ```
 
-Returns 404 if RevenueCat is not configured or disabled for the project. Returns 401 if the `Authorization` header does not match the stored webhook secret. Returns 400 if the payload is malformed or lacks a user ID.
+Returns 404 if RevenueCat is not configured or disabled for the project. Returns 401 if the `Authorization` header does not match the stored webhook secret. Returns 400 if the payload is malformed or lacks a user ID (non-`TRANSFER` events).
