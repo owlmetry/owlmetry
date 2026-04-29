@@ -23,6 +23,8 @@ import { DetailSkeleton } from "@/components/ui/skeletons";
 import { api, ApiError, API_URL } from "@/lib/api";
 import type { IntegrationResponse, CreateIntegrationResponse, WebhookSetup } from "@owlmetry/shared";
 
+const PROVIDER = "revenuecat";
+
 export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   const { data, mutate, isLoading } = useSWR<{ integrations: IntegrationResponse[] }>(
     `/v1/projects/${projectId}/integrations`
@@ -34,7 +36,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   const [syncing, setSyncing] = useState(false);
   const [pendingWebhookSetup, setPendingWebhookSetup] = useState<WebhookSetup | null>(null);
 
-  const integration = data?.integrations?.find((i) => i.provider === "revenuecat");
+  const integration = data?.integrations?.find((i) => i.provider === PROVIDER);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -45,11 +47,11 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
       if (apiKey) config.api_key = apiKey;
 
       if (integration) {
-        await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { config });
+        await api.patch(`/v1/projects/${projectId}/integrations/${PROVIDER}`, { config });
       } else {
         const response = await api.post<CreateIntegrationResponse>(
           `/v1/projects/${projectId}/integrations`,
-          { provider: "revenuecat", config }
+          { provider: PROVIDER, config }
         );
         if (response.webhook_setup) {
           setPendingWebhookSetup(response.webhook_setup);
@@ -69,7 +71,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     if (!integration) return;
     setError("");
     try {
-      await api.patch(`/v1/projects/${projectId}/integrations/revenuecat`, { enabled: !integration.enabled });
+      await api.patch(`/v1/projects/${projectId}/integrations/${PROVIDER}`, { enabled: !integration.enabled });
       mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to toggle");
@@ -80,7 +82,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     setSyncing(true);
     setError("");
     try {
-      await api.post(`/v1/projects/${projectId}/integrations/revenuecat/sync`, {});
+      await api.post(`/v1/projects/${projectId}/integrations/${PROVIDER}/sync`, {});
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to sync");
     } finally {
@@ -92,7 +94,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     if (!confirm("Remove RevenueCat integration?")) return;
     setError("");
     try {
-      await api.delete(`/v1/projects/${projectId}/integrations/revenuecat`);
+      await api.delete(`/v1/projects/${projectId}/integrations/${PROVIDER}`);
       setPendingWebhookSetup(null);
       mutate();
     } catch (err) {
@@ -239,7 +241,7 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
             </Dialog>
               <CopyIntegrationDialog
                 targetProjectId={projectId}
-                provider="revenuecat"
+                provider={PROVIDER}
                 providerLabel="RevenueCat"
                 onCopied={() => mutate()}
               />
@@ -301,10 +303,10 @@ function PendingWebhookSetup({
         </p>
       </div>
 
-      <WebhookSetupRow label="Webhook URL" value={webhookSetup.webhook_url} mono />
-      <WebhookSetupRow label="Authorization header" value={webhookSetup.authorization_header} mono />
-      <WebhookSetupRow label="Environment" value={webhookSetup.environment} />
-      <WebhookSetupRow label="Events filter" value={webhookSetup.events_filter} />
+      <WebhookSetupRow label="Webhook URL" value={webhookSetup.webhook_url} />
+      <WebhookSetupRow label="Authorization header" value={webhookSetup.authorization_header} />
+      <WebhookSetupRow label="Environment" value={webhookSetup.environment} mono={false} />
+      <WebhookSetupRow label="Events filter" value={webhookSetup.events_filter} mono={false} />
 
       <div className="flex gap-2 flex-wrap pt-1">
         <Button size="sm" onClick={onDone}>I&apos;ve saved the webhook</Button>
@@ -316,7 +318,7 @@ function PendingWebhookSetup({
   );
 }
 
-function WebhookSetupRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function WebhookSetupRow({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
