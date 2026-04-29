@@ -169,7 +169,11 @@ export function appStoreConnectReviewsSyncHandler(
           const upsertResult = await upsertReviewsPage(ctx.db, app, reviews);
           reviewsIngested += upsertResult.insertedReviews.length;
           reviewsUpdated += upsertResult.reviewsUpdated;
-          reviewsSkippedDuplicate += upsertResult.unchangedDuplicates;
+          // "skipped duplicate" post-upsert means: row existed AND its developer_response_*
+          // fields matched what ASC reported, so the upsert was a true no-op. Tighter
+          // signal than the old DO-NOTHING semantic (which only checked row existence).
+          reviewsSkippedDuplicate +=
+            reviews.length - upsertResult.insertedReviews.length - upsertResult.reviewsUpdated;
           perAppNewCount += upsertResult.insertedReviews.length;
           // ASC returns newest-first; the first non-empty inserted page holds
           // the absolute-newest new review across the run.
@@ -300,8 +304,6 @@ interface UpsertResult {
   insertedReviews: AppStoreConnectReview[];
   /** Existing rows whose developer_response_* fields actually changed. */
   reviewsUpdated: number;
-  /** Existing rows where the upsert was a no-op (no developer_response_* delta). */
-  unchangedDuplicates: number;
 }
 
 async function upsertReviewsPage(
@@ -309,7 +311,7 @@ async function upsertReviewsPage(
   app: { id: string; team_id: string; project_id: string },
   reviews: AppStoreConnectReview[],
 ): Promise<UpsertResult> {
-  if (reviews.length === 0) return { insertedReviews: [], reviewsUpdated: 0, unchangedDuplicates: 0 };
+  if (reviews.length === 0) return { insertedReviews: [], reviewsUpdated: 0 };
 
   // Pre-fetch existing rows so we can classify post-upsert outcomes. ON CONFLICT
   // DO UPDATE returns every row regardless of whether columns actually changed,
@@ -369,7 +371,6 @@ async function upsertReviewsPage(
 
   const insertedReviews: AppStoreConnectReview[] = [];
   let reviewsUpdated = 0;
-  let unchangedDuplicates = 0;
 
   for (const review of reviews) {
     const prior = existingByExtId.get(review.id);
@@ -384,18 +385,10 @@ async function upsertReviewsPage(
       priorAt !== newAt ||
       prior.developer_response_id !== review.developer_response_id ||
       prior.developer_response_state !== review.developer_response_state;
-    if (responseChanged) {
-      reviewsUpdated++;
-    } else {
-      unchangedDuplicates++;
-    }
+    if (responseChanged) reviewsUpdated++;
   }
 
-  return {
-    insertedReviews,
-    reviewsUpdated,
-    unchangedDuplicates,
-  };
+  return { insertedReviews, reviewsUpdated };
 }
 
 function truncate(s: string, max: number): string {
