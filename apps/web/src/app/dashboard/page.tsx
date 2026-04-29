@@ -88,6 +88,11 @@ export default function DashboardPage() {
       { refreshInterval: 60_000 }
     );
 
+  const { data: reviewsDeltaData } = useSWR<{ count: number }>(
+    teamId ? `/v1/reviews/count?team_id=${teamId}&since=${eventsSince}` : null,
+    { refreshInterval: 60_000 }
+  );
+
   const projectCount = projectsData?.projects.length;
   const appCount = appsData?.apps.length;
   const openIssueCount = issuesData?.issues.filter((i) =>
@@ -219,6 +224,7 @@ export default function DashboardPage() {
           label="Reviews"
           icon={Star}
           value={reviewsCountData?.count ?? 0}
+          delta={reviewsDeltaData?.count}
           isLoading={reviewsCountLoading}
           href="/dashboard/reviews"
         />
