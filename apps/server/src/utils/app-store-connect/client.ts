@@ -267,11 +267,15 @@ export interface AppStoreConnectReviewsPage {
 }
 
 function buildReviewsFirstUrl(appleAppStoreId: number): string {
+  // `response` MUST be in fields[customerReviews] — Apple's JSON:API sparse
+  // fieldsets are exclusive: leaving it out drops the relationships.response
+  // link from each review, which makes ?include=response a silent no-op
+  // (apple returns reviews but never the response payloads in `included`).
   const params = new URLSearchParams({
     sort: "-createdDate",
     limit: "200",
     include: "response",
-    "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory",
+    "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,response",
     "fields[customerReviewResponses]": "responseBody,lastModifiedDate,state",
   });
   return `${ASC_BASE}/v1/apps/${appleAppStoreId}/customerReviews?${params.toString()}`;

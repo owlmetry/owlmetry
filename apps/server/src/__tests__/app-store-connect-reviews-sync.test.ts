@@ -734,7 +734,13 @@ describe("app_store_connect_reviews_sync", () => {
     vi.unstubAllGlobals();
   });
 
-  it("clears developer_response fields when ASC reports the reply was deleted", async () => {
+  it("preserves developer_response when ASC's payload has no response data (PENDING / quirk / API filter)", async () => {
+    // Regression: previously the upsert wiped developer_response_* whenever ASC's
+    // customerReviews payload didn't carry response data — which happens for
+    // PENDING_PUBLISH replies (Apple doesn't surface them in customerReviews)
+    // and intermittently for API-side issues. That destroyed Owlmetry-created
+    // pending replies on every sync. setWhere now gates the update on incoming
+    // developer_response_id being non-null.
     await setIntegration();
     await db.insert(appStoreReviews).values({
       team_id: teamId,
@@ -747,10 +753,10 @@ describe("app_store_connect_reviews_sync", () => {
       body: "Body rev-1",
       country_code: "us",
       created_at_in_store: new Date("2026-01-15T10:00:00Z"),
-      developer_response: "will be removed",
+      developer_response: "pending reply, do not wipe",
       developer_response_at: new Date("2026-01-16T10:00:00Z"),
       developer_response_id: "resp-1",
-      developer_response_state: "PUBLISHED",
+      developer_response_state: "PENDING_PUBLISH",
       responded_by_user_id: userId,
     });
 
@@ -767,19 +773,18 @@ describe("app_store_connect_reviews_sync", () => {
     );
     const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
 
-    expect(result.reviews_updated).toBe(1);
+    // Sync sees the row as a no-op duplicate — nothing changed in the DB.
+    expect(result.reviews_updated).toBe(0);
+    expect(result.reviews_ingested).toBe(0);
+    expect(result.reviews_skipped_duplicate).toBe(1);
 
     const [row] = await db
       .select()
       .from(appStoreReviews)
       .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
-    expect(row.developer_response).toBeNull();
-    expect(row.developer_response_at).toBeNull();
-    expect(row.developer_response_id).toBeNull();
-    expect(row.developer_response_state).toBeNull();
-    // Trade-off: responded_by_user_id is left as historical attribution. The UI
-    // only surfaces it when developer_response is non-null, so a dangling FK
-    // here is harmless.
+    expect(row.developer_response).toBe("pending reply, do not wipe");
+    expect(row.developer_response_id).toBe("resp-1");
+    expect(row.developer_response_state).toBe("PENDING_PUBLISH");
     expect(row.responded_by_user_id).toBe(userId);
 
     vi.unstubAllGlobals();
@@ -827,6 +832,36 @@ describe("app_store_connect_reviews_sync", () => {
     expect(result.reviews_updated).toBe(0);
     expect(result.reviews_skipped_duplicate).toBe(1);
     expect(result._silent).toBe(true);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("requests `response` in fields[customerReviews] so Apple actually returns response data", async () => {
+    // Apple's JSON:API sparse fieldsets are exclusive — leaving `response` out of
+    // fields[customerReviews] silently drops the relationships.response link, so
+    // ?include=response becomes a no-op (Apple returns reviews but never their
+    // responses in `included`). This test pins the URL so a future cleanup
+    // doesn't regress us back to the silent-no-include state.
+    await setIntegration();
+    const seenUrls: string[] = [];
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      seenUrls.push(typeof input === "string" ? input : input.toString());
+      return new Response(JSON.stringify({ data: [], links: {} }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
+
+    expect(seenUrls.length).toBeGreaterThan(0);
+    const reviewsUrl = seenUrls.find((u) => u.includes("/customerReviews"));
+    expect(reviewsUrl).toBeDefined();
+    const decoded = decodeURIComponent(reviewsUrl!);
+    // The fields[customerReviews] list must include `response` for ?include=response to work.
+    expect(decoded).toContain("fields[customerReviews]=rating,title,body,reviewerNickname,createdDate,territory,response");
+    expect(decoded).toContain("include=response");
 
     vi.unstubAllGlobals();
   });

@@ -22,11 +22,14 @@ const REVIEW_BODY_SNIPPET_MAX = 140;
  * for that app whose `external_id` didn't show up in ASC is hard-deleted.
  * Upserts use ON CONFLICT DO UPDATE on `(app_id, store, external_id)` —
  * reviewer-side fields (rating, title, body, etc.) stay frozen because Apple
- * treats them as immutable, but `developer_response*` fields *do* mutate over
- * time (a reply added/edited/deleted directly in ASC's web UI), so we always
- * overwrite them from the latest payload. `responded_by_user_id` is preserved
- * on conflict — it's local "who replied via Owlmetry" attribution that ASC
- * doesn't carry.
+ * treats them as immutable. `developer_response*` fields refresh from the
+ * payload, but only when the incoming row has a non-null `developer_response_id`
+ * (gated by `setWhere`) — Apple's customerReviews API doesn't surface
+ * PENDING_PUBLISH replies and can transiently drop response data from the
+ * `included` array, so a missing response is treated as "no signal," not "delete."
+ * That keeps Owlmetry-originated PENDING replies intact and survives Apple-side
+ * pagination quirks. `responded_by_user_id` is preserved on conflict — it's
+ * local "who replied via Owlmetry" attribution that ASC doesn't carry.
  *
  * Reconciliation only runs when pagination completed cleanly for that app —
  * partial failures (transport error, rate-limit abort, cancellation) skip the
@@ -367,6 +370,14 @@ async function upsertReviewsPage(
         developer_response_state: sql`excluded.developer_response_state`,
         updated_at: sql`now()`,
       },
+      // Only overwrite developer_response_* when the incoming payload actually has
+      // a reply. ASC's customerReviews API doesn't surface PENDING_PUBLISH replies,
+      // and pagination quirks can briefly drop responses from the include array, so
+      // a missing response in the payload is *not* a signal to wipe — it's the
+      // absence of a signal. ASC-side deletions reflect on the next sync that
+      // *does* return the review with response data (or via the explicit DELETE
+      // route handler). Owlmetry-originated PENDING replies stay intact.
+      setWhere: sql`excluded.developer_response_id IS NOT NULL`,
     });
 
   const insertedReviews: AppStoreConnectReview[] = [];
@@ -378,6 +389,9 @@ async function upsertReviewsPage(
       insertedReviews.push(review);
       continue;
     }
+    // setWhere gates the upsert so a payload without a response is a no-op —
+    // don't count that as an "update," it's an unchanged duplicate.
+    if (review.developer_response_id === null) continue;
     const priorAt = prior.developer_response_at?.getTime() ?? null;
     const newAt = review.developer_response_at?.getTime() ?? null;
     const responseChanged =
