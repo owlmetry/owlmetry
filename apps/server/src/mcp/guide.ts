@@ -113,6 +113,8 @@ Third-party service connections (RevenueCat, Apple Search Ads) that sync data in
 3. The response includes a \`webhook_setup\` section with every value the user needs to paste into RevenueCat's webhook form (Settings → Webhooks → + New Webhook): webhook URL, authorization header (contains the auto-generated secret), environment, and events filter. Present these to the user.
 4. After the user confirms the webhook is saved, run \`sync-integration\` to backfill existing subscriber data.
 
+If the user later loses the post-create output (or you need to recover the auth header for an integration created before this tool existed), call \`get-revenuecat-webhook-setup\` with just \`project_id\`. It re-reveals the **same** webhook secret (no rotation), so any deliveries already configured on RevenueCat's side keep working — useful when the dashboard shows a connected RC integration but the user can't find the Bearer header.
+
 **Setting up Apple Search Ads — needed to resolve captured ASA IDs into human-readable names** (campaign name, ad group name, keyword text, ad name). Complementary to RevenueCat: ASA covers every attributed user, RC only subscribers.
 
 **IMPORTANT: DO NOT ask the user for a private key or an openssl command.** Owlmetry generates the EC P-256 keypair server-side. The flow is three calls:
@@ -294,6 +296,7 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 - \`remove-integration\` — Remove (needs \`integrations:write\`)
 - \`copy-integration\` — One-step clone of a configured integration to another project in the same team (needs \`integrations:write\`, admin role). **Apple Search Ads**: full config (keypair + client/team/key/org IDs) is duplicated verbatim, target enables immediately, and the response includes a \`connection_test\` field from a live Apple \`/acls\` call confirming the clone works end-to-end — no Apple-side setup or separate test required. **RevenueCat**: api_key is copied verbatim; a fresh webhook_secret is generated on the target and returned in \`webhook_setup\` for the user to paste into RC. Credentials are **duplicated, not shared** — rotating the source does not update copies.
 - \`sync-integration\` — Trigger sync: \`provider\` (\`revenuecat\` default, or \`apple-search-ads\`), bulk (omit \`user_id\`, queues job) or single user (with \`user_id\`, synchronous)
+- \`get-revenuecat-webhook-setup\` — Re-reveal the webhook setup block (URL + Bearer + environment + events filter) for an existing RevenueCat integration; needs \`integrations:read\` and admin role. Use when the user lost the post-create output — it returns the **same** secret, so RevenueCat-side deliveries already configured keep working.
 
 ### Jobs
 - \`list-jobs\` — List job runs for a team (filter by type, status, project, date)

@@ -93,6 +93,14 @@ One-step clone of a configured integration to another project in the same team. 
 
 Errors: `409` if the target already has a non-deleted integration for that provider, `404` if the source has none, `403` for cross-team copies or callers without admin role.
 
+## get-revenuecat-webhook-setup
+
+Re-reveal the webhook setup block (URL + authorization header + environment + events filter) for an existing RevenueCat integration. Use this when the user lost the post-create output or never captured the auth header — `list-integrations` redacts the webhook secret. The revealed `Bearer <secret>` is the same one already configured on RevenueCat; revealing does not invalidate any existing webhook deliveries. To actually rotate the secret, call `remove-integration` then `add-integration`. Requires `integrations:read` permission **and** admin role.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
 ## remove-integration
 
 Remove an integration from a project. Requires `integrations:write` permission.

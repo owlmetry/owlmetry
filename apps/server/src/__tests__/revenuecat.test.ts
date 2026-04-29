@@ -1630,4 +1630,40 @@ describe("Integrations CRUD", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().integrations[0].webhook_setup).toBeUndefined();
   });
+
+  it("re-reveals the same webhook_secret via GET webhook-setup after creation", async () => {
+    const createRes = await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/integrations`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { provider: "revenuecat", config: { api_key: "sk_test_key" } },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const originalAuthHeader = createRes.json().webhook_setup.authorization_header;
+
+    const revealRes = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/integrations/revenuecat/webhook-setup`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(revealRes.statusCode).toBe(200);
+    const body = revealRes.json();
+    expect(body.webhook_setup).toBeDefined();
+    expect(body.webhook_setup.authorization_header).toBe(originalAuthHeader);
+    expect(body.webhook_setup.webhook_url).toContain(`/v1/webhooks/revenuecat/${projectId}`);
+    expect(body.webhook_setup.environment).toBeDefined();
+    expect(body.webhook_setup.events_filter).toBeDefined();
+  });
+
+  it("returns 404 from GET webhook-setup when no integration exists", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/integrations/revenuecat/webhook-setup`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toMatch(/not found/i);
+  });
 });

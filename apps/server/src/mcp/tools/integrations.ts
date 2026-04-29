@@ -107,6 +107,40 @@ export function registerIntegrationsTools(server: McpServer, app: FastifyInstanc
     return { content };
   });
 
+  server.registerTool("get-revenuecat-webhook-setup", {
+    description:
+      "Reveal the webhook setup block (URL + authorization header + environment + events filter) for an existing RevenueCat integration. Use this when the user lost the post-create output or never captured the auth header — the webhook secret is server-managed and redacted on list-integrations / get responses, so this tool is the only way to recover it without rotating the secret. The returned authorization header is the same secret that's already configured on RevenueCat's side; revealing does not invalidate any existing webhook deliveries. Admin-only — requires integrations:read permission.",
+    inputSchema: {
+      project_id: z.string().uuid().describe("The project ID"),
+    },
+  }, async ({ project_id }) => {
+    const { body, error } = await callApiRaw(app, agentKey, {
+      method: "GET",
+      url: `/v1/projects/${project_id}/integrations/revenuecat/webhook-setup`,
+    });
+
+    if (error) return error;
+
+    const webhookSetup = body.webhook_setup as WebhookSetup;
+    return {
+      content: [
+        { type: "text", text: JSON.stringify(body, null, 2) },
+        {
+          type: "text",
+          text: [
+            "── RevenueCat Webhook Setup ──",
+            "Paste these into RevenueCat → Project Settings → Integrations → Webhooks → + New Webhook:",
+            "",
+            `Webhook URL:     ${webhookSetup.webhook_url}`,
+            `Authorization:   ${webhookSetup.authorization_header}`,
+            `Environment:     ${webhookSetup.environment}`,
+            `Events filter:   ${webhookSetup.events_filter}`,
+          ].join("\n"),
+        },
+      ],
+    };
+  });
+
   server.registerTool("update-integration", {
     description:
       "Update an integration's config or enabled state. For apple-search-ads, valid config keys are client_id, team_id, key_id, org_id — the integration auto-enables when all four are present, so do NOT pass enabled. For app-store-connect, valid config keys are issuer_id, key_id, private_key_p8 — omit private_key_p8 to keep the existing .p8 (the server merges patches on top of existing config). enabled is also derived from config completeness for app-store-connect, so do NOT pass enabled. Server-managed keys (private_key_pem, public_key_pem, webhook_secret) are always stripped from input — the server generates and rotates those. Requires integrations:write permission.",

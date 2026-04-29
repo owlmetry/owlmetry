@@ -459,6 +459,47 @@ export async function integrationsRoutes(app: FastifyInstance) {
     }
   );
 
+  // Reveal the RevenueCat webhook setup block for an existing integration.
+  // Returns the same shape as the create response so admins who lost the
+  // initial setup output (the auth header isn't shown again on GET
+  // /integrations) can recover it without rotating the secret. Admin-only:
+  // only roles that can rotate via remove+re-add can also reveal.
+  app.get<{ Params: { projectId: string } }>(
+    "/integrations/revenuecat/webhook-setup",
+    { preHandler: [requirePermission("integrations:read")] },
+    async (request, reply) => {
+      const { projectId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const roleError = assertTeamRole(request.auth, project.team_id, "admin");
+      if (roleError) return reply.code(403).send({ error: roleError });
+
+      const [existing] = await app.db
+        .select()
+        .from(projectIntegrations)
+        .where(
+          and(
+            eq(projectIntegrations.project_id, projectId),
+            eq(projectIntegrations.provider, INTEGRATION_PROVIDER_IDS.REVENUECAT),
+            isNull(projectIntegrations.deleted_at),
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return reply.code(404).send({ error: "Integration not found" });
+      }
+
+      const webhookSecret = (existing.config as Record<string, unknown>).webhook_secret as string | undefined;
+      if (!webhookSecret) {
+        return reply.code(500).send({ error: "Integration has no webhook_secret on file" });
+      }
+
+      return { webhook_setup: buildRevenueCatWebhookSetup(projectId, webhookSecret) };
+    }
+  );
+
   // Delete integration (soft delete)
   app.delete<{ Params: { projectId: string; provider: string } }>(
     "/integrations/:provider",

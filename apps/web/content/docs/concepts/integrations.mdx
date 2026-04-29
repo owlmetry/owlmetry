@@ -56,6 +56,14 @@ RevenueCat is the first supported integration. It syncs subscription lifecycle e
    - **Environment**: `Both Production and Sandbox`
    - **Events filter**: App = `All apps`, Event type = `All events`
 
+   Lost the post-create output? Re-reveal the same webhook setup any time:
+
+   ```bash
+   owlmetry integrations webhook-setup revenuecat --project-id <id>
+   ```
+
+   In the dashboard, click **Show webhook setup** on the RevenueCat integration card. MCP tool: `get-revenuecat-webhook-setup`. All three surface the existing webhook secret without rotating it, so any webhook deliveries already configured on RevenueCat's side keep working. Admin role required.
+
 4. **Backfill existing users** with the sync command:
    ```bash
    owlmetry integrations sync revenuecat --project-id <id>

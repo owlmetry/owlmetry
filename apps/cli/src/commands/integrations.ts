@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import chalk from "chalk";
-import type { IntegrationResponse, CreateIntegrationResponse } from "@owlmetry/shared";
+import type { IntegrationResponse, CreateIntegrationResponse, WebhookSetup } from "@owlmetry/shared";
 import {
   SUPPORTED_PROVIDER_IDS,
   INTEGRATION_PROVIDERS,
@@ -9,6 +9,19 @@ import {
 } from "@owlmetry/shared";
 import { createClient } from "../config.js";
 import { output } from "../formatters/index.js";
+
+function formatWebhookSetup(ws: WebhookSetup, footer: string): string[] {
+  return [
+    "",
+    chalk.bold("── Webhook Setup (paste into RevenueCat) ──"),
+    `  Webhook URL:     ${ws.webhook_url}`,
+    `  Authorization:   ${chalk.yellow(ws.authorization_header)}`,
+    `  Environment:     ${ws.environment}`,
+    `  Events filter:   ${ws.events_filter}`,
+    "",
+    chalk.dim(footer),
+  ];
+}
 
 function formatIntegrationsTable(integrations: IntegrationResponse[]): string {
   if (integrations.length === 0) return chalk.dim("No integrations configured");
@@ -123,15 +136,7 @@ integrationsCommand
     output(globals.format, result, () => {
       const lines = [formatIntegrationDetail(result)];
       if (result.webhook_setup) {
-        const ws = result.webhook_setup;
-        lines.push("");
-        lines.push(chalk.bold("── Webhook Setup (paste into RevenueCat) ──"));
-        lines.push(`  Webhook URL:     ${ws.webhook_url}`);
-        lines.push(`  Authorization:   ${chalk.yellow(ws.authorization_header)}`);
-        lines.push(`  Environment:     ${ws.environment}`);
-        lines.push(`  Events filter:   ${ws.events_filter}`);
-        lines.push("");
-        lines.push(chalk.dim("The authorization header contains the webhook secret. It will not be shown again."));
+        lines.push(...formatWebhookSetup(result.webhook_setup, "The authorization header contains the webhook secret. Re-reveal it later with `owlmetry integrations webhook-setup revenuecat`."));
       }
       if (provider === INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS) {
         const publicKey = result.config.public_key_pem || "";
@@ -187,6 +192,19 @@ integrationsCommand
   });
 
 integrationsCommand
+  .command("webhook-setup <provider>")
+  .description("Print the webhook setup block (URL + authorization header + environment + events filter) for an existing integration. Today only RevenueCat. Admin-only — discloses the webhook secret.")
+  .requiredOption("--project-id <id>", "Project ID")
+  .action(async (provider: string, opts: { projectId: string }, cmd) => {
+    const { client, globals } = createClient(cmd);
+    if (provider !== INTEGRATION_PROVIDER_IDS.REVENUECAT) {
+      throw new Error(`webhook-setup is only supported for RevenueCat. Got "${provider}".`);
+    }
+    const result = await client.getRevenueCatWebhookSetup(opts.projectId);
+    output(globals.format, result, () => formatWebhookSetup(result.webhook_setup, "Paste these into RevenueCat → Project Settings → Integrations → Webhooks → + New Webhook.").join("\n"));
+  });
+
+integrationsCommand
   .command("remove <provider>")
   .description("Remove an integration")
   .requiredOption("--project-id <id>", "Project ID")
@@ -207,15 +225,7 @@ integrationsCommand
     output(globals.format, result, () => {
       const lines = [formatIntegrationDetail(result)];
       if (result.webhook_setup) {
-        const ws = result.webhook_setup;
-        lines.push("");
-        lines.push(chalk.bold("── Webhook Setup (paste into RevenueCat) ──"));
-        lines.push(`  Webhook URL:     ${ws.webhook_url}`);
-        lines.push(`  Authorization:   ${chalk.yellow(ws.authorization_header)}`);
-        lines.push(`  Environment:     ${ws.environment}`);
-        lines.push(`  Events filter:   ${ws.events_filter}`);
-        lines.push("");
-        lines.push(chalk.dim("A new webhook secret was generated for this project. The source project keeps its own secret."));
+        lines.push(...formatWebhookSetup(result.webhook_setup, "A new webhook secret was generated for this project. The source project keeps its own secret."));
       }
       const test = (result as { connection_test?: { ok: boolean; orgs?: Array<{ org_id: number; org_name: string }>; error?: string; message?: string } }).connection_test;
       if (test) {

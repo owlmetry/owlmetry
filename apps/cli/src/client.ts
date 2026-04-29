@@ -60,6 +60,7 @@ import type {
   StoredEventResponse,
   UpdateAppRequest,
   UpdateProjectRequest,
+  WebhookSetup,
 } from "@owlmetry/shared";
 
 export class ApiError extends Error {
@@ -307,6 +308,10 @@ export class OwlmetryClient {
 
   async copyIntegration(provider: string, sourceProjectId: string, targetProjectId: string): Promise<CreateIntegrationResponse> {
     return this.request<CreateIntegrationResponse>("POST", `/v1/projects/${targetProjectId}/integrations/copy-from/${sourceProjectId}`, { body: { provider } });
+  }
+
+  async getRevenueCatWebhookSetup(projectId: string): Promise<{ webhook_setup: WebhookSetup }> {
+    return this.request<{ webhook_setup: WebhookSetup }>("GET", `/v1/projects/${projectId}/integrations/revenuecat/webhook-setup`);
   }
 
   // RevenueCat Sync

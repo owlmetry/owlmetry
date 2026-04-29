@@ -103,6 +103,14 @@ owlmetry integrations copy <provider> \
 
 Copies a configured integration from one project to another within the same team — one-step, no Apple-side setup needed. For **Apple Search Ads** the full config (keypair + client/team/key/org IDs) is duplicated verbatim; the CLI output includes a "connection test" section from a live Apple `/acls` round-trip confirming the clone works. For **RevenueCat** the API key is copied but a **fresh webhook secret is generated** on the target (each project has its own webhook URL — paste the returned values into RC if you want events delivered to the copy's project). Credentials are **duplicated, not shared**: rotating the source later does not update copies. Requires admin role and `integrations:write` on the target. Fails with 409 if the target already has a non-deleted integration for that provider, 404 if the source has none, and 403 for cross-team copies.
 
+## Re-reveal RevenueCat Webhook Setup
+
+```bash
+owlmetry integrations webhook-setup revenuecat --project-id <id>
+```
+
+Re-prints the webhook setup block (URL, authorization header, environment, events filter) for an existing RevenueCat integration. The webhook secret is shown once at creation time and redacted on every later list/get response, so this command is the recovery path when the original output was lost. The revealed `Bearer <secret>` is the same one already configured on RevenueCat — revealing does not invalidate any existing webhook deliveries; remove + re-add the integration to actually rotate it. Admin role + `integrations:read`.
+
 ## Remove an Integration
 
 ```bash

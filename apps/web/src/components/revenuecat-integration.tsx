@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, Pencil, Trash2, RefreshCw, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, RefreshCw, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,9 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [pendingWebhookSetup, setPendingWebhookSetup] = useState<WebhookSetup | null>(null);
+  const [revealedSetup, setRevealedSetup] = useState<WebhookSetup | null>(null);
+  const [revealedMode, setRevealedMode] = useState<"create" | "reveal">("reveal");
+  const [revealing, setRevealing] = useState(false);
 
   const integration = data?.integrations?.find((i) => i.provider === PROVIDER);
 
@@ -54,7 +56,8 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
           { provider: PROVIDER, config }
         );
         if (response.webhook_setup) {
-          setPendingWebhookSetup(response.webhook_setup);
+          setRevealedSetup(response.webhook_setup);
+          setRevealedMode("create");
         }
       }
       setDialogOpen(false);
@@ -95,21 +98,38 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     setError("");
     try {
       await api.delete(`/v1/projects/${projectId}/integrations/${PROVIDER}`);
-      setPendingWebhookSetup(null);
+      setRevealedSetup(null);
       mutate();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to remove");
     }
   }
 
-  function handleFinishSetup() {
-    setPendingWebhookSetup(null);
+  async function handleRevealWebhookSetup() {
+    setError("");
+    setRevealing(true);
+    try {
+      const result = await api.get<{ webhook_setup: WebhookSetup }>(
+        `/v1/projects/${projectId}/integrations/${PROVIDER}/webhook-setup`
+      );
+      setRevealedSetup(result.webhook_setup);
+      setRevealedMode("reveal");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load webhook setup");
+    } finally {
+      setRevealing(false);
+    }
+  }
+
+  function handleClosePanel() {
+    const wasFirstSetup = revealedMode === "create";
+    setRevealedSetup(null);
     mutate();
-    handleSync();
+    if (wasFirstSetup) handleSync();
   }
 
   const webhookUrl = `${API_URL}/v1/webhooks/revenuecat/${projectId}`;
-  const showPending = Boolean(pendingWebhookSetup && integration);
+  const showRevealed = Boolean(revealedSetup && integration);
 
   return (
     <Card>
@@ -118,18 +138,16 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
           <CardTitle className="text-base">RevenueCat</CardTitle>
           <div className="flex items-center gap-2">
             {integration && (
-              <>
-                {showPending ? (
-                  <IntegrationStatusBadge enabled={false} disabledLabel="Pending setup" />
-                ) : (
-                  <>
-                    <IntegrationStatusBadge enabled={integration.enabled} />
-                    <Button variant="ghost" size="sm" onClick={handleToggle}>
-                      {integration.enabled ? "Disable" : "Enable"}
-                    </Button>
-                  </>
-                )}
-              </>
+              showRevealed && revealedMode === "create" ? (
+                <IntegrationStatusBadge enabled={false} disabledLabel="Pending setup" />
+              ) : (
+                <>
+                  <IntegrationStatusBadge enabled={integration.enabled} />
+                  <Button variant="ghost" size="sm" onClick={handleToggle}>
+                    {integration.enabled ? "Disable" : "Enable"}
+                  </Button>
+                </>
+              )
             )}
           </div>
         </div>
@@ -137,10 +155,11 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
       <CardContent className="space-y-4">
         {isLoading && !integration ? (
           <DetailSkeleton />
-        ) : showPending && pendingWebhookSetup ? (
-          <PendingWebhookSetup
-            webhookSetup={pendingWebhookSetup}
-            onDone={handleFinishSetup}
+        ) : showRevealed && revealedSetup ? (
+          <WebhookSetupPanel
+            webhookSetup={revealedSetup}
+            mode={revealedMode}
+            onClose={handleClosePanel}
             onCancel={handleRemove}
           />
         ) : integration ? (
@@ -153,14 +172,22 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Webhook URL (paste into RevenueCat dashboard)</Label>
+              <Label className="text-xs text-muted-foreground">Webhook URL</Label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-muted px-2 py-1.5 text-xs rounded break-all">{webhookUrl}</code>
                 <CopyButton text={webhookUrl} />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Need the authorization header to paste into RevenueCat? Click <span className="font-medium text-foreground">Show webhook setup</span>.
+              </p>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleRevealWebhookSetup} disabled={revealing}>
+                <KeyRound className={`h-3.5 w-3.5 mr-1.5 ${revealing ? "animate-spin" : ""}`} />
+                {revealing ? "Loading..." : "Show webhook setup"}
+              </Button>
+
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -196,6 +223,8 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
               </Button>
             </div>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </>
         ) : (
           <div className="text-center py-4">
@@ -268,27 +297,23 @@ function PermissionsCallout() {
   );
 }
 
-function PendingWebhookSetup({
+function WebhookSetupPanel({
   webhookSetup,
-  onDone,
+  mode,
+  onClose,
   onCancel,
 }: {
   webhookSetup: WebhookSetup;
-  onDone: () => void;
+  mode: "create" | "reveal";
+  onClose: () => void;
   onCancel: () => void;
 }) {
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-amber-600/30 bg-amber-950/20 text-amber-200 px-3 py-2 text-xs flex items-start gap-2">
-        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-        <div>
-          <p className="font-medium">Save the authorization header now</p>
-          <p className="opacity-90">It contains the webhook secret and won&apos;t be shown again. Lose it and you&apos;ll need to remove + re-add the integration.</p>
-        </div>
-      </div>
-
       <div className="space-y-1">
-        <p className="text-sm font-medium">Configure the webhook in RevenueCat</p>
+        <p className="text-sm font-medium">
+          {mode === "create" ? "Configure the webhook in RevenueCat" : "Webhook setup"}
+        </p>
         <p className="text-xs text-muted-foreground">
           In{" "}
           <a
@@ -300,6 +325,7 @@ function PendingWebhookSetup({
             RevenueCat → Project Settings → Integrations → Webhooks
           </a>
           {" "}choose <span className="font-medium text-foreground">+ New Webhook</span> and paste the four values below.
+          {" "}You can re-open this panel any time from <span className="font-medium text-foreground">Show webhook setup</span>.
         </p>
       </div>
 
@@ -309,10 +335,14 @@ function PendingWebhookSetup({
       <WebhookSetupRow label="Events filter" value={webhookSetup.events_filter} mono={false} />
 
       <div className="flex gap-2 flex-wrap pt-1">
-        <Button size="sm" onClick={onDone}>I&apos;ve saved the webhook</Button>
-        <Button size="sm" variant="ghost" onClick={onCancel} className="text-destructive hover:text-destructive ml-auto">
-          <Trash2 className="h-3.5 w-3.5 mr-1" /> Cancel setup
+        <Button size="sm" onClick={onClose}>
+          {mode === "create" ? "I've saved the webhook" : "Done"}
         </Button>
+        {mode === "create" && (
+          <Button size="sm" variant="ghost" onClick={onCancel} className="text-destructive hover:text-destructive ml-auto">
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> Cancel setup
+          </Button>
+        )}
       </div>
     </div>
   );

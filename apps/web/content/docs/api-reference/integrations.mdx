@@ -100,7 +100,28 @@ Fields must match the provider definition returned by `/v1/integrations/provider
 }
 ```
 
-The `webhook_setup` object is only returned for providers that use webhooks (currently RevenueCat). It contains the one-time values needed to configure the third-party side — copy these immediately; the `webhook_secret` is not recoverable afterwards.
+The `webhook_setup` object is only returned for providers that use webhooks (currently RevenueCat). It contains the values needed to configure the third-party side. The `webhook_secret` is server-managed and redacted on later GET responses; if you missed the post-create output, re-reveal it via `GET /v1/projects/:projectId/integrations/revenuecat/webhook-setup` (below).
+
+## GET /v1/projects/:projectId/integrations/revenuecat/webhook-setup
+
+Re-reveal the webhook setup block for an existing RevenueCat integration. Useful when the caller lost the original POST response (CLI/MCP/dashboard all surface the secret only once at creation time). The returned `authorization_header` is the same `Bearer <webhook_secret>` already configured on RevenueCat's side, so revealing does not invalidate any existing webhook deliveries — to actually rotate the secret, remove and re-add the integration.
+
+**Auth required:** Yes (`integrations:read` permission; admin role required)
+
+### Response (200)
+
+```json
+{
+  "webhook_setup": {
+    "webhook_url": "https://api.owlmetry.com/v1/webhooks/revenuecat/<projectId>",
+    "authorization_header": "Bearer <webhook_secret>",
+    "environment": "Both Production and Sandbox",
+    "events_filter": "All apps, All events"
+  }
+}
+```
+
+Returns 404 if no active RevenueCat integration exists for the project.
 
 ## PATCH /v1/projects/:projectId/integrations/:provider
 
