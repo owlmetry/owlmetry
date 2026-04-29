@@ -188,6 +188,7 @@ export default function DashboardPage() {
           icon={Waypoints}
           value={uniqueSessions}
           isLoading={eventsCountLoading}
+          href="/dashboard/events"
         />
         <StatCard
           label="Metrics · 24h"
