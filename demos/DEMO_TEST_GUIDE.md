@@ -70,7 +70,7 @@ curl -s http://localhost:4007/health | jq .   # {"status":"ok"}
 ## Phase 4: Configure CLI
 
 ```bash
-node apps/cli/dist/index.js setup \
+npx @owlmetry/cli setup \
   --endpoint http://localhost:4000 \
   --api-key owl_agent_demo_000000000000000000000000000000000000000000
 ```
@@ -78,7 +78,7 @@ node apps/cli/dist/index.js setup \
 Verify it works:
 
 ```bash
-node apps/cli/dist/index.js projects
+npx @owlmetry/cli projects
 ```
 
 Expected: a table showing "Demo Project".
@@ -139,7 +139,7 @@ xcodebuildmcp ui-automation screenshot --simulator-id <UDID> --return-format pat
 ### List all recent events
 
 ```bash
-node apps/cli/dist/index.js events --since 5m --format log
+npx @owlmetry/cli events --since 5m --format log
 ```
 
 **Expected: 8 events** across 2 apps:
@@ -160,7 +160,7 @@ Note: iOS events may take up to 5 seconds to appear (SDK flush interval). Backen
 ### Filter for errors only
 
 ```bash
-node apps/cli/dist/index.js events --level error --since 5m --format json
+npx @owlmetry/cli events --level error --since 5m --format json
 ```
 
 Expected: 2 error events — "Checkout failed: payment provider unreachable" and "Simulated client crash".
@@ -172,7 +172,7 @@ This simulates how you'd investigate errors in production.
 ### Step 1: Find the errors
 
 ```bash
-node apps/cli/dist/index.js events --level error --since 5m --format json
+npx @owlmetry/cli events --level error --since 5m --format json
 ```
 
 Note the event IDs from the output.
@@ -181,7 +181,7 @@ Note the event IDs from the output.
 
 ```bash
 # View full event details
-node apps/cli/dist/index.js events view <CHECKOUT_ERROR_ID> --format json
+npx @owlmetry/cli events view <CHECKOUT_ERROR_ID> --format json
 ```
 
 Look at the custom attributes — you'll see `item: "Premium Plan"`.
@@ -189,7 +189,7 @@ Look at the custom attributes — you'll see `item: "Premium Plan"`.
 ### Step 3: Investigate the error's breadcrumb trail
 
 ```bash
-node apps/cli/dist/index.js investigate <CHECKOUT_ERROR_ID> --window 5
+npx @owlmetry/cli investigate <CHECKOUT_ERROR_ID> --window 5
 ```
 
 This builds a breadcrumb trail around the error: the full session from the same app (or a ±5 min window when the target has no `session_id`), enriched with cross-app events for the same user. You should see the **warn → error chain**:
@@ -203,7 +203,7 @@ This pattern is typical: a warning precedes the error, giving you context about 
 ### Step 4: Investigate the iOS error
 
 ```bash
-node apps/cli/dist/index.js investigate <IOS_ERROR_ID> --window 5
+npx @owlmetry/cli investigate <IOS_ERROR_ID> --window 5
 ```
 
 You should see the full demo sequence from the iOS app's perspective:
@@ -240,5 +240,5 @@ xcodebuildmcp simulator stop --simulator-id <UDID> --bundle-id dev.owlmetry.demo
 ### CLI shows no results
 
 - Verify CLI is configured: `cat ~/.owlmetry/config.json`
-- Verify the agent key works: `node apps/cli/dist/index.js projects`
+- Verify the agent key works: `npx @owlmetry/cli projects`
 - Try a wider time range: `--since 30m`

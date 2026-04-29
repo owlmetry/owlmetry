@@ -97,7 +97,6 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 
 ```
 apps/server        Fastify API server (port 4000) — the core of Owlmetry
-apps/cli           CLI for agents and humans (agent key auth)
 apps/web           Next.js dashboard + Fumadocs documentation site (port 3000)
 packages/shared    Shared TypeScript types and constants
 packages/db        Drizzle ORM schema, migrations, seed, partition utilities
@@ -108,6 +107,7 @@ Sibling repos:
 
 - **[owlmetry/owlmetry-swift](https://github.com/owlmetry/owlmetry-swift)** — Swift SDK for iOS, iPadOS, and macOS.
 - **[owlmetry/owlmetry-node](https://github.com/owlmetry/owlmetry-node)** — Node.js server SDK (`@owlmetry/node`).
+- **[owlmetry/owlmetry-cli](https://github.com/owlmetry/owlmetry-cli)** — CLI for agents and humans (`@owlmetry/cli`).
 - **[owlmetry/owlmetry-skills](https://github.com/owlmetry/owlmetry-skills)** — Claude Code plugin marketplace for agent skills.
 
 The API server is the product. Everything else — the dashboard, the CLI, the MCP server, the SDKs — is a client of that API. This means your agent has the same capabilities as the web UI. Nothing is dashboard-only.
@@ -138,9 +138,7 @@ pnpm dev:server
 
 # Run tests (requires owlmetry_test database)
 createdb owlmetry_test
-pnpm test              # Vitest + Node SDK + CLI integration tests
-pnpm test:node-sdk     # Node SDK integration tests only
-pnpm test:cli          # CLI tests (unit + formatter + integration)
+pnpm test              # Vitest workspace tests
 pnpm test:coverage     # Server tests with code coverage reporting
 ```
 
