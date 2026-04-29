@@ -20,7 +20,7 @@ import { CopyButton } from "@/components/copy-button";
 import { CopyIntegrationDialog } from "@/components/copy-integration-dialog";
 import { IntegrationStatusBadge } from "@/components/badges/integration-status-badge";
 import { DetailSkeleton } from "@/components/ui/skeletons";
-import { api, ApiError, API_URL } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { IntegrationResponse, CreateIntegrationResponse, WebhookSetup } from "@owlmetry/shared";
 
 const PROVIDER = "revenuecat";
@@ -128,7 +128,6 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
     if (wasFirstSetup) handleSync();
   }
 
-  const webhookUrl = `${API_URL}/v1/webhooks/revenuecat/${projectId}`;
   const showRevealed = Boolean(revealedSetup && integration);
 
   return (
@@ -171,16 +170,9 @@ export function RevenueCatIntegration({ projectId }: { projectId: string }) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Webhook URL</Label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-muted px-2 py-1.5 text-xs rounded break-all">{webhookUrl}</code>
-                <CopyButton text={webhookUrl} />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Need the authorization header to paste into RevenueCat? Click <span className="font-medium text-foreground">Show webhook setup</span>.
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Need the webhook URL and authorization header to paste into RevenueCat? Click <span className="font-medium text-foreground">Show webhook setup</span>.
+            </p>
 
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={handleRevealWebhookSetup} disabled={revealing}>
@@ -331,8 +323,18 @@ function WebhookSetupPanel({
 
       <WebhookSetupRow label="Webhook URL" value={webhookSetup.webhook_url} />
       <WebhookSetupRow label="Authorization header" value={webhookSetup.authorization_header} />
-      <WebhookSetupRow label="Environment" value={webhookSetup.environment} mono={false} />
-      <WebhookSetupRow label="Events filter" value={webhookSetup.events_filter} mono={false} />
+
+      <div className="space-y-1 text-xs">
+        <p className="text-muted-foreground">In the RevenueCat form, also pick:</p>
+        <ul className="ml-4 list-disc space-y-0.5">
+          <li className="text-muted-foreground">
+            Environment — <span className="font-medium text-foreground">{webhookSetup.environment}</span>
+          </li>
+          <li className="text-muted-foreground">
+            Events filter — <span className="font-medium text-foreground">{webhookSetup.events_filter}</span>
+          </li>
+        </ul>
+      </div>
 
       <div className="flex gap-2 flex-wrap pt-1">
         <Button size="sm" onClick={onClose}>
@@ -348,14 +350,14 @@ function WebhookSetupPanel({
   );
 }
 
-function WebhookSetupRow({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
+function WebhookSetupRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs">{label}</Label>
         <CopyButton text={value} />
       </div>
-      <pre className={`text-[11px] bg-muted/50 border rounded-md p-2 overflow-auto break-all whitespace-pre-wrap ${mono ? "font-mono" : ""}`}>
+      <pre className="text-[11px] bg-muted/50 border rounded-md p-2 font-mono overflow-auto break-all whitespace-pre-wrap">
         {value}
       </pre>
     </div>

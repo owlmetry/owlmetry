@@ -69,7 +69,7 @@ export default function IntegrationsPage() {
 
       <StaggerItem index={1}>
         {selectedProjectId ? (
-          <div className="space-y-4">
+          <div className="space-y-4 max-w-3xl">
             <RevenueCatIntegration projectId={selectedProjectId} />
             <AppleSearchAdsIntegration projectId={selectedProjectId} />
             <AppStoreConnectIntegration projectId={selectedProjectId} />
