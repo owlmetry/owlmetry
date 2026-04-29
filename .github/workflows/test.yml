@@ -2,6 +2,13 @@ name: Test
 
 on:
   push:
+    paths-ignore:
+      - '**.md'
+      - '**.mdx'
+      - 'apps/web/content/docs/**'
+      - 'deploy/**'
+      - '.gitignore'
+      - 'LICENSE'
   pull_request:
 
 concurrency:
