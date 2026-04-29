@@ -114,8 +114,11 @@ function jobCtx() {
   };
 }
 
-function makeReviewPayload(reviewId: string, opts: { rating?: number; territory?: string } = {}) {
-  return {
+function makeReviewPayload(
+  reviewId: string,
+  opts: { rating?: number; territory?: string; responseId?: string } = {},
+) {
+  const base = {
     id: reviewId,
     type: "customerReviews",
     attributes: {
@@ -125,6 +128,25 @@ function makeReviewPayload(reviewId: string, opts: { rating?: number; territory?
       reviewerNickname: `User${reviewId}`,
       createdDate: "2026-01-15T10:00:00Z",
       territory: opts.territory ?? "USA",
+    },
+  };
+  if (opts.responseId) {
+    return { ...base, relationships: { response: { data: { id: opts.responseId, type: "customerReviewResponses" } } } };
+  }
+  return base;
+}
+
+function makeResponseInclude(
+  responseId: string,
+  opts: { body?: string; state?: "PUBLISHED" | "PENDING_PUBLISH"; lastModifiedDate?: string } = {},
+) {
+  return {
+    id: responseId,
+    type: "customerReviewResponses",
+    attributes: {
+      responseBody: opts.body ?? `Reply ${responseId}`,
+      state: opts.state ?? "PUBLISHED",
+      lastModifiedDate: opts.lastModifiedDate ?? "2026-01-16T10:00:00Z",
     },
   };
 }
@@ -590,6 +612,222 @@ describe("app_store_connect_reviews_sync", () => {
     expect(data.count).toBe(2);
     expect(data.latest_review_id).toBe("new-1");
     expect(data.latest_rating).toBe(4);
+    vi.unstubAllGlobals();
+  });
+
+  // The bug fixed in this section: replies authored directly in ASC's web UI
+  // weren't landing in Owlmetry for reviews already synced before the reply.
+  // The sync upserts on (app_id, store, external_id) but used to DO NOTHING on
+  // conflict, freezing developer_response_* at first-ingest values forever.
+  it("populates developer_response on an existing row when ASC adds a reply between syncs", async () => {
+    await setIntegration();
+
+    // First sync: review exists with no developer response yet.
+    let phase: "before-reply" | "after-reply" = "before-reply";
+    const fetchMock = vi.fn(async () => {
+      if (phase === "before-reply") {
+        return new Response(
+          JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          data: [makeReviewPayload("rev-1", { responseId: "resp-1" })],
+          included: [makeResponseInclude("resp-1", { body: "Thanks for the feedback!" })],
+          links: {},
+        }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+
+    const first = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
+    expect(first.reviews_ingested).toBe(1);
+    expect(first.reviews_updated).toBe(0);
+    const [beforeRow] = await db
+      .select()
+      .from(appStoreReviews)
+      .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+    expect(beforeRow.developer_response).toBeNull();
+    expect(beforeRow.developer_response_id).toBeNull();
+    expect(beforeRow.developer_response_state).toBeNull();
+
+    // Second sync: ASC now reports a reply for the same review.
+    phase = "after-reply";
+    const second = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
+    expect(second.reviews_ingested).toBe(0);
+    expect(second.reviews_updated).toBe(1);
+    expect(second.reviews_skipped_duplicate).toBe(0);
+    expect(second._silent).toBe(false);
+
+    const [afterRow] = await db
+      .select()
+      .from(appStoreReviews)
+      .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+    expect(afterRow.developer_response).toBe("Thanks for the feedback!");
+    expect(afterRow.developer_response_id).toBe("resp-1");
+    expect(afterRow.developer_response_state).toBe("PUBLISHED");
+    expect(afterRow.developer_response_at).toEqual(new Date("2026-01-16T10:00:00Z"));
+
+    vi.unstubAllGlobals();
+  });
+
+  it("overwrites the response body when ASC reports an edited reply, preserving responded_by_user_id", async () => {
+    await setIntegration();
+    // Pre-seed: row with an existing reply attributed to a Owlmetry user.
+    await db.insert(appStoreReviews).values({
+      team_id: teamId,
+      project_id: projectId,
+      app_id: appleAppId,
+      store: "app_store",
+      external_id: "rev-1",
+      rating: 5,
+      title: "Title rev-1",
+      body: "Body rev-1",
+      country_code: "us",
+      created_at_in_store: new Date("2026-01-15T10:00:00Z"),
+      developer_response: "old reply",
+      developer_response_at: new Date("2026-01-16T10:00:00Z"),
+      developer_response_id: "resp-1",
+      developer_response_state: "PUBLISHED",
+      responded_by_user_id: userId,
+    });
+
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [makeReviewPayload("rev-1", { responseId: "resp-1" })],
+          included: [
+            makeResponseInclude("resp-1", { body: "new reply", lastModifiedDate: "2026-01-17T10:00:00Z" }),
+          ],
+          links: {},
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
+
+    expect(result.reviews_updated).toBe(1);
+    expect(result.reviews_ingested).toBe(0);
+
+    const [row] = await db
+      .select()
+      .from(appStoreReviews)
+      .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+    expect(row.developer_response).toBe("new reply");
+    expect(row.developer_response_at).toEqual(new Date("2026-01-17T10:00:00Z"));
+    expect(row.developer_response_id).toBe("resp-1");
+    // responded_by_user_id is preserved — that's the local "who replied via Owlmetry"
+    // attribution; ASC doesn't carry it, so we never want sync to clear it.
+    expect(row.responded_by_user_id).toBe(userId);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("clears developer_response fields when ASC reports the reply was deleted", async () => {
+    await setIntegration();
+    await db.insert(appStoreReviews).values({
+      team_id: teamId,
+      project_id: projectId,
+      app_id: appleAppId,
+      store: "app_store",
+      external_id: "rev-1",
+      rating: 5,
+      title: "Title rev-1",
+      body: "Body rev-1",
+      country_code: "us",
+      created_at_in_store: new Date("2026-01-15T10:00:00Z"),
+      developer_response: "will be removed",
+      developer_response_at: new Date("2026-01-16T10:00:00Z"),
+      developer_response_id: "resp-1",
+      developer_response_state: "PUBLISHED",
+      responded_by_user_id: userId,
+    });
+
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
+
+    expect(result.reviews_updated).toBe(1);
+
+    const [row] = await db
+      .select()
+      .from(appStoreReviews)
+      .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+    expect(row.developer_response).toBeNull();
+    expect(row.developer_response_at).toBeNull();
+    expect(row.developer_response_id).toBeNull();
+    expect(row.developer_response_state).toBeNull();
+    // Trade-off: responded_by_user_id is left as historical attribution. The UI
+    // only surfaces it when developer_response is non-null, so a dangling FK
+    // here is harmless.
+    expect(row.responded_by_user_id).toBe(userId);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("counts unchanged duplicates as skipped and stays silent when nothing changed", async () => {
+    await setIntegration();
+    // Pre-seed a row that exactly matches what ASC will return — including the
+    // developer response — so the upsert touches nothing.
+    await db.insert(appStoreReviews).values({
+      team_id: teamId,
+      project_id: projectId,
+      app_id: appleAppId,
+      store: "app_store",
+      external_id: "rev-1",
+      rating: 5,
+      title: "Title rev-1",
+      body: "Body rev-1",
+      country_code: "us",
+      created_at_in_store: new Date("2026-01-15T10:00:00Z"),
+      developer_response: "Reply resp-1",
+      developer_response_at: new Date("2026-01-16T10:00:00Z"),
+      developer_response_id: "resp-1",
+      developer_response_state: "PUBLISHED",
+    });
+
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [makeReviewPayload("rev-1", { responseId: "resp-1" })],
+          included: [makeResponseInclude("resp-1")],
+          links: {},
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { appStoreConnectReviewsSyncHandler } = await import(
+      "../jobs/app-store-connect-reviews-sync.js"
+    );
+    const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), { project_id: projectId });
+
+    expect(result.reviews_ingested).toBe(0);
+    expect(result.reviews_updated).toBe(0);
+    expect(result.reviews_skipped_duplicate).toBe(1);
+    expect(result._silent).toBe(true);
+
     vi.unstubAllGlobals();
   });
 });

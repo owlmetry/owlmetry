@@ -20,8 +20,13 @@ const REVIEW_BODY_SNIPPET_MAX = 140;
  * pagination — pages all the way through for every app so we have a complete
  * picture of what ASC currently exposes, then reconciles: anything in our DB
  * for that app whose `external_id` didn't show up in ASC is hard-deleted.
- * Inserts use ON CONFLICT DO NOTHING on `(app_id, store, external_id)` so
- * already-present rows stay put across re-runs.
+ * Upserts use ON CONFLICT DO UPDATE on `(app_id, store, external_id)` —
+ * reviewer-side fields (rating, title, body, etc.) stay frozen because Apple
+ * treats them as immutable, but `developer_response*` fields *do* mutate over
+ * time (a reply added/edited/deleted directly in ASC's web UI), so we always
+ * overwrite them from the latest payload. `responded_by_user_id` is preserved
+ * on conflict — it's local "who replied via Owlmetry" attribution that ASC
+ * doesn't carry.
  *
  * Reconciliation only runs when pagination completed cleanly for that app —
  * partial failures (transport error, rate-limit abort, cancellation) skip the
@@ -74,6 +79,7 @@ export function appStoreConnectReviewsSyncHandler(
     let appsProcessed = 0;
     let pagesFetched = 0;
     let reviewsIngested = 0;
+    let reviewsUpdated = 0;
     let reviewsSkippedDuplicate = 0;
     let reviewsDeleted = 0;
     let notificationsSent = 0;
@@ -160,14 +166,15 @@ export function appStoreConnectReviewsSyncHandler(
         for (const review of reviews) seenExternalIds.add(review.id);
 
         if (reviews.length > 0) {
-          const insertResult = await insertReviewsPage(ctx.db, app, reviews);
-          reviewsIngested += insertResult.insertedReviews.length;
-          reviewsSkippedDuplicate += insertResult.duplicates;
-          perAppNewCount += insertResult.insertedReviews.length;
+          const upsertResult = await upsertReviewsPage(ctx.db, app, reviews);
+          reviewsIngested += upsertResult.insertedReviews.length;
+          reviewsUpdated += upsertResult.reviewsUpdated;
+          reviewsSkippedDuplicate += upsertResult.unchangedDuplicates;
+          perAppNewCount += upsertResult.insertedReviews.length;
           // ASC returns newest-first; the first non-empty inserted page holds
           // the absolute-newest new review across the run.
-          if (firstNewReview === null && insertResult.insertedReviews.length > 0) {
-            firstNewReview = insertResult.insertedReviews[0];
+          if (firstNewReview === null && upsertResult.insertedReviews.length > 0) {
+            firstNewReview = upsertResult.insertedReviews[0];
           }
         }
 
@@ -236,6 +243,7 @@ export function appStoreConnectReviewsSyncHandler(
       apps_processed: appsProcessed,
       pages_fetched: pagesFetched,
       reviews_ingested: reviewsIngested,
+      reviews_updated: reviewsUpdated,
       reviews_skipped_duplicate: reviewsSkippedDuplicate,
       reviews_deleted: reviewsDeleted,
       notifications_sent: notificationsSent,
@@ -248,6 +256,7 @@ export function appStoreConnectReviewsSyncHandler(
       _silent:
         !aborted &&
         reviewsIngested === 0 &&
+        reviewsUpdated === 0 &&
         reviewsDeleted === 0 &&
         errors === 0 &&
         rateLimitWaits === 0 &&
@@ -287,17 +296,42 @@ async function reconcileApp(
   return deleted;
 }
 
-interface InsertResult {
+interface UpsertResult {
   insertedReviews: AppStoreConnectReview[];
-  duplicates: number;
+  /** Existing rows whose developer_response_* fields actually changed. */
+  reviewsUpdated: number;
+  /** Existing rows where the upsert was a no-op (no developer_response_* delta). */
+  unchangedDuplicates: number;
 }
 
-async function insertReviewsPage(
+async function upsertReviewsPage(
   db: Db,
   app: { id: string; team_id: string; project_id: string },
   reviews: AppStoreConnectReview[],
-): Promise<InsertResult> {
-  if (reviews.length === 0) return { insertedReviews: [], duplicates: 0 };
+): Promise<UpsertResult> {
+  if (reviews.length === 0) return { insertedReviews: [], reviewsUpdated: 0, unchangedDuplicates: 0 };
+
+  // Pre-fetch existing rows so we can classify post-upsert outcomes. ON CONFLICT
+  // DO UPDATE returns every row regardless of whether columns actually changed,
+  // so RETURNING alone can't distinguish insert vs. update vs. no-op.
+  const externalIds = reviews.map((r) => r.id);
+  const existing = await db
+    .select({
+      external_id: appStoreReviews.external_id,
+      developer_response: appStoreReviews.developer_response,
+      developer_response_at: appStoreReviews.developer_response_at,
+      developer_response_id: appStoreReviews.developer_response_id,
+      developer_response_state: appStoreReviews.developer_response_state,
+    })
+    .from(appStoreReviews)
+    .where(
+      and(
+        eq(appStoreReviews.app_id, app.id),
+        eq(appStoreReviews.store, APP_STORE),
+        inArray(appStoreReviews.external_id, externalIds),
+      ),
+    );
+  const existingByExtId = new Map(existing.map((r) => [r.external_id, r]));
 
   const rows = reviews.map((review) => ({
     team_id: app.team_id,
@@ -319,20 +353,48 @@ async function insertReviewsPage(
     created_at_in_store: review.created_at,
   }));
 
-  const insertedRows = await db
+  await db
     .insert(appStoreReviews)
     .values(rows)
-    .onConflictDoNothing({
+    .onConflictDoUpdate({
       target: [appStoreReviews.app_id, appStoreReviews.store, appStoreReviews.external_id],
-    })
-    .returning({ external_id: appStoreReviews.external_id });
+      set: {
+        developer_response: sql`excluded.developer_response`,
+        developer_response_at: sql`excluded.developer_response_at`,
+        developer_response_id: sql`excluded.developer_response_id`,
+        developer_response_state: sql`excluded.developer_response_state`,
+        updated_at: sql`now()`,
+      },
+    });
 
-  const insertedSet = new Set(insertedRows.map((r) => r.external_id));
-  const insertedReviews = reviews.filter((r) => insertedSet.has(r.id));
+  const insertedReviews: AppStoreConnectReview[] = [];
+  let reviewsUpdated = 0;
+  let unchangedDuplicates = 0;
+
+  for (const review of reviews) {
+    const prior = existingByExtId.get(review.id);
+    if (!prior) {
+      insertedReviews.push(review);
+      continue;
+    }
+    const priorAt = prior.developer_response_at?.getTime() ?? null;
+    const newAt = review.developer_response_at?.getTime() ?? null;
+    const responseChanged =
+      prior.developer_response !== review.developer_response ||
+      priorAt !== newAt ||
+      prior.developer_response_id !== review.developer_response_id ||
+      prior.developer_response_state !== review.developer_response_state;
+    if (responseChanged) {
+      reviewsUpdated++;
+    } else {
+      unchangedDuplicates++;
+    }
+  }
 
   return {
     insertedReviews,
-    duplicates: rows.length - insertedReviews.length,
+    reviewsUpdated,
+    unchangedDuplicates,
   };
 }
 
