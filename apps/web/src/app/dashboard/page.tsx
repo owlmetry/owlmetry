@@ -226,7 +226,7 @@ export default function DashboardPage() {
           secondary={ratingSecondary}
           delta={ratingSummary?.delta}
           isLoading={appsLoading}
-          href="/dashboard/projects"
+          href="/dashboard/reviews"
         />
         <StatCard
           label="Projects · Apps"
