@@ -130,7 +130,7 @@ Update issue status. Validates status transitions.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `status` | string | Yes | Target status: `new`, `in_progress`, `resolved`, `silenced`, `snoozed`. Note: `regressed` is set automatically by the scan job, and `snoozed → new` is also a job-driven transition (the scan flips a snoozed issue back to `new` on its next occurrence). |
-| `resolved_at_version` | string | When `status` is `resolved` | App version where the fix was applied. Required when resolving — powers regression detection. Use `silenced` instead if you don't have a fix version. Cleared automatically when transitioning back to `new` or `in_progress`. |
+| `resolved_at_version` | string | When `status` is `resolved` | App version where the fix was applied. Required when resolving — powers regression detection. If you don't have a fix version, use `silenced` (known issue you don't want to hear about again) or `snoozed` (suspected one-off — auto-reopens on next occurrence). Cleared automatically when transitioning back to `new` or `in_progress`. |
 
 ### Valid status transitions
 

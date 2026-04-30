@@ -52,7 +52,7 @@ Occurrences are paginated (default 50, max 200). When `occurrence_has_more` is `
 
 ## resolve-issue
 
-Mark an issue as resolved. The fix version is **required** — it powers regression detection (any later version reporting the same error auto-flips the issue to `regressed`). If you don't have a fix version, use [`silence-issue`](#silence-issue) instead.
+Mark an issue as resolved. The fix version is **required** — it powers regression detection (any later version reporting the same error auto-flips the issue to `regressed`). If you don't have a fix version, use [`silence-issue`](#silence-issue) (known issue, won't bother you again) or [`snooze-issue`](#snooze-issue) (suspected one-off — auto-reopens on next occurrence) instead.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

@@ -73,14 +73,17 @@ new → in_progress → resolved
 
 resolved → regressed (automatic, via scan job)
          → new (manual reopen)
+         → snoozed
 
 regressed → in_progress → resolved
                         → silenced
                         → snoozed
 
 silenced → new (manual reopen)
+         → snoozed
 
 snoozed → new (automatic, on next occurrence — see Auto-revert below)
+        → in_progress, resolved, silenced (manual)
 ```
 
 | Status | Meaning |
@@ -100,7 +103,7 @@ When the issue-scan job processes a new occurrence for an issue currently in `sn
 
 When the scan job finds an error matching a `resolved` issue, it compares the event's `app_version` against the issue's `resolved_at_version`. If the event version is newer, the issue is automatically set to `regressed`.
 
-For this reason, `resolved_at_version` is **required** when transitioning an issue to `resolved` (across the dashboard, iOS app, CLI `--version`, MCP `version`, and the REST API). If you don't have a fix version — for example, the error was a transient infrastructure blip with nothing to fix — use `silenced` instead. Resolving without a version would silently disable regression detection for that issue, which is rarely what you want.
+For this reason, `resolved_at_version` is **required** when transitioning an issue to `resolved` (across the dashboard, iOS app, CLI `--version`, MCP `version`, and the REST API). If you don't have a fix version, pick the option that matches your intent: use `silenced` for a known issue you've decided to live with (e.g. a transient infrastructure blip with nothing to fix — won't bother you again), or `snoozed` if you suspect it was a one-off and want to be re-alerted only if it actually recurs. Resolving without a version would silently disable regression detection for that issue, which is rarely what you want.
 
 The comparison is **semver-aware** — `1.10.0` correctly regresses past `1.9.0` (and standard build-number suffixes like `1.2.3 (456)` plus date-style versions like `2024.10.15` are handled). See [Latest Version Detection](/docs/concepts/latest-version-detection) for the full comparator rules.
 

@@ -37,7 +37,7 @@ Shows full issue details including occurrences (affected sessions), comments, an
 owlmetry issues resolve <issueId> --project-id <id> --version 2.1.0
 ```
 
-Marks an issue as resolved. **`--version` is required** — it powers regression detection: if the same error reappears in a later version, the scan job auto-flips the issue to `regressed`. If you don't have a fix version, use `owlmetry issues silence` instead.
+Marks an issue as resolved. **`--version` is required** — it powers regression detection: if the same error reappears in a later version, the scan job auto-flips the issue to `regressed`. If you don't have a fix version, use `owlmetry issues silence` (known issue, won't bother you again) or `owlmetry issues snooze` (suspected one-off — auto-reopens on next occurrence) instead.
 
 ## Silence an Issue
 
