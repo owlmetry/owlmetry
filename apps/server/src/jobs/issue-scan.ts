@@ -355,14 +355,19 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
         // is "set this aside but tell me if it recurs" — any new occurrence
         // flips the issue back to 'new' and the team gets the same issue.new
         // push a brand-new prod issue would trigger.
+        const snoozedIds: string[] = [];
         for (const issueId of affectedIssueIds) {
           const meta = issueMeta.get(issueId);
           if (!meta || meta.status !== "snoozed") continue;
-          await client`
-            UPDATE issues SET status = 'new', snoozed_at = NULL, updated_at = NOW() WHERE id = ${issueId}
-          `;
-          issuesUnsnoozed++;
+          snoozedIds.push(issueId);
           if (!meta.is_dev) newIssueIdsProd.add(issueId);
+        }
+        if (snoozedIds.length > 0) {
+          await client`
+            UPDATE issues SET status = 'new', snoozed_at = NULL, updated_at = NOW()
+            WHERE id = ANY(${snoozedIds}::uuid[])
+          `;
+          issuesUnsnoozed += snoozedIds.length;
         }
 
         // 11. Update denormalized counts for affected issues

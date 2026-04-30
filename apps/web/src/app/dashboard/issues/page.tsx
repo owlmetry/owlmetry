@@ -260,7 +260,7 @@ function IssueDetailModal({
                         🔧 Claim
                       </DropdownMenuItem>
                     )}
-                    {(issue.status === "resolved" || issue.status === "silenced" || issue.status === "snoozed" || issue.status === "in_progress") && (
+                    {issue.status !== "new" && issue.status !== "regressed" && (
                       <DropdownMenuItem onClick={() => handleStatusChange("new")}>
                         🆕 Reopen
                       </DropdownMenuItem>
