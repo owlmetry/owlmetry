@@ -17,7 +17,7 @@ Lists issues for a project, ordered by most recently seen. The table output colo
 
 | Flag | Description |
 |------|-------------|
-| `--status <status>` | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed` |
+| `--status <status>` | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`, `snoozed` |
 | `--app-id <id>` | Filter to a specific app |
 | `--dev` | Show dev issues only |
 | `--limit <n>` | Max entries to return |
@@ -45,7 +45,15 @@ Marks an issue as resolved. **`--version` is required** — it powers regression
 owlmetry issues silence <issueId> --project-id <id>
 ```
 
-Silences notifications for the issue. Occurrences are still tracked — useful for known issues that don't need alerts.
+Silences notifications for the issue. Occurrences are still tracked — useful for known issues that don't need alerts. The issue stays silenced even if it keeps happening; use `owlmetry issues snooze` instead when you want the issue to auto-reopen on recurrence.
+
+## Snooze an Issue
+
+```bash
+owlmetry issues snooze <issueId> --project-id <id>
+```
+
+Snoozes the issue — like silence, but the next occurrence auto-reverts the issue to `new` and re-fires the `issue.new` push. Use when you suspect a one-off and only want to be alerted if it actually recurs.
 
 ## Reopen an Issue
 
@@ -53,7 +61,7 @@ Silences notifications for the issue. Occurrences are still tracked — useful f
 owlmetry issues reopen <issueId> --project-id <id>
 ```
 
-Reopens a resolved or silenced issue, setting its status back to `new`.
+Reopens a resolved, silenced, or snoozed issue, setting its status back to `new`.
 
 ## Claim an Issue
 

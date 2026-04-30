@@ -20,7 +20,7 @@ To fully investigate an issue from discovery to resolution:
 5. **Read the error event** — Use [`get-event`](/docs/mcp/events#get-event) with the occurrence's `event_id` to see full error details including `custom_attributes` (stack traces, error codes, etc.).
 6. **Iterate every occurrence, then look for patterns** — Repeat steps 4-5 across the occurrences returned by `get-issue` — one breadcrumb is rarely enough; the goal is to surface what they have in common (same screen, same `app_version`, same user flow, same preceding step). If `occurrence_has_more` is true on the response, call `get-issue` again with the returned `occurrence_cursor` to walk the next page. For very high-frequency issues, a representative sample is fine — just sample broadly enough to be confident the pattern is real.
 7. **Document findings** — `add-issue-comment` to record root cause, the common pattern across occurrences, affected versions, reproduction steps, or a fix plan. Visible to the whole team.
-8. **Resolve or escalate** — `resolve-issue` with the fix version once patched (the version is required so regression detection has something to compare against). Use `silence-issue` if there's nothing to fix or no version exists. Leave the comment for the team to act on otherwise.
+8. **Resolve or escalate** — `resolve-issue` with the fix version once patched (the version is required so regression detection has something to compare against). Use `silence-issue` if there's nothing to fix and you don't want to hear about it again. Use `snooze-issue` for suspected one-offs (auto-reopens on recurrence). Leave the comment for the team to act on otherwise.
 
 ## list-issues
 
@@ -29,7 +29,7 @@ List issues for a project. Issues are error events grouped by fingerprint, sorte
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project_id` | UUID | Yes | The project ID |
-| `status` | string | No | `new`, `in_progress`, `resolved`, `silenced`, or `regressed` |
+| `status` | string | No | `new`, `in_progress`, `resolved`, `silenced`, `regressed`, or `snoozed` |
 | `app_id` | UUID | No | Filter to a specific app |
 | `is_dev` | boolean | No | Filter by dev/prod (`true` = dev only) |
 | `cursor` | string | No | Pagination cursor |
@@ -62,7 +62,16 @@ Mark an issue as resolved. The fix version is **required** — it powers regress
 
 ## silence-issue
 
-Silence an issue to stop notifications. Occurrences are still tracked.
+Silence an issue to stop notifications. Occurrences are still tracked. The issue stays silenced even if it keeps happening — use [`snooze-issue`](#snooze-issue) instead if you want auto-reopen on recurrence.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `issue_id` | UUID | Yes | The issue ID |
+
+## snooze-issue
+
+Snooze an issue. Same as [`silence-issue`](#silence-issue) (no notifications, no fix version) but the next occurrence auto-reverts the issue to `new` and re-fires the `issue.new` push. Use when an error looks like a one-off and you only want to be alerted if the assumption turns out wrong.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -71,7 +80,7 @@ Silence an issue to stop notifications. Occurrences are still tracked.
 
 ## reopen-issue
 
-Reopen a resolved or silenced issue, setting status back to `new`.
+Reopen a resolved, silenced, or snoozed issue, setting status back to `new`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

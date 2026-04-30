@@ -31,7 +31,7 @@ export const logLevelEnum = pgEnum("log_level", [
 
 export const metricPhaseEnum = pgEnum("metric_phase", ["start", "complete", "fail", "cancel", "record"]);
 export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "completed", "failed", "cancelled"]);
-export const issueStatusEnum = pgEnum("issue_status", ["new", "in_progress", "resolved", "silenced", "regressed"]);
+export const issueStatusEnum = pgEnum("issue_status", ["new", "in_progress", "resolved", "silenced", "regressed", "snoozed"]);
 export const issueAlertFrequencyEnum = pgEnum("issue_alert_frequency", ["none", "hourly", "6_hourly", "daily", "weekly"]);
 export const feedbackStatusEnum = pgEnum("feedback_status", ["new", "in_review", "addressed", "dismissed"]);
 
@@ -583,6 +583,7 @@ export const issues = pgTable(
     first_seen_at: timestamp("first_seen_at", { withTimezone: true }).notNull(),
     last_seen_at: timestamp("last_seen_at", { withTimezone: true }).notNull(),
     last_notified_at: timestamp("last_notified_at", { withTimezone: true }),
+    snoozed_at: timestamp("snoozed_at", { withTimezone: true }),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

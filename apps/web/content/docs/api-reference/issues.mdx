@@ -15,7 +15,7 @@ List issues for a project. Results are ordered by most recently seen.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`. |
+| `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`, `snoozed`. |
 | `app_id` | string | Filter to a specific app. |
 | `is_dev` | string | Filter by dev mode: `true` or `false`. |
 | `cursor` | string | Cursor from previous response for pagination. |
@@ -42,6 +42,7 @@ List issues for a project. Results are ordered by most recently seen.
       "first_seen_at": "2024-01-15T10:00:00.000Z",
       "last_seen_at": "2024-01-15T14:30:00.000Z",
       "last_notified_at": "2024-01-15T13:00:00.000Z",
+      "snoozed_at": null,
       "created_at": "2024-01-15T10:00:00.000Z",
       "updated_at": "2024-01-15T14:30:00.000Z",
       "fingerprints": ["a1b2c3..."],
@@ -128,20 +129,23 @@ Update issue status. Validates status transitions.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `status` | string | Yes | Target status: `new`, `in_progress`, `resolved`, `silenced`. Note: `regressed` is set automatically by the scan job. |
+| `status` | string | Yes | Target status: `new`, `in_progress`, `resolved`, `silenced`, `snoozed`. Note: `regressed` is set automatically by the scan job, and `snoozed → new` is also a job-driven transition (the scan flips a snoozed issue back to `new` on its next occurrence). |
 | `resolved_at_version` | string | When `status` is `resolved` | App version where the fix was applied. Required when resolving — powers regression detection. Use `silenced` instead if you don't have a fix version. Cleared automatically when transitioning back to `new` or `in_progress`. |
 
 ### Valid status transitions
 
 | From | Allowed targets |
 |------|----------------|
-| `new` | `in_progress`, `resolved`, `silenced` |
-| `in_progress` | `new`, `resolved`, `silenced` |
-| `resolved` | `new`, `silenced` |
-| `regressed` | `in_progress`, `resolved`, `silenced` |
-| `silenced` | `new`, `in_progress`, `resolved` |
+| `new` | `in_progress`, `resolved`, `silenced`, `snoozed` |
+| `in_progress` | `new`, `resolved`, `silenced`, `snoozed` |
+| `resolved` | `new`, `silenced`, `snoozed` |
+| `regressed` | `in_progress`, `resolved`, `silenced`, `snoozed` |
+| `silenced` | `new`, `in_progress`, `resolved`, `snoozed` |
+| `snoozed` | `new`, `in_progress`, `resolved`, `silenced` |
 
 Returns 400 if the transition is not allowed, or if `status=resolved` is sent without a non-empty `resolved_at_version`.
+
+`snoozed_at` is set to the server clock when the issue transitions into `snoozed`, and cleared on any transition out (including the automatic `snoozed → new` transition fired by the issue-scan job on the next occurrence). The auto-revert also re-fires the same `issue.new` push that brand-new prod issues trigger.
 
 ## POST /v1/projects/:projectId/issues/:issueId/merge
 
@@ -211,7 +215,7 @@ Team-level cross-project issue listing. Returns issues across all accessible tea
 |-----------|------|-------------|
 | `team_id` | string | Filter to a specific team. |
 | `project_id` | string | Filter to a specific project. |
-| `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`. |
+| `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`, `snoozed`. |
 | `app_id` | string | Filter to a specific app. |
 | `is_dev` | string | Filter by dev mode: `true` or `false`. |
 | `data_mode` | string | `production` (default), `development`, or `all`. |

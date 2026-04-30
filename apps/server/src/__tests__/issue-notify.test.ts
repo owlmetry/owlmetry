@@ -133,4 +133,29 @@ describe("issue_notify producer", () => {
     const inbox = await dbClient`SELECT id FROM notifications`;
     expect(inbox).toHaveLength(0);
   });
+
+  it("skips silenced and snoozed issues (only new + regressed qualify)", async () => {
+    await makeProjectEligible();
+    // Seed one issue per non-qualifying status alongside one qualifying issue.
+    await dbClient`
+      INSERT INTO issues (project_id, app_id, status, title, occurrence_count, unique_user_count, is_dev, first_seen_at, last_seen_at)
+      VALUES
+        (${projectId}, ${appId}, 'silenced',  'Silenced bug',  5, 3, false, NOW() - INTERVAL '30 minutes', NOW()),
+        (${projectId}, ${appId}, 'snoozed',   'Snoozed bug',   5, 3, false, NOW() - INTERVAL '30 minutes', NOW()),
+        (${projectId}, ${appId}, 'in_progress','Claimed bug',  5, 3, false, NOW() - INTERVAL '30 minutes', NOW()),
+        (${projectId}, ${appId}, 'resolved',  'Fixed bug',     5, 3, false, NOW() - INTERVAL '30 minutes', NOW()),
+        (${projectId}, ${appId}, 'new',       'Open bug',      5, 3, false, NOW() - INTERVAL '30 minutes', NOW())
+    `;
+
+    const handler = issueNotifyHandler(app.notificationDispatcher);
+    await handler(makeJobContext(), {});
+
+    const [notif] = await dbClient<{ title: string; data: { issues: Array<{ title: string }> } }[]>`
+      SELECT title, data FROM notifications WHERE type = 'issue.digest'
+    `;
+    expect(notif).toBeDefined();
+    expect(notif.title).toContain("1 issue");
+    const titles = notif.data.issues.map((i) => i.title);
+    expect(titles).toEqual(["Open bug"]);
+  });
 });

@@ -35,6 +35,7 @@ function serializeIssue(
     first_seen_at: row.first_seen_at.toISOString(),
     last_seen_at: row.last_seen_at.toISOString(),
     last_notified_at: row.last_notified_at?.toISOString() ?? null,
+    snoozed_at: row.snoozed_at?.toISOString() ?? null,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
     fingerprints,
@@ -77,13 +78,14 @@ function serializeComment(row: typeof issueComments.$inferSelect) {
   };
 }
 
-// Valid status transitions (job-only transitions like resolved→regressed are not exposed via API)
+// Valid status transitions (job-only transitions like resolved→regressed and snoozed→new are not exposed via API)
 const VALID_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
-  new: ["in_progress", "resolved", "silenced"],
-  in_progress: ["new", "resolved", "silenced"],
-  resolved: ["new", "silenced"],
-  regressed: ["in_progress", "resolved", "silenced"],
-  silenced: ["new", "in_progress", "resolved"],
+  new: ["in_progress", "resolved", "silenced", "snoozed"],
+  in_progress: ["new", "resolved", "silenced", "snoozed"],
+  resolved: ["new", "silenced", "snoozed"],
+  regressed: ["in_progress", "resolved", "silenced", "snoozed"],
+  silenced: ["new", "in_progress", "resolved", "snoozed"],
+  snoozed: ["new", "in_progress", "resolved", "silenced"],
 };
 
 /** Routes nested under /v1/projects/:projectId */
@@ -317,6 +319,13 @@ export async function issuesRoutes(app: FastifyInstance) {
       if (status === "new" || status === "in_progress") {
         // Clear resolved version when reopening/claiming
         setFields.resolved_at_version = null;
+      }
+
+      if (status === "snoozed") {
+        setFields.snoozed_at = new Date();
+      } else if (issue.status === "snoozed") {
+        // Clear snoozed_at on any transition out of snoozed
+        setFields.snoozed_at = null;
       }
 
       const [updated] = await app.db

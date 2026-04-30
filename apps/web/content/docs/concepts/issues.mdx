@@ -3,7 +3,7 @@ title: Issues
 description: Automatic error detection, deduplication, and tracking with resolution workflows and notifications.
 ---
 
-Issues are error events automatically grouped by fingerprint into trackable units. A background job scans for error-level events every hour, deduplicates them, and creates issues that can be investigated, resolved, silenced, or merged.
+Issues are error events automatically grouped by fingerprint into trackable units. A background job scans for error-level events every hour, deduplicates them, and creates issues that can be investigated, resolved, silenced, snoozed, or merged.
 
 ## How Issues Are Created
 
@@ -69,14 +69,18 @@ Issues follow a status lifecycle:
 ```
 new → in_progress → resolved
                   → silenced
+                  → snoozed
 
 resolved → regressed (automatic, via scan job)
          → new (manual reopen)
 
 regressed → in_progress → resolved
                         → silenced
+                        → snoozed
 
 silenced → new (manual reopen)
+
+snoozed → new (automatic, on next occurrence — see Auto-revert below)
 ```
 
 | Status | Meaning |
@@ -84,8 +88,13 @@ silenced → new (manual reopen)
 | `new` | Detected by the scan job, not yet investigated. |
 | `in_progress` | Claimed by a user or agent for investigation. |
 | `resolved` | Fixed. Tagged with the app version where the fix was applied (required — see [Regression Detection](#regression-detection) below). |
-| `silenced` | Known issue, notifications suppressed. Occurrences still tracked. Use this when there's nothing to fix or no version exists. |
+| `silenced` | Known issue, notifications suppressed. Occurrences still tracked. Stays silenced even if it keeps happening — use when there's nothing to fix and you don't want to hear about it again (e.g. transient infra blip you've decided to live with). |
+| `snoozed` | Suspected one-off. Like `silenced` (no notifications, no fix version) but **automatically reverts to `new` and re-fires the `issue.new` push the next time it recurs**. Use when you think an error was a one-off and only want to be alerted if the assumption turns out wrong. The transition to `snoozed` records `snoozed_at`; the auto-revert clears it. |
 | `regressed` | Was resolved, but the error reappeared in a **newer** app version. |
+
+### Auto-revert from snoozed
+
+When the issue-scan job processes a new occurrence for an issue currently in `snoozed`, the job flips the issue's status to `new`, clears `snoozed_at`, and adds it to the per-team `issue.new` push the same way a brand-new prod issue would. There's no version comparison (snooze carries no fix claim) and no extra notification type — the team gets the same instant push they'd get if the issue had just been created. Once back in `new`, the next `issue.digest` cycle picks the issue up too.
 
 ### Regression Detection
 

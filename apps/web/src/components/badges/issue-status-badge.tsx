@@ -8,6 +8,7 @@ export const ISSUE_STATUS_CONFIG: Record<IssueStatus, { label: string; emoji: st
   in_progress: { label: "In Progress", emoji: "🔧", tone: "blue" },
   regressed: { label: "Regressed", emoji: "🔄", tone: "yellow" },
   resolved: { label: "Resolved", emoji: "✅", tone: "green" },
+  snoozed: { label: "Snoozed", emoji: "💤", tone: "yellow" },
   silenced: { label: "Silenced", emoji: "🔇", tone: "gray" },
 };
 
@@ -16,6 +17,7 @@ export const ISSUE_STATUS_COLUMNS: IssueStatus[] = [
   "regressed",
   "in_progress",
   "resolved",
+  "snoozed",
   "silenced",
 ];
 

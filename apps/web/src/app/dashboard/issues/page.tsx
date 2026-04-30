@@ -250,12 +250,17 @@ function IssueDetailModal({
                         🔇 Silence
                       </DropdownMenuItem>
                     )}
+                    {issue.status !== "snoozed" && (
+                      <DropdownMenuItem onClick={() => handleStatusChange("snoozed")}>
+                        💤 Snooze
+                      </DropdownMenuItem>
+                    )}
                     {issue.status !== "in_progress" && issue.status !== "resolved" && (
                       <DropdownMenuItem onClick={() => handleStatusChange("in_progress")}>
                         🔧 Claim
                       </DropdownMenuItem>
                     )}
-                    {(issue.status === "resolved" || issue.status === "silenced" || issue.status === "in_progress") && (
+                    {(issue.status === "resolved" || issue.status === "silenced" || issue.status === "snoozed" || issue.status === "in_progress") && (
                       <DropdownMenuItem onClick={() => handleStatusChange("new")}>
                         🆕 Reopen
                       </DropdownMenuItem>

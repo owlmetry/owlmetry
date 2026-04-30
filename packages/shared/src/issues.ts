@@ -1,7 +1,7 @@
-export type IssueStatus = "new" | "in_progress" | "resolved" | "silenced" | "regressed";
+export type IssueStatus = "new" | "in_progress" | "resolved" | "silenced" | "regressed" | "snoozed";
 export type IssueAlertFrequency = "none" | "hourly" | "6_hourly" | "daily" | "weekly";
 
-export const ISSUE_STATUSES = ["new", "in_progress", "resolved", "silenced", "regressed"] as const;
+export const ISSUE_STATUSES = ["new", "in_progress", "resolved", "silenced", "regressed", "snoozed"] as const;
 export const ISSUE_ALERT_FREQUENCIES = [
   "none", "hourly", "6_hourly", "daily", "weekly",
 ] as const;
@@ -26,6 +26,7 @@ export interface IssueResponse {
   first_seen_at: string;
   last_seen_at: string;
   last_notified_at: string | null;
+  snoozed_at: string | null;
   created_at: string;
   updated_at: string;
   fingerprints: string[];

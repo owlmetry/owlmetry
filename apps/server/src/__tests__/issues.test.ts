@@ -456,6 +456,99 @@ describe("Issues API", () => {
       expect(JSON.parse(res.body).status).toBe("new");
     });
 
+    it("snoozes a new issue and stamps snoozed_at", async () => {
+      const issueId = await createTestIssue({ status: "new" });
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "snoozed" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("snoozed");
+      expect(body.snoozed_at).toBeTruthy();
+      expect(new Date(body.snoozed_at).getTime()).not.toBeNaN();
+    });
+
+    it("snoozes a regressed issue (no fix version required)", async () => {
+      const issueId = await createTestIssue({ status: "regressed" });
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "snoozed" },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).status).toBe("snoozed");
+    });
+
+    it("clears snoozed_at when manually reopening a snoozed issue", async () => {
+      const issueId = await createTestIssue({ status: "new" });
+      // Snooze it first to populate snoozed_at.
+      await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "snoozed" },
+      });
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "new" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("new");
+      expect(body.snoozed_at).toBeNull();
+    });
+
+    it("transitions snoozed → silenced and clears snoozed_at", async () => {
+      const issueId = await createTestIssue({ status: "new" });
+      await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "snoozed" },
+      });
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "silenced" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("silenced");
+      expect(body.snoozed_at).toBeNull();
+    });
+
+    it("transitions snoozed → resolved with version and clears snoozed_at", async () => {
+      const issueId = await createTestIssue({ status: "new" });
+      await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "snoozed" },
+      });
+
+      const res = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${issueId}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "resolved", resolved_at_version: "2.5.0" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("resolved");
+      expect(body.resolved_at_version).toBe("2.5.0");
+      expect(body.snoozed_at).toBeNull();
+    });
+
     // Invalid transitions
     it("rejects new → regressed (job-only)", async () => {
       const issueId = await createTestIssue({ status: "new" });

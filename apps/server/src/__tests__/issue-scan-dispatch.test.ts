@@ -140,6 +140,71 @@ describe("issue_scan → issue.new dispatch", () => {
     expect(data.counts).toEqual({ new: 0, regressed: 1 });
   });
 
+  it("auto-reverts a snoozed prod issue to new and emits issue.new on next occurrence", async () => {
+    const [snoozed] = await dbClient<{ id: string }[]>`
+      INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, snoozed_at, first_seen_at, last_seen_at)
+      VALUES (${appId}, ${projectId}, 'snoozed', 'Maybe a one-off', 'FlakyMod', false, NOW() - INTERVAL '1 day', NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days')
+      RETURNING id
+    `;
+    const fingerprint = await import("@owlmetry/shared").then((m) =>
+      m.generateIssueFingerprint("Maybe a one-off", "FlakyMod")
+    );
+    await dbClient`
+      INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+      VALUES (${fingerprint}, ${appId}, false, ${snoozed.id})
+    `;
+    await ingestErrors([{ message: "Maybe a one-off", source_module: "FlakyMod" }]);
+
+    const handler = issueScanHandler(app.notificationDispatcher);
+    const result = await handler(makeJobContext(), {});
+    expect(result.issues_unsnoozed).toBe(1);
+    expect(result.issues_created).toBe(0);
+    expect(result.issue_new_notifications_sent).toBe(1);
+
+    const [refreshed] = await dbClient<{ status: string; snoozed_at: Date | null }[]>`
+      SELECT status, snoozed_at FROM issues WHERE id = ${snoozed.id}
+    `;
+    expect(refreshed.status).toBe("new");
+    expect(refreshed.snoozed_at).toBeNull();
+
+    const [notif] = await dbClient`
+      SELECT title, body, data FROM notifications WHERE type = 'issue.new'
+    `;
+    expect(notif.title).toBe("1 new issue");
+    expect(notif.body).toContain("🆕 Maybe a one-off");
+    const data = notif.data as { counts: { new: number; regressed: number } };
+    expect(data.counts).toEqual({ new: 1, regressed: 0 });
+  });
+
+  it("does not unsnooze dev-only issues into the team push", async () => {
+    const [snoozed] = await dbClient<{ id: string }[]>`
+      INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, snoozed_at, first_seen_at, last_seen_at)
+      VALUES (${appId}, ${projectId}, 'snoozed', 'Dev flake', 'DevMod', true, NOW(), NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day')
+      RETURNING id
+    `;
+    const fingerprint = await import("@owlmetry/shared").then((m) =>
+      m.generateIssueFingerprint("Dev flake", "DevMod")
+    );
+    await dbClient`
+      INSERT INTO issue_fingerprints (fingerprint, app_id, is_dev, issue_id)
+      VALUES (${fingerprint}, ${appId}, true, ${snoozed.id})
+    `;
+    await ingestErrors([{ message: "Dev flake", source_module: "DevMod", is_dev: true }]);
+
+    const handler = issueScanHandler(app.notificationDispatcher);
+    const result = await handler(makeJobContext(), {});
+    expect(result.issues_unsnoozed).toBe(1);
+    expect(result.issue_new_notifications_sent).toBe(0);
+
+    const [refreshed] = await dbClient<{ status: string }[]>`
+      SELECT status FROM issues WHERE id = ${snoozed.id}
+    `;
+    expect(refreshed.status).toBe("new");
+
+    const inbox = await dbClient`SELECT id FROM notifications WHERE type = 'issue.new'`;
+    expect(inbox).toHaveLength(0);
+  });
+
   it("combines new + regressed into one notification with both counts", async () => {
     // Resolved issue (will regress)
     const [resolved] = await dbClient<{ id: string }[]>`

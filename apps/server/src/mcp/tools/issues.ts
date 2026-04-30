@@ -54,7 +54,7 @@ export function registerIssuesTools(server: McpServer, app: FastifyInstance, age
   });
 
   server.registerTool("silence-issue", {
-    description: "Silence an issue to stop notifications. Occurrences are still tracked.",
+    description: "Silence an issue to stop notifications. Occurrences are still tracked. The issue stays silenced even if it keeps happening — use `snooze-issue` instead if you want auto-reopen on recurrence.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       issue_id: z.string().uuid().describe("The issue ID"),
@@ -67,8 +67,22 @@ export function registerIssuesTools(server: McpServer, app: FastifyInstance, age
     });
   });
 
+  server.registerTool("snooze-issue", {
+    description: "Snooze an issue. Like silence (no notifications, no fix version) but auto-reopens to `new` and re-fires the issue.new push the next time it recurs. Use when an error looks like a one-off and you only want to be alerted if the assumption turns out wrong.",
+    inputSchema: {
+      project_id: z.string().uuid().describe("The project ID"),
+      issue_id: z.string().uuid().describe("The issue ID"),
+    },
+  }, async ({ project_id, issue_id }) => {
+    return callApi(app, agentKey, {
+      method: "PATCH",
+      url: `/v1/projects/${project_id}/issues/${issue_id}`,
+      payload: { status: "snoozed" },
+    });
+  });
+
   server.registerTool("reopen-issue", {
-    description: "Reopen a resolved or silenced issue.",
+    description: "Reopen a resolved, silenced, or snoozed issue.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       issue_id: z.string().uuid().describe("The issue ID"),

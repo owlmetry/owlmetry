@@ -21,6 +21,7 @@ const STATUS_EMOJI: Record<IssueStatus, string> = {
   regressed: "🔄",
   resolved: "✅",
   silenced: "🔇",
+  snoozed: "💤",
 };
 
 export function OpenIssuesPanel() {

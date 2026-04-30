@@ -131,6 +131,7 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
     let eventsProcessed = 0;
     let issuesCreated = 0;
     let issuesRegressed = 0;
+    let issuesUnsnoozed = 0;
     let occurrencesCreated = 0;
 
     // Track IDs of issues created or regressed during this run, partitioned by
@@ -350,6 +351,20 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
           }
         }
 
+        // 10b. Auto-revert snoozed issues that received a new occurrence. Snooze
+        // is "set this aside but tell me if it recurs" — any new occurrence
+        // flips the issue back to 'new' and the team gets the same issue.new
+        // push a brand-new prod issue would trigger.
+        for (const issueId of affectedIssueIds) {
+          const meta = issueMeta.get(issueId);
+          if (!meta || meta.status !== "snoozed") continue;
+          await client`
+            UPDATE issues SET status = 'new', snoozed_at = NULL, updated_at = NOW() WHERE id = ${issueId}
+          `;
+          issuesUnsnoozed++;
+          if (!meta.is_dev) newIssueIdsProd.add(issueId);
+        }
+
         // 11. Update denormalized counts for affected issues
         if (affectedIssueIds.size > 0) {
           const ids = Array.from(affectedIssueIds);
@@ -398,9 +413,9 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
       await client.end();
     }
 
-    if (issuesCreated > 0 || issuesRegressed > 0) {
+    if (issuesCreated > 0 || issuesRegressed > 0 || issuesUnsnoozed > 0) {
       ctx.log.info(
-        `Issue scan: ${eventsProcessed} error events → ${issuesCreated} new issues, ${issuesRegressed} regressions, ${occurrencesCreated} occurrences across ${appsScanned} apps`
+        `Issue scan: ${eventsProcessed} error events → ${issuesCreated} new issues, ${issuesRegressed} regressions, ${issuesUnsnoozed} unsnoozed, ${occurrencesCreated} occurrences across ${appsScanned} apps`
       );
     }
 
@@ -492,9 +507,10 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
       events_processed: eventsProcessed,
       issues_created: issuesCreated,
       issues_regressed: issuesRegressed,
+      issues_unsnoozed: issuesUnsnoozed,
       occurrences_created: occurrencesCreated,
       issue_new_notifications_sent: issueNewNotificationsSent,
-      _silent: issuesCreated === 0 && issuesRegressed === 0,
+      _silent: issuesCreated === 0 && issuesRegressed === 0 && issuesUnsnoozed === 0,
     };
   };
 }
