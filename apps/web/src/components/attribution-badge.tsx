@@ -1,5 +1,6 @@
 "use client";
 
+import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared/attribution";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -67,7 +68,7 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
 
   const badgeSize = size === "sm" ? "sm" : "md";
 
-  if (source === "apple_search_ads") {
+  if (source === ATTRIBUTION_SOURCE_VALUES.appleSearchAds) {
     const rows = orderedAsaEntries(properties);
     return (
       <Tooltip>
@@ -92,7 +93,7 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
     );
   }
 
-  if (source === "apple_test_install") {
+  if (source === ATTRIBUTION_SOURCE_VALUES.appleTestInstall) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -106,7 +107,7 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
     );
   }
 
-  if (source === "none") {
+  if (source === ATTRIBUTION_SOURCE_VALUES.none) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
