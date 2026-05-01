@@ -54,9 +54,11 @@ function labelFor(key: string): string {
 
 /**
  * Small badge rendering the user's acquisition source. Emits a tooltip with
- * the full attribution breakdown for ASA-attributed users, and a terse
- * "Organic install" note for `attribution_source=none`. Returns null when no
- * attribution property is set (never captured / disabled / still pending).
+ * the full attribution breakdown for ASA-attributed users, a terse
+ * "Organic install" note for `attribution_source=none`, and a "Test install"
+ * marker for Apple's non-production fixture (TestFlight / dev build /
+ * simulator). Returns null when no attribution property is set (never
+ * captured / disabled / still pending).
  */
 export function AttributionBadge({ properties, size = "default" }: AttributionBadgeProps) {
   if (!properties) return null;
@@ -85,6 +87,20 @@ export function AttributionBadge({ properties, size = "default" }: AttributionBa
               ))
             )}
           </div>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (source === "apple_test_install") {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" size={badgeSize}>🧪 Test install</Badge>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          Apple returned its non-production attribution fixture for this install
+          (TestFlight, Xcode dev build, or simulator). Not a real acquisition signal.
         </TooltipContent>
       </Tooltip>
     );

@@ -48,6 +48,7 @@ function isSubscriptionKey(key: string): boolean {
 
 const ATTRIBUTION_SOURCE_LABELS: Record<string, string> = {
   apple_search_ads: "Apple Search Ads",
+  apple_test_install: "Apple test install",
   none: "None",
 };
 

@@ -2,7 +2,6 @@ import {
   ASA_PROPERTY_PREFIX,
   ATTRIBUTION_SOURCE_PROPERTY,
   ATTRIBUTION_SOURCE_VALUES,
-  LIKELY_APP_REVIEWER_PROPERTY,
   type AttributionDevMock,
 } from "@owlmetry/shared";
 import type { AttributionResolveOutcome, AttributionResolver } from "./types.js";
@@ -30,18 +29,27 @@ interface AppleAdsAttributionResponse {
 }
 
 /**
- * Detect Apple's App Store review sandbox attribution fixture. Observed in
- * production on 2026-04-22 across three apps submitted for review on the same
- * day — reviewer devices got `campaignId == adGroupId == adId` (all three
- * `1234567890`), co-occurring with `keywordId = 12323222` and
- * `claimType = "Click"` (Apple's real responses use lowercase `"click"`).
+ * Detect Apple's deliberate non-production attribution fixture. Apple's
+ * AdServices API returns a fixed dummy payload — same numeric ID across
+ * campaign/ad_group/ad (`1234567890`), `keywordId = 12323222`,
+ * `claimType = "Click"` (real Apple responses use lowercase `"click"`) — for
+ * **TestFlight builds, Xcode-deployed dev builds on real devices, and the
+ * iOS simulator**. The fixture exists so SDK developers can verify their
+ * attribution plumbing without running real ads.
  *
- * We only match on the three-way ID equality because it's the tell that
- * real Apple data can never produce (campaign, ad group, and ad are distinct
- * entities), so the check survives Apple rotating the specific numeric
- * fixture or re-casing `claimType`.
+ * Sources: https://developer.apple.com/forums/thread/66161 ("sample dummy
+ * data when you make the call to Apples Servers from an iOS Simulator
+ * (maybe also from an actual test device in debug mode)") and third-party
+ * SDK docs ("debugging or testing your app using TestFlight or a developer
+ * app, Apple Ads returns dummy values of test campaign data with Campaign
+ * ID as 1234567890. This dummy data should be filtered out").
+ *
+ * We match on the three-way ID equality because it's the structural tell
+ * real Apple data can never produce — campaign, ad group, and ad are
+ * distinct entities. The check survives Apple rotating the specific numeric
+ * fixture value or re-casing `claimType`.
  */
-export function isLikelyAppReviewerFixture(
+export function isLikelyAppleTestInstall(
   response: AppleAdsAttributionResponse,
 ): boolean {
   if (!response.attribution) return false;
@@ -58,20 +66,31 @@ export function isLikelyAppReviewerFixture(
 
 /**
  * Map an Apple attribution response into the flat string-keyed properties we
- * store on `app_users`. Always sets `attribution_source`. Only writes `asa_*`
- * fields when Apple actually attributed the install (attribution === true).
+ * store on `app_users`. Always sets `attribution_source`.
+ *
+ * Three branches:
+ *   1. `attribution: false` → `{ attribution_source: "none" }` (organic).
+ *   2. Fixture pattern (see `isLikelyAppleTestInstall`) → short-circuit to
+ *      `{ attribution_source: "apple_test_install" }`. No `asa_*` fields:
+ *      the IDs Apple returned are placeholders, so storing them just
+ *      pollutes dashboards and burns an Apple Ads enrichment call.
+ *   3. Real attribution → set `attribution_source = "apple_search_ads"`
+ *      plus the populated `asa_*` IDs.
  */
 export function mapAppleAttributionToProperties(
   response: AppleAdsAttributionResponse,
 ): Record<string, string> {
-  const props: Record<string, string> = {};
-
   if (!response.attribution) {
-    props[ATTRIBUTION_SOURCE_PROPERTY] = ATTRIBUTION_SOURCE_VALUES.none;
-    return props;
+    return { [ATTRIBUTION_SOURCE_PROPERTY]: ATTRIBUTION_SOURCE_VALUES.none };
   }
 
-  props[ATTRIBUTION_SOURCE_PROPERTY] = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
+  if (isLikelyAppleTestInstall(response)) {
+    return { [ATTRIBUTION_SOURCE_PROPERTY]: ATTRIBUTION_SOURCE_VALUES.appleTestInstall };
+  }
+
+  const props: Record<string, string> = {
+    [ATTRIBUTION_SOURCE_PROPERTY]: ATTRIBUTION_SOURCE_VALUES.appleSearchAds,
+  };
 
   // Apple returns 0 for "not present" — treat those as absent.
   const idFields: Array<[keyof AppleAdsAttributionResponse, string]> = [
@@ -92,10 +111,6 @@ export function mapAppleAttributionToProperties(
     props[`${ASA_PROPERTY_PREFIX}claim_type`] = response.claimType;
   }
 
-  if (isLikelyAppReviewerFixture(response)) {
-    props[LIKELY_APP_REVIEWER_PROPERTY] = "true";
-  }
-
   return props;
 }
 
@@ -106,11 +121,7 @@ function buildMockOutcome(
     return { status: "pending", retryAfterSeconds: PENDING_RETRY_SECONDS };
   }
   if (devMock === "unattributed") {
-    return {
-      status: "resolved",
-      attributed: false,
-      properties: mapAppleAttributionToProperties({ attribution: false }),
-    };
+    return resolveAppleResponse({ attribution: false });
   }
   // "attributed" — canned payload with plausible numeric ids.
   const mockResponse: AppleAdsAttributionResponse = {
@@ -126,10 +137,22 @@ function buildMockOutcome(
     countryOrRegion: "US",
     clickDate: "2026-01-01T00:00:00Z",
   };
+  return resolveAppleResponse(mockResponse);
+}
+
+/** Fold an Apple AdServices response into the resolver outcome shape. Fixture
+ *  installs report `attributed: false` so the route doesn't schedule an
+ *  Apple Ads enrichment call for the placeholder IDs. */
+function resolveAppleResponse(
+  data: AppleAdsAttributionResponse,
+): AttributionResolveOutcome {
+  const properties = mapAppleAttributionToProperties(data);
+  const isRealAttribution =
+    properties[ATTRIBUTION_SOURCE_PROPERTY] === ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
   return {
     status: "resolved",
-    attributed: true,
-    properties: mapAppleAttributionToProperties(mockResponse),
+    attributed: isRealAttribution,
+    properties,
   };
 }
 
@@ -163,11 +186,7 @@ async function resolveFromApple(token: string): Promise<AttributionResolveOutcom
   if (response.status === 400) {
     const body = await response.text().catch(() => "");
     console.warn(`[attribution/apple-search-ads] Apple /v1/ returned 400, treating as organic install. Body: ${body || "(empty)"}`);
-    return {
-      status: "resolved",
-      attributed: false,
-      properties: mapAppleAttributionToProperties({ attribution: false }),
-    };
+    return resolveAppleResponse({ attribution: false });
   }
 
   if (!response.ok) {
@@ -190,11 +209,7 @@ async function resolveFromApple(token: string): Promise<AttributionResolveOutcom
     };
   }
 
-  return {
-    status: "resolved",
-    attributed: data.attribution === true,
-    properties: mapAppleAttributionToProperties(data),
-  };
+  return resolveAppleResponse(data);
 }
 
 export const appleSearchAdsResolver: AttributionResolver<string> = {

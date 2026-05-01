@@ -7,8 +7,11 @@
  *
  * Property model:
  *   - `attribution_source` is a single cross-network property whose value
- *     identifies the winning network (e.g. "apple_search_ads", "meta", or
- *     "none" when capture happened but Apple/etc. didn't attribute).
+ *     identifies the winning network (e.g. "apple_search_ads", "meta"),
+ *     "none" when capture happened but the network didn't attribute, or
+ *     "apple_test_install" for Apple's deliberate non-production fixture
+ *     (TestFlight / Xcode dev build / simulator) — see `appleTestInstall`
+ *     below.
  *   - Network-specific fields are namespaced by prefix (`asa_*`, `meta_*`, …).
  */
 
@@ -20,6 +23,14 @@ export const ATTRIBUTION_SOURCE_PROPERTY = "attribution_source";
 export const ATTRIBUTION_SOURCE_VALUES = {
   appleSearchAds: "apple_search_ads",
   none: "none",
+  // Apple's AdServices API deliberately returns a fixed dummy payload (same
+  // numeric ID across campaign/ad_group/ad, keyword_id "12323222",
+  // claim_type "Click") for non-production installs — TestFlight builds,
+  // Xcode-deployed dev builds on real devices, and the simulator. The server
+  // detects this pattern and short-circuits to this value with no `asa_*`
+  // fields, so dashboards can filter test installs out of acquisition
+  // reporting without false-positives on real ASA data.
+  appleTestInstall: "apple_test_install",
 } as const;
 export type AttributionSourceValue =
   (typeof ATTRIBUTION_SOURCE_VALUES)[keyof typeof ATTRIBUTION_SOURCE_VALUES];
@@ -66,18 +77,10 @@ export const ASA_ID_NAME_PAIRS = [
   { idKey: "asa_ad_id", nameKey: "asa_ad_name" },
 ] as const;
 
-// Set to "true" when Apple's AdServices Attribution API returns the sandbox
-// fixture we've seen used for App Store review installs (same ID repeated
-// across campaign/ad_group/ad, keyword_id "12323222", claim_type "Click").
-// Lets the team filter reviewer sessions out of real ASA dashboards without
-// dropping the attribution row entirely.
-export const LIKELY_APP_REVIEWER_PROPERTY = "likely_app_reviewer";
-
 // All property keys the attribution subsystem may write for a user. Useful
 // for UI filters that need to distinguish attribution props from custom ones.
 export const ATTRIBUTION_RESERVED_KEYS: readonly string[] = [
   ATTRIBUTION_SOURCE_PROPERTY,
-  LIKELY_APP_REVIEWER_PROPERTY,
   ...ASA_PROPERTY_KEYS,
 ];
 

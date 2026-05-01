@@ -4,7 +4,6 @@ import postgres from "postgres";
 import {
   ATTRIBUTION_SOURCE_PROPERTY,
   ATTRIBUTION_SOURCE_VALUES,
-  LIKELY_APP_REVIEWER_PROPERTY,
 } from "@owlmetry/shared";
 import {
   buildApp,
@@ -321,11 +320,12 @@ describe("POST /v1/identity/attribution/apple-search-ads", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("flags likely_app_reviewer when Apple returns the App Review sandbox fixture", async () => {
-    // Pattern observed 2026-04-22 across three App-Review installs: the same
-    // numeric ID shows up on campaign, ad_group, and ad — which can't happen
-    // for real Apple entities.
-    const reviewerResponse = {
+  it("marks Apple's non-production fixture as apple_test_install with no asa_* fields", async () => {
+    // Apple deliberately returns this fixture for TestFlight, Xcode dev
+    // builds on real devices, and the simulator (see apple-search-ads.ts).
+    // The structural tell is `campaignId == adGroupId == adId`, which real
+    // Apple data can never produce.
+    const fixtureResponse = {
       attribution: true,
       orgId: 40669820,
       campaignId: 1234567890,
@@ -335,31 +335,34 @@ describe("POST /v1/identity/attribution/apple-search-ads", () => {
       conversionType: "Download",
       claimType: "Click",
     };
-    const mock = mockAppleAttribution({ body: reviewerResponse });
+    const mock = mockAppleAttribution({ body: fixtureResponse });
     try {
       const res = await app.inject({
         method: "POST",
         url: ASA_ROUTE,
         headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
-        payload: { user_id: "user-reviewer-fixture", attribution_token: FAKE_TOKEN },
+        payload: { user_id: "user-test-install", attribution_token: FAKE_TOKEN },
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.attributed).toBe(true);
-      expect(body.properties[LIKELY_APP_REVIEWER_PROPERTY]).toBe("true");
-      // Numeric IDs are still written so the row is traceable.
-      expect(body.properties.asa_campaign_id).toBe("1234567890");
-      expect(body.properties.asa_ad_group_id).toBe("1234567890");
-      expect(body.properties.asa_ad_id).toBe("1234567890");
+      // Reported as not-attributed so the route skips Apple Ads enrichment.
+      expect(body.attributed).toBe(false);
+      expect(body.properties[ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.appleTestInstall);
+      // No asa_* fields — fixture IDs are placeholders, not real data.
+      expect(Object.keys(body.properties).filter((k) => k.startsWith("asa_"))).toEqual([]);
+      // Legacy flag dropped — attribution_source carries the signal alone.
+      expect(body.properties.likely_app_reviewer).toBeUndefined();
 
-      const stored = await getUserProperties("user-reviewer-fixture");
-      expect(stored![LIKELY_APP_REVIEWER_PROPERTY]).toBe("true");
+      const stored = await getUserProperties("user-test-install");
+      expect(stored![ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.appleTestInstall);
+      expect(Object.keys(stored!).filter((k) => k.startsWith("asa_"))).toEqual([]);
+      expect(stored!.likely_app_reviewer).toBeUndefined();
     } finally {
       mock.cleanup();
     }
   });
 
-  it("does NOT flag likely_app_reviewer when Apple returns distinct IDs", async () => {
+  it("real-attribution path is unaffected when Apple returns distinct IDs", async () => {
     const mock = mockAppleAttribution({ body: ATTRIBUTED_RESPONSE });
     try {
       const res = await app.inject({
@@ -370,10 +373,11 @@ describe("POST /v1/identity/attribution/apple-search-ads", () => {
       });
       expect(res.statusCode).toBe(200);
       const body = res.json();
-      expect(body.properties[LIKELY_APP_REVIEWER_PROPERTY]).toBeUndefined();
+      expect(body.properties[ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.appleSearchAds);
+      expect(body.properties.asa_campaign_id).toBe("542370539");
 
       const stored = await getUserProperties("user-real-attribution");
-      expect(stored![LIKELY_APP_REVIEWER_PROPERTY]).toBeUndefined();
+      expect(stored![ATTRIBUTION_SOURCE_PROPERTY]).toBe(ATTRIBUTION_SOURCE_VALUES.appleSearchAds);
     } finally {
       mock.cleanup();
     }

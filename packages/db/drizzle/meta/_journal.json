@@ -351,6 +351,13 @@
       "when": 1777543660170,
       "tag": "0049_demonic_blonde_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1778073600000,
+      "tag": "0050_strip_apple_test_fixture_props",
+      "breakpoints": true
     }
   ]
 }
