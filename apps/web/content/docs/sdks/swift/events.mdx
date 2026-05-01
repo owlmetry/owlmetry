@@ -47,7 +47,7 @@ All four methods share the same signature:
 Owl.info(
     _ message: String,
     screenName: String? = nil,
-    attributes: [String: String]? = nil,
+    attributes: [String: String?] = [:],
     attachments: [OwlAttachment]? = nil,
     file: String = #file,
     function: String = #function,
@@ -59,9 +59,25 @@ Owl.info(
 |-----------|-------------|
 | `message` | A descriptive string for the event. Choose messages that are specific and searchable. |
 | `screenName` | The screen where the event occurred. Ties the event to a location in the UI. |
-| `attributes` | Key-value pairs of additional structured data. Values must be strings. |
+| `attributes` | Key-value pairs of additional structured data. Values are `String?` so optional values pass through directly — `nil`-valued keys are silently dropped before the event ships. |
 | `attachments` | Optional file attachments (logs, screenshots, etc.). Most useful on `Owl.error()`. See [Attachments](/docs/concepts/attachments). |
 | `file`, `function`, `line` | Automatically captured from the call site. Do not pass these manually. |
+
+### Optional attribute values
+
+Because `attributes` accepts optional values, a `String?` from your domain code can flow into the literal without unwrapping. Anything that resolves to `nil` is omitted from the event:
+
+```swift
+let contractId: String? = session.draftId  // may be nil
+let kind: String? = draft?.type            // may be nil
+Owl.info("Draft created", attributes: [
+    "context": "createDraft",
+    "contractId": contractId,
+    "kind": kind,
+])
+```
+
+If `contractId` is `nil`, only `context` and (if present) `kind` reach the dashboard.
 
 ## Auto-Captured Source Info
 

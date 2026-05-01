@@ -29,9 +29,11 @@ do {
 ```swift
 public static func startOperation(
     _ metric: String,
-    attributes: [String: String]? = nil
+    attributes: [String: String?] = [:]
 ) -> OwlOperation
 ```
+
+Optional values are accepted directly — `nil`-valued keys are dropped before the event ships, so you can pass `String?` from your domain code without unwrapping first.
 
 ### Completing an Operation
 
@@ -88,7 +90,7 @@ This emits a single `metric:<slug>:record` event at info level.
 ```swift
 public static func recordMetric(
     _ metric: String,
-    attributes: [String: String]? = nil
+    attributes: [String: String?] = [:]
 )
 ```
 

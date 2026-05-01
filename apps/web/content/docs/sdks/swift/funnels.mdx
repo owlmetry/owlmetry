@@ -21,14 +21,14 @@ Owl.step("first-post")
 ```swift
 public static func step(
     _ stepName: String,
-    attributes: [String: String]? = nil
+    attributes: [String: String?] = [:]
 )
 ```
 
 | Parameter | Description |
 |-----------|-------------|
 | `stepName` | The name of the funnel step. Must match the `step_name` in your funnel definition's `event_filter`. |
-| `attributes` | Optional key-value pairs for segmenting funnel analytics later (e.g., signup method, referral source). |
+| `attributes` | Optional key-value pairs for segmenting funnel analytics later (e.g., signup method, referral source). Values are `String?` — `nil`-valued keys are silently dropped, so optional values from your domain code can flow through directly. |
 
 ## How It Works
 
