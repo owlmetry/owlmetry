@@ -149,10 +149,17 @@ export const JOB_TYPE_META: Record<
   app_store_connect_reviews_sync: {
     label: "App Store Connect Reviews Sync",
     description:
-      "Pulls Apple App Store reviews via the App Store Connect customerReviews API and stores them in app_store_reviews. Requires a configured App Store Connect integration on the project.",
-    scope: "project",
-    default_schedule: null,
-    params: [],
+      "Pulls Apple App Store reviews via the App Store Connect customerReviews API and stores them in app_store_reviews. With no project_id, fans out across every project that has an active App Store Connect integration. With project_id set, syncs that single project only (manual-trigger path).",
+    scope: "system",
+    default_schedule: "30 5 * * *",
+    params: [
+      {
+        name: "project_id",
+        description: "Sync only the given project instead of fanning out across all projects with an active App Store Connect integration",
+        type: "string",
+        required: false,
+      },
+    ],
   },
   notification_deliver: {
     label: "Notification Delivery",

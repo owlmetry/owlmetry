@@ -865,4 +865,187 @@ describe("app_store_connect_reviews_sync", () => {
 
     vi.unstubAllGlobals();
   });
+
+  describe("fan-out (no project_id)", () => {
+    // Second project + Apple app on the same team so the daily fan-out has
+    // more than one integration to iterate. Cleanup is explicit here; the
+    // outer afterAll's WHERE team_id = teamId would catch the remainder
+    // anyway, but being explicit keeps the test boundaries readable.
+    let secondProjectId: string;
+    let secondAppId: string;
+    const SECOND_APP_ASC_ID = 888888888;
+
+    beforeAll(async () => {
+      const [project] = await db
+        .insert(projects)
+        .values({ team_id: teamId, name: "ASC Test 2", slug: `asc2-${Date.now()}`, color: "#00ff00" })
+        .returning({ id: projects.id });
+      secondProjectId = project.id;
+      const [app] = await db
+        .insert(apps)
+        .values({
+          team_id: teamId,
+          project_id: secondProjectId,
+          name: "Test App 2",
+          platform: "apple",
+          bundle_id: "com.example.test2",
+          apple_app_store_id: SECOND_APP_ASC_ID,
+        })
+        .returning({ id: apps.id });
+      secondAppId = app.id;
+    });
+
+    beforeEach(async () => {
+      await db.delete(appStoreReviews).where(eq(appStoreReviews.app_id, secondAppId));
+      await db.delete(projectIntegrations).where(eq(projectIntegrations.project_id, secondProjectId));
+    });
+
+    afterAll(async () => {
+      await db.delete(appStoreReviews).where(eq(appStoreReviews.app_id, secondAppId));
+      await db.delete(projectIntegrations).where(eq(projectIntegrations.project_id, secondProjectId));
+      await db.delete(apps).where(eq(apps.id, secondAppId));
+      await db.delete(projects).where(eq(projects.id, secondProjectId));
+    });
+
+    async function setSecondIntegration(opts: { enabled?: boolean } = {}): Promise<void> {
+      await db
+        .insert(projectIntegrations)
+        .values({
+          project_id: secondProjectId,
+          provider: "app-store-connect",
+          enabled: opts.enabled ?? true,
+          config: {
+            issuer_id: "ba9b5d8b-7fe8-46f8-9960-9a3720f88015",
+            key_id: "ABC1234567",
+            private_key_p8: PRIVATE_KEY_PEM,
+          },
+        })
+        .onConflictDoNothing();
+    }
+
+    function fetchByAppId(handlers: Record<number, () => Response>) {
+      return vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        for (const [ascId, handler] of Object.entries(handlers)) {
+          if (url.includes(`/apps/${ascId}/`)) return handler();
+        }
+        return new Response("unrouted", { status: 404 });
+      });
+    }
+
+    it("syncs every project with an active integration and aggregates per-project counters", async () => {
+      await setIntegration();
+      await setSecondIntegration();
+
+      const fetchMock = fetchByAppId({
+        999999999: () =>
+          new Response(
+            JSON.stringify({
+              data: [makeReviewPayload("a-rev-1"), makeReviewPayload("a-rev-2")],
+              links: {},
+            }),
+            { status: 200 },
+          ),
+        888888888: () =>
+          new Response(
+            JSON.stringify({
+              data: [makeReviewPayload("b-rev-1")],
+              links: {},
+            }),
+            { status: 200 },
+          ),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {});
+
+      expect(result.projects_processed).toBe(2);
+      expect(result.projects_skipped_inactive).toBe(0);
+      expect(result.projects_failed).toBe(0);
+      expect(result.projects_aborted).toBe(0);
+      expect(result.apps_processed).toBe(2);
+      expect(result.reviews_ingested).toBe(3);
+
+      const rowsA = await db
+        .select({ external_id: appStoreReviews.external_id })
+        .from(appStoreReviews)
+        .where(eq(appStoreReviews.app_id, appleAppId));
+      expect(rowsA.map((r) => r.external_id).sort()).toEqual(["a-rev-1", "a-rev-2"]);
+
+      const rowsB = await db
+        .select({ external_id: appStoreReviews.external_id })
+        .from(appStoreReviews)
+        .where(eq(appStoreReviews.app_id, secondAppId));
+      expect(rowsB.map((r) => r.external_id)).toEqual(["b-rev-1"]);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("counts disabled integrations as projects_skipped_inactive without throwing", async () => {
+      await setIntegration();
+      await setSecondIntegration({ enabled: false });
+
+      const fetchMock = fetchByAppId({
+        999999999: () =>
+          new Response(
+            JSON.stringify({ data: [makeReviewPayload("a-rev-1")], links: {} }),
+            { status: 200 },
+          ),
+        // 888888888 should never be hit — second project is disabled.
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {});
+
+      expect(result.projects_processed).toBe(1);
+      expect(result.projects_skipped_inactive).toBe(1);
+      expect(result.reviews_ingested).toBe(1);
+
+      // Fetch must not have been called for the disabled integration's app.
+      const calls = fetchMock.mock.calls
+        .map((c) => (typeof c[0] === "string" ? c[0] : c[0].toString()));
+      expect(calls.some((u) => u.includes(`/apps/${SECOND_APP_ASC_ID}/`))).toBe(false);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("isolates a per-project auth_error abort so other projects still sync", async () => {
+      await setIntegration();
+      await setSecondIntegration();
+
+      const fetchMock = fetchByAppId({
+        999999999: () => new Response("Unauthorized", { status: 401 }),
+        888888888: () =>
+          new Response(
+            JSON.stringify({ data: [makeReviewPayload("b-rev-1")], links: {} }),
+            { status: 200 },
+          ),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {});
+
+      expect(result.projects_processed).toBe(2);
+      expect(result.projects_aborted).toBe(1);
+      expect(result.projects_failed).toBe(0);
+      expect(result.reviews_ingested).toBe(1);
+
+      const rowsB = await db
+        .select({ external_id: appStoreReviews.external_id })
+        .from(appStoreReviews)
+        .where(eq(appStoreReviews.app_id, secondAppId));
+      expect(rowsB.map((r) => r.external_id)).toEqual(["b-rev-1"]);
+
+      vi.unstubAllGlobals();
+    });
+  });
 });

@@ -148,6 +148,15 @@ jobRunner.schedule({
   params: () => ({}),
 });
 jobRunner.schedule({
+  jobType: "app_store_connect_reviews_sync",
+  // Daily 05:30 UTC in prod (after 05:00 attachment_cleanup, before 06:00
+  // notification_cleanup). Fans out across every project with an active
+  // App Store Connect integration. Dev runs every 30 min for observability.
+  cron: isDev ? "*/30 * * * *" : "30 5 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
   jobType: "notification_cleanup",
   cron: isDev ? "*/10 * * * *" : "0 6 * * *",
   enabled: () => true,
