@@ -34,9 +34,9 @@ For every Apple app with a `bundle_id`, Owlmetry tracks two things:
 |-----|---------|--------|--------------|
 | `app_version_sync` | hourly :15 (system) | iTunes Lookup API (no auth) | Refreshes `latest_app_version` + the numeric Apple App Store ID for every Apple app with a `bundle_id`. |
 | `app_store_ratings_sync` | daily 04:30 UTC (system) | iTunes Lookup API (no auth) | Fans out across every Apple storefront for each Apple app with a `bundle_id` and snapshots per-country average rating + total count to `app_store_ratings`, then recomputes the worldwide cache on `apps`. |
-| `app_store_connect_reviews_sync` | manual (project-scoped) | App Store Connect API | Pulls individual reviews via `GET /v1/apps/{id}/customerReviews` for every Apple app in the project that has an `apple_app_store_id`. |
+| `app_store_connect_reviews_sync` | daily 05:30 UTC (system) | App Store Connect API | Fans out across every project with an active App Store Connect integration and pulls individual reviews via `GET /v1/apps/{id}/customerReviews` for every Apple app in those projects that has an `apple_app_store_id`. |
 
-The reviews job is **project-scoped** — it requires an active App Store Connect integration on the project. Trigger it manually from Dashboard → Integrations → Sync reviews, via `owlmetry integrations sync app-store-connect --project-id <id>`, or via the `sync-integration` MCP tool.
+The reviews job runs daily and can also be triggered manually for a single project — manual runs hit the same handler, scoped to one project. Manual triggers from Dashboard → Integrations → Sync reviews, via `owlmetry integrations sync app-store-connect --project-id <id>`, or via the `sync-integration` MCP tool. Each project still requires its own active App Store Connect integration to be included in the daily fan-out.
 
 Aggregate ratings keep flowing automatically once an Apple app has a bundle ID — no integration setup needed. ASC is only required for individual review ingestion. You can also manually trigger a ratings sync (e.g. right after creating a new app) via `owlmetry ratings sync --project-id <id>` / Dashboard → project → Sync ratings / `sync-app-ratings` MCP.
 
