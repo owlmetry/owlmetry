@@ -867,10 +867,6 @@ describe("app_store_connect_reviews_sync", () => {
   });
 
   describe("fan-out (no project_id)", () => {
-    // Second project + Apple app on the same team so the daily fan-out has
-    // more than one integration to iterate. Cleanup is explicit here; the
-    // outer afterAll's WHERE team_id = teamId would catch the remainder
-    // anyway, but being explicit keeps the test boundaries readable.
     let secondProjectId: string;
     let secondAppId: string;
     const SECOND_APP_ASC_ID = 888888888;
