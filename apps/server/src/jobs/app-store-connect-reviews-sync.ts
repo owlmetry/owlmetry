@@ -632,7 +632,6 @@ async function refreshPendingResponses(
   const candidates = await ctx.db
     .select({
       id: appStoreReviews.id,
-      external_id: appStoreReviews.external_id,
       developer_response_id: appStoreReviews.developer_response_id,
       developer_response: appStoreReviews.developer_response,
       developer_response_at: appStoreReviews.developer_response_at,
@@ -666,7 +665,7 @@ async function refreshPendingResponses(
     "Starting PENDING_PUBLISH refresh pass",
   );
 
-  for (const candidate of candidates) {
+  candidateLoop: for (const candidate of candidates) {
     if (ctx.isCancelled()) {
       aborted = true;
       abortReason = "cancelled during refresh pass";
@@ -677,29 +676,25 @@ async function refreshPendingResponses(
     pendingChecked++;
 
     let retryAttempts = 0;
-    let resolved = false;
-    while (!resolved) {
+    while (true) {
       if (ctx.isCancelled()) {
         aborted = true;
         abortReason = "cancelled during refresh pass";
-        resolved = true;
-        break;
+        break candidateLoop;
       }
       const result = await fetchCustomerReviewResponse(ascConfig, responseId);
 
       if (result.status === "auth_error") {
         aborted = true;
         abortReason = `auth_error during refresh: ${result.message}`;
-        resolved = true;
-        break;
+        break candidateLoop;
       }
       if (result.status === "rate_limited") {
         rateLimitWaits++;
         if (totalRateLimitWaitSeconds + result.retryAfterSeconds > maxRateLimitWaitSeconds) {
           aborted = true;
           abortReason = `rate_limited: cumulative wait would exceed ${maxRateLimitWaitSeconds}s — bailing, next run will resume`;
-          resolved = true;
-          break;
+          break candidateLoop;
         }
         if (retryAttempts >= REFRESH_PER_ROW_RATE_LIMIT_RETRIES) {
           errors++;
@@ -709,7 +704,6 @@ async function refreshPendingResponses(
             { app_id: appId, response_id: responseId, retryAttempts },
             "Refresh per-row rate-limit retry budget exhausted",
           );
-          resolved = true;
           break;
         }
         totalRateLimitWaitSeconds += result.retryAfterSeconds;
@@ -734,7 +728,6 @@ async function refreshPendingResponses(
           },
           "Failed to refresh review response state",
         );
-        resolved = true;
         break;
       }
       if (result.status === "not_found") {
@@ -754,7 +747,6 @@ async function refreshPendingResponses(
           { app_id: appId, response_id: responseId, review_id: candidate.id },
           "Cleared developer response — Apple removed it externally",
         );
-        resolved = true;
         break;
       }
       // result.status === "found"
@@ -789,7 +781,7 @@ async function refreshPendingResponses(
           );
         }
       }
-      resolved = true;
+      break;
     }
   }
 
