@@ -6,6 +6,7 @@ import type { NotificationDispatcher } from "../services/notifications/dispatche
 import { resolveTeamMemberUserIds } from "../utils/team-members.js";
 import { findActiveIntegration } from "../utils/integrations.js";
 import {
+  fetchCustomerReviewResponse,
   listAppStoreConnectReviews,
   type AppStoreConnectReview,
 } from "../utils/app-store-connect/client.js";
@@ -26,6 +27,7 @@ type ProjectSyncResult = {
   reviews_updated: number;
   reviews_skipped_duplicate: number;
   reviews_deleted: number;
+  pending_responses_checked: number;
   notifications_sent: number;
   errors: number;
   error_status_counts: Record<string, number>;
@@ -56,6 +58,13 @@ type ProjectSyncResult = {
  * Reconciliation only runs when pagination completed cleanly for that app —
  * partial failures (transport error, rate-limit abort, cancellation) skip the
  * delete step so we never wipe rows from an incomplete view.
+ *
+ * After reconciliation (still gated on `paginatedFully`), runs a refresh pass
+ * over local rows still marked `developer_response_state = 'PENDING_PUBLISH'`:
+ * each is GET'd directly via `/v1/customerReviewResponses/{id}` because
+ * Apple's customerReviews payload doesn't reliably surface the state flip
+ * from PENDING_PUBLISH → PUBLISHED in the `included` array. 404 from that GET
+ * means Apple removed the response externally → local fields are cleared.
  *
  * Auth failures abort the per-project run early — every subsequent app on the
  * same credentials would fail the same way. In fan-out mode the auth abort is
@@ -125,6 +134,7 @@ async function fanOutAcrossProjects(
   let reviewsUpdated = 0;
   let reviewsSkippedDuplicate = 0;
   let reviewsDeleted = 0;
+  let pendingResponsesChecked = 0;
   let notificationsSent = 0;
   let errors = 0;
   let rateLimitWaits = 0;
@@ -149,6 +159,7 @@ async function fanOutAcrossProjects(
       reviewsUpdated += r.reviews_updated;
       reviewsSkippedDuplicate += r.reviews_skipped_duplicate;
       reviewsDeleted += r.reviews_deleted;
+      pendingResponsesChecked += r.pending_responses_checked;
       notificationsSent += r.notifications_sent;
       errors += r.errors;
       rateLimitWaits += r.rate_limit_waits;
@@ -185,6 +196,7 @@ async function fanOutAcrossProjects(
     reviews_updated: reviewsUpdated,
     reviews_skipped_duplicate: reviewsSkippedDuplicate,
     reviews_deleted: reviewsDeleted,
+    pending_responses_checked: pendingResponsesChecked,
     notifications_sent: notificationsSent,
     errors,
     error_status_counts: errorStatusCounts,
@@ -234,6 +246,7 @@ async function syncProject(
   let reviewsUpdated = 0;
   let reviewsSkippedDuplicate = 0;
   let reviewsDeleted = 0;
+  let pendingResponsesChecked = 0;
   let notificationsSent = 0;
   let errors = 0;
   let rateLimitWaits = 0;
@@ -346,6 +359,35 @@ async function syncProject(
       reviewsDeleted += deleted;
     }
 
+    // Refresh PENDING_PUBLISH rows by direct GET on customerReviewResponses/{id}.
+    // Apple's customerReviews payload doesn't reliably surface the state flip,
+    // so without this pass Owlmetry-created replies stay stuck at PENDING_PUBLISH
+    // even after Apple publishes them. Gated on `paginatedFully` to mirror the
+    // reconcile-on-clean-run discipline; partial-pagination runs skip and the
+    // next clean run handles them.
+    if (paginatedFully && !aborted) {
+      const refreshResult = await refreshPendingResponses(
+        ctx,
+        ascConfig,
+        app.id,
+        totalRateLimitWaitSeconds,
+        MAX_RATE_LIMIT_WAIT_SECONDS,
+      );
+      reviewsUpdated += refreshResult.refreshed + refreshResult.cleared;
+      errors += refreshResult.errors;
+      rateLimitWaits += refreshResult.rateLimitWaits;
+      totalRateLimitWaitSeconds = refreshResult.totalRateLimitWaitSeconds;
+      pendingResponsesChecked += refreshResult.pendingChecked;
+      for (const [k, v] of Object.entries(refreshResult.errorStatusCounts)) {
+        errorStatusCounts[k] = (errorStatusCounts[k] ?? 0) + v;
+      }
+      if (refreshResult.aborted) {
+        aborted = true;
+        abortReason = refreshResult.abortReason;
+        break outer;
+      }
+    }
+
     // Notify only when this app already had reviews on file before this run
     // and at least one new one was ingested. Skips first-sync onboarding
     // floods. Partial syncs (pagination errored mid-stream) still notify
@@ -402,6 +444,7 @@ async function syncProject(
     reviews_updated: reviewsUpdated,
     reviews_skipped_duplicate: reviewsSkippedDuplicate,
     reviews_deleted: reviewsDeleted,
+    pending_responses_checked: pendingResponsesChecked,
     notifications_sent: notificationsSent,
     errors,
     error_status_counts: errorStatusCounts,
@@ -551,6 +594,216 @@ async function upsertReviewsPage(
   }
 
   return { insertedReviews, reviewsUpdated };
+}
+
+interface RefreshResult {
+  refreshed: number;
+  cleared: number;
+  errors: number;
+  rateLimitWaits: number;
+  totalRateLimitWaitSeconds: number;
+  errorStatusCounts: Record<string, number>;
+  aborted: boolean;
+  abortReason: string | null;
+  pendingChecked: number;
+}
+
+// Per-row rate-limit retry cap — defends against a single stuck response
+// burning the shared MAX_RATE_LIMIT_WAIT_SECONDS budget on its own.
+const REFRESH_PER_ROW_RATE_LIMIT_RETRIES = 3;
+
+async function refreshPendingResponses(
+  ctx: JobContext,
+  ascConfig: AppStoreConnectConfig,
+  appId: string,
+  startingTotalRateLimitWaitSeconds: number,
+  maxRateLimitWaitSeconds: number,
+): Promise<RefreshResult> {
+  let refreshed = 0;
+  let cleared = 0;
+  let errors = 0;
+  let rateLimitWaits = 0;
+  let totalRateLimitWaitSeconds = startingTotalRateLimitWaitSeconds;
+  const errorStatusCounts: Record<string, number> = {};
+  let aborted = false;
+  let abortReason: string | null = null;
+  let pendingChecked = 0;
+
+  const candidates = await ctx.db
+    .select({
+      id: appStoreReviews.id,
+      external_id: appStoreReviews.external_id,
+      developer_response_id: appStoreReviews.developer_response_id,
+      developer_response: appStoreReviews.developer_response,
+      developer_response_at: appStoreReviews.developer_response_at,
+    })
+    .from(appStoreReviews)
+    .where(
+      and(
+        eq(appStoreReviews.app_id, appId),
+        eq(appStoreReviews.store, APP_STORE),
+        eq(appStoreReviews.developer_response_state, "PENDING_PUBLISH"),
+        isNotNull(appStoreReviews.developer_response_id),
+      ),
+    );
+
+  if (candidates.length === 0) {
+    return {
+      refreshed,
+      cleared,
+      errors,
+      rateLimitWaits,
+      totalRateLimitWaitSeconds,
+      errorStatusCounts,
+      aborted,
+      abortReason,
+      pendingChecked,
+    };
+  }
+
+  ctx.log.info(
+    { app_id: appId, pending_count: candidates.length },
+    "Starting PENDING_PUBLISH refresh pass",
+  );
+
+  for (const candidate of candidates) {
+    if (ctx.isCancelled()) {
+      aborted = true;
+      abortReason = "cancelled during refresh pass";
+      break;
+    }
+    const responseId = candidate.developer_response_id;
+    if (!responseId) continue;
+    pendingChecked++;
+
+    let retryAttempts = 0;
+    let resolved = false;
+    while (!resolved) {
+      if (ctx.isCancelled()) {
+        aborted = true;
+        abortReason = "cancelled during refresh pass";
+        resolved = true;
+        break;
+      }
+      const result = await fetchCustomerReviewResponse(ascConfig, responseId);
+
+      if (result.status === "auth_error") {
+        aborted = true;
+        abortReason = `auth_error during refresh: ${result.message}`;
+        resolved = true;
+        break;
+      }
+      if (result.status === "rate_limited") {
+        rateLimitWaits++;
+        if (totalRateLimitWaitSeconds + result.retryAfterSeconds > maxRateLimitWaitSeconds) {
+          aborted = true;
+          abortReason = `rate_limited: cumulative wait would exceed ${maxRateLimitWaitSeconds}s — bailing, next run will resume`;
+          resolved = true;
+          break;
+        }
+        if (retryAttempts >= REFRESH_PER_ROW_RATE_LIMIT_RETRIES) {
+          errors++;
+          const key = `refresh_rate_limit_exhausted`;
+          errorStatusCounts[key] = (errorStatusCounts[key] ?? 0) + 1;
+          ctx.log.warn(
+            { app_id: appId, response_id: responseId, retryAttempts },
+            "Refresh per-row rate-limit retry budget exhausted",
+          );
+          resolved = true;
+          break;
+        }
+        totalRateLimitWaitSeconds += result.retryAfterSeconds;
+        ctx.log.warn(
+          { app_id: appId, response_id: responseId, retryAfterSeconds: result.retryAfterSeconds },
+          "App Store Connect rate-limited refresh, sleeping",
+        );
+        await new Promise((r) => setTimeout(r, result.retryAfterSeconds * 1000));
+        retryAttempts++;
+        continue;
+      }
+      if (result.status === "error") {
+        errors++;
+        const key = `refresh_error_${result.statusCode}`;
+        errorStatusCounts[key] = (errorStatusCounts[key] ?? 0) + 1;
+        ctx.log.warn(
+          {
+            app_id: appId,
+            response_id: responseId,
+            statusCode: result.statusCode,
+            message: result.message,
+          },
+          "Failed to refresh review response state",
+        );
+        resolved = true;
+        break;
+      }
+      if (result.status === "not_found") {
+        await ctx.db
+          .update(appStoreReviews)
+          .set({
+            developer_response: null,
+            developer_response_at: null,
+            developer_response_id: null,
+            developer_response_state: null,
+            responded_by_user_id: null,
+            updated_at: sql`now()`,
+          })
+          .where(eq(appStoreReviews.id, candidate.id));
+        cleared++;
+        ctx.log.info(
+          { app_id: appId, response_id: responseId, review_id: candidate.id },
+          "Cleared developer response — Apple removed it externally",
+        );
+        resolved = true;
+        break;
+      }
+      // result.status === "found"
+      const apiState = result.data.state;
+      const apiBody = result.data.body;
+      const apiAt = result.data.last_modified_at;
+      const stateChanged = apiState !== null && apiState !== "PENDING_PUBLISH";
+      const bodyChanged = apiBody !== "" && apiBody !== candidate.developer_response;
+      const priorAtMs = candidate.developer_response_at?.getTime() ?? null;
+      const newAtMs = apiAt?.getTime() ?? null;
+      const atChanged = newAtMs !== null && newAtMs !== priorAtMs;
+      if (stateChanged || bodyChanged || atChanged) {
+        await ctx.db
+          .update(appStoreReviews)
+          .set({
+            ...(stateChanged ? { developer_response_state: apiState } : {}),
+            ...(bodyChanged ? { developer_response: apiBody } : {}),
+            ...(atChanged && apiAt ? { developer_response_at: apiAt } : {}),
+            updated_at: sql`now()`,
+          })
+          .where(eq(appStoreReviews.id, candidate.id));
+        if (stateChanged) {
+          refreshed++;
+          ctx.log.info(
+            {
+              app_id: appId,
+              response_id: responseId,
+              prior_state: "PENDING_PUBLISH",
+              new_state: apiState,
+            },
+            "Refreshed review response state",
+          );
+        }
+      }
+      resolved = true;
+    }
+  }
+
+  return {
+    refreshed,
+    cleared,
+    errors,
+    rateLimitWaits,
+    totalRateLimitWaitSeconds,
+    errorStatusCounts,
+    aborted,
+    abortReason,
+    pendingChecked,
+  };
 }
 
 function truncate(s: string, max: number): string {

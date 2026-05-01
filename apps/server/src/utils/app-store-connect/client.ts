@@ -437,3 +437,30 @@ export async function deleteCustomerReviewResponse(
   const url = `${ASC_BASE}/v1/customerReviewResponses/${encodeURIComponent(responseId)}`;
   return ascSend<void>(config, "DELETE", url, undefined, { expectNoBody: true });
 }
+
+/**
+ * GET /v1/customerReviewResponses/{id} — returns the current state directly,
+ * independent of the customerReviews `?include=response` quirk that omits
+ * PENDING_PUBLISH replies and can transiently drop response data. Used by the
+ * sync job's refresh pass to flip locally-PENDING rows to PUBLISHED once Apple
+ * has actually published the reply, and to detect external deletions
+ * (`not_found`).
+ */
+export async function fetchCustomerReviewResponse(
+  config: AppStoreConnectConfig,
+  responseId: string,
+): Promise<AppStoreConnectResult<AppStoreConnectReviewResponse>> {
+  const url = `${ASC_BASE}/v1/customerReviewResponses/${encodeURIComponent(responseId)}`;
+  const result = await ascSend<AscResponsePayload>(config, "GET", url);
+  if (result.status !== "found") return result;
+  const row = result.data.data;
+  return {
+    status: "found",
+    data: {
+      id: row.id,
+      body: row.attributes?.responseBody ?? "",
+      state: normalizeResponseState(row.attributes?.state),
+      last_modified_at: parseDate(row.attributes?.lastModifiedDate),
+    },
+  };
+}

@@ -151,6 +151,16 @@ function makeResponseInclude(
   };
 }
 
+// Wrapper for the GET /v1/customerReviewResponses/{id} endpoint payload —
+// shape is `{data: AscResponseRow}`, distinct from the customerReviews
+// `{data: [...], included: [...]}` envelope.
+function makeDirectResponsePayload(
+  responseId: string,
+  opts: { body?: string; state?: "PUBLISHED" | "PENDING_PUBLISH"; lastModifiedDate?: string } = {},
+) {
+  return { data: makeResponseInclude(responseId, opts) };
+}
+
 describe("app_store_connect_reviews_sync", () => {
   it("ingests reviews and maps ASC alpha-3 territory to alpha-2 country_code", async () => {
     await setIntegration();
@@ -741,6 +751,10 @@ describe("app_store_connect_reviews_sync", () => {
     // and intermittently for API-side issues. That destroyed Owlmetry-created
     // pending replies on every sync. setWhere now gates the update on incoming
     // developer_response_id being non-null.
+    //
+    // The post-sync refresh pass also fires a direct GET on customerReviewResponses/resp-1
+    // for the PENDING_PUBLISH row; mock that endpoint to keep the state at
+    // PENDING_PUBLISH so this test still asserts the no-wipe behavior.
     await setIntegration();
     await db.insert(appStoreReviews).values({
       team_id: teamId,
@@ -760,12 +774,25 @@ describe("app_store_connect_reviews_sync", () => {
       responded_by_user_id: userId,
     });
 
-    const fetchMock = vi.fn(async () =>
-      new Response(
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/customerReviewResponses/")) {
+        return new Response(
+          JSON.stringify(
+            makeDirectResponsePayload("resp-1", {
+              body: "pending reply, do not wipe",
+              state: "PENDING_PUBLISH",
+              lastModifiedDate: "2026-01-16T10:00:00Z",
+            }),
+          ),
+          { status: 200 },
+        );
+      }
+      return new Response(
         JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
         { status: 200 },
-      ),
-    );
+      );
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const { appStoreConnectReviewsSyncHandler } = await import(
@@ -777,6 +804,8 @@ describe("app_store_connect_reviews_sync", () => {
     expect(result.reviews_updated).toBe(0);
     expect(result.reviews_ingested).toBe(0);
     expect(result.reviews_skipped_duplicate).toBe(1);
+    // The refresh pass DID run — pending row was checked, state stayed unchanged.
+    expect(result.pending_responses_checked).toBe(1);
 
     const [row] = await db
       .select()
@@ -864,6 +893,357 @@ describe("app_store_connect_reviews_sync", () => {
     expect(decoded).toContain("include=response");
 
     vi.unstubAllGlobals();
+  });
+
+  describe("refresh pass for PENDING_PUBLISH responses", () => {
+    async function seedPendingRow(opts: {
+      externalId: string;
+      responseId: string;
+      body?: string;
+      at?: Date;
+    }): Promise<void> {
+      await db.insert(appStoreReviews).values({
+        team_id: teamId,
+        project_id: projectId,
+        app_id: appleAppId,
+        store: "app_store",
+        external_id: opts.externalId,
+        rating: 5,
+        title: `Title ${opts.externalId}`,
+        body: `Body ${opts.externalId}`,
+        country_code: "us",
+        created_at_in_store: new Date("2026-01-15T10:00:00Z"),
+        developer_response: opts.body ?? "pending reply",
+        developer_response_at: opts.at ?? new Date("2026-01-16T10:00:00Z"),
+        developer_response_id: opts.responseId,
+        developer_response_state: "PENDING_PUBLISH",
+        responded_by_user_id: userId,
+      });
+    }
+
+    it("refreshes a PENDING_PUBLISH row to PUBLISHED when Apple's direct GET returns PUBLISHED", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/customerReviewResponses/resp-1")) {
+          return new Response(
+            JSON.stringify(
+              makeDirectResponsePayload("resp-1", {
+                body: "pending reply",
+                state: "PUBLISHED",
+                lastModifiedDate: "2026-01-17T10:00:00Z",
+              }),
+            ),
+            { status: 200 },
+          );
+        }
+        // customerReviews — Apple's quirk: omits the response from `included`
+        // even though it's been published.
+        return new Response(
+          JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {
+        project_id: projectId,
+      });
+
+      expect(result.pending_responses_checked).toBe(1);
+      expect(result.reviews_updated).toBe(1);
+      expect(result.aborted).toBe(false);
+
+      const [row] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+      expect(row.developer_response_state).toBe("PUBLISHED");
+      expect(row.developer_response_id).toBe("resp-1");
+      expect(row.developer_response_at).toEqual(new Date("2026-01-17T10:00:00Z"));
+      // responded_by_user_id is preserved on refresh — local attribution.
+      expect(row.responded_by_user_id).toBe(userId);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("keeps a PENDING_PUBLISH row at PENDING_PUBLISH when Apple's direct GET still returns PENDING_PUBLISH", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/customerReviewResponses/resp-1")) {
+          return new Response(
+            JSON.stringify(
+              makeDirectResponsePayload("resp-1", {
+                body: "pending reply",
+                state: "PENDING_PUBLISH",
+                lastModifiedDate: "2026-01-16T10:00:00Z",
+              }),
+            ),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {
+        project_id: projectId,
+      });
+
+      expect(result.pending_responses_checked).toBe(1);
+      expect(result.reviews_updated).toBe(0);
+
+      const [row] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+      expect(row.developer_response_state).toBe("PENDING_PUBLISH");
+      expect(row.developer_response).toBe("pending reply");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("clears developer_response_* fields when Apple's direct GET returns 404", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/customerReviewResponses/resp-1")) {
+          return new Response("Not found", { status: 404 });
+        }
+        return new Response(
+          JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {
+        project_id: projectId,
+      });
+
+      expect(result.pending_responses_checked).toBe(1);
+      expect(result.reviews_updated).toBe(1);
+
+      const [row] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+      expect(row.developer_response).toBeNull();
+      expect(row.developer_response_at).toBeNull();
+      expect(row.developer_response_id).toBeNull();
+      expect(row.developer_response_state).toBeNull();
+      expect(row.responded_by_user_id).toBeNull();
+
+      vi.unstubAllGlobals();
+    });
+
+    it("skips refresh pass when per-app pagination errors mid-stream (paginatedFully=false)", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+
+      const seenUrls: string[] = [];
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        seenUrls.push(url);
+        if (url.includes("/customerReviewResponses/")) {
+          return new Response(
+            JSON.stringify(
+              makeDirectResponsePayload("resp-1", { state: "PUBLISHED" }),
+            ),
+            { status: 200 },
+          );
+        }
+        // customerReviews — explode 500 to simulate partial-pagination failure.
+        return new Response("Boom", { status: 500 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {
+        project_id: projectId,
+      });
+
+      expect(result.errors).toBeGreaterThanOrEqual(1);
+      expect(result.pending_responses_checked).toBe(0);
+      // The customerReviewResponses GET must NOT have fired — gate held.
+      expect(seenUrls.some((u) => u.includes("/customerReviewResponses/"))).toBe(false);
+
+      const [row] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+      expect(row.developer_response_state).toBe("PENDING_PUBLISH");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("respects cancellation between refresh-pass rows", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+      await seedPendingRow({ externalId: "rev-2", responseId: "resp-2" });
+
+      const directGetUrls: string[] = [];
+      let directGetCount = 0;
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/customerReviewResponses/")) {
+          directGetUrls.push(url);
+          directGetCount++;
+          // Return PUBLISHED for the first call so it succeeds; cancellation
+          // must prevent the second call from firing at all.
+          return new Response(
+            JSON.stringify(makeDirectResponsePayload("resp-1", { state: "PUBLISHED" })),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            data: [makeReviewPayload("rev-1"), makeReviewPayload("rev-2")],
+            links: {},
+          }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      // Cancellation flips to true after the first direct GET succeeds.
+      const cancellingCtx = {
+        ...jobCtx(),
+        isCancelled: () => directGetCount >= 1,
+      };
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(
+        cancellingCtx,
+        { project_id: projectId },
+      );
+
+      expect(directGetCount).toBe(1);
+      expect(result.aborted).toBe(true);
+      expect(result.abort_reason).toContain("cancelled");
+      // The second row's GET never fired.
+      expect(directGetUrls.some((u) => u.includes("/resp-2"))).toBe(false);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("aborts the project on auth_error from the refresh-pass direct GET", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/customerReviewResponses/")) {
+          // 401 twice — ascSend retries once, then surfaces auth_error.
+          return new Response("Unauthorized", { status: 401 });
+        }
+        return new Response(
+          JSON.stringify({ data: [makeReviewPayload("rev-1")], links: {} }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {
+        project_id: projectId,
+      });
+
+      expect(result.aborted).toBe(true);
+      expect(result.abort_reason).toContain("auth_error");
+
+      const [row] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+      expect(row.developer_response_state).toBe("PENDING_PUBLISH");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("skips one row on transient error and continues refreshing the next", async () => {
+      await setIntegration();
+      await seedPendingRow({ externalId: "rev-1", responseId: "resp-1" });
+      await seedPendingRow({ externalId: "rev-2", responseId: "resp-2" });
+
+      const fetchMock = vi.fn(async (input: string | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/customerReviewResponses/resp-1")) {
+          return new Response("Server error", { status: 500 });
+        }
+        if (url.includes("/customerReviewResponses/resp-2")) {
+          return new Response(
+            JSON.stringify(
+              makeDirectResponsePayload("resp-2", {
+                body: "pending reply",
+                state: "PUBLISHED",
+                lastModifiedDate: "2026-01-17T10:00:00Z",
+              }),
+            ),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            data: [makeReviewPayload("rev-1"), makeReviewPayload("rev-2")],
+            links: {},
+          }),
+          { status: 200 },
+        );
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { appStoreConnectReviewsSyncHandler } = await import(
+        "../jobs/app-store-connect-reviews-sync.js"
+      );
+      const result = await appStoreConnectReviewsSyncHandler(mockDispatcher)(jobCtx(), {
+        project_id: projectId,
+      });
+
+      expect(result.aborted).toBe(false);
+      expect(result.errors).toBeGreaterThanOrEqual(1);
+      expect((result.error_status_counts as Record<string, number>)["refresh_error_500"]).toBe(1);
+      expect(result.pending_responses_checked).toBe(2);
+      expect(result.reviews_updated).toBe(1);
+
+      const [rowA] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-1")));
+      expect(rowA.developer_response_state).toBe("PENDING_PUBLISH");
+      const [rowB] = await db
+        .select()
+        .from(appStoreReviews)
+        .where(and(eq(appStoreReviews.app_id, appleAppId), eq(appStoreReviews.external_id, "rev-2")));
+      expect(rowB.developer_response_state).toBe("PUBLISHED");
+
+      vi.unstubAllGlobals();
+    });
   });
 
   describe("fan-out (no project_id)", () => {
