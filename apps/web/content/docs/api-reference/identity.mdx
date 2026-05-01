@@ -163,6 +163,9 @@ Submit an ad-network attribution token for server-side resolution. The server ca
 // Not attributed (200)
 { "attributed": false, "pending": false, "properties": { "attribution_source": "none" } }
 
+// Apple test fixture — TestFlight, Xcode dev build, or simulator (200)
+{ "attributed": false, "pending": false, "properties": { "attribution_source": "apple_test_install" } }
+
 // Pending — Apple hasn't built the record yet (200)
 { "attributed": null, "pending": true, "retry_after_seconds": 3600, "properties": {} }
 ```
@@ -173,5 +176,5 @@ On a `pending` response the caller should retry after `retry_after_seconds`. The
 
 The server writes via the same `mergeUserProperties` helper used by `/v1/identity/properties`, so these keys merge into the user's existing properties and survive identity claim:
 
-- `attribution_source` — `"apple_search_ads"` when Apple attributed, `"none"` when capture completed but nothing attributed.
-- `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` — populated only when `attributed` is `true`.
+- `attribution_source` — `"apple_search_ads"` when Apple attributed, `"none"` when capture completed but nothing attributed, or `"apple_test_install"` when Apple returned its deliberate non-production fixture (TestFlight, Xcode-deployed dev build on a real device, or the iOS simulator). The fixture is detected by the structural tell of a single numeric ID repeated across campaign, ad group, and ad — something real Apple data can never produce.
+- `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` — populated only when `attributed` is `true`. **Not** written for `apple_test_install` responses: the IDs Apple returns in that case are placeholders, so storing them just pollutes dashboards and burns an Apple Ads enrichment call.

@@ -108,7 +108,7 @@ The SDK writes one of:
 
 - `attribution_source = "apple_search_ads"` plus `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_claim_type`, `asa_ad_id`, `asa_creative_set_id` when Apple attributes the install.
 - `attribution_source = "none"` when Apple responds but the install is not attributed, or after `ASA_MAX_PENDING_ATTEMPTS` (5) failed retries.
-- `likely_app_reviewer = "true"` when Apple's response carries its App Store review sandbox fixture (same numeric ID across campaign, ad group, and ad). The numeric IDs are still stored so the row is traceable, but you'll want to filter these sessions out of acquisition dashboards to avoid counting Apple's reviewer devices as paid installs.
+- `attribution_source = "apple_test_install"` (with **no** `asa_*` fields) when Apple's response carries its deliberate non-production fixture — same numeric ID across campaign, ad group, and ad. This fires for **TestFlight builds, Xcode-deployed dev builds on real devices, and the iOS simulator**. Filter these out of acquisition dashboards alongside organic installs by excluding `attribution_source IN ('none', 'apple_test_install')` so a developer's own install doesn't get counted as a paid acquisition. The placeholder IDs are intentionally dropped so they don't pollute reports or trigger an Apple Ads enrichment call.
 
 The SDK's live path only populates numeric IDs — Apple's AdServices Attribution API doesn't return human-readable names. Name fields (`asa_campaign_name`, `asa_ad_group_name`, `asa_ad_name`, `asa_keyword`) are populated by one of two server-side integrations, both of which cover every attributed user and are per-field merged so the live SDK's numeric IDs are never overwritten:
 
@@ -143,7 +143,7 @@ Every capture attempt emits an `sdk:attribution_capture` event so you can spot f
 
 | `_outcome` | Level | Extra attributes | When |
 |---|---|---|---|
-| `success` | info | `_attribution_source` | Apple returned a decisive answer (`apple_search_ads` or `none`). |
+| `success` | info | `_attribution_source` | Apple returned a decisive answer (`apple_search_ads`, `none`, or `apple_test_install`). |
 | `pending` | info | `_attempt`, `_max_attempts` | Apple 404 — record not ready yet. Will retry on next launch. |
 | `gave_up` | warn | `_attempts` | Hit the 5-pending cap; SDK wrote `attribution_source = "none"`. |
 | `token_fetch_failed` | warn | `_error` | `AAAttribution.attributionToken()` threw on-device. |

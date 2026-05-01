@@ -56,9 +56,11 @@ Attribution writes up to 11 reserved user properties. The authoritative list liv
 
 | Property | Source | Example |
 |----------|--------|---------|
-| `attribution_source` | Server (on token resolve) | `apple_search_ads` &#124; `none` |
+| `attribution_source` | Server (on token resolve) | `apple_search_ads` &#124; `none` &#124; `apple_test_install` |
 | `asa_campaign_id`, `asa_ad_group_id`, `asa_keyword_id`, `asa_ad_id`, `asa_creative_set_id`, `asa_claim_type` | Server (on token resolve) | Numeric IDs from Apple's Attribution API |
 | `asa_campaign_name`, `asa_ad_group_name`, `asa_keyword`, `asa_ad_name` | ASA integration or RevenueCat backfill | Human-readable names from Campaign Management API |
+
+`attribution_source = "apple_test_install"` is set with **no** `asa_*` fields when Apple's AdServices API returns its deliberate non-production fixture (same numeric ID across campaign, ad group, and ad — structurally impossible from real Apple data). This fires for **TestFlight builds, Xcode-deployed dev builds on real devices, and the iOS simulator**. Filter these sessions out of acquisition reporting alongside organic installs by excluding `attribution_source IN ('none', 'apple_test_install')`, or include them with a separate badge to spot a developer's own install showing up. Because no `asa_*` IDs are written for the fixture, neither the Apple Ads integration nor the RevenueCat backfill enriches these users.
 
 Attribution properties carry through the identity claim — when an anonymous user is promoted via `Owl.setUser()`, `asa_*` and `attribution_source` merge onto the real user. Claim race protection on the ingest path rewrites any late-arriving attribution writes to the claimed user ID.
 
