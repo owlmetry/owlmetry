@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -23,10 +23,34 @@ import { Megaphone, RefreshCw } from "lucide-react";
 import { formatUsd } from "@/lib/currency";
 import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { AdsFilterBar, ALL_PROJECTS } from "./_components/ads-filter-bar";
-import { AdsRowTable } from "./_components/ads-row-table";
+import {
+  AdsRowTable,
+  SORT_FIELD_MAP,
+  SORT_KEYS,
+  type SortKey,
+  type SortOrder,
+} from "./_components/ads-row-table";
 import { CampaignAdGroupsRow } from "./_components/expanded-rows";
 
 const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
+const DEFAULT_SORT_KEY: SortKey = "revenue";
+const DEFAULT_SORT_ORDER: SortOrder = "desc";
+
+function parseSortKey(raw: string | null): SortKey {
+  return (SORT_KEYS as readonly string[]).includes(raw ?? "") ? (raw as SortKey) : DEFAULT_SORT_KEY;
+}
+function parseSortOrder(raw: string | null): SortOrder {
+  return raw === "asc" || raw === "desc" ? raw : DEFAULT_SORT_ORDER;
+}
+
+// Comparator: nulls always sink to the bottom regardless of direction so rows
+// without spend / ROAS data don't masquerade as "best" or "worst".
+function compareNullable(a: number | null, b: number | null, order: SortOrder): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return order === "asc" ? a - b : b - a;
+}
 
 export default function AdsPage() {
   const router = useRouter();
@@ -45,6 +69,8 @@ export default function AdsPage() {
   );
   const [appId, setAppIdState] = useState<string | null>(searchParams.get("app_id"));
   const [source, setSourceState] = useState<string>(searchParams.get("source") ?? DEFAULT_SOURCE);
+  const [sortKey, setSortKeyState] = useState<SortKey>(parseSortKey(searchParams.get("sort")));
+  const [sortOrder, setSortOrderState] = useState<SortOrder>(parseSortOrder(searchParams.get("order")));
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,6 +122,22 @@ export default function AdsPage() {
     updateUrl({ source: v });
   }
 
+  // Click handler: same column → toggle direction; different column → desc
+  // (the natural "best at top" starting direction). When the resulting state
+  // matches the default (revenue desc), we drop both params from the URL so
+  // the unsorted view stays cleanly shareable.
+  function setSort(key: SortKey) {
+    const nextOrder: SortOrder =
+      key === sortKey ? (sortOrder === "desc" ? "asc" : "desc") : "desc";
+    setSortKeyState(key);
+    setSortOrderState(nextOrder);
+    const isDefault = key === DEFAULT_SORT_KEY && nextOrder === DEFAULT_SORT_ORDER;
+    updateUrl({
+      sort: isDefault ? null : key,
+      order: isDefault ? null : nextOrder,
+    });
+  }
+
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null,
   );
@@ -140,19 +182,35 @@ export default function AdsPage() {
     return `${row.project_id ?? projectId}:${row.id}`;
   }
 
+  // Client-side sort. Server returns campaigns in revenue-desc order; we
+  // re-sort here so the URL `sort` + `order` params drive the view without
+  // re-querying. Top-row "highlight leader" treatment follows the active
+  // sort (the leader is row 0 of whatever column is sorted).
+  const sortedCampaigns = useMemo(() => {
+    const field = SORT_FIELD_MAP[sortKey];
+    return [...campaigns].sort((a, b) =>
+      compareNullable(
+        (a[field] as number | null) ?? null,
+        (b[field] as number | null) ?? null,
+        sortOrder,
+      ),
+    );
+  }, [campaigns, sortKey, sortOrder]);
+
   function renderCampaigns() {
     if (isLoading) return <TableSkeleton rows={5} />;
-    if (campaigns.length === 0) return <EmptyState />;
+    if (sortedCampaigns.length === 0) return <EmptyState />;
     // Match the AdsRowTable's internal showSpend logic so nested tables
     // get the same column structure as the parent.
-    const parentShowSpend = campaigns.some((r) => r.total_spend_usd != null);
+    const parentShowSpend = sortedCampaigns.some((r) => r.total_spend_usd != null);
     return (
       <AdsRowTable
-        rows={campaigns}
+        rows={sortedCampaigns}
         nameHeader="Campaign"
         projectInfoMap={isAllProjects ? projectInfoMap : undefined}
         emptyMessage="No campaigns with attributed users yet."
         highlightTop
+        sort={{ key: sortKey, order: sortOrder, onChange: setSort }}
         expandable={{
           isExpanded: (row) => expanded.has(rowKey(row)),
           onToggle: (row) => toggleExpanded(rowKey(row)),
@@ -215,9 +273,6 @@ export default function AdsPage() {
             <Megaphone className="h-5 w-5 text-muted-foreground" />
             Advertising insights
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Campaigns ranked by lifetime USD revenue from attributed users.
-          </p>
         </div>
         {syncError && <p className="text-xs text-destructive mt-2">{syncError}</p>}
         {currencyWarning && (
