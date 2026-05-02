@@ -97,11 +97,19 @@ export default function AdsPage() {
   }
 
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
-    teamId && !isAllProjects && projectId
-      ? `/v1/apps?team_id=${teamId}&project_id=${projectId}`
-      : null,
+    teamId ? `/v1/apps?team_id=${teamId}` : null,
   );
-  const apps = appsData?.apps ?? [];
+  const allApps = appsData?.apps ?? [];
+  const availableApps = !isAllProjects && projectId
+    ? allApps.filter((a) => a.project_id === projectId)
+    : allApps;
+
+  useEffect(() => {
+    if (!isAllProjects && projectId && appId) {
+      const stillValid = availableApps.some((a) => a.id === appId);
+      if (!stillValid) setAppId(null);
+    }
+  }, [isAllProjects, projectId, appId, availableApps]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const singleProject = useAdCampaigns(isAllProjects ? undefined : projectId || undefined, {
     attribution_source: source,
@@ -183,7 +191,14 @@ export default function AdsPage() {
     }
   }
 
-  const integrationsHint = (
+  // ad_metrics_synced_at is set by `apple_ads_sync` for any project with the
+  // integration enabled, so it's our proxy for "ASA integration connected and
+  // syncing". When set, suppress the "Connect Apple Search Ads" CTA — the
+  // problem isn't a missing integration, it's that no users are attributed yet.
+  const isAdsIntegrationConnected = adMetricsSyncedAt != null;
+  const integrationsHint = isAdsIntegrationConnected ? (
+    <span className="text-xs text-muted-foreground">Awaiting attributed users</span>
+  ) : (
     <Link
       href="/dashboard/integrations"
       className="text-xs text-primary hover:underline relative z-10"
@@ -216,7 +231,7 @@ export default function AdsPage() {
         <div className="flex items-end justify-between gap-3 flex-wrap">
           <AdsFilterBar
             projects={projects}
-            apps={apps}
+            apps={availableApps}
             projectId={projectId}
             appId={appId}
             attributionSource={source}

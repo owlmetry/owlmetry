@@ -242,6 +242,81 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     expect(fallback.statusCode).toBe(200);
     expect(fallback.json().attribution_source).toBe("apple_search_ads");
   });
+
+  it("surfaces spend-only campaigns from ad_campaign_lifetime even with no attributed users", async () => {
+    // The Sewing Patterns scenario: apple_ads_sync rolled up campaign spend,
+    // but no users have attribution data yet (RC integration on basic, SDK
+    // not capturing). Without spend-only rows the dashboard would be empty
+    // despite real spend on file.
+    await sql`
+      INSERT INTO ad_campaign_lifetime (team_id, project_id, app_id, apple_app_store_id, network, campaign_id, campaign_name, total_spend_usd_cents, spend_currency, campaign_status, last_synced_at)
+      VALUES
+        (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', '111', 'sewing_usa_main_keywords', 1491, 'USD', 'PAUSED', NOW()),
+        (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', '222', 'sewing_all_countries_main_keywords', 1053, 'USD', 'PAUSED', NOW()),
+        (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', '333', 'no_spend_yet', 0, 'USD', 'RUNNING', NOW())
+    `;
+    const res = await get(`/v1/projects/${projectId}/ads/campaigns`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    expect(body.campaigns).toHaveLength(3);
+    // Sort: revenue desc, then spend desc, then user_count desc, id asc.
+    // All have $0 revenue, so spend desc takes over.
+    expect(body.campaigns[0].name).toBe("sewing_usa_main_keywords");
+    expect(body.campaigns[0].total_spend_usd).toBeCloseTo(14.91, 2);
+    expect(body.campaigns[0].user_count).toBe(0);
+    expect(body.campaigns[0].paying_user_count).toBe(0);
+    expect(body.campaigns[0].total_revenue_usd).toBe(0);
+    // ROAS: 0 revenue / >0 spend = 0
+    expect(body.campaigns[0].roas).toBe(0);
+    expect(body.campaigns[0].status).toBe("PAUSED");
+
+    expect(body.campaigns[1].name).toBe("sewing_all_countries_main_keywords");
+    expect(body.campaigns[1].total_spend_usd).toBeCloseTo(10.53, 2);
+
+    // $0-spend campaign still surfaces; ROAS null because spend = 0.
+    expect(body.campaigns[2].name).toBe("no_spend_yet");
+    expect(body.campaigns[2].total_spend_usd).toBe(0);
+    expect(body.campaigns[2].roas).toBeNull();
+
+    // Lifetime spend across the project should sum every spend-only row.
+    expect(body.total_spend_usd).toBeCloseTo(14.91 + 10.53 + 0, 2);
+    expect(body.total_user_count).toBe(0);
+    expect(body.total_revenue_usd).toBe(0);
+  });
+
+  it("merges spend with attribution: campaigns with both attributed users and spend show on a single row", async () => {
+    // Campaign Alpha has both attributed users (revenue) and spend.
+    // Campaign Beta is spend-only (no attributed users).
+    await seedUsers([
+      { user_id: "u1", campaign_id: "alpha-id", campaign_name: "Alpha", revenue_usd_cents: 5000 },
+      { user_id: "u2", campaign_id: "alpha-id", campaign_name: "Alpha", revenue_usd_cents: 3000 },
+    ]);
+    await sql`
+      INSERT INTO ad_campaign_lifetime (team_id, project_id, app_id, apple_app_store_id, network, campaign_id, campaign_name, total_spend_usd_cents, spend_currency, last_synced_at)
+      VALUES
+        (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', 'alpha-id', 'Alpha', 2000, 'USD', NOW()),
+        (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', 'beta-id', 'Beta', 1500, 'USD', NOW())
+    `;
+    const res = await get(`/v1/projects/${projectId}/ads/campaigns`);
+    const body = res.json();
+
+    expect(body.campaigns).toHaveLength(2);
+    // Alpha first (revenue $80 > Beta's $0).
+    expect(body.campaigns[0].name).toBe("Alpha");
+    expect(body.campaigns[0].user_count).toBe(2);
+    expect(body.campaigns[0].total_revenue_usd).toBe(80);
+    expect(body.campaigns[0].total_spend_usd).toBe(20);
+    // ROAS = $80 / $20 = 4.0
+    expect(body.campaigns[0].roas).toBe(4);
+
+    expect(body.campaigns[1].name).toBe("Beta");
+    expect(body.campaigns[1].user_count).toBe(0);
+    expect(body.campaigns[1].total_spend_usd).toBe(15);
+
+    expect(body.total_revenue_usd).toBe(80);
+    expect(body.total_spend_usd).toBe(35);
+  });
 });
 
 describe("GET /v1/projects/:projectId/ads/campaigns/:id/ad-groups", () => {
@@ -293,6 +368,38 @@ describe("GET /v1/projects/:projectId/ads/campaigns/:id/ad-groups", () => {
     expect(body.ad_groups[0].total_revenue_usd).toBe(100);
     expect(body.ad_groups[1].id).toBe("First");
     expect(body.ad_groups[1].total_revenue_usd).toBe(30);
+  });
+
+  it("surfaces spend-only ad groups from ad_adgroup_lifetime even with no attributed users", async () => {
+    // Spend-only campaign + spend-only ad groups. Drill-down via campaign
+    // name (the dashboard URL uses whichever was non-null at aggregation).
+    await sql`
+      INSERT INTO ad_campaign_lifetime (team_id, project_id, app_id, apple_app_store_id, network, campaign_id, campaign_name, total_spend_usd_cents, spend_currency, last_synced_at)
+      VALUES
+        (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', 'cmp-1', 'sewing_usa', 2544, 'USD', NOW())
+    `;
+    await sql`
+      INSERT INTO ad_adgroup_lifetime (team_id, project_id, app_id, network, campaign_id, ad_group_id, ad_group_name, total_spend_usd_cents, spend_currency, ad_group_status, last_synced_at)
+      VALUES
+        (${teamId}, ${projectId}, ${appId}, 'apple_search_ads', 'cmp-1', 'ag-broad', 'broad_match', 1491, 'USD', 'RUNNING', NOW()),
+        (${teamId}, ${projectId}, ${appId}, 'apple_search_ads', 'cmp-1', 'ag-exact', 'exact_match', 1053, 'USD', 'PAUSED', NOW())
+    `;
+    const res = await get(`/v1/projects/${projectId}/ads/campaigns/sewing_usa/ad-groups`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    expect(body.campaign_name).toBe("sewing_usa");
+    expect(body.ad_groups).toHaveLength(2);
+    // Sort by spend desc within the spend-only group ($0 revenue across).
+    expect(body.ad_groups[0].name).toBe("broad_match");
+    expect(body.ad_groups[0].total_spend_usd).toBeCloseTo(14.91, 2);
+    expect(body.ad_groups[0].user_count).toBe(0);
+    expect(body.ad_groups[0].status).toBe("RUNNING");
+    expect(body.ad_groups[1].name).toBe("exact_match");
+    expect(body.ad_groups[1].total_spend_usd).toBeCloseTo(10.53, 2);
+    expect(body.ad_groups[1].status).toBe("PAUSED");
+
+    expect(body.total_spend_usd).toBeCloseTo(25.44, 2);
   });
 });
 
@@ -451,5 +558,49 @@ describe("GET /v1/ads/campaigns (team-scoped)", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().campaigns).toEqual([]);
+  });
+
+  it("includes spend-only campaigns across the team and tags each with project_id", async () => {
+    const [{ id: secondProjectId }] = await sql<{ id: string }[]>`
+      INSERT INTO projects (team_id, name, slug, color)
+      VALUES (${teamId}, 'Second Project', 'second', '#ff0000')
+      RETURNING id
+    `;
+    const [{ id: secondAppId }] = await sql<{ id: string }[]>`
+      INSERT INTO apps (team_id, project_id, name, platform)
+      VALUES (${teamId}, ${secondProjectId}, 'Second App', 'apple')
+      RETURNING id
+    `;
+    // Project 1: attributed user + spend on the same campaign
+    await seedAttributedUser({ projectId, user_id: "p1u1", campaign_name: "Shared", revenue_usd_cents: 5000 });
+    await sql`
+      INSERT INTO ad_campaign_lifetime (team_id, project_id, app_id, apple_app_store_id, network, campaign_id, campaign_name, total_spend_usd_cents, spend_currency, last_synced_at)
+      VALUES (${teamId}, ${projectId}, ${appId}, 12345, 'apple_search_ads', 'shared-id', 'Shared', 1000, 'USD', NOW())
+    `;
+    // Project 2: spend-only (no attributed users)
+    await sql`
+      INSERT INTO ad_campaign_lifetime (team_id, project_id, app_id, apple_app_store_id, network, campaign_id, campaign_name, total_spend_usd_cents, spend_currency, last_synced_at)
+      VALUES (${teamId}, ${secondProjectId}, ${secondAppId}, 67890, 'apple_search_ads', 'p2-only', 'Project2Only', 2500, 'USD', NOW())
+    `;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/ads/campaigns?team_id=${teamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    expect(body.campaigns).toHaveLength(2);
+    // Project 1 / Shared has revenue → first.
+    expect(body.campaigns[0].project_id).toBe(projectId);
+    expect(body.campaigns[0].name).toBe("Shared");
+    expect(body.campaigns[0].total_revenue_usd).toBe(50);
+    expect(body.campaigns[0].total_spend_usd).toBe(10);
+    // Project 2 / spend-only — no revenue but attributed to the right project.
+    expect(body.campaigns[1].project_id).toBe(secondProjectId);
+    expect(body.campaigns[1].name).toBe("Project2Only");
+    expect(body.campaigns[1].user_count).toBe(0);
+    expect(body.campaigns[1].total_spend_usd).toBe(25);
   });
 });

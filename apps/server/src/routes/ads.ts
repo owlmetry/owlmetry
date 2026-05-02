@@ -117,6 +117,11 @@ export async function adsRoutes(app: FastifyInstance) {
       // joins on either `(campaign_id::text = aggregated.id)` (SDK path) OR
       // `(campaign_name = aggregated.id)` (RC backfill name-only path) —
       // matches the same dual-key story used everywhere else in this file.
+      // The trailing UNION ALL surfaces spend-only rows: campaigns Apple is
+      // running for this project's apps that don't (yet) have a single
+      // attributed user. Without it, a project with a misconfigured Swift
+      // SDK + basic RC AdServices integration sees an empty dashboard
+      // despite real spend in `ad_campaign_lifetime`.
       const rows = await app.db.execute<
         AdsAggregateRow & {
           revenue_synced_at: Date | null;
@@ -161,23 +166,44 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(spend_currency) FILTER (WHERE spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
           FROM campaign_spend
         )
-        SELECT
-          cr.id,
-          cr.name,
-          cr.user_count,
-          cr.paying_user_count,
-          cr.total_revenue_usd,
-          cs.total_spend_usd_cents,
-          cs.spend_currency,
-          cs.campaign_start_date::text AS start_date,
-          cs.campaign_status AS status,
-          (SELECT synced_at FROM project_sync) AS revenue_synced_at,
-          (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
-          (SELECT currency_warning FROM spend_meta) AS currency_warning
-        FROM campaign_revenue cr
-        LEFT JOIN campaign_spend cs
-          ON cs.id_match = cr.id OR cs.name_match = cr.id
-        ORDER BY cr.total_revenue_usd DESC, cr.user_count DESC, cr.id ASC
+        SELECT * FROM (
+          SELECT
+            cr.id,
+            cr.name,
+            cr.user_count,
+            cr.paying_user_count,
+            cr.total_revenue_usd,
+            cs.total_spend_usd_cents,
+            cs.spend_currency,
+            cs.campaign_start_date::text AS start_date,
+            cs.campaign_status AS status,
+            (SELECT synced_at FROM project_sync) AS revenue_synced_at,
+            (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+            (SELECT currency_warning FROM spend_meta) AS currency_warning
+          FROM campaign_revenue cr
+          LEFT JOIN campaign_spend cs
+            ON cs.id_match = cr.id OR cs.name_match = cr.id
+          UNION ALL
+          SELECT
+            COALESCE(cs.name_match, cs.id_match) AS id,
+            cs.name_match AS name,
+            0::int AS user_count,
+            0::int AS paying_user_count,
+            0::float AS total_revenue_usd,
+            cs.total_spend_usd_cents,
+            cs.spend_currency,
+            cs.campaign_start_date::text AS start_date,
+            cs.campaign_status AS status,
+            (SELECT synced_at FROM project_sync) AS revenue_synced_at,
+            (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+            (SELECT currency_warning FROM spend_meta) AS currency_warning
+          FROM campaign_spend cs
+          WHERE NOT EXISTS (
+            SELECT 1 FROM campaign_revenue cr
+            WHERE cr.id = cs.id_match OR cr.id = cs.name_match
+          )
+        ) combined
+        ORDER BY total_revenue_usd DESC, total_spend_usd_cents DESC NULLS LAST, user_count DESC, id ASC
         LIMIT ${limit}
       `);
 
@@ -248,6 +274,10 @@ export async function adsRoutes(app: FastifyInstance) {
       // present, id otherwise). Same dual-key story for ad groups: RC-only
       // attributions carry the name, SDK-attributions carry both. Spend joins
       // mirror the campaigns route — match adGroup id::text or name.
+      // Mirrors the campaigns query: trailing UNION ALL surfaces spend-only
+      // ad groups so the campaign-detail view stays consistent with the
+      // top-level campaigns list (every ad group from the lifetime rollup
+      // appears, attribution or not).
       const rows = await app.db.execute<
         AdsAggregateRow & {
           campaign_name: string | null;
@@ -270,6 +300,12 @@ export async function adsRoutes(app: FastifyInstance) {
             AND (properties ? ${dims.adGroupNameKey} OR properties ? ${dims.adGroupIdKey})
             ${appFilter(appId)}
           GROUP BY 1
+        ),
+        campaign_name_lookup AS (
+          SELECT MAX(campaign_name) AS campaign_name
+          FROM ad_campaign_lifetime
+          WHERE project_id = ${projectId} AND network = ${source}
+            AND (campaign_id::text = ${campaignId} OR campaign_name = ${campaignId})
         ),
         adgroup_spend AS (
           SELECT
@@ -294,23 +330,44 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(spend_currency) FILTER (WHERE spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
           FROM adgroup_spend
         )
-        SELECT
-          ar.id,
-          ar.name,
-          ar.campaign_name,
-          ar.user_count,
-          ar.paying_user_count,
-          ar.total_revenue_usd,
-          asd.total_spend_usd_cents,
-          asd.spend_currency,
-          asd.ad_group_start_date::text AS start_date,
-          asd.ad_group_status AS status,
-          (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
-          (SELECT currency_warning FROM spend_meta) AS currency_warning
-        FROM adgroup_revenue ar
-        LEFT JOIN adgroup_spend asd
-          ON asd.id_match = ar.id OR asd.name_match = ar.id
-        ORDER BY ar.total_revenue_usd DESC, ar.user_count DESC, ar.id ASC
+        SELECT * FROM (
+          SELECT
+            ar.id,
+            ar.name,
+            ar.campaign_name,
+            ar.user_count,
+            ar.paying_user_count,
+            ar.total_revenue_usd,
+            asd.total_spend_usd_cents,
+            asd.spend_currency,
+            asd.ad_group_start_date::text AS start_date,
+            asd.ad_group_status AS status,
+            (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+            (SELECT currency_warning FROM spend_meta) AS currency_warning
+          FROM adgroup_revenue ar
+          LEFT JOIN adgroup_spend asd
+            ON asd.id_match = ar.id OR asd.name_match = ar.id
+          UNION ALL
+          SELECT
+            COALESCE(asd.name_match, asd.id_match) AS id,
+            asd.name_match AS name,
+            (SELECT campaign_name FROM campaign_name_lookup) AS campaign_name,
+            0::int AS user_count,
+            0::int AS paying_user_count,
+            0::float AS total_revenue_usd,
+            asd.total_spend_usd_cents,
+            asd.spend_currency,
+            asd.ad_group_start_date::text AS start_date,
+            asd.ad_group_status AS status,
+            (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+            (SELECT currency_warning FROM spend_meta) AS currency_warning
+          FROM adgroup_spend asd
+          WHERE NOT EXISTS (
+            SELECT 1 FROM adgroup_revenue ar
+            WHERE ar.id = asd.id_match OR ar.id = asd.name_match
+          )
+        ) combined
+        ORDER BY total_revenue_usd DESC, total_spend_usd_cents DESC NULLS LAST, user_count DESC, id ASC
         LIMIT ${limit}
       `);
 
@@ -597,25 +654,48 @@ export async function teamAdsRoutes(app: FastifyInstance) {
             MAX(spend_currency) FILTER (WHERE spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
           FROM team_spend
         )
-        SELECT
-          tr.project_id,
-          tr.id,
-          tr.name,
-          tr.user_count,
-          tr.paying_user_count,
-          tr.total_revenue_usd,
-          ts.total_spend_usd_cents,
-          ts.spend_currency,
-          ts.campaign_start_date::text AS start_date,
-          ts.campaign_status AS status,
-          (SELECT synced_at FROM team_sync) AS revenue_synced_at,
-          (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
-          (SELECT currency_warning FROM spend_meta) AS currency_warning
-        FROM team_revenue tr
-        LEFT JOIN team_spend ts
-          ON ts.project_id = tr.project_id
-            AND (ts.id_match = tr.id OR ts.name_match = tr.id)
-        ORDER BY tr.total_revenue_usd DESC, tr.user_count DESC, tr.id ASC
+        SELECT * FROM (
+          SELECT
+            tr.project_id,
+            tr.id,
+            tr.name,
+            tr.user_count,
+            tr.paying_user_count,
+            tr.total_revenue_usd,
+            ts.total_spend_usd_cents,
+            ts.spend_currency,
+            ts.campaign_start_date::text AS start_date,
+            ts.campaign_status AS status,
+            (SELECT synced_at FROM team_sync) AS revenue_synced_at,
+            (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+            (SELECT currency_warning FROM spend_meta) AS currency_warning
+          FROM team_revenue tr
+          LEFT JOIN team_spend ts
+            ON ts.project_id = tr.project_id
+              AND (ts.id_match = tr.id OR ts.name_match = tr.id)
+          UNION ALL
+          SELECT
+            ts.project_id,
+            COALESCE(ts.name_match, ts.id_match) AS id,
+            ts.name_match AS name,
+            0::int AS user_count,
+            0::int AS paying_user_count,
+            0::float AS total_revenue_usd,
+            ts.total_spend_usd_cents,
+            ts.spend_currency,
+            ts.campaign_start_date::text AS start_date,
+            ts.campaign_status AS status,
+            (SELECT synced_at FROM team_sync) AS revenue_synced_at,
+            (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+            (SELECT currency_warning FROM spend_meta) AS currency_warning
+          FROM team_spend ts
+          WHERE NOT EXISTS (
+            SELECT 1 FROM team_revenue tr
+            WHERE tr.project_id = ts.project_id
+              AND (tr.id = ts.id_match OR tr.id = ts.name_match)
+          )
+        ) combined
+        ORDER BY total_revenue_usd DESC, total_spend_usd_cents DESC NULLS LAST, user_count DESC, id ASC
         LIMIT ${limit}
       `);
 
