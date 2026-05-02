@@ -3,6 +3,7 @@ export const JOB_TYPES = [
   "soft_delete_cleanup",
   "partition_creation",
   "revenuecat_sync",
+  "revenuecat_user_backfill",
   "retention_cleanup",
   "issue_scan",
   "issue_notify",
@@ -80,6 +81,14 @@ export const JOB_TYPE_META: Record<
         required: false,
       },
     ],
+  },
+  revenuecat_user_backfill: {
+    label: "RevenueCat User Backfill",
+    description:
+      "Pages through every customer in the linked RevenueCat project and creates or updates the corresponding app_users row (subscription state, lifetime USD revenue, attribution). Idempotent — re-running is safe. Anonymous RevenueCat IDs ($RCAnonymousID:*) are skipped. Can take hours on large projects (~3 RC API calls per customer at the 480 req/min Customer Information budget).",
+    scope: "project",
+    default_schedule: null,
+    params: [],
   },
   retention_cleanup: {
     label: "Data Retention Cleanup",

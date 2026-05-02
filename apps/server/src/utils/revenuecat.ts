@@ -167,6 +167,93 @@ export async function fetchRevenueCatProjectId(apiKey: string): Promise<FetchPro
   }
 }
 
+// V2 customer object as returned in the `items` array of the list-customers
+// endpoint. Includes more fields than `RevenueCatV2CustomerExpanded` because
+// RC inlines `active_entitlements` and `experiment` in the list response,
+// but for the backfill iterator we only consume `id` — the rest is included
+// for completeness and future use.
+export interface RevenueCatV2Customer {
+  object: "customer";
+  id: string;
+  project_id: string;
+  first_seen_at: number;
+  last_seen_at: number;
+  last_seen_country: string | null;
+  last_seen_platform: string | null;
+  last_seen_platform_version: string | null;
+  last_seen_app_version: string | null;
+  active_entitlements?: RevenueCatV2ActiveEntitlementsResponse;
+  experiment?: unknown;
+  attributes?: RevenueCatV2CustomerAttributes;
+}
+
+export interface RevenueCatV2ListCustomersResponse {
+  object: "list";
+  items: RevenueCatV2Customer[];
+  next_page: string | null;
+  url: string;
+}
+
+export type FetchCustomersResult =
+  | { status: "found"; items: RevenueCatV2Customer[]; nextStartingAfter: string | null }
+  | { status: "error"; statusCode?: number; message?: string };
+
+/**
+ * Page the RevenueCat V2 list-customers endpoint. Pagination is forward-only
+ * via the `starting_after` cursor (the V2 list-endpoint convention); RC
+ * returns a `next_page` URL — we parse the `starting_after` query param off it
+ * so callers don't have to handle URLs.
+ *
+ * Permission required on the API key: customer_information:customers:read
+ * (covered by the same "Customer information: Read only" scope as the
+ * per-customer fetchers).
+ *
+ * Rate limit: shares the 480 req/min Customer Information domain budget with
+ * the per-customer endpoints. List calls are cheap (1 per page, default 100
+ * customers/page) so per-customer cost dominates.
+ */
+export async function fetchRevenueCatCustomers(
+  apiKey: string,
+  rcProjectId: string,
+  options: { startingAfter?: string | null; limit?: number } = {},
+): Promise<FetchCustomersResult> {
+  const limit = options.limit ?? 100;
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (options.startingAfter) params.set("starting_after", options.startingAfter);
+  const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/customers?${params.toString()}`;
+  try {
+    const res = await fetch(url, {
+      headers: rcHeaders(apiKey),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+    }
+    const data = (await res.json()) as RevenueCatV2ListCustomersResponse;
+    return {
+      status: "found",
+      items: data.items ?? [],
+      nextStartingAfter: parseStartingAfterFromNextPage(data.next_page),
+    };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// RC's `next_page` is a URL like `/v2/projects/proj_x/customers?starting_after=cust_y&limit=100`.
+// Pull the `starting_after` query param so the caller works in cursor space.
+function parseStartingAfterFromNextPage(nextPage: string | null | undefined): string | null {
+  if (!nextPage) return null;
+  try {
+    // URL constructor needs an absolute base; doesn't matter what we pass since
+    // we only read the query.
+    const parsed = new URL(nextPage, "https://api.revenuecat.com");
+    return parsed.searchParams.get("starting_after");
+  } catch {
+    return null;
+  }
+}
+
 export type FetchSubscriberResult =
   | { status: "found"; data: RevenueCatV2ActiveEntitlementsResponse }
   | { status: "not_found" }
