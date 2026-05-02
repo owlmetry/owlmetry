@@ -31,7 +31,6 @@ export default function AdsPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null,
   );
   const projects = projectsData?.projects ?? [];
-  const projectInfoMap = useProjectInfoMap(teamId);
 
   // URL `project_id` absent => "All projects" mode (sentinel `__all__`).
   const [projectId, setProjectIdState] = useState<string>(
@@ -47,6 +46,7 @@ export default function AdsPage() {
   }, []);
 
   const isAllProjects = projectId === ALL_PROJECTS;
+  const projectInfoMap = useProjectInfoMap(isAllProjects ? teamId : undefined);
 
   function updateUrl(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());

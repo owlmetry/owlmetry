@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { appUsers, projects } from "@owlmetry/db";
 import {
   ATTRIBUTION_NETWORK_DIMENSIONS,
@@ -361,29 +361,13 @@ export async function teamAdsRoutes(app: FastifyInstance) {
       const { team_id } = request.query;
 
       const teamIds = team_id ? (allTeamIds.includes(team_id) ? [team_id] : []) : allTeamIds;
-      if (teamIds.length === 0) {
-        const empty: TeamAdsCampaignsResponse = {
-          attribution_source: parseAttributionSource(request.query.attribution_source),
-          campaigns: [],
-          total_user_count: 0,
-          total_paying_user_count: 0,
-          total_revenue_usd: 0,
-          revenue_synced_at: null,
-        };
-        return empty;
-      }
-
       const source = parseAttributionSource(request.query.attribution_source);
       const dims = ATTRIBUTION_NETWORK_DIMENSIONS[source];
       if (!dims) return reply.code(400).send({ error: "Unsupported attribution_source" });
 
-      const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 500);
-
-      const accessibleProjects = await app.db
-        .select({ id: projects.id })
-        .from(projects)
-        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
-      if (accessibleProjects.length === 0) {
+      // Caller can't see the requested team — short-circuit before touching
+      // the DB. Same shape as a successful "no campaigns yet" response.
+      if (teamIds.length === 0) {
         const empty: TeamAdsCampaignsResponse = {
           attribution_source: source,
           campaigns: [],
@@ -395,8 +379,9 @@ export async function teamAdsRoutes(app: FastifyInstance) {
         return empty;
       }
 
-      const projectIdList = sql.join(
-        accessibleProjects.map((p) => sql`${p.id}::uuid`),
+      const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 500);
+      const teamIdList = sql.join(
+        teamIds.map((id) => sql`${id}::uuid`),
         sql`, `,
       );
 
@@ -406,16 +391,23 @@ export async function teamAdsRoutes(app: FastifyInstance) {
       };
       // Same shape as the project-scoped campaigns query, but groups on
       // (project_id, COALESCE(name, id)) so two ASA orgs with same-named
-      // campaigns stay distinct rows. The CTE pulls a project-wide
-      // MAX(revenue_synced_at) across all accessible projects in one shot.
+      // campaigns stay distinct rows. The `team_projects` CTE replaces a
+      // separate `SELECT id FROM projects WHERE team_id IN (…)` roundtrip;
+      // both filter clauses below reuse it. `team_sync` carries the
+      // project-wide MAX(revenue_synced_at) so the rowless case still
+      // surfaces a header timestamp without a third roundtrip.
       // Position-based `GROUP BY 1, 2` avoids drizzle's parameter-placeholder
       // duplication tripping Postgres's textual-equality check on GROUP BY
       // expressions — same workaround as the project-scoped campaigns query.
       const rows = await app.db.execute<TeamAdsAggregateRow>(sql`
-        WITH team_sync AS (
+        WITH team_projects AS (
+          SELECT id FROM ${projects}
+          WHERE team_id IN (${teamIdList}) AND deleted_at IS NULL
+        ),
+        team_sync AS (
           SELECT MAX(revenue_synced_at) AS synced_at
           FROM ${appUsers}
-          WHERE project_id IN (${projectIdList})
+          WHERE project_id IN (SELECT id FROM team_projects)
         )
         SELECT
           project_id::text AS project_id,
@@ -426,7 +418,7 @@ export async function teamAdsRoutes(app: FastifyInstance) {
           (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd,
           (SELECT synced_at FROM team_sync) AS revenue_synced_at
         FROM ${appUsers}
-        WHERE project_id IN (${projectIdList})
+        WHERE project_id IN (SELECT id FROM team_projects)
           AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
           AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
         GROUP BY 1, 2
@@ -441,6 +433,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
       const totalUserCount = campaigns.reduce((acc, r) => acc + r.user_count, 0);
       const totalPayingUserCount = campaigns.reduce((acc, r) => acc + r.paying_user_count, 0);
       const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
+      // Empty result set means the CTE-bundled timestamp never serialized to
+      // a row — fall back to a 1-row probe over the same project set.
       let syncedAt: string | null = rows[0]?.revenue_synced_at
         ? new Date(rows[0].revenue_synced_at).toISOString()
         : null;
@@ -448,7 +442,10 @@ export async function teamAdsRoutes(app: FastifyInstance) {
         const [syncRow] = await app.db.execute<{ synced_at: Date | null }>(sql`
           SELECT MAX(revenue_synced_at) AS synced_at
           FROM ${appUsers}
-          WHERE project_id IN (${projectIdList})
+          WHERE project_id IN (
+            SELECT id FROM ${projects}
+            WHERE team_id IN (${teamIdList}) AND deleted_at IS NULL
+          )
         `);
         syncedAt = syncRow?.synced_at ? new Date(syncRow.synced_at).toISOString() : null;
       }
