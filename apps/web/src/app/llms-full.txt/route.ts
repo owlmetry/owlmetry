@@ -28,6 +28,7 @@ export function GET() {
     "- **Funnels**: Multi-step conversion funnels with A/B experiment segmentation",
     "- **Experiments**: Client-side A/B experiment assignment, persisted across sessions",
     "- **Attribution**: Auto-captured Apple Search Ads acquisition data per user",
+    "- **Advertising insights**: Rank ad campaigns by lifetime revenue from attributed users, drilled down through campaign → ad group → keyword/ad",
     "- **Store reviews & ratings**: Per-country App Store ratings with daily snapshots (free, no setup) plus individual reviews via App Store Connect integration, filterable by rating/country/version and repliable from every surface",
     "- **Notifications**: Unified multi-channel inbox (in-app, email, mobile push) with per-user channel preferences",
     "- **SDKs**: Swift (iOS/macOS) and Node.js — batching, compression, and retry built in",
