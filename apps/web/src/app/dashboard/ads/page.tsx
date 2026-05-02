@@ -135,6 +135,9 @@ export default function AdsPage() {
   function renderCampaigns() {
     if (isLoading) return <TableSkeleton rows={5} />;
     if (campaigns.length === 0) return <EmptyState />;
+    // Match the AdsRowTable's internal showSpend logic so nested tables
+    // get the same column structure as the parent.
+    const parentShowSpend = campaigns.some((r) => r.total_spend_usd != null);
     return (
       <AdsRowTable
         rows={campaigns}
@@ -151,6 +154,7 @@ export default function AdsPage() {
               campaignId={row.id}
               source={source}
               appId={isAllProjects ? null : appId}
+              forceShowSpend={parentShowSpend}
             />
           ),
         }}

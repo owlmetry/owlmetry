@@ -36,7 +36,32 @@ interface AdsRowTableProps {
   variant?: "card" | "bare";
   /** Apply a left-edge accent to the #1 row to draw the eye to the revenue leader. */
   highlightTop?: boolean;
+  /**
+   * Force the Spend / ROAS columns on regardless of whether any row has data.
+   * Nested tables pass this so their column structure matches the outer table
+   * — keeps numeric columns aligned across nesting levels (the "spreadsheet
+   * vibe") even when the inner level has no spend data of its own (e.g.
+   * keyword-level rows in Apple Search Ads, where spend lives at the ad-group
+   * level).
+   */
+  forceShowSpend?: boolean;
 }
+
+// Column widths for the right-aligned numeric columns. Identical at every
+// nesting level so the columns line up vertically across parent + nested
+// tables (table-layout: fixed honors these strictly, regardless of content
+// width). The name column is auto-sized — it gets whatever's left over,
+// which is fine because each level has its own name (CAMPAIGN / AD GROUP /
+// KEYWORD / AD).
+const COL_W = {
+  project: 200,
+  users: 100,
+  paying: 100,
+  revenue: 140,
+  arpu: 100,
+  spend: 140,
+  roas: 100,
+} as const;
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
 
@@ -102,6 +127,7 @@ export function AdsRowTable({
   projectInfoMap,
   variant = "card",
   highlightTop = false,
+  forceShowSpend,
 }: AdsRowTableProps) {
   const tableId = useId();
 
@@ -124,12 +150,26 @@ export function AdsRowTable({
   const showProject = !!projectInfoMap;
   // Hide spend/ROAS columns entirely when no row reported them — keeps a
   // pre-integration project's table dense rather than full of em-dashes.
-  const showSpend = rows.some((r) => r.total_spend_usd != null);
+  // `forceShowSpend` overrides this so nested tables stay column-aligned
+  // with their parent.
+  const showSpend = forceShowSpend ?? rows.some((r) => r.total_spend_usd != null);
   const colCount = (showProject ? 1 : 0) + 1 + 4 + (showSpend ? 2 : 0);
 
   const tableEl = (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm table-fixed">
+        <colgroup>
+          {showProject && <col style={{ width: COL_W.project }} />}
+          {/* name column — flexes into remaining space so long campaign /
+              ad-group / keyword names get the breathing room they need */}
+          <col />
+          <col style={{ width: COL_W.users }} />
+          <col style={{ width: COL_W.paying }} />
+          <col style={{ width: COL_W.revenue }} />
+          <col style={{ width: COL_W.arpu }} />
+          {showSpend && <col style={{ width: COL_W.spend }} />}
+          {showSpend && <col style={{ width: COL_W.roas }} />}
+        </colgroup>
         <thead className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             {showProject && (
@@ -225,9 +265,9 @@ export function AdsRowTable({
                       </span>
                     </td>
                   )}
-                  <td className="px-4 py-3 font-medium">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex items-center gap-2">
+                  <td className="px-4 py-3 font-medium overflow-hidden">
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         {expandable ? (
                           // Overlay button spans the row so the whole thing toggles
                           // expansion — same UX as the Link overlay below.
@@ -236,16 +276,16 @@ export function AdsRowTable({
                             onClick={() => expandable.onToggle(row)}
                             aria-expanded={isExpanded}
                             aria-controls={expandId}
-                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-2 text-left hover:underline"
+                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-2 text-left hover:underline min-w-0"
                           >
                             <ChevronRight
                               className={`h-3.5 w-3.5 shrink-0 text-foreground/60 transition-transform duration-150 group-hover:text-foreground ${
                                 isExpanded ? "rotate-90" : ""
                               }`}
                             />
-                            <span className={nameClasses}>{display}</span>
+                            <span className={`truncate ${nameClasses}`}>{display}</span>
                             {unresolved && (
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
+                              <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
                                 unnamed
                               </span>
                             )}
@@ -256,20 +296,20 @@ export function AdsRowTable({
                           // <a> with the campaign/ad-group name as accessible text.
                           <Link
                             href={href}
-                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-2 hover:underline"
+                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-2 hover:underline min-w-0"
                           >
-                            <span className={nameClasses}>{display}</span>
+                            <span className={`truncate ${nameClasses}`}>{display}</span>
                             {unresolved && (
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
+                              <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
                                 unnamed
                               </span>
                             )}
                           </Link>
                         ) : (
-                          <span className="inline-flex items-center gap-2">
-                            <span className={nameClasses}>{display}</span>
+                          <span className="inline-flex items-center gap-2 min-w-0">
+                            <span className={`truncate ${nameClasses}`}>{display}</span>
                             {unresolved && (
-                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
+                              <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
                                 unnamed
                               </span>
                             )}
@@ -278,7 +318,7 @@ export function AdsRowTable({
                         {badge && (
                           <span
                             className={
-                              "relative z-10 inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide " +
+                              "relative z-10 shrink-0 inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide " +
                               STATUS_TONE_CLASS[badge.tone]
                             }
                           >
