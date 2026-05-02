@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -141,6 +141,7 @@ export default function AdsPage() {
         nameHeader="Campaign"
         projectInfoMap={isAllProjects ? projectInfoMap : undefined}
         emptyMessage="No campaigns with attributed users yet."
+        highlightTop
         expandable={{
           isExpanded: (row) => expanded.has(rowKey(row)),
           onToggle: (row) => toggleExpanded(rowKey(row)),
@@ -178,52 +179,26 @@ export default function AdsPage() {
     }
   }
 
+  const integrationsHint = (
+    <Link
+      href="/dashboard/integrations"
+      className="text-xs text-primary hover:underline relative z-10"
+    >
+      Connect Apple Search Ads →
+    </Link>
+  );
+
   return (
     <AnimatedPage className="space-y-4">
       <StaggerItem index={0}>
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-semibold flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-muted-foreground" />
-              Advertising insights
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Campaigns ranked by lifetime USD revenue from attributed users.
-            </p>
-          </div>
-          {isAdmin && !isAllProjects && projectId && (
-            <div className="flex flex-col items-end gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void handleSync()}
-                disabled={syncing}
-              >
-                <RefreshCw className={"h-3.5 w-3.5 mr-1 " + (syncing ? "animate-spin" : "")} />
-                {syncing ? "Syncing…" : "Sync now"}
-              </Button>
-              {revenueSyncedAt && (
-                <p className="text-xs text-muted-foreground">
-                  Revenue synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>
-                </p>
-              )}
-              {adMetricsSyncedAt && (
-                <p className="text-xs text-muted-foreground">
-                  Spend synced <span className="font-medium">{timeAgo(adMetricsSyncedAt)}</span>
-                </p>
-              )}
-            </div>
-          )}
-          {isAllProjects && (revenueSyncedAt || adMetricsSyncedAt) && (
-            <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
-              {revenueSyncedAt && (
-                <p>Revenue synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span></p>
-              )}
-              {adMetricsSyncedAt && (
-                <p>Spend synced <span className="font-medium">{timeAgo(adMetricsSyncedAt)}</span></p>
-              )}
-            </div>
-          )}
+        <div>
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-muted-foreground" />
+            Advertising insights
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Campaigns ranked by lifetime USD revenue from attributed users.
+          </p>
         </div>
         {syncError && <p className="text-xs text-destructive mt-2">{syncError}</p>}
         {currencyWarning && (
@@ -234,32 +209,76 @@ export default function AdsPage() {
       </StaggerItem>
 
       <StaggerItem index={1}>
-        <AdsFilterBar
-          projects={projects}
-          apps={apps}
-          projectId={projectId}
-          appId={appId}
-          attributionSource={source}
-          onProjectChange={setProjectId}
-          onAppChange={setAppId}
-          onAttributionSourceChange={setSource}
-        />
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <AdsFilterBar
+            projects={projects}
+            apps={apps}
+            projectId={projectId}
+            appId={appId}
+            attributionSource={source}
+            onProjectChange={setProjectId}
+            onAppChange={setAppId}
+            onAttributionSourceChange={setSource}
+          />
+          <div className="flex items-end gap-3 ml-auto">
+            {(revenueSyncedAt || adMetricsSyncedAt) && (
+              <div className="flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
+                {revenueSyncedAt && (
+                  <span>
+                    Revenue synced{" "}
+                    <span className="font-medium text-foreground">{timeAgo(revenueSyncedAt)}</span>
+                  </span>
+                )}
+                {adMetricsSyncedAt && (
+                  <span>
+                    Spend synced{" "}
+                    <span className="font-medium text-foreground">{timeAgo(adMetricsSyncedAt)}</span>
+                  </span>
+                )}
+              </div>
+            )}
+            {isAdmin && !isAllProjects && projectId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleSync()}
+                disabled={syncing}
+              >
+                <RefreshCw className={"h-3.5 w-3.5 mr-1 " + (syncing ? "animate-spin" : "")} />
+                {syncing ? "Syncing…" : "Sync now"}
+              </Button>
+            )}
+          </div>
+        </div>
       </StaggerItem>
 
       <StaggerItem index={2}>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <SummaryCard label="Attributed users" value={totalUserCount.toLocaleString()} />
           <SummaryCard label="Paying users" value={totalPayingUserCount.toLocaleString()} />
-          <SummaryCard label="Lifetime revenue" value={formatUsd(totalRevenueUsd)} />
+          <SummaryCard label="Lifetime revenue" value={formatUsd(totalRevenueUsd)} prominent />
           <SummaryCard
             label="Lifetime spend"
-            value={totalSpendUsd == null ? "—" : formatUsd(totalSpendUsd)}
+            value={totalSpendUsd == null ? null : formatUsd(totalSpendUsd)}
+            emptyHint={integrationsHint}
           />
-          <SummaryCard label="ROAS" value={formatRoasLabel(totalRoas)} tone={roasTone(totalRoas)} />
+          <SummaryCard
+            label="ROAS"
+            value={totalRoas == null ? null : formatRoasLabel(totalRoas)}
+            tone={totalRoas == null ? undefined : roasTone(totalRoas)}
+            emptyHint={totalSpendUsd == null ? integrationsHint : "Awaiting spend data"}
+          />
         </div>
       </StaggerItem>
 
-      <StaggerItem index={3}>{renderCampaigns()}</StaggerItem>
+      <StaggerItem index={3}>
+        {!isLoading && campaigns.length > 0 && (
+          <p className="text-xs text-muted-foreground mb-2 px-1">
+            Click any row to expand its ad groups, keywords, and ads inline.
+          </p>
+        )}
+        {renderCampaigns()}
+      </StaggerItem>
     </AnimatedPage>
   );
 }
@@ -271,14 +290,44 @@ const SUMMARY_TONE_CLASS: Record<RoasTone, string> = {
   bad: "text-red-600 dark:text-red-400",
 };
 
-function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: RoasTone }) {
+function SummaryCard({
+  label,
+  value,
+  tone,
+  prominent = false,
+  emptyHint,
+}: {
+  label: string;
+  /** `null` means "no data" — render `emptyHint` instead. */
+  value: string | null;
+  tone?: RoasTone;
+  /** Bumps the number to text-3xl + lifts the card with a subtle ring; reserve for the headline metric. */
+  prominent?: boolean;
+  /** Shown when `value` is null. ReactNode so callers can inline a link. */
+  emptyHint?: ReactNode;
+}) {
+  const isEmpty = value == null;
+  const numberClass = prominent
+    ? "text-3xl font-semibold tabular-nums mt-1"
+    : "text-2xl font-semibold tabular-nums mt-1";
+  const cardClass = prominent
+    ? "ring-1 ring-amber-500/20 bg-gradient-to-br from-amber-500/[0.04] to-transparent"
+    : "";
   return (
-    <Card>
+    <Card className={cardClass}>
       <CardContent className="p-4">
         <div className="text-xs text-muted-foreground">{label}</div>
-        <div className={`text-2xl font-semibold tabular-nums mt-1 ${tone ? SUMMARY_TONE_CLASS[tone] : ""}`}>
-          {value}
-        </div>
+        {isEmpty ? (
+          <div className="mt-1 min-h-[2rem] flex items-end">
+            {typeof emptyHint === "string" ? (
+              <span className="text-xs text-muted-foreground">{emptyHint}</span>
+            ) : (
+              emptyHint ?? <span className="text-2xl font-semibold tabular-nums text-muted-foreground">—</span>
+            )}
+          </div>
+        ) : (
+          <div className={`${numberClass} ${tone ? SUMMARY_TONE_CLASS[tone] : ""}`}>{value}</div>
+        )}
       </CardContent>
     </Card>
   );

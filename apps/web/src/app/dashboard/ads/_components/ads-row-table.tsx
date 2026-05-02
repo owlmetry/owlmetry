@@ -2,7 +2,7 @@
 
 import { Fragment, useId, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
   classifyAdStatus,
   formatRoasLabel,
@@ -34,6 +34,8 @@ interface AdsRowTableProps {
   projectInfoMap?: Map<string, { name: string; color: string }>;
   /** "card" wraps in <Card>; "bare" renders the raw table for nested rendering. */
   variant?: "card" | "bare";
+  /** Apply a left-edge accent to the #1 row to draw the eye to the revenue leader. */
+  highlightTop?: boolean;
 }
 
 const SHORT_DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -56,6 +58,15 @@ const STATUS_TONE_CLASS = {
   bad: "border-red-500/40 text-red-700 dark:text-red-400",
   muted: "border-muted-foreground/30 text-muted-foreground",
 } as const;
+
+// Soft-style "names" that are clearly raw Apple IDs leaking through name
+// resolution — Apple campaign / ad-group / keyword / ad IDs are 8+ digit
+// integers. Don't false-positive on real human-set names that happen to
+// match the row ID in test fixtures.
+function isUnresolvedName(row: Row): boolean {
+  if (!row.name) return true;
+  return /^\d{8,}$/.test(row.name);
+}
 
 function HeaderCell({
   label,
@@ -90,6 +101,7 @@ export function AdsRowTable({
   nameHeader = "Name",
   projectInfoMap,
   variant = "card",
+  highlightTop = false,
 }: AdsRowTableProps) {
   const tableId = useId();
 
@@ -164,8 +176,9 @@ export function AdsRowTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {rows.map((row, index) => {
             const href = !expandable && rowHref ? rowHref(row) : null;
+            const unresolved = isUnresolvedName(row);
             const display = row.name ?? row.id;
             const info = row.project_id ? projectInfoMap?.get(row.project_id) : undefined;
             const badge = classifyAdStatus(row.status);
@@ -175,14 +188,35 @@ export function AdsRowTable({
             const expandId = expandable
               ? `${tableId}-${row.project_id ?? "_"}-${row.id}`
               : undefined;
+            // Top-row accent: emerald when the leader is also ROAS-positive,
+            // amber otherwise (still the leader, but no spend signal yet).
+            // Inset box-shadow because <tr> borders render unreliably across
+            // browsers under the table's collapsed border model.
+            const isTop = highlightTop && index === 0;
+            const topShadowStyle = isTop
+              ? {
+                  boxShadow:
+                    roasTone(row.roas) === "good"
+                      ? "inset 3px 0 0 0 rgb(16 185 129)"
+                      : "inset 3px 0 0 0 rgb(245 158 11)",
+                }
+              : undefined;
             // Suppress the parent row's bottom border when its expansion is open
             // so the data row visually groups with its expanded panel.
             const borderClass = expandable && isExpanded ? "" : "border-b last:border-b-0";
             const interactiveClass =
               href || expandable ? "relative hover:bg-muted/40 focus-within:bg-muted/40" : "";
+            // Subtle leader treatment: same row, slightly warmer background.
+            const topBgClass = isTop ? "bg-amber-500/[0.03] dark:bg-amber-400/[0.04]" : "";
+            const nameClasses = unresolved
+              ? "font-mono text-xs italic text-muted-foreground"
+              : "";
             return (
               <Fragment key={`${row.project_id ?? "_"}:${row.id}`}>
-                <tr className={`transition-colors ${borderClass} ${interactiveClass}`}>
+                <tr
+                  className={`group transition-colors ${borderClass} ${interactiveClass} ${topBgClass}`}
+                  style={topShadowStyle}
+                >
                   {showProject && (
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-2">
@@ -202,14 +236,19 @@ export function AdsRowTable({
                             onClick={() => expandable.onToggle(row)}
                             aria-expanded={isExpanded}
                             aria-controls={expandId}
-                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-1.5 text-left hover:underline"
+                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-2 text-left hover:underline"
                           >
-                            {isExpanded ? (
-                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <ChevronRight
+                              className={`h-3.5 w-3.5 shrink-0 text-foreground/60 transition-transform duration-150 group-hover:text-foreground ${
+                                isExpanded ? "rotate-90" : ""
+                              }`}
+                            />
+                            <span className={nameClasses}>{display}</span>
+                            {unresolved && (
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
+                                unnamed
+                              </span>
                             )}
-                            <span>{display}</span>
                           </button>
                         ) : href ? (
                           // Overlay link spans the row so the whole thing is clickable
@@ -217,14 +256,24 @@ export function AdsRowTable({
                           // <a> with the campaign/ad-group name as accessible text.
                           <Link
                             href={href}
-                            className="before:absolute before:inset-0 before:content-[''] hover:underline"
+                            className="before:absolute before:inset-0 before:content-[''] inline-flex items-center gap-2 hover:underline"
                           >
-                            {display}
+                            <span className={nameClasses}>{display}</span>
+                            {unresolved && (
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
+                                unnamed
+                              </span>
+                            )}
                           </Link>
-                        ) : row.name ? (
-                          display
                         ) : (
-                          <span className="text-muted-foreground font-mono text-xs">{row.id}</span>
+                          <span className="inline-flex items-center gap-2">
+                            <span className={nameClasses}>{display}</span>
+                            {unresolved && (
+                              <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-normal not-italic">
+                                unnamed
+                              </span>
+                            )}
+                          </span>
                         )}
                         {badge && (
                           <span
@@ -250,7 +299,11 @@ export function AdsRowTable({
                   <td className="px-4 py-3 text-right tabular-nums">
                     {row.paying_user_count.toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium">
+                  <td
+                    className={`px-4 py-3 text-right tabular-nums font-medium ${
+                      isTop ? "text-foreground" : ""
+                    }`}
+                  >
                     {formatUsd(row.total_revenue_usd)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
