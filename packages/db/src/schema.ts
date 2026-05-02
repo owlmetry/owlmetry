@@ -1018,3 +1018,97 @@ export const appStoreRatings = pgTable(
     index("app_store_ratings_team_date_idx").on(table.team_id, table.snapshot_date),
   ]
 );
+
+// Per-(project, network, campaign) lifetime rollup of ad-network spend +
+// performance metrics. Sourced from each network's reporting API and matched
+// to an Owlmetry app via the ad platform's app store id (Apple's `adamId`)
+// against `apps.apple_app_store_id`. Rows whose ad belongs to an app outside
+// the project are not persisted — keeps a project's `/dashboard/ads` page
+// scoped to the apps it actually owns even when a single Apple Search Ads
+// org spans multiple apps. `total_spend_usd_cents` is null when the org's
+// reporting currency isn't USD; `spend_local_micros` retains the raw value
+// for a future multi-currency v2.
+export const adCampaignLifetime = pgTable(
+  "ad_campaign_lifetime",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    apple_app_store_id: bigint("apple_app_store_id", { mode: "number" }).notNull(),
+    network: varchar("network", { length: 32 }).notNull(),
+    campaign_id: varchar("campaign_id", { length: 64 }).notNull(),
+    campaign_name: varchar("campaign_name", { length: 500 }),
+    campaign_status: varchar("campaign_status", { length: 32 }),
+    campaign_start_date: date("campaign_start_date", { mode: "string" }),
+    campaign_end_date: date("campaign_end_date", { mode: "string" }),
+    total_spend_usd_cents: bigint("total_spend_usd_cents", { mode: "number" }),
+    spend_currency: varchar("spend_currency", { length: 8 }),
+    spend_local_micros: bigint("spend_local_micros", { mode: "number" }),
+    total_impressions: bigint("total_impressions", { mode: "number" }).notNull().default(0),
+    total_taps: bigint("total_taps", { mode: "number" }).notNull().default(0),
+    total_installs: bigint("total_installs", { mode: "number" }).notNull().default(0),
+    last_synced_at: timestamp("last_synced_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ad_campaign_lifetime_project_network_campaign_idx").on(
+      table.project_id,
+      table.network,
+      table.campaign_id,
+    ),
+    index("ad_campaign_lifetime_project_app_network_idx").on(
+      table.project_id,
+      table.app_id,
+      table.network,
+    ),
+    index("ad_campaign_lifetime_team_network_idx").on(table.team_id, table.network),
+  ]
+);
+
+export const adAdGroupLifetime = pgTable(
+  "ad_adgroup_lifetime",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    network: varchar("network", { length: 32 }).notNull(),
+    campaign_id: varchar("campaign_id", { length: 64 }).notNull(),
+    ad_group_id: varchar("ad_group_id", { length: 64 }).notNull(),
+    ad_group_name: varchar("ad_group_name", { length: 500 }),
+    ad_group_status: varchar("ad_group_status", { length: 32 }),
+    ad_group_start_date: date("ad_group_start_date", { mode: "string" }),
+    ad_group_end_date: date("ad_group_end_date", { mode: "string" }),
+    total_spend_usd_cents: bigint("total_spend_usd_cents", { mode: "number" }),
+    spend_currency: varchar("spend_currency", { length: 8 }),
+    spend_local_micros: bigint("spend_local_micros", { mode: "number" }),
+    total_impressions: bigint("total_impressions", { mode: "number" }).notNull().default(0),
+    total_taps: bigint("total_taps", { mode: "number" }).notNull().default(0),
+    total_installs: bigint("total_installs", { mode: "number" }).notNull().default(0),
+    last_synced_at: timestamp("last_synced_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ad_adgroup_lifetime_project_network_adgroup_idx").on(
+      table.project_id,
+      table.network,
+      table.ad_group_id,
+    ),
+    index("ad_adgroup_lifetime_project_network_campaign_idx").on(
+      table.project_id,
+      table.network,
+      table.campaign_id,
+    ),
+  ]
+);

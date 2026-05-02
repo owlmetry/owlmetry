@@ -14,7 +14,7 @@ const attributionSourceSchema = z
 export function registerAdsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-ad-campaigns", {
     description:
-      "Rank advertising campaigns by lifetime USD revenue from attributed users. Aggregates app_users by attribution_source + campaign and joins each user's lifetime RevenueCat revenue (refreshed daily and on every subscription webhook). Returns user_count, paying_user_count, total_revenue_usd, ARPU per campaign, sorted by revenue desc. Pass `project_id` for a single project, or `team_id` (without `project_id`) to aggregate the best-performing campaigns across every project in a team — each row then carries `project_id` so you can tell which project owns it.",
+      "Rank advertising campaigns by lifetime USD revenue + spend (ROAS). Aggregates app_users by attribution_source + campaign and joins each user's lifetime RevenueCat revenue (refreshed daily and on every subscription webhook), then LEFT JOINs each campaign's spend / impressions / taps / installs from `ad_campaign_lifetime` (synced daily from the network's reporting API — Apple Search Ads today). Returns user_count, paying_user_count, total_revenue_usd, ARPU, total_spend_usd, roas (revenue/spend), start_date, status per campaign, sorted by revenue desc. `total_spend_usd` and `roas` are null when no integration is connected, no row matches, or the org's reporting currency isn't USD (response carries `currency_warning` in that case). Pass `project_id` for a single project, or `team_id` (without `project_id`) to aggregate across every project in a team — each row then carries `project_id` so you can tell which project owns it.",
     inputSchema: {
       project_id: z
         .string()
@@ -75,7 +75,7 @@ export function registerAdsTools(server: McpServer, app: FastifyInstance, agentK
 
   server.registerTool("list-ad-groups", {
     description:
-      "Rank ad groups within a campaign by lifetime USD revenue. Same shape as list-ad-campaigns but one level deeper.",
+      "Rank ad groups within a campaign by lifetime USD revenue + spend (ROAS). Same shape as list-ad-campaigns but one level deeper, joined against `ad_adgroup_lifetime`. Each row carries total_spend_usd, roas, start_date, status alongside revenue / users / paying / ARPU.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       campaign_id: z
@@ -116,7 +116,7 @@ export function registerAdsTools(server: McpServer, app: FastifyInstance, agentK
 
   server.registerTool("sync-ads", {
     description:
-      "Trigger a manual refresh of advertising insights for one project. Fires both revenuecat_sync (refreshes lifetime revenue per user) and apple_ads_sync (resolves any unresolved ASA IDs to names). Admin-only. The daily cron also runs revenuecat_sync at 03:00 UTC across every project.",
+      "Trigger a manual refresh of advertising insights for one project. Fires revenuecat_sync (refreshes lifetime revenue per user) AND apple_ads_sync (resolves unresolved ASA IDs to names + pulls campaign / ad-group spend / impressions / taps / installs from Apple's Reports API into ad_campaign_lifetime + ad_adgroup_lifetime, filtered by adamId so only this project's apps' campaigns are stored). Admin-only. The daily cron also runs revenuecat_sync at 03:00 UTC and apple_ads_sync at 04:45 UTC across every project.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
     },

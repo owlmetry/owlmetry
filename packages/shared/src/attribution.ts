@@ -173,6 +173,18 @@ export interface AdsRow {
   paying_user_count: number;
   total_revenue_usd: number;
   arpu: number;
+  /**
+   * Lifetime spend in USD. Null when (a) no ad-network integration is
+   * connected, (b) no row in `ad_*_lifetime` matches yet, or (c) the
+   * advertising org's reporting currency isn't USD (we don't fake-convert).
+   */
+  total_spend_usd: number | null;
+  /** `total_revenue_usd / total_spend_usd`. Null when spend is null or 0. */
+  roas: number | null;
+  /** ISO date `YYYY-MM-DD` of the campaign / ad-group's start, when known. */
+  start_date: string | null;
+  /** Network-side status snapshot — e.g. "ENABLED" / "PAUSED" / "DELETED". */
+  status: string | null;
 }
 
 export interface AdsCampaignsResponse {
@@ -181,8 +193,18 @@ export interface AdsCampaignsResponse {
   total_user_count: number;
   total_paying_user_count: number;
   total_revenue_usd: number;
+  /** SUM of visible rows' `total_spend_usd`; null when no row reported spend. */
+  total_spend_usd: number | null;
   /** Most recent `revenue_synced_at` across the project's RC-synced users; null when never synced. */
   revenue_synced_at: string | null;
+  /** Most recent `last_synced_at` across the project's `ad_*_lifetime` rows; null when never synced. */
+  ad_metrics_synced_at: string | null;
+  /**
+   * Non-null when at least one `ad_*_lifetime` row's currency isn't USD;
+   * carries the offending currency code (e.g. `"EUR"`) so the UI can render
+   * a "spend in <currency>; ROAS unavailable until USD is supported" banner.
+   */
+  currency_warning: string | null;
 }
 
 /** Campaign row from the team-scoped endpoint — same fields as `AdsRow` plus the owning project. */
@@ -196,8 +218,11 @@ export interface TeamAdsCampaignsResponse {
   total_user_count: number;
   total_paying_user_count: number;
   total_revenue_usd: number;
+  total_spend_usd: number | null;
   /** Most recent `revenue_synced_at` across every accessible project's RC-synced users; null when never synced. */
   revenue_synced_at: string | null;
+  ad_metrics_synced_at: string | null;
+  currency_warning: string | null;
 }
 
 export interface AdsAdGroupsResponse {
@@ -205,6 +230,9 @@ export interface AdsAdGroupsResponse {
   campaign_id: string;
   campaign_name: string | null;
   ad_groups: AdsRow[];
+  total_spend_usd: number | null;
+  ad_metrics_synced_at: string | null;
+  currency_warning: string | null;
 }
 
 export interface AdsLeavesResponse {

@@ -170,6 +170,17 @@ jobRunner.schedule({
   params: () => ({}),
 });
 jobRunner.schedule({
+  jobType: "apple_ads_sync",
+  // Daily 04:45 UTC in prod (after 04:30 ratings sync, before 05:30 reviews
+  // sync). Fans out across every project with an active Apple Search Ads
+  // integration. Per-project failures are isolated. Dev runs every 30 min
+  // for observability. Manual single-project triggers (`POST .../ads/sync`)
+  // bypass the cron via the same handler with `params.project_id` set.
+  cron: isDev ? "*/30 * * * *" : "45 4 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
   jobType: "notification_cleanup",
   cron: isDev ? "*/10 * * * *" : "0 6 * * *",
   enabled: () => true,

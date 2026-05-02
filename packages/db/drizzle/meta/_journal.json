@@ -365,6 +365,13 @@
       "when": 1778160000000,
       "tag": "0051_wakeful_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1778160000001,
+      "tag": "0052_acoustic_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

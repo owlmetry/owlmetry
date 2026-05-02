@@ -24,14 +24,17 @@ export default function AdsCampaignPage({ params }: PageProps) {
   const appId = searchParams.get("app_id");
   const source = searchParams.get("source") ?? DEFAULT_SOURCE;
 
-  const { adGroups, campaignName, isLoading } = useAdGroups(
-    projectId || undefined,
-    campaignId,
-    {
-      attribution_source: source,
-      ...(appId ? { app_id: appId } : {}),
-    },
-  );
+  const {
+    adGroups,
+    campaignName,
+    totalSpendUsd,
+    adMetricsSyncedAt,
+    currencyWarning,
+    isLoading,
+  } = useAdGroups(projectId || undefined, campaignId, {
+    attribution_source: source,
+    ...(appId ? { app_id: appId } : {}),
+  });
 
   const backHref = `/dashboard/ads?project_id=${projectId}&source=${source}${appId ? `&app_id=${appId}` : ""}`;
   const rowHrefBuilder = (rowId: string) =>
@@ -52,7 +55,20 @@ export default function AdsCampaignPage({ params }: PageProps) {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Ad groups within this campaign, ranked by revenue.
+          {totalSpendUsd != null && (
+            <>
+              {" "}Total spend so far: <span className="font-medium text-foreground">${totalSpendUsd.toFixed(2)}</span>.
+            </>
+          )}
+          {adMetricsSyncedAt && (
+            <span className="ml-1 text-xs">(spend synced {new Date(adMetricsSyncedAt).toLocaleString()})</span>
+          )}
         </p>
+        {currencyWarning && (
+          <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            Spend is reported in <span className="font-medium">{currencyWarning}</span>; ROAS is hidden until USD support lands.
+          </div>
+        )}
       </StaggerItem>
 
       <StaggerItem index={1}>

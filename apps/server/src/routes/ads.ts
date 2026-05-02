@@ -30,11 +30,23 @@ type AdsAggregateRow = {
   user_count: number;
   paying_user_count: number;
   total_revenue_usd: number;
+  /** Optional spend join — null when no `ad_*_lifetime` row matched. */
+  total_spend_usd_cents?: number | null;
+  spend_currency?: string | null;
+  start_date?: string | null;
+  status?: string | null;
 } & Record<string, unknown>;
 
 function toAdsRow(row: AdsAggregateRow): AdsRow {
   const userCount = Number(row.user_count) || 0;
   const totalRevenue = Number(row.total_revenue_usd) || 0;
+  // total_spend_usd is null when (a) no spend row joined OR (b) the spend row
+  // is in a non-USD currency (we leave `total_spend_usd_cents` null in that
+  // case rather than fake-converting). ROAS follows: null when spend is null
+  // or zero — `Infinity` is worse than "no signal" for ROAS UX.
+  const cents = row.total_spend_usd_cents;
+  const totalSpend = cents == null ? null : Number(cents) / 100;
+  const roas = totalSpend == null || totalSpend === 0 ? null : totalRevenue / totalSpend;
   return {
     id: row.id,
     name: row.name,
@@ -42,7 +54,35 @@ function toAdsRow(row: AdsAggregateRow): AdsRow {
     paying_user_count: Number(row.paying_user_count) || 0,
     total_revenue_usd: totalRevenue,
     arpu: userCount > 0 ? totalRevenue / userCount : 0,
+    total_spend_usd: totalSpend,
+    roas,
+    start_date: row.start_date ?? null,
+    status: row.status ?? null,
   };
+}
+
+function sumSpend(rows: AdsRow[]): number | null {
+  let total = 0;
+  let any = false;
+  for (const row of rows) {
+    if (row.total_spend_usd != null) {
+      total += row.total_spend_usd;
+      any = true;
+    }
+  }
+  return any ? total : null;
+}
+
+function maxSyncedAt(timestamps: Array<Date | string | null | undefined>): string | null {
+  let max: number | null = null;
+  for (const ts of timestamps) {
+    if (!ts) continue;
+    const ms = ts instanceof Date ? ts.getTime() : new Date(ts).getTime();
+    if (Number.isFinite(ms) && (max === null || ms > max)) {
+      max = ms;
+    }
+  }
+  return max === null ? null : new Date(max).toISOString();
 }
 
 /**
@@ -84,30 +124,72 @@ export async function adsRoutes(app: FastifyInstance) {
       // attributed each user.
       // Position-based `GROUP BY 1` avoids drizzle's parameter-placeholder
       // duplication tripping Postgres's textual-equality check on GROUP BY
-      // expressions. The CTE bundles project-wide `MAX(revenue_synced_at)`
-      // so each row carries the "as of" header in one roundtrip.
+      // expressions.
+      // The `campaign_spend` CTE pulls each project's lifetime rollup and
+      // joins on either `(campaign_id::text = aggregated.id)` (SDK path) OR
+      // `(campaign_name = aggregated.id)` (RC backfill name-only path) —
+      // matches the same dual-key story used everywhere else in this file.
       const rows = await app.db.execute<
-        AdsAggregateRow & { revenue_synced_at: Date | null }
+        AdsAggregateRow & {
+          revenue_synced_at: Date | null;
+          ad_metrics_synced_at: Date | null;
+          currency_warning: string | null;
+        }
       >(sql`
         WITH project_sync AS (
           SELECT MAX(revenue_synced_at) AS synced_at
           FROM ${appUsers}
           WHERE project_id = ${projectId}
+        ),
+        campaign_revenue AS (
+          SELECT
+            COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
+            MAX(properties->>${dims.campaignNameKey}) AS name,
+            COUNT(*)::int AS user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
+          FROM ${appUsers}
+          WHERE project_id = ${projectId}
+            AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
+            AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
+            ${appFilter(appId)}
+          GROUP BY 1
+        ),
+        campaign_spend AS (
+          SELECT
+            campaign_id::text AS id_match,
+            campaign_name AS name_match,
+            total_spend_usd_cents,
+            spend_currency,
+            campaign_start_date,
+            campaign_status,
+            last_synced_at
+          FROM ad_campaign_lifetime
+          WHERE project_id = ${projectId} AND network = ${source}
+        ),
+        spend_meta AS (
+          SELECT
+            MAX(last_synced_at) AS ad_metrics_synced_at,
+            MAX(spend_currency) FILTER (WHERE spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
+          FROM campaign_spend
         )
         SELECT
-          COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
-          MAX(properties->>${dims.campaignNameKey}) AS name,
-          COUNT(*)::int AS user_count,
-          COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
-          (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd,
-          (SELECT synced_at FROM project_sync) AS revenue_synced_at
-        FROM ${appUsers}
-        WHERE project_id = ${projectId}
-          AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
-          AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
-          ${appFilter(appId)}
-        GROUP BY 1
-        ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
+          cr.id,
+          cr.name,
+          cr.user_count,
+          cr.paying_user_count,
+          cr.total_revenue_usd,
+          cs.total_spend_usd_cents,
+          cs.spend_currency,
+          cs.campaign_start_date::text AS start_date,
+          cs.campaign_status AS status,
+          (SELECT synced_at FROM project_sync) AS revenue_synced_at,
+          (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+          (SELECT currency_warning FROM spend_meta) AS currency_warning
+        FROM campaign_revenue cr
+        LEFT JOIN campaign_spend cs
+          ON cs.id_match = cr.id OR cs.name_match = cr.id
+        ORDER BY cr.total_revenue_usd DESC, cr.user_count DESC, cr.id ASC
         LIMIT ${limit}
       `);
 
@@ -117,16 +199,27 @@ export async function adsRoutes(app: FastifyInstance) {
       const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
       // Empty result set means no rows came back, but the timestamp lives on
       // every row when present — fall back to a 1-row probe.
-      let syncedAt: string | null = rows[0]?.revenue_synced_at
+      let revenueSyncedAt: string | null = rows[0]?.revenue_synced_at
         ? new Date(rows[0].revenue_synced_at).toISOString()
         : null;
+      let adMetricsSyncedAt: string | null = rows[0]?.ad_metrics_synced_at
+        ? new Date(rows[0].ad_metrics_synced_at).toISOString()
+        : null;
+      let currencyWarning: string | null = rows[0]?.currency_warning ?? null;
       if (rows.length === 0) {
-        const [syncRow] = await app.db.execute<{ synced_at: Date | null }>(sql`
-          SELECT MAX(revenue_synced_at) AS synced_at
-          FROM ${appUsers}
-          WHERE project_id = ${projectId}
+        const [meta] = await app.db.execute<{
+          revenue_synced_at: Date | null;
+          ad_metrics_synced_at: Date | null;
+          currency_warning: string | null;
+        }>(sql`
+          SELECT
+            (SELECT MAX(revenue_synced_at) FROM ${appUsers} WHERE project_id = ${projectId}) AS revenue_synced_at,
+            (SELECT MAX(last_synced_at) FROM ad_campaign_lifetime WHERE project_id = ${projectId} AND network = ${source}) AS ad_metrics_synced_at,
+            (SELECT MAX(spend_currency) FROM ad_campaign_lifetime WHERE project_id = ${projectId} AND network = ${source} AND spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
         `);
-        syncedAt = syncRow?.synced_at ? new Date(syncRow.synced_at).toISOString() : null;
+        revenueSyncedAt = meta?.revenue_synced_at ? new Date(meta.revenue_synced_at).toISOString() : null;
+        adMetricsSyncedAt = meta?.ad_metrics_synced_at ? new Date(meta.ad_metrics_synced_at).toISOString() : null;
+        currencyWarning = meta?.currency_warning ?? null;
       }
 
       const response: AdsCampaignsResponse = {
@@ -135,7 +228,10 @@ export async function adsRoutes(app: FastifyInstance) {
         total_user_count: totalUserCount,
         total_paying_user_count: totalPayingUserCount,
         total_revenue_usd: totalRevenueUsd,
-        revenue_synced_at: syncedAt,
+        total_spend_usd: sumSpend(campaigns),
+        revenue_synced_at: revenueSyncedAt,
+        ad_metrics_synced_at: adMetricsSyncedAt,
+        currency_warning: currencyWarning,
       };
       return response;
     },
@@ -162,42 +258,109 @@ export async function adsRoutes(app: FastifyInstance) {
       // Drill-down accepts either side of the campaign-row COALESCE — the URL
       // segment is whichever was non-null at aggregation time (name when
       // present, id otherwise). Same dual-key story for ad groups: RC-only
-      // attributions carry the name, SDK-attributions carry both.
-      const rows = await app.db.execute<AdsAggregateRow & { campaign_name: string | null }>(sql`
+      // attributions carry the name, SDK-attributions carry both. Spend joins
+      // mirror the campaigns route — match adGroup id::text or name.
+      const rows = await app.db.execute<
+        AdsAggregateRow & {
+          campaign_name: string | null;
+          ad_metrics_synced_at: Date | null;
+          currency_warning: string | null;
+        }
+      >(sql`
+        WITH adgroup_revenue AS (
+          SELECT
+            COALESCE(properties->>${dims.adGroupNameKey}, properties->>${dims.adGroupIdKey}) AS id,
+            MAX(properties->>${dims.adGroupNameKey}) AS name,
+            MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
+            COUNT(*)::int AS user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
+          FROM ${appUsers}
+          WHERE project_id = ${projectId}
+            AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
+            AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
+            AND (properties ? ${dims.adGroupNameKey} OR properties ? ${dims.adGroupIdKey})
+            ${appFilter(appId)}
+          GROUP BY 1
+        ),
+        adgroup_spend AS (
+          SELECT
+            ad_group_id::text AS id_match,
+            ad_group_name AS name_match,
+            total_spend_usd_cents,
+            spend_currency,
+            ad_group_start_date,
+            ad_group_status,
+            last_synced_at
+          FROM ad_adgroup_lifetime
+          WHERE project_id = ${projectId} AND network = ${source}
+            AND (campaign_id::text = ${campaignId} OR campaign_id IN (
+              SELECT campaign_id FROM ad_campaign_lifetime
+              WHERE project_id = ${projectId} AND network = ${source}
+                AND (campaign_id::text = ${campaignId} OR campaign_name = ${campaignId})
+            ))
+        ),
+        spend_meta AS (
+          SELECT
+            MAX(last_synced_at) AS ad_metrics_synced_at,
+            MAX(spend_currency) FILTER (WHERE spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
+          FROM adgroup_spend
+        )
         SELECT
-          COALESCE(properties->>${dims.adGroupNameKey}, properties->>${dims.adGroupIdKey}) AS id,
-          MAX(properties->>${dims.adGroupNameKey}) AS name,
-          MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
-          COUNT(*)::int AS user_count,
-          COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
-          (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
-        FROM ${appUsers}
-        WHERE project_id = ${projectId}
-          AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
-          AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
-          AND (properties ? ${dims.adGroupNameKey} OR properties ? ${dims.adGroupIdKey})
-          ${appFilter(appId)}
-        GROUP BY 1
-        ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
+          ar.id,
+          ar.name,
+          ar.campaign_name,
+          ar.user_count,
+          ar.paying_user_count,
+          ar.total_revenue_usd,
+          asd.total_spend_usd_cents,
+          asd.spend_currency,
+          asd.ad_group_start_date::text AS start_date,
+          asd.ad_group_status AS status,
+          (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+          (SELECT currency_warning FROM spend_meta) AS currency_warning
+        FROM adgroup_revenue ar
+        LEFT JOIN adgroup_spend asd
+          ON asd.id_match = ar.id OR asd.name_match = ar.id
+        ORDER BY ar.total_revenue_usd DESC, ar.user_count DESC, ar.id ASC
         LIMIT ${limit}
       `);
 
       let campaignName: string | null = rows[0]?.campaign_name ?? null;
+      let adMetricsSyncedAt: string | null = rows[0]?.ad_metrics_synced_at
+        ? new Date(rows[0].ad_metrics_synced_at).toISOString()
+        : null;
+      let currencyWarning: string | null = rows[0]?.currency_warning ?? null;
       if (rows.length === 0) {
-        const [campaignRow] = await app.db.execute<{ name: string | null }>(sql`
-          SELECT MAX(properties->>${dims.campaignNameKey}) AS name
-          FROM ${appUsers}
-          WHERE project_id = ${projectId}
-            AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
+        const [meta] = await app.db.execute<{
+          campaign_name: string | null;
+          ad_metrics_synced_at: Date | null;
+          currency_warning: string | null;
+        }>(sql`
+          SELECT
+            (SELECT MAX(properties->>${dims.campaignNameKey}) FROM ${appUsers}
+              WHERE project_id = ${projectId}
+                AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})) AS campaign_name,
+            (SELECT MAX(last_synced_at) FROM ad_adgroup_lifetime
+              WHERE project_id = ${projectId} AND network = ${source}) AS ad_metrics_synced_at,
+            (SELECT MAX(spend_currency) FROM ad_adgroup_lifetime
+              WHERE project_id = ${projectId} AND network = ${source}
+                AND spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
         `);
-        campaignName = campaignRow?.name ?? null;
+        campaignName = meta?.campaign_name ?? null;
+        adMetricsSyncedAt = meta?.ad_metrics_synced_at ? new Date(meta.ad_metrics_synced_at).toISOString() : null;
+        currencyWarning = meta?.currency_warning ?? null;
       }
 
+      const adGroups = rows.map(toAdsRow);
       const response: AdsAdGroupsResponse = {
         attribution_source: source,
         campaign_id: campaignId,
         campaign_name: campaignName,
-        ad_groups: rows.map(toAdsRow),
+        ad_groups: adGroups,
+        total_spend_usd: sumSpend(adGroups),
+        ad_metrics_synced_at: adMetricsSyncedAt,
+        currency_warning: currencyWarning,
       };
       return response;
     },
@@ -374,7 +537,10 @@ export async function teamAdsRoutes(app: FastifyInstance) {
           total_user_count: 0,
           total_paying_user_count: 0,
           total_revenue_usd: 0,
+          total_spend_usd: null,
           revenue_synced_at: null,
+          ad_metrics_synced_at: null,
+          currency_warning: null,
         };
         return empty;
       }
@@ -388,17 +554,18 @@ export async function teamAdsRoutes(app: FastifyInstance) {
       type TeamAdsAggregateRow = AdsAggregateRow & {
         project_id: string;
         revenue_synced_at: Date | null;
+        ad_metrics_synced_at: Date | null;
+        currency_warning: string | null;
       };
       // Same shape as the project-scoped campaigns query, but groups on
       // (project_id, COALESCE(name, id)) so two ASA orgs with same-named
       // campaigns stay distinct rows. The `team_projects` CTE replaces a
-      // separate `SELECT id FROM projects WHERE team_id IN (…)` roundtrip;
-      // both filter clauses below reuse it. `team_sync` carries the
-      // project-wide MAX(revenue_synced_at) so the rowless case still
-      // surfaces a header timestamp without a third roundtrip.
+      // separate `SELECT id FROM projects WHERE team_id IN (…)` roundtrip.
       // Position-based `GROUP BY 1, 2` avoids drizzle's parameter-placeholder
       // duplication tripping Postgres's textual-equality check on GROUP BY
       // expressions — same workaround as the project-scoped campaigns query.
+      // Spend join is per-(project_id, network) — keeps two projects with the
+      // same campaign_id (different ASA orgs) attributed correctly.
       const rows = await app.db.execute<TeamAdsAggregateRow>(sql`
         WITH team_projects AS (
           SELECT id FROM ${projects}
@@ -408,21 +575,59 @@ export async function teamAdsRoutes(app: FastifyInstance) {
           SELECT MAX(revenue_synced_at) AS synced_at
           FROM ${appUsers}
           WHERE project_id IN (SELECT id FROM team_projects)
+        ),
+        team_revenue AS (
+          SELECT
+            project_id::text AS project_id,
+            COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
+            MAX(properties->>${dims.campaignNameKey}) AS name,
+            COUNT(*)::int AS user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
+          FROM ${appUsers}
+          WHERE project_id IN (SELECT id FROM team_projects)
+            AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
+            AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
+          GROUP BY 1, 2
+        ),
+        team_spend AS (
+          SELECT
+            project_id::text AS project_id,
+            campaign_id::text AS id_match,
+            campaign_name AS name_match,
+            total_spend_usd_cents,
+            spend_currency,
+            campaign_start_date,
+            campaign_status,
+            last_synced_at
+          FROM ad_campaign_lifetime
+          WHERE project_id IN (SELECT id FROM team_projects) AND network = ${source}
+        ),
+        spend_meta AS (
+          SELECT
+            MAX(last_synced_at) AS ad_metrics_synced_at,
+            MAX(spend_currency) FILTER (WHERE spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
+          FROM team_spend
         )
         SELECT
-          project_id::text AS project_id,
-          COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
-          MAX(properties->>${dims.campaignNameKey}) AS name,
-          COUNT(*)::int AS user_count,
-          COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
-          (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd,
-          (SELECT synced_at FROM team_sync) AS revenue_synced_at
-        FROM ${appUsers}
-        WHERE project_id IN (SELECT id FROM team_projects)
-          AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
-          AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
-        GROUP BY 1, 2
-        ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
+          tr.project_id,
+          tr.id,
+          tr.name,
+          tr.user_count,
+          tr.paying_user_count,
+          tr.total_revenue_usd,
+          ts.total_spend_usd_cents,
+          ts.spend_currency,
+          ts.campaign_start_date::text AS start_date,
+          ts.campaign_status AS status,
+          (SELECT synced_at FROM team_sync) AS revenue_synced_at,
+          (SELECT ad_metrics_synced_at FROM spend_meta) AS ad_metrics_synced_at,
+          (SELECT currency_warning FROM spend_meta) AS currency_warning
+        FROM team_revenue tr
+        LEFT JOIN team_spend ts
+          ON ts.project_id = tr.project_id
+            AND (ts.id_match = tr.id OR ts.name_match = tr.id)
+        ORDER BY tr.total_revenue_usd DESC, tr.user_count DESC, tr.id ASC
         LIMIT ${limit}
       `);
 
@@ -433,21 +638,33 @@ export async function teamAdsRoutes(app: FastifyInstance) {
       const totalUserCount = campaigns.reduce((acc, r) => acc + r.user_count, 0);
       const totalPayingUserCount = campaigns.reduce((acc, r) => acc + r.paying_user_count, 0);
       const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
-      // Empty result set means the CTE-bundled timestamp never serialized to
-      // a row — fall back to a 1-row probe over the same project set.
-      let syncedAt: string | null = rows[0]?.revenue_synced_at
+      let revenueSyncedAt: string | null = rows[0]?.revenue_synced_at
         ? new Date(rows[0].revenue_synced_at).toISOString()
         : null;
+      let adMetricsSyncedAt: string | null = rows[0]?.ad_metrics_synced_at
+        ? new Date(rows[0].ad_metrics_synced_at).toISOString()
+        : null;
+      let currencyWarning: string | null = rows[0]?.currency_warning ?? null;
       if (rows.length === 0) {
-        const [syncRow] = await app.db.execute<{ synced_at: Date | null }>(sql`
-          SELECT MAX(revenue_synced_at) AS synced_at
-          FROM ${appUsers}
-          WHERE project_id IN (
+        const [meta] = await app.db.execute<{
+          revenue_synced_at: Date | null;
+          ad_metrics_synced_at: Date | null;
+          currency_warning: string | null;
+        }>(sql`
+          WITH tp AS (
             SELECT id FROM ${projects}
             WHERE team_id IN (${teamIdList}) AND deleted_at IS NULL
           )
+          SELECT
+            (SELECT MAX(revenue_synced_at) FROM ${appUsers} WHERE project_id IN (SELECT id FROM tp)) AS revenue_synced_at,
+            (SELECT MAX(last_synced_at) FROM ad_campaign_lifetime WHERE project_id IN (SELECT id FROM tp) AND network = ${source}) AS ad_metrics_synced_at,
+            (SELECT MAX(spend_currency) FROM ad_campaign_lifetime
+              WHERE project_id IN (SELECT id FROM tp) AND network = ${source}
+                AND spend_currency IS NOT NULL AND spend_currency <> 'USD') AS currency_warning
         `);
-        syncedAt = syncRow?.synced_at ? new Date(syncRow.synced_at).toISOString() : null;
+        revenueSyncedAt = meta?.revenue_synced_at ? new Date(meta.revenue_synced_at).toISOString() : null;
+        adMetricsSyncedAt = meta?.ad_metrics_synced_at ? new Date(meta.ad_metrics_synced_at).toISOString() : null;
+        currencyWarning = meta?.currency_warning ?? null;
       }
 
       const response: TeamAdsCampaignsResponse = {
@@ -456,7 +673,10 @@ export async function teamAdsRoutes(app: FastifyInstance) {
         total_user_count: totalUserCount,
         total_paying_user_count: totalPayingUserCount,
         total_revenue_usd: totalRevenueUsd,
-        revenue_synced_at: syncedAt,
+        total_spend_usd: sumSpend(campaigns),
+        revenue_synced_at: revenueSyncedAt,
+        ad_metrics_synced_at: adMetricsSyncedAt,
+        currency_warning: currencyWarning,
       };
       return response;
     },

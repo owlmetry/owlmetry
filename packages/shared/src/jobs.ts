@@ -114,9 +114,9 @@ export const JOB_TYPE_META: Record<
   apple_ads_sync: {
     label: "Apple Ads Sync",
     description:
-      "Resolves stored Apple Search Ads IDs to human-readable names via the Apple Ads Campaign Management API",
+      "Resolves stored Apple Search Ads IDs to readable names AND syncs campaign + ad-group spend / impressions / taps / installs from the Reports API into ad_campaign_lifetime + ad_adgroup_lifetime (filtered by adamId so each project only stores rows for its own apps). Project-scoped: trigger from the dashboard or via POST /v1/projects/:id/ads/sync. The daily 04:45 UTC cron fires the same handler with no project_id, which fans out across every project that has an active Apple Search Ads integration.",
     scope: "project",
-    default_schedule: null,
+    default_schedule: "45 4 * * *",
     params: [],
   },
   app_version_sync: {

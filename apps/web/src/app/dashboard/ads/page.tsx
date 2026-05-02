@@ -87,8 +87,20 @@ export default function AdsPage() {
     attribution_source: source,
   });
   const active = isAllProjects ? allProjects : singleProject;
-  const { campaigns, totalUserCount, totalPayingUserCount, totalRevenueUsd, revenueSyncedAt, isLoading, mutate } =
-    active;
+  const {
+    campaigns,
+    totalUserCount,
+    totalPayingUserCount,
+    totalRevenueUsd,
+    totalSpendUsd,
+    revenueSyncedAt,
+    adMetricsSyncedAt,
+    currencyWarning,
+    isLoading,
+    mutate,
+  } = active;
+  const totalRoas =
+    totalSpendUsd != null && totalSpendUsd > 0 ? totalRevenueUsd / totalSpendUsd : null;
 
   const isAdmin = currentRole === "owner" || currentRole === "admin";
 
@@ -169,18 +181,33 @@ export default function AdsPage() {
               </Button>
               {revenueSyncedAt && (
                 <p className="text-xs text-muted-foreground">
-                  Last synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>
+                  Revenue synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>
+                </p>
+              )}
+              {adMetricsSyncedAt && (
+                <p className="text-xs text-muted-foreground">
+                  Spend synced <span className="font-medium">{timeAgo(adMetricsSyncedAt)}</span>
                 </p>
               )}
             </div>
           )}
-          {isAllProjects && revenueSyncedAt && (
-            <p className="text-xs text-muted-foreground self-end">
-              Revenue last synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>
-            </p>
+          {isAllProjects && (revenueSyncedAt || adMetricsSyncedAt) && (
+            <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
+              {revenueSyncedAt && (
+                <p>Revenue synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span></p>
+              )}
+              {adMetricsSyncedAt && (
+                <p>Spend synced <span className="font-medium">{timeAgo(adMetricsSyncedAt)}</span></p>
+              )}
+            </div>
           )}
         </div>
         {syncError && <p className="text-xs text-destructive mt-2">{syncError}</p>}
+        {currencyWarning && (
+          <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+            Spend is reported in <span className="font-medium">{currencyWarning}</span>; ROAS is hidden until USD support lands. Raw amounts are still stored.
+          </div>
+        )}
       </StaggerItem>
 
       <StaggerItem index={1}>
@@ -197,10 +224,27 @@ export default function AdsPage() {
       </StaggerItem>
 
       <StaggerItem index={2}>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <SummaryCard label="Attributed users" value={totalUserCount.toLocaleString()} />
           <SummaryCard label="Paying users" value={totalPayingUserCount.toLocaleString()} />
           <SummaryCard label="Lifetime revenue" value={formatUsd(totalRevenueUsd)} />
+          <SummaryCard
+            label="Lifetime spend"
+            value={totalSpendUsd == null ? "—" : formatUsd(totalSpendUsd)}
+          />
+          <SummaryCard
+            label="ROAS"
+            value={totalRoas == null ? "—" : `${totalRoas.toFixed(totalRoas < 10 ? 1 : 0)}x`}
+            tone={
+              totalRoas == null
+                ? "muted"
+                : totalRoas >= 1
+                  ? "good"
+                  : totalRoas >= 0.5
+                    ? "warn"
+                    : "bad"
+            }
+          />
         </div>
       </StaggerItem>
 
@@ -209,12 +253,23 @@ export default function AdsPage() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+type CardTone = "muted" | "good" | "warn" | "bad";
+
+const TONE_CLASS: Record<CardTone, string> = {
+  muted: "",
+  good: "text-emerald-600 dark:text-emerald-400",
+  warn: "text-amber-600 dark:text-amber-400",
+  bad: "text-red-600 dark:text-red-400",
+};
+
+function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: CardTone }) {
   return (
     <Card>
       <CardContent className="p-4">
         <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-2xl font-semibold tabular-nums mt-1">{value}</div>
+        <div className={`text-2xl font-semibold tabular-nums mt-1 ${tone ? TONE_CLASS[tone] : ""}`}>
+          {value}
+        </div>
       </CardContent>
     </Card>
   );

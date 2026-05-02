@@ -17,6 +17,10 @@ interface AdsRow {
   paying_user_count: number;
   total_revenue_usd: number;
   arpu: number;        // total_revenue_usd / user_count, 0 when no users
+  total_spend_usd: number | null; // null = no integration / non-USD currency
+  roas: number | null;            // total_revenue_usd / total_spend_usd; null when spend null/0
+  start_date: string | null;      // ISO date YYYY-MM-DD
+  status: string | null;          // ENABLED | PAUSED | DELETED | …
 }
 
 // Team-scoped campaign rows carry the owning project so the UI can drill in.
@@ -59,17 +63,24 @@ List campaigns ranked by `total_revenue_usd` desc, then `user_count` desc, then 
       "user_count": 1234,
       "paying_user_count": 218,
       "total_revenue_usd": 4598.12,
-      "arpu": 3.73
+      "arpu": 3.73,
+      "total_spend_usd": 1820.50,
+      "roas": 2.53,
+      "start_date": "2025-11-15",
+      "status": "ENABLED"
     }
   ],
   "total_user_count": 1234,
   "total_paying_user_count": 218,
   "total_revenue_usd": 4598.12,
-  "revenue_synced_at": "2026-05-01T03:00:00.000Z"
+  "total_spend_usd": 1820.50,
+  "revenue_synced_at": "2026-05-01T03:00:00.000Z",
+  "ad_metrics_synced_at": "2026-05-01T04:45:00.000Z",
+  "currency_warning": null
 }
 ```
 
-`revenue_synced_at` is the most recent `app_users.revenue_synced_at` across the project — surfaces "as of" freshness without per-row timestamps.
+`revenue_synced_at` is the most recent `app_users.revenue_synced_at` across the project; `ad_metrics_synced_at` is the most recent `last_synced_at` across the project's `ad_campaign_lifetime` rows. `currency_warning` is non-null (e.g. `"EUR"`) when the project's Apple Search Ads org reports in a non-USD currency — the dashboard renders a banner and `total_spend_usd` / `roas` stay `null` until USD support lands.
 
 ## GET /v1/ads/campaigns
 

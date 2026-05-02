@@ -143,6 +143,16 @@ Swift SDK AdServices capture
 
 For users attributed before the integration was connected, the bulk sync (`apple_ads_sync` job) handles the backfill. Errors are surfaced on the integrations page via the Test Connection action.
 
+### Spend & ROAS
+
+The same `apple_ads_sync` job also pulls campaign + ad-group **spend / impressions / taps / installs** from Apple's Reports API into `ad_campaign_lifetime` + `ad_adgroup_lifetime` (one row per `(project, network, campaign | ad_group)`, refreshed daily and on every "Sync now"). The dashboard's `/dashboard/ads` page joins the rollup against attributed-user revenue and surfaces spend, ROAS, and campaign start dates alongside the existing user / paying / revenue columns.
+
+Apple's Reports API is **org-scoped** — every campaign across every app under the same Apple Developer team comes back in one response — so Owlmetry filters by the campaign's `adamId` against your `apps.apple_app_store_id`. Only campaigns belonging to your project's apps land in the rollup; if two projects share an Apple developer account, each project sees only its own campaigns.
+
+Lifetime totals are computed from a rolling 12-month window (4× 90-day chunks summed in JS, since Apple caps single requests at 90 days). Numbers will be within ~5–10% of what you see in ads.apple.com — the small drift is settled vs. pending billing in Apple's UI; the API is the source of truth.
+
+**USD only for v1** — when your reporting org uses a non-USD currency, the dashboard surfaces a banner, leaves the spend column blank, and stores the raw `localSpend.amount` in `spend_local_micros` for a future multi-currency upgrade. ROAS stays null in that case.
+
 ### Heads up: API sunset
 
 Apple has announced the v5 Campaign Management API will be sunset on **January 26, 2027**, replaced by a new **Apple Ads Platform API** shipping Summer 2026. Owlmetry will migrate customers to the Platform API ahead of the sunset.

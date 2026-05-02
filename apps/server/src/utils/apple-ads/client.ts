@@ -22,6 +22,10 @@ export interface AppleAdsCampaign {
   id: number;
   name: string;
   status?: string;
+  /** ISO datetime string `"YYYY-MM-DDTHH:mm:ss.sss"` (no zone). Null on `/reports/*` envelopes — only present when fetched via GET with the `startTime` field. */
+  startTime?: string | null;
+  endTime?: string | null;
+  creationTime?: string | null;
 }
 export interface AppleAdsAdGroup {
   id: number;
@@ -232,7 +236,12 @@ function networkError(err: unknown, context: string): AppleAdsResult<never> {
   };
 }
 
-/** Resolve a campaign id → `{ id, name, status }`. */
+/**
+ * Resolve a campaign id → `{ id, name, status, startTime, endTime, creationTime }`.
+ * The reports endpoint's row metadata omits `startTime`, so we ask for it here
+ * — the metrics sync needs the campaign-start date for ROAS time-anchoring.
+ * One round trip resolves both the human-readable name and the date span.
+ */
 export function getAppleAdsCampaign(
   config: AppleAdsConfig,
   campaignId: string | number,
@@ -240,7 +249,7 @@ export function getAppleAdsCampaign(
   return appleAdsGet<AppleAdsCampaign>(
     config,
     config.org_id,
-    `/campaigns/${encodeURIComponent(String(campaignId))}?fields=id,name,status`,
+    `/campaigns/${encodeURIComponent(String(campaignId))}?fields=id,name,status,startTime,endTime,creationTime`,
   );
 }
 
@@ -295,4 +304,248 @@ export function getAppleAdsAcls(
   config: AppleAdsAuthConfig,
 ): Promise<AppleAdsResult<AppleAdsAcl[]>> {
   return appleAdsGet<AppleAdsAcl[]>(config, null, "/acls");
+}
+
+// --- Reports API ----------------------------------------------------------
+//
+// `/reports/*` is shaped differently from `/campaigns/*`: the response is
+// `{ data: { reportingDataResponse: { row: [...] } }, pagination, error }`,
+// every metric is wrapped in a `{ amount: "<decimal>", currency: "USD" }`
+// envelope, and it's billed against a per-org rate limit. Each request can
+// span at most ~90 days, so callers chunk the window themselves and sum
+// across results — the helpers here are deliberately thin so the metrics
+// sync owns the chunking + summation logic.
+
+/** Per-currency monetary value as Apple returns it on report rows. */
+export interface AppleAdsMoney {
+  /** Decimal string with up to 4 fractional digits, e.g. `"14.8051"`. */
+  amount: string;
+  /** ISO 4217 code, e.g. `"USD"`. */
+  currency: string;
+}
+
+/** `metadata.app` on every campaign-level report row. */
+export interface AppleAdsReportApp {
+  appName: string;
+  /** Apple's numeric App Store ID for the app the campaign promotes. */
+  adamId: number;
+}
+
+/** Campaign-level metadata block — omits start/end times (use `getAppleAdsCampaign`). */
+export interface AppleAdsCampaignReportMetadata {
+  campaignId: number;
+  orgId: number;
+  campaignName: string;
+  campaignStatus: string;
+  displayStatus?: string;
+  servingStatus?: string;
+  servingStateReasons?: string[] | null;
+  app: AppleAdsReportApp;
+  countriesOrRegions?: string[];
+  dailyBudget?: AppleAdsMoney | null;
+  totalBudget?: AppleAdsMoney | null;
+  adChannelType?: string;
+  billingEvent?: string;
+  biddingStrategy?: string;
+  modificationTime?: string;
+  deleted?: boolean;
+}
+
+/** Ad-group-level metadata block — these rows DO carry start/end times natively. */
+export interface AppleAdsAdGroupReportMetadata {
+  adGroupId: number;
+  campaignId: number;
+  orgId: number;
+  adGroupName: string;
+  adGroupStatus?: string;
+  adGroupServingStatus?: string;
+  adGroupServingStateReasons?: string[] | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  modificationTime?: string;
+  deleted?: boolean;
+}
+
+/** Common shape of `total` (and each `granularity[]` entry) on report rows. */
+export interface AppleAdsReportTotals {
+  localSpend: AppleAdsMoney;
+  impressions: number;
+  taps: number;
+  totalInstalls: number;
+  totalNewDownloads?: number;
+  totalRedownloads?: number;
+  tapInstalls?: number;
+  viewInstalls?: number;
+  ttr?: number;
+  totalInstallRate?: number;
+}
+
+/** A single row inside `data.reportingDataResponse.row[]`. */
+export interface AppleAdsReportRow<TMetadata> {
+  metadata: TMetadata;
+  granularity?: Array<AppleAdsReportTotals & { date: string }>;
+  total?: AppleAdsReportTotals;
+  other: boolean;
+}
+
+/** Response envelope returned by every `/reports/*` POST. */
+export interface AppleAdsReportResponse<TMetadata> {
+  reportingDataResponse: {
+    row: AppleAdsReportRow<TMetadata>[];
+    grandTotals?: AppleAdsReportTotals;
+  };
+}
+
+export interface AppleAdsReportRequest {
+  /** ISO date `YYYY-MM-DD`. Inclusive. */
+  startTime: string;
+  /** ISO date `YYYY-MM-DD`. Inclusive. */
+  endTime: string;
+  /** Defaults to `"DAILY"` — caller can also pass `"HOURLY" | "WEEKLY" | "MONTHLY"`. */
+  granularity?: "HOURLY" | "DAILY" | "WEEKLY" | "MONTHLY";
+  /** Number of rows to return (max 1000 per Apple's docs). Defaults to 1000. */
+  limit?: number;
+  /** Pagination offset. Defaults to 0. */
+  offset?: number;
+  /** Status values to include. Defaults to ENABLED + PAUSED + ON_HOLD. */
+  statuses?: string[];
+}
+
+function buildReportBody(req: AppleAdsReportRequest, orderByField: string) {
+  return {
+    startTime: req.startTime,
+    endTime: req.endTime,
+    granularity: req.granularity ?? "DAILY",
+    groupBy: [],
+    selector: {
+      orderBy: [{ field: orderByField, sortOrder: "ASCENDING" }],
+      pagination: { offset: req.offset ?? 0, limit: req.limit ?? 1000 },
+      conditions: [
+        {
+          field: orderByField === "campaignId" ? "campaignStatus" : "adGroupStatus",
+          operator: "IN",
+          values: req.statuses ?? ["ENABLED", "PAUSED", "ON_HOLD"],
+        },
+      ],
+    },
+    returnRecordsWithNoMetrics: true,
+    returnRowTotals: true,
+  };
+}
+
+/**
+ * Generic POST helper. Mirrors `appleAdsGet` (same auth, 401 retry-once,
+ * 403/404 mapping) but accepts a JSON body. Reports endpoints return data
+ * wrapped in `{ data: { reportingDataResponse: { row: [...] } } }` rather
+ * than `{ data: [...] }`; callers receive whatever shape `T` claims to be.
+ */
+async function appleAdsPost<T>(
+  authConfig: AppleAdsAuthConfig,
+  orgId: string | null,
+  path: string,
+  body: unknown,
+): Promise<AppleAdsResult<T>> {
+  const url = `${CAMPAIGN_MANAGEMENT_BASE}${path}`;
+  const tokenResult = await getAccessToken(authConfig);
+  if (tokenResult.status !== "found") return tokenResult;
+
+  const doRequest = async (accessToken: string) => {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (orgId) {
+      headers["X-AP-Context"] = `orgId=${orgId}`;
+    }
+    return fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  };
+
+  let response: Response;
+  try {
+    response = await doRequest(tokenResult.data.accessToken);
+  } catch (err) {
+    return networkError(err, "calling Apple Ads Reports API");
+  }
+
+  if (response.status === 401) {
+    tokenCache.delete(authConfig.client_id);
+    const refreshed = await getAccessToken(authConfig, { forceRefresh: true });
+    if (refreshed.status !== "found") return refreshed;
+    try {
+      response = await doRequest(refreshed.data.accessToken);
+    } catch (err) {
+      return networkError(err, "on Apple Ads Reports retry");
+    }
+    if (response.status === 401) {
+      const body2 = await response.text().catch(() => "");
+      return { status: "auth_error", message: body2 || "Apple rejected the access token twice" };
+    }
+  }
+
+  if (response.status === 403) {
+    const body2 = await response.text().catch(() => "");
+    return { status: "auth_error", message: body2 || "Apple Ads returned 403 — check org_id scope and role" };
+  }
+
+  if (response.status === 404) {
+    return { status: "not_found" };
+  }
+
+  if (!response.ok) {
+    const body2 = await response.text().catch(() => "");
+    return { status: "error", statusCode: response.status, message: body2 || `upstream ${response.status}` };
+  }
+
+  let payload: { data?: T };
+  try {
+    payload = (await response.json()) as { data?: T };
+  } catch (err) {
+    return {
+      status: "error",
+      statusCode: response.status,
+      message: err instanceof Error ? err.message : "failed to decode Apple Ads Reports response",
+    };
+  }
+
+  if (!payload.data) {
+    return { status: "not_found" };
+  }
+  return { status: "found", data: payload.data };
+}
+
+/**
+ * Fetch a campaign-level report covering `startTime`..`endTime`. Apple caps
+ * single requests at ~90 days, so callers loop themselves; the report's
+ * `total` block is the rolled-up window summary that we sum across chunks.
+ */
+export function postAppleAdsCampaignReport(
+  config: AppleAdsConfig,
+  req: AppleAdsReportRequest,
+): Promise<AppleAdsResult<AppleAdsReportResponse<AppleAdsCampaignReportMetadata>>> {
+  return appleAdsPost<AppleAdsReportResponse<AppleAdsCampaignReportMetadata>>(
+    config,
+    config.org_id,
+    "/reports/campaigns",
+    buildReportBody(req, "campaignId"),
+  );
+}
+
+/** Fetch an ad-group-level report scoped to a single campaign. */
+export function postAppleAdsAdGroupReport(
+  config: AppleAdsConfig,
+  campaignId: string | number,
+  req: AppleAdsReportRequest,
+): Promise<AppleAdsResult<AppleAdsReportResponse<AppleAdsAdGroupReportMetadata>>> {
+  return appleAdsPost<AppleAdsReportResponse<AppleAdsAdGroupReportMetadata>>(
+    config,
+    config.org_id,
+    `/reports/campaigns/${encodeURIComponent(String(campaignId))}/adgroups`,
+    buildReportBody(req, "adGroupId"),
+  );
 }
