@@ -7,7 +7,8 @@ import useSWR from "swr";
 import type { ProjectResponse, AppResponse } from "@owlmetry/shared";
 import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared/attribution";
 import { useTeam } from "@/contexts/team-context";
-import { useAdCampaigns, adsActions } from "@/hooks/use-ads";
+import { useAdCampaigns, useAdCampaignsAcrossTeam, adsActions } from "@/hooks/use-ads";
+import { useProjectInfoMap } from "@/hooks/use-project-colors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
@@ -15,7 +16,7 @@ import { TableSkeleton } from "@/components/ui/skeletons";
 import { Megaphone, RefreshCw } from "lucide-react";
 import { formatUsd } from "@/lib/currency";
 import { timeAgo } from "@/app/dashboard/_components/time-ago";
-import { AdsFilterBar } from "./_components/ads-filter-bar";
+import { AdsFilterBar, ALL_PROJECTS } from "./_components/ads-filter-bar";
 import { AdsRowTable } from "./_components/ads-row-table";
 
 const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
@@ -30,8 +31,12 @@ export default function AdsPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null,
   );
   const projects = projectsData?.projects ?? [];
+  const projectInfoMap = useProjectInfoMap(teamId);
 
-  const [projectId, setProjectIdState] = useState<string>(searchParams.get("project_id") ?? "");
+  // URL `project_id` absent => "All projects" mode (sentinel `__all__`).
+  const [projectId, setProjectIdState] = useState<string>(
+    searchParams.get("project_id") ?? ALL_PROJECTS,
+  );
   const [appId, setAppIdState] = useState<string | null>(searchParams.get("app_id"));
   const [source, setSourceState] = useState<string>(searchParams.get("source") ?? DEFAULT_SOURCE);
   const [syncing, setSyncing] = useState(false);
@@ -41,18 +46,12 @@ export default function AdsPage() {
     if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
   }, []);
 
-  // Default to the first project if URL didn't pin one. Wait for projects to
-  // load so we don't flicker through an empty selection on mount.
-  useEffect(() => {
-    if (!projectId && projects.length > 0) {
-      setProjectIdState(projects[0].id);
-    }
-  }, [projectId, projects]);
+  const isAllProjects = projectId === ALL_PROJECTS;
 
   function updateUrl(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [k, v] of Object.entries(next)) {
-      if (v === null || v === "") params.delete(k);
+      if (v === null || v === "" || v === ALL_PROJECTS) params.delete(k);
       else params.set(k, v);
     }
     const qs = params.toString();
@@ -74,30 +73,43 @@ export default function AdsPage() {
   }
 
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
-    teamId && projectId ? `/v1/apps?team_id=${teamId}&project_id=${projectId}` : null,
+    teamId && !isAllProjects && projectId
+      ? `/v1/apps?team_id=${teamId}&project_id=${projectId}`
+      : null,
   );
   const apps = appsData?.apps ?? [];
 
+  const singleProject = useAdCampaigns(isAllProjects ? undefined : projectId || undefined, {
+    attribution_source: source,
+    ...(appId ? { app_id: appId } : {}),
+  });
+  const allProjects = useAdCampaignsAcrossTeam(isAllProjects ? teamId : undefined, {
+    attribution_source: source,
+  });
+  const active = isAllProjects ? allProjects : singleProject;
   const { campaigns, totalUserCount, totalPayingUserCount, totalRevenueUsd, revenueSyncedAt, isLoading, mutate } =
-    useAdCampaigns(projectId || undefined, {
-      attribution_source: source,
-      ...(appId ? { app_id: appId } : {}),
-    });
+    active;
 
   const isAdmin = currentRole === "owner" || currentRole === "admin";
 
   function renderCampaigns() {
     if (isLoading) return <TableSkeleton rows={5} />;
-    if (!projectId) {
+    if (campaigns.length === 0) return <EmptyState />;
+    if (isAllProjects) {
       return (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Pick a project above to see campaigns.
-          </CardContent>
-        </Card>
+        <AdsRowTable
+          rows={campaigns}
+          nameHeader="Campaign"
+          projectInfoMap={projectInfoMap}
+          rowHref={(row) =>
+            row.project_id
+              ? `/dashboard/ads/${encodeURIComponent(row.id)}?project_id=${row.project_id}&source=${source}`
+              : null
+          }
+          emptyMessage="No campaigns with attributed users yet."
+        />
       );
     }
-    if (campaigns.length === 0) return <EmptyState />;
     return (
       <AdsRowTable
         rows={campaigns}
@@ -111,7 +123,7 @@ export default function AdsPage() {
   }
 
   async function handleSync() {
-    if (!projectId) return;
+    if (isAllProjects || !projectId) return;
     setSyncing(true);
     setSyncError(null);
     try {
@@ -144,7 +156,7 @@ export default function AdsPage() {
               Campaigns ranked by lifetime USD revenue from attributed users.
             </p>
           </div>
-          {isAdmin && projectId && (
+          {isAdmin && !isAllProjects && projectId && (
             <div className="flex flex-col items-end gap-1">
               <Button
                 variant="outline"
@@ -161,6 +173,11 @@ export default function AdsPage() {
                 </p>
               )}
             </div>
+          )}
+          {isAllProjects && revenueSyncedAt && (
+            <p className="text-xs text-muted-foreground self-end">
+              Revenue last synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>
+            </p>
           )}
         </div>
         {syncError && <p className="text-xs text-destructive mt-2">{syncError}</p>}

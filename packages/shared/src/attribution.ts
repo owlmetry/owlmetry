@@ -185,6 +185,21 @@ export interface AdsCampaignsResponse {
   revenue_synced_at: string | null;
 }
 
+/** Campaign row from the team-scoped endpoint — same fields as `AdsRow` plus the owning project. */
+export interface TeamAdsRow extends AdsRow {
+  project_id: string;
+}
+
+export interface TeamAdsCampaignsResponse {
+  attribution_source: string;
+  campaigns: TeamAdsRow[];
+  total_user_count: number;
+  total_paying_user_count: number;
+  total_revenue_usd: number;
+  /** Most recent `revenue_synced_at` across every accessible project's RC-synced users; null when never synced. */
+  revenue_synced_at: string | null;
+}
+
 export interface AdsAdGroupsResponse {
   attribution_source: string;
   campaign_id: string;

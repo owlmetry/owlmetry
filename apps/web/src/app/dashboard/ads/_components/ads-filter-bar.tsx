@@ -15,6 +15,8 @@ const SOURCE_LABELS: Record<string, string> = {
   apple_search_ads: "Apple Search Ads",
 };
 
+export const ALL_PROJECTS = "__all__";
+
 interface AdsFilterBarProps {
   projects: ProjectResponse[];
   apps: AppResponse[];
@@ -38,15 +40,17 @@ export function AdsFilterBar({
   onAppChange,
   onAttributionSourceChange,
 }: AdsFilterBarProps) {
+  const isAllProjects = projectId === ALL_PROJECTS;
   return (
     <div className="flex items-end gap-3 flex-wrap">
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Project</label>
         <Select value={projectId} onValueChange={onProjectChange}>
           <SelectTrigger className="w-[220px] h-8 text-xs">
-            <SelectValue placeholder="Pick a project" />
+            <SelectValue placeholder="All projects" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
             {projects.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 <span className="flex items-center gap-2">
@@ -59,25 +63,27 @@ export function AdsFilterBar({
         </Select>
       </div>
 
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">App</label>
-        <Select
-          value={appId ?? ALL_APPS}
-          onValueChange={(v) => onAppChange(v === ALL_APPS ? null : v)}
-        >
-          <SelectTrigger className="w-[180px] h-8 text-xs">
-            <SelectValue placeholder="All apps" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_APPS}>All apps</SelectItem>
-            {apps.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!isAllProjects && (
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">App</label>
+          <Select
+            value={appId ?? ALL_APPS}
+            onValueChange={(v) => onAppChange(v === ALL_APPS ? null : v)}
+          >
+            <SelectTrigger className="w-[180px] h-8 text-xs">
+              <SelectValue placeholder="All apps" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_APPS}>All apps</SelectItem>
+              {apps.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">Source</label>

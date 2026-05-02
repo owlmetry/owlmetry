@@ -42,7 +42,7 @@ import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
 import { reviewsRoutes, teamReviewsRoutes } from "../routes/reviews.js";
 import { ratingsRoutes, teamRatingsRoutes } from "../routes/ratings.js";
-import { adsRoutes } from "../routes/ads.js";
+import { adsRoutes, teamAdsRoutes } from "../routes/ads.js";
 import { notificationsRoutes } from "../routes/notifications.js";
 import { devicesRoutes } from "../routes/devices.js";
 import { mcpRoute } from "../mcp/index.js";
@@ -481,6 +481,7 @@ export async function buildApp() {
   await app.register(ratingsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamRatingsRoutes, { prefix: "/v1" });
   await app.register(adsRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(teamAdsRoutes, { prefix: "/v1" });
   await app.register(notificationsRoutes, { prefix: "/v1" });
   await app.register(devicesRoutes, { prefix: "/v1" });
   await app.register(mcpRoute);

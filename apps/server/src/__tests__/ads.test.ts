@@ -13,6 +13,7 @@ import {
 let app: FastifyInstance;
 let projectId: string;
 let appId: string;
+let teamId: string;
 let agentKey: string;
 
 const sql = postgres(TEST_DB_URL, { max: 1 });
@@ -26,7 +27,8 @@ beforeEach(async () => {
   const seed = await seedTestData();
   projectId = seed.projectId;
   appId = seed.appId;
-  const { token, teamId } = await getTokenAndTeamId(app);
+  const { token, teamId: tid } = await getTokenAndTeamId(app);
+  teamId = tid;
   agentKey = await createAgentKey(app, token, teamId, ["apps:read", "users:write"]);
 });
 
@@ -338,5 +340,116 @@ describe("GET /v1/projects/:projectId/ads/campaigns/:c/ad-groups/:g/leaves", () 
     expect(body.ads[0].id).toBe("Variant A");
     expect(body.ads[0].name).toBe("Variant A");
     expect(body.ads[0].total_revenue_usd).toBe(40);
+  });
+});
+
+describe("GET /v1/ads/campaigns (team-scoped)", () => {
+  // Seeds an attributed user directly (no junction needed — team-scoped
+  // endpoint doesn't honor app_id) into the given project.
+  async function seedAttributedUser(opts: {
+    projectId: string;
+    user_id: string;
+    campaign_name: string;
+    revenue_usd_cents: number;
+  }) {
+    await sql`
+      INSERT INTO app_users (project_id, user_id, is_anonymous, properties, total_revenue_usd_cents)
+      VALUES (${opts.projectId}, ${opts.user_id}, false,
+              ${sql.json({
+                attribution_source: "apple_search_ads",
+                asa_campaign_name: opts.campaign_name,
+              })},
+              ${opts.revenue_usd_cents})
+    `;
+  }
+
+  it("aggregates per (project_id, campaign) across every team project", async () => {
+    // Spin up a second project on the same team so we can verify cross-project rows.
+    const [{ id: secondProjectId }] = await sql<{ id: string }[]>`
+      INSERT INTO projects (team_id, name, slug, color)
+      VALUES (${teamId}, 'Second Project', 'second', '#ff0000')
+      RETURNING id
+    `;
+    await Promise.all([
+      seedAttributedUser({ projectId, user_id: "p1u1", campaign_name: "Alpha", revenue_usd_cents: 5000 }),
+      seedAttributedUser({ projectId, user_id: "p1u2", campaign_name: "Alpha", revenue_usd_cents: 3000 }),
+      seedAttributedUser({
+        projectId: secondProjectId,
+        user_id: "p2u1",
+        campaign_name: "Alpha",
+        revenue_usd_cents: 20000,
+      }),
+      seedAttributedUser({
+        projectId: secondProjectId,
+        user_id: "p2u2",
+        campaign_name: "Beta",
+        revenue_usd_cents: 1000,
+      }),
+    ]);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/ads/campaigns?team_id=${teamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    // Same-named campaigns in different projects stay distinct rows.
+    expect(body.campaigns).toHaveLength(3);
+    // Ordering: project2/Alpha ($200) > project1/Alpha ($80) > project2/Beta ($10)
+    expect(body.campaigns[0].project_id).toBe(secondProjectId);
+    expect(body.campaigns[0].name).toBe("Alpha");
+    expect(body.campaigns[0].total_revenue_usd).toBe(200);
+    expect(body.campaigns[1].project_id).toBe(projectId);
+    expect(body.campaigns[1].name).toBe("Alpha");
+    expect(body.campaigns[1].total_revenue_usd).toBe(80);
+    expect(body.campaigns[2].project_id).toBe(secondProjectId);
+    expect(body.campaigns[2].name).toBe("Beta");
+    expect(body.campaigns[2].total_revenue_usd).toBe(10);
+
+    expect(body.total_user_count).toBe(4);
+    expect(body.total_revenue_usd).toBe(290);
+  });
+
+  it("excludes soft-deleted projects", async () => {
+    const [{ id: deletedProjectId }] = await sql<{ id: string }[]>`
+      INSERT INTO projects (team_id, name, slug, color, deleted_at)
+      VALUES (${teamId}, 'Deleted Project', 'deleted', '#00ff00', NOW())
+      RETURNING id
+    `;
+    await seedAttributedUser({
+      projectId: deletedProjectId,
+      user_id: "ghost",
+      campaign_name: "Ghost",
+      revenue_usd_cents: 99999,
+    });
+    await seedAttributedUser({
+      projectId,
+      user_id: "live",
+      campaign_name: "Live",
+      revenue_usd_cents: 1000,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/ads/campaigns?team_id=${teamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    const body = res.json();
+    expect(body.campaigns).toHaveLength(1);
+    expect(body.campaigns[0].name).toBe("Live");
+    expect(body.campaigns[0].project_id).toBe(projectId);
+  });
+
+  it("returns empty when team_id is for a team the caller can't access", async () => {
+    const fakeTeamId = "11111111-1111-1111-1111-111111111111";
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/ads/campaigns?team_id=${fakeTeamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().campaigns).toEqual([]);
   });
 });

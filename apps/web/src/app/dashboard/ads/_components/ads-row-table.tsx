@@ -4,13 +4,18 @@ import Link from "next/link";
 import type { AdsRow } from "@owlmetry/shared/attribution";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd, formatUsdCompact } from "@/lib/currency";
+import { ProjectDot } from "@/lib/project-color";
+
+type Row = AdsRow & { project_id?: string };
 
 interface AdsRowTableProps {
-  rows: AdsRow[];
+  rows: Row[];
   emptyMessage?: string;
-  rowHref?: (row: AdsRow) => string | null;
+  rowHref?: (row: Row) => string | null;
   /** Header label for the leftmost column (default "Name"). */
   nameHeader?: string;
+  /** When provided, renders a leading "Project" column using each row's `project_id`. */
+  projectInfoMap?: Map<string, { name: string; color: string }>;
 }
 
 export function AdsRowTable({
@@ -18,6 +23,7 @@ export function AdsRowTable({
   emptyMessage = "No data yet.",
   rowHref,
   nameHeader = "Name",
+  projectInfoMap,
 }: AdsRowTableProps) {
   if (rows.length === 0) {
     return (
@@ -27,6 +33,8 @@ export function AdsRowTable({
     );
   }
 
+  const showProject = !!projectInfoMap;
+
   return (
     <Card>
       <CardContent className="p-0">
@@ -34,6 +42,7 @@ export function AdsRowTable({
           <table className="w-full text-sm">
             <thead className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                {showProject && <th className="px-4 py-3 font-medium">Project</th>}
                 <th className="px-4 py-3 font-medium">{nameHeader}</th>
                 <th className="px-4 py-3 font-medium text-right">Users</th>
                 <th className="px-4 py-3 font-medium text-right">Paying</th>
@@ -45,14 +54,23 @@ export function AdsRowTable({
               {rows.map((row) => {
                 const href = rowHref ? rowHref(row) : null;
                 const display = row.name ?? row.id;
+                const info = row.project_id ? projectInfoMap?.get(row.project_id) : undefined;
                 return (
                   <tr
-                    key={row.id}
+                    key={`${row.project_id ?? "_"}:${row.id}`}
                     className={
                       "border-b last:border-b-0 transition-colors " +
                       (href ? "relative hover:bg-muted/40 focus-within:bg-muted/40" : "")
                     }
                   >
+                    {showProject && (
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-2">
+                          <ProjectDot color={info?.color ?? null} />
+                          <span className="truncate">{info?.name ?? "—"}</span>
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium">
                       {href ? (
                         // Overlay link spans the row so the whole thing is clickable

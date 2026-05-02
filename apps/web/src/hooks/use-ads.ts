@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { buildQueryString } from "@/lib/query";
 import type {
   AdsCampaignsResponse,
+  TeamAdsCampaignsResponse,
   AdsAdGroupsResponse,
   AdsLeavesResponse,
 } from "@owlmetry/shared/attribution";
@@ -21,6 +22,30 @@ export function useAdCampaigns(projectId: string | undefined, filters: AdsFilter
     ? `/v1/projects/${projectId}/ads/campaigns${qs ? `?${qs}` : ""}`
     : null;
   const { data, isLoading, error, mutate } = useSWR<AdsCampaignsResponse>(key);
+  return {
+    campaigns: data?.campaigns ?? [],
+    totalUserCount: data?.total_user_count ?? 0,
+    totalPayingUserCount: data?.total_paying_user_count ?? 0,
+    totalRevenueUsd: data?.total_revenue_usd ?? 0,
+    revenueSyncedAt: data?.revenue_synced_at ?? null,
+    isLoading,
+    error,
+    mutate,
+  };
+}
+
+interface TeamAdsFilters {
+  attribution_source?: string;
+  limit?: number;
+}
+
+export function useAdCampaignsAcrossTeam(
+  teamId: string | undefined,
+  filters: TeamAdsFilters = {},
+) {
+  const qs = buildQueryString({ team_id: teamId, ...filters });
+  const key = teamId ? `/v1/ads/campaigns${qs ? `?${qs}` : ""}` : null;
+  const { data, isLoading, error, mutate } = useSWR<TeamAdsCampaignsResponse>(key);
   return {
     campaigns: data?.campaigns ?? [],
     totalUserCount: data?.total_user_count ?? 0,

@@ -1,17 +1,19 @@
 import type { FastifyInstance } from "fastify";
-import { sql } from "drizzle-orm";
-import { appUsers } from "@owlmetry/db";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { appUsers, projects } from "@owlmetry/db";
 import {
   ATTRIBUTION_NETWORK_DIMENSIONS,
   ATTRIBUTION_SOURCE_PROPERTY,
   ATTRIBUTION_SOURCE_VALUES,
   ADS_ATTRIBUTION_SOURCES,
   type AdsRow,
+  type TeamAdsRow,
   type AdsCampaignsResponse,
+  type TeamAdsCampaignsResponse,
   type AdsAdGroupsResponse,
   type AdsLeavesResponse,
 } from "@owlmetry/shared";
-import { requirePermission, assertTeamRole } from "../middleware/auth.js";
+import { requirePermission, assertTeamRole, getAuthTeamIds } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { formatManualTriggeredBy } from "../utils/integrations.js";
 
@@ -339,6 +341,127 @@ export async function adsRoutes(app: FastifyInstance) {
         revenuecat_job_run_id: rcRun.id,
         apple_ads_job_run_id: asaRun.id,
       };
+    },
+  );
+}
+
+// Team-scoped sibling — used by dashboard "All projects" view at /dashboard/ads.
+// Campaigns are aggregated per (project_id, campaign) so same-named campaigns
+// in different ASA orgs / projects stay distinct rows. Drops the `app_id`
+// filter — apps are project-scoped so a multi-project app filter is meaningless.
+export async function teamAdsRoutes(app: FastifyInstance) {
+  app.get<{
+    Querystring: { team_id?: string; attribution_source?: string; limit?: string };
+  }>(
+    "/ads/campaigns",
+    { preHandler: requirePermission("apps:read") },
+    async (request, reply) => {
+      const auth = request.auth;
+      const allTeamIds = getAuthTeamIds(auth);
+      const { team_id } = request.query;
+
+      const teamIds = team_id ? (allTeamIds.includes(team_id) ? [team_id] : []) : allTeamIds;
+      if (teamIds.length === 0) {
+        const empty: TeamAdsCampaignsResponse = {
+          attribution_source: parseAttributionSource(request.query.attribution_source),
+          campaigns: [],
+          total_user_count: 0,
+          total_paying_user_count: 0,
+          total_revenue_usd: 0,
+          revenue_synced_at: null,
+        };
+        return empty;
+      }
+
+      const source = parseAttributionSource(request.query.attribution_source);
+      const dims = ATTRIBUTION_NETWORK_DIMENSIONS[source];
+      if (!dims) return reply.code(400).send({ error: "Unsupported attribution_source" });
+
+      const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 500);
+
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
+      if (accessibleProjects.length === 0) {
+        const empty: TeamAdsCampaignsResponse = {
+          attribution_source: source,
+          campaigns: [],
+          total_user_count: 0,
+          total_paying_user_count: 0,
+          total_revenue_usd: 0,
+          revenue_synced_at: null,
+        };
+        return empty;
+      }
+
+      const projectIdList = sql.join(
+        accessibleProjects.map((p) => sql`${p.id}::uuid`),
+        sql`, `,
+      );
+
+      type TeamAdsAggregateRow = AdsAggregateRow & {
+        project_id: string;
+        revenue_synced_at: Date | null;
+      };
+      // Same shape as the project-scoped campaigns query, but groups on
+      // (project_id, COALESCE(name, id)) so two ASA orgs with same-named
+      // campaigns stay distinct rows. The CTE pulls a project-wide
+      // MAX(revenue_synced_at) across all accessible projects in one shot.
+      // Position-based `GROUP BY 1, 2` avoids drizzle's parameter-placeholder
+      // duplication tripping Postgres's textual-equality check on GROUP BY
+      // expressions — same workaround as the project-scoped campaigns query.
+      const rows = await app.db.execute<TeamAdsAggregateRow>(sql`
+        WITH team_sync AS (
+          SELECT MAX(revenue_synced_at) AS synced_at
+          FROM ${appUsers}
+          WHERE project_id IN (${projectIdList})
+        )
+        SELECT
+          project_id::text AS project_id,
+          COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
+          MAX(properties->>${dims.campaignNameKey}) AS name,
+          COUNT(*)::int AS user_count,
+          COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+          (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd,
+          (SELECT synced_at FROM team_sync) AS revenue_synced_at
+        FROM ${appUsers}
+        WHERE project_id IN (${projectIdList})
+          AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
+          AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
+        GROUP BY 1, 2
+        ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
+        LIMIT ${limit}
+      `);
+
+      const campaigns: TeamAdsRow[] = rows.map((row) => ({
+        ...toAdsRow(row),
+        project_id: row.project_id,
+      }));
+      const totalUserCount = campaigns.reduce((acc, r) => acc + r.user_count, 0);
+      const totalPayingUserCount = campaigns.reduce((acc, r) => acc + r.paying_user_count, 0);
+      const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
+      let syncedAt: string | null = rows[0]?.revenue_synced_at
+        ? new Date(rows[0].revenue_synced_at).toISOString()
+        : null;
+      if (rows.length === 0) {
+        const [syncRow] = await app.db.execute<{ synced_at: Date | null }>(sql`
+          SELECT MAX(revenue_synced_at) AS synced_at
+          FROM ${appUsers}
+          WHERE project_id IN (${projectIdList})
+        `);
+        syncedAt = syncRow?.synced_at ? new Date(syncRow.synced_at).toISOString() : null;
+      }
+
+      const response: TeamAdsCampaignsResponse = {
+        attribution_source: source,
+        campaigns,
+        total_user_count: totalUserCount,
+        total_paying_user_count: totalPayingUserCount,
+        total_revenue_usd: totalRevenueUsd,
+        revenue_synced_at: syncedAt,
+      };
+      return response;
     },
   );
 }

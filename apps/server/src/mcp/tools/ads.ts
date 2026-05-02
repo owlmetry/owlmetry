@@ -14,18 +14,59 @@ const attributionSourceSchema = z
 export function registerAdsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-ad-campaigns", {
     description:
-      "Rank advertising campaigns by lifetime USD revenue from attributed users. Aggregates app_users by attribution_source + campaign and joins each user's lifetime RevenueCat revenue (refreshed daily and on every subscription webhook). Returns user_count, paying_user_count, total_revenue_usd, ARPU per campaign, sorted by revenue desc.",
+      "Rank advertising campaigns by lifetime USD revenue from attributed users. Aggregates app_users by attribution_source + campaign and joins each user's lifetime RevenueCat revenue (refreshed daily and on every subscription webhook). Returns user_count, paying_user_count, total_revenue_usd, ARPU per campaign, sorted by revenue desc. Pass `project_id` for a single project, or `team_id` (without `project_id`) to aggregate the best-performing campaigns across every project in a team — each row then carries `project_id` so you can tell which project owns it.",
     inputSchema: {
-      project_id: z.string().uuid().describe("The project ID"),
+      project_id: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("The project ID. Mutually exclusive with team_id."),
+      team_id: z
+        .string()
+        .uuid()
+        .optional()
+        .describe(
+          "Team ID — aggregates campaigns across every project in the team. Mutually exclusive with project_id. `app_id` is not honored in this mode.",
+        ),
       attribution_source: attributionSourceSchema,
       app_id: z
         .string()
         .uuid()
         .optional()
-        .describe("Scope to users acquired into a single app"),
+        .describe("Scope to users acquired into a single app (project mode only)"),
       limit: z.number().int().min(1).max(500).optional().describe("Max campaigns (default 100)"),
     },
-  }, async ({ project_id, ...params }) => {
+  }, async ({ project_id, team_id, ...params }) => {
+    if (project_id && team_id) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error: project_id and team_id are mutually exclusive. Pick one.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    if (!project_id && !team_id) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error: pass either project_id (single project) or team_id (all projects in a team).",
+          },
+        ],
+        isError: true,
+      };
+    }
+    if (team_id) {
+      const { app_id: _ignored, ...teamParams } = params;
+      void _ignored;
+      return callApi(app, agentKey, {
+        method: "GET",
+        url: `/v1/ads/campaigns${buildQuery({ team_id, ...teamParams })}`,
+      });
+    }
     return callApi(app, agentKey, {
       method: "GET",
       url: `/v1/projects/${project_id}/ads/campaigns${buildQuery(params)}`,
