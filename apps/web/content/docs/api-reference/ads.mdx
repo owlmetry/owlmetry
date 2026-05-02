@@ -5,7 +5,7 @@ description: Advertising-insights API — rank campaigns, ad groups, keywords, a
 
 The Ads API surfaces [Advertising Insights](/docs/concepts/advertising-insights) — a ranked view of ad campaigns, ad groups, keywords, and ads by the lifetime USD revenue they've driven. The data is computed at query time from `app_users.properties` (attribution) joined to `app_users.total_revenue_usd_cents` (RevenueCat lifetime revenue).
 
-All endpoints are project-scoped and require `users:read` for read paths or `users:write` for the manual sync trigger.
+Most endpoints are project-scoped. The campaigns endpoint also has a team-scoped variant (`GET /v1/ads/campaigns?team_id=…`) that aggregates the best-performing campaigns across every project in a team — used by the dashboard's "All projects" view. Drill-downs (ad groups, keywords/ads) stay project-scoped. All endpoints require `users:read` for read paths or `users:write` for the manual sync trigger.
 
 ## Common types
 
@@ -17,6 +17,11 @@ interface AdsRow {
   paying_user_count: number;
   total_revenue_usd: number;
   arpu: number;        // total_revenue_usd / user_count, 0 when no users
+}
+
+// Team-scoped campaign rows carry the owning project so the UI can drill in.
+interface TeamAdsRow extends AdsRow {
+  project_id: string;
 }
 ```
 
@@ -65,6 +70,45 @@ List campaigns ranked by `total_revenue_usd` desc, then `user_count` desc, then 
 ```
 
 `revenue_synced_at` is the most recent `app_users.revenue_synced_at` across the project — surfaces "as of" freshness without per-row timestamps.
+
+## GET /v1/ads/campaigns
+
+Team-scoped campaign ranking. Aggregates campaigns across every project the caller can see (or a single team via `team_id`), so same-named campaigns in different ASA orgs / projects stay distinct rows. Used by the dashboard's "All projects" view at `/dashboard/ads`. There is no `app_id` filter — apps are project-scoped, so a multi-project app filter is meaningless. Drill-downs stay on the project-scoped routes; clients use each row's `project_id` to scope the next call.
+
+**Auth required:** Yes (`users:read`)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `team_id` | string | Restrict to a single team. Defaults to every team the caller can see. |
+| `attribution_source` | string | Defaults to `apple_search_ads`. |
+| `limit` | number | Max rows (1–500, default 100). |
+
+### Response
+
+Same shape as the project-scoped campaigns response, but each row in `campaigns` is a `TeamAdsRow` carrying an extra `project_id`:
+
+```json
+{
+  "attribution_source": "apple_search_ads",
+  "campaigns": [
+    {
+      "id": "542370539",
+      "name": "Holiday US Campaign",
+      "project_id": "11111111-2222-3333-4444-555555555555",
+      "user_count": 1234,
+      "paying_user_count": 218,
+      "total_revenue_usd": 4598.12,
+      "arpu": 3.73
+    }
+  ],
+  "total_user_count": 1234,
+  "total_paying_user_count": 218,
+  "total_revenue_usd": 4598.12,
+  "revenue_synced_at": "2026-05-01T03:00:00.000Z"
+}
+```
 
 ## GET /v1/projects/:projectId/ads/campaigns/:campaignId/ad-groups
 

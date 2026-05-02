@@ -13,11 +13,14 @@ Drill from campaigns into ad groups, then into keyword/ad leaves.
 
 Rank campaigns by lifetime USD revenue from attributed users. Aggregates `app_users` by `attribution_source` + campaign and joins each user's lifetime RevenueCat revenue. Returns `user_count`, `paying_user_count`, `total_revenue_usd`, ARPU per campaign, sorted by revenue desc.
 
+Pass `project_id` for a single project, or `team_id` to aggregate the best-performing campaigns across every project in a team — each row then also carries a `project_id` so you can tell which project owns each campaign and use it on the project-scoped drill-downs ([`list-ad-groups`](#list-ad-groups), [`list-ad-leaves`](#list-ad-leaves)).
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `project_id` | UUID | Yes | The project ID |
+| `project_id` | UUID | One of | The project ID. Mutually exclusive with `team_id` |
+| `team_id` | UUID | One of | Team ID — aggregates across every project in the team |
 | `attribution_source` | string | No | Defaults to `apple_search_ads` (only value populated today) |
-| `app_id` | UUID | No | Scope to users acquired into a single app |
+| `app_id` | UUID | No | Scope to users acquired into a single app (project mode only; ignored when `team_id` is set) |
 | `limit` | number | No | Max campaigns (1-500, default 100) |
 
 ## list-ad-groups

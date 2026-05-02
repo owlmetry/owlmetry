@@ -12,15 +12,16 @@ Drill from campaigns into ad groups, then into keywords + ads.
 ## List campaigns
 
 ```bash
-owlmetry ads campaigns --project-id <id> [--app-id <id>] [--source apple_search_ads] [--limit <n>]
+owlmetry ads campaigns (--project-id <id> | --team-id <id>) [--app-id <id>] [--source apple_search_ads] [--limit <n>]
 ```
 
-Lists campaigns ranked by total lifetime revenue desc.
+Lists campaigns ranked by total lifetime revenue desc. Pass `--project-id` for a single project, or `--team-id` to aggregate across every project in the team (the dashboard's "All projects" view) — each row then carries a `project_id` column so you can tell which project owns each campaign.
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--project-id <id>` | Yes | Project UUID |
-| `--app-id <id>` | No | Scope to users acquired into a single app |
+| `--project-id <id>` | One of | Project UUID. Mutually exclusive with `--team-id` |
+| `--team-id <id>` | One of | Team UUID — aggregates across every project in the team |
+| `--app-id <id>` | No | Scope to users acquired into a single app (only with `--project-id`; ignored in team mode) |
 | `--source <source>` | No | Attribution network. Defaults to `apple_search_ads` (only value populated today) |
 | `--limit <n>` | No | Max rows (1–500, default 100) |
 

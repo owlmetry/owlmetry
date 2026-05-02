@@ -38,9 +38,13 @@ Each level returns:
 
 The `leaves` endpoint at the deepest level returns **two arrays side-by-side** — `keywords` and `ads`. Apple Search Ads attributes a user to one or the other depending on whether the install came from a search-keyword campaign or an auto-driven ad placement; the dashboard renders both so you don't miss either dimension.
 
+## All projects vs. single project
+
+The dashboard's `/dashboard/ads` page opens in **All projects** mode when the team has 2+ projects — campaigns are ranked across the whole team, with each row tagged by its owning project so you can compare acquisition performance side-by-side without flipping the project picker. Switch to a single project to see its campaigns in isolation. The CLI mirrors this with `owlmetry ads campaigns --team-id <id>` (mutually exclusive with `--project-id`); the MCP `list-ad-campaigns` tool accepts an optional `team_id`. Drill-downs (ad groups, keywords/ads) stay project-scoped — clicking into a row uses its `project_id`.
+
 ## Project + app filtering
 
-The dashboard view is project-wide by default. An optional **app filter** scopes the results to users acquired into a single app — useful for cross-app projects where one app dominates and you want to see attribution per-platform.
+In single-project mode, an optional **app filter** scopes the results to users acquired into a single app — useful for cross-app projects where one app dominates and you want to see attribution per-platform. The filter has no analogue in All projects mode (apps are project-scoped, so a multi-project app filter is meaningless).
 
 The app filter is a *user scope* filter, not a campaign filter: it joins `app_user_apps` and only counts users who've been seen from that app. A campaign that sent users to multiple apps shows once per app filter, which is usually what you want — the same campaign can perform very differently per platform.
 
