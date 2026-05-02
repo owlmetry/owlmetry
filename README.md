@@ -69,6 +69,7 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **Structured metrics** — define metrics, track operations with `startOperation`/`complete`/`fail`, query aggregations (counts, success rates, duration percentiles, error breakdowns) via API
 - **Funnel analytics** — define conversion funnels and let your agent query drop-off rates programmatically
 - **User properties** — attach custom key-value metadata to users (subscription status, plan tier, revenue) from SDKs or integrations; filter the Users list by billing tier (paid / trial / free)
+- **Advertising insights** — rank ad campaigns by lifetime USD revenue from attributed users, joining Apple Search Ads attribution with RevenueCat lifetime revenue. Dashboard `/dashboard/ads`, full CLI / MCP surface
 
 ### Integrations
 - **Third-party integrations** — per-project connections with a provider registry. Supports:
