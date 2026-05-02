@@ -1,0 +1,59 @@
+---
+title: Advertising Insights
+description: Rank acquisition campaigns, ad groups, keywords, and ads by the lifetime USD revenue they've driven. Apple Search Ads attribution joined to RevenueCat lifetime revenue.
+---
+
+Advertising Insights ranks your ad campaigns by **the lifetime USD revenue from users they brought in**. The hierarchy drills down from campaign → ad group → keyword and ad — surfaced as `/dashboard/ads`, the `owlmetry ads` CLI subcommand, and the `list-ad-*` MCP tools.
+
+For v1, the only attribution network populating this surface is **Apple Search Ads** (captured automatically by the Swift SDK and backfilled from RevenueCat). The schema is generic over an `attribution_source` dimension so adding Meta / Google Ads / TikTok later is a data-only change — no API rewrites.
+
+## What you need
+
+Two integrations, both per-project:
+
+1. **Apple Search Ads attribution** — captured for free by the Owlmetry Swift SDK on `Owl.configure()`. No code, no setup. See [Attribution](/docs/concepts/attribution).
+2. **RevenueCat** — the lifetime revenue numbers come from RevenueCat's V2 customer data (`total_revenue_in_usd`, summed across all of a customer's subscriptions, refunds netted by RC). Add a RevenueCat integration under `/dashboard/integrations` for any project where you want revenue rollups.
+
+The **Apple Ads integration** (Campaign Management API) is recommended too — without it, the dashboard still ranks campaigns, but they show as numeric IDs instead of human-readable names. The Swift SDK only captures Apple's numeric IDs; the integration resolves them to "Holiday US Campaign" rather than `542370539`.
+
+## How the numbers stay fresh
+
+Two refresh paths, both writing into the same `total_revenue_usd_cents` typed column on `app_users`:
+
+- **Webhook-triggered (real-time)**: every RevenueCat subscription webhook (`INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `CANCELLATION`, etc.) fires a fire-and-forget per-user resync against RC's V2 API. The user's lifetime revenue updates within seconds of the transaction.
+- **Daily reconciliation (03:00 UTC)**: the `revenuecat_sync` system job fans out across every project with an active RC integration and refreshes everyone. Catches anyone whose webhook was dropped (deploys, network blips), and backfills users on first deploy.
+
+Manual triggers exist on every surface (`POST /v1/projects/:id/ads/sync`, `owlmetry ads sync`, `sync-ads` MCP tool) for when you want to force-refresh without waiting for either path. Admin-only.
+
+## Hierarchy & metrics
+
+Each level returns:
+
+| Field | Meaning |
+|---|---|
+| `user_count` | Distinct attributed users at this level |
+| `paying_user_count` | Subset where `total_revenue_usd_cents > 0` |
+| `total_revenue_usd` | Sum of lifetime revenue across attributed users |
+| `arpu` | `total_revenue_usd / user_count`, 0 when no users |
+
+The `leaves` endpoint at the deepest level returns **two arrays side-by-side** — `keywords` and `ads`. Apple Search Ads attributes a user to one or the other depending on whether the install came from a search-keyword campaign or an auto-driven ad placement; the dashboard renders both so you don't miss either dimension.
+
+## Project + app filtering
+
+The dashboard view is project-wide by default. An optional **app filter** scopes the results to users acquired into a single app — useful for cross-app projects where one app dominates and you want to see attribution per-platform.
+
+The app filter is a *user scope* filter, not a campaign filter: it joins `app_user_apps` and only counts users who've been seen from that app. A campaign that sent users to multiple apps shows once per app filter, which is usually what you want — the same campaign can perform very differently per platform.
+
+## When the page is empty
+
+A project with no users carrying `attribution_source = 'apple_search_ads'` shows an empty state. Things to check:
+
+- **Apple Search Ads attribution requires the Swift SDK** at version supporting AdServices capture. Free for iOS / iPadOS / macOS; auto on `Owl.configure()`. Web and Android apps don't capture ASA — those installs come up as `attribution_source = 'none'`.
+- **TestFlight / Xcode / simulator installs** show as `attribution_source = 'apple_test_install'` and are deliberately excluded from this page (Apple's AdServices API returns a fixed dummy payload for non-production builds).
+- **Brand-new projects**: it can take ~24 hours from a real install for Apple's AdServices record to be ready. Until then, a captured user shows `attribution_source = 'none'` (or `'apple_search_ads'` with no `asa_*` IDs while the SDK is still in pending-retry).
+
+If users *do* carry the right attribution but revenue is zero across the board, RevenueCat hasn't synced yet — manually trigger via the dashboard "Sync now" button, the CLI, or the MCP tool.
+
+## API reference
+
+See [Ads API reference](/docs/api-reference/ads) for endpoint shapes, query parameters, and response types.

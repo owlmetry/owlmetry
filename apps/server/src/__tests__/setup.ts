@@ -42,6 +42,7 @@ import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
 import { reviewsRoutes, teamReviewsRoutes } from "../routes/reviews.js";
 import { ratingsRoutes, teamRatingsRoutes } from "../routes/ratings.js";
+import { adsRoutes } from "../routes/ads.js";
 import { notificationsRoutes } from "../routes/notifications.js";
 import { devicesRoutes } from "../routes/devices.js";
 import { mcpRoute } from "../mcp/index.js";
@@ -423,6 +424,7 @@ export async function buildApp() {
     emailService: testEmailService as EmailService,
   });
   jobRunner.register("revenuecat_sync", testJobHandler);
+  jobRunner.register("apple_ads_sync", testJobHandler);
   jobRunner.register("test_job", testJobHandler);
 
   const notificationDispatcher = new NotificationDispatcher({
@@ -478,6 +480,7 @@ export async function buildApp() {
   await app.register(teamReviewsRoutes, { prefix: "/v1" });
   await app.register(ratingsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamRatingsRoutes, { prefix: "/v1" });
+  await app.register(adsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(notificationsRoutes, { prefix: "/v1" });
   await app.register(devicesRoutes, { prefix: "/v1" });
   await app.register(mcpRoute);

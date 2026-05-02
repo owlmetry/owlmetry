@@ -16,6 +16,7 @@
     "integrations",
     "jobs",
     "attachments",
-    "notifications"
+    "notifications",
+    "ads"
   ]
 }

@@ -51,6 +51,8 @@ export function serializeAppUser(u: {
   last_app_version?: string | null;
   last_sdk_name?: string | null;
   last_sdk_version?: string | null;
+  total_revenue_usd_cents?: number | null;
+  revenue_synced_at?: Date | null;
 }) {
   return {
     id: u.id,
@@ -71,6 +73,8 @@ export function serializeAppUser(u: {
     last_app_version: u.last_app_version ?? null,
     last_sdk_name: u.last_sdk_name ?? null,
     last_sdk_version: u.last_sdk_version ?? null,
+    total_revenue_usd_cents: u.total_revenue_usd_cents ?? null,
+    revenue_synced_at: u.revenue_synced_at?.toISOString() ?? null,
   };
 }
 

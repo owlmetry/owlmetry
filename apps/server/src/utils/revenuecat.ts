@@ -70,7 +70,7 @@ export interface RevenueCatV2CustomerExpanded {
 }
 
 // V2 subscription object. Fields below are the ones we consume — the real
-// response has more (entitlements, total_revenue_in_usd, store metadata, etc).
+// response has more (entitlements, store metadata, etc).
 export interface RevenueCatV2Subscription {
   object: "subscription";
   id: string;
@@ -85,6 +85,10 @@ export interface RevenueCatV2Subscription {
   gives_access: boolean;
   store: string;
   ownership: string;
+  // RC pre-computes lifetime USD revenue per subscription (sum of every
+  // renewal/initial purchase, refunds subtracted). The number rolls up to a
+  // customer's lifetime value via SUM across `RevenueCatV2SubscriptionsResponse.items`.
+  total_revenue_in_usd?: number;
 }
 
 export interface RevenueCatV2SubscriptionsResponse {
@@ -380,4 +384,25 @@ export function mapSubscriberToProperties(
   props.rc_will_renew = willRenew ? "true" : "false";
 
   return props;
+}
+
+/**
+ * Sum a customer's lifetime USD revenue across their V2 subscriptions.
+ * Returns null when the response is missing or has no subscriptions; otherwise
+ * always a non-negative number (subscriptions without `total_revenue_in_usd`
+ * contribute 0). Refunds are already netted by RC on the per-subscription field.
+ */
+export function sumLifetimeRevenueUsd(
+  subscriptions: RevenueCatV2SubscriptionsResponse | undefined,
+): number | null {
+  if (!subscriptions) return null;
+  const items = subscriptions.items ?? [];
+  if (items.length === 0) return 0;
+  let total = 0;
+  for (const sub of items) {
+    if (typeof sub.total_revenue_in_usd === "number" && Number.isFinite(sub.total_revenue_in_usd)) {
+      total += sub.total_revenue_in_usd;
+    }
+  }
+  return total < 0 ? 0 : total;
 }

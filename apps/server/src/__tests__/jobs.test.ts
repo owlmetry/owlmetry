@@ -55,7 +55,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });
@@ -72,13 +72,13 @@ describe("Job Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = res.json();
       expect(body.job_runs.length).toBeGreaterThanOrEqual(1);
-      expect(body.job_runs[0].job_type).toBe("revenuecat_sync");
+      expect(body.job_runs[0].job_type).toBe("apple_ads_sync");
     });
 
     it("filters by job_type", async () => {
       const res = await app.inject({
         method: "GET",
-        url: `/v1/teams/${teamId}/jobs?job_type=revenuecat_sync`,
+        url: `/v1/teams/${teamId}/jobs?job_type=apple_ads_sync`,
         headers: { authorization: `Bearer ${token}` },
       });
 
@@ -117,15 +117,14 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });
-
       expect(res.statusCode).toBe(201);
       const body = res.json();
       expect(body.job_run).toBeDefined();
-      expect(body.job_run.job_type).toBe("revenuecat_sync");
+      expect(body.job_run.job_type).toBe("apple_ads_sync");
       expect(body.job_run.team_id).toBe(teamId);
       expect(body.job_run.project_id).toBe(projectId);
       expect(["pending", "running", "completed"]).toContain(body.job_run.status);
@@ -164,7 +163,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
         },
       });
 
@@ -174,7 +173,7 @@ describe("Job Routes", () => {
 
     it("prevents duplicate running jobs", async () => {
       // Register a slow test handler
-      app.jobRunner.register("revenuecat_sync", async (ctx) => {
+      app.jobRunner.register("apple_ads_sync", async (ctx) => {
         await new Promise((r) => setTimeout(r, 5000));
         return { test: true };
       });
@@ -185,7 +184,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });
@@ -200,7 +199,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });
@@ -214,7 +213,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
           notify: true,
         },
@@ -232,7 +231,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });
@@ -263,7 +262,7 @@ describe("Job Routes", () => {
   describe("POST /v1/jobs/:runId/cancel", () => {
     it("cancels a running job", async () => {
       // Register a slow handler
-      app.jobRunner.register("revenuecat_sync", async (ctx) => {
+      app.jobRunner.register("apple_ads_sync", async (ctx) => {
         while (!ctx.isCancelled()) {
           await new Promise((r) => setTimeout(r, 100));
         }
@@ -275,7 +274,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });
@@ -301,7 +300,7 @@ describe("Job Routes", () => {
         url: `/v1/teams/${teamId}/jobs/trigger`,
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: projectId,
         },
       });

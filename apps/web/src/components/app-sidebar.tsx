@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Filter, KeyRound, Users, UserSearch, ClipboardList, Cog, BookOpen, Plug, Bug, MessageSquare, Star } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScrollText, BarChart3, Filter, KeyRound, Users, UserSearch, ClipboardList, Cog, BookOpen, Plug, Bug, MessageSquare, Star, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
@@ -23,6 +23,7 @@ const navItems = [
   { href: "/dashboard/issues", label: "Issues", icon: Bug },
   { href: "/dashboard/feedback", label: "Feedback", icon: MessageSquare },
   { href: "/dashboard/reviews", label: "Ratings/Reviews", icon: Star },
+  { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
   { href: "/dashboard/users", label: "Users", icon: UserSearch },
   { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
   { href: "/dashboard/funnels", label: "Funnels", icon: Filter },

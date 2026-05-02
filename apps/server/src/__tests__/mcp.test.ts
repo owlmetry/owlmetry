@@ -898,17 +898,14 @@ describe("MCP endpoint", () => {
     it("trigger-job and get-job round-trip", async () => {
       const { key, teamId } = await createFullAgentKey();
 
-      // Set up revenuecat integration (required for revenuecat_sync)
-      await callTool(key, "add-integration", {
-        project_id: testData.projectId,
-        provider: "revenuecat",
-        config: { api_key: "rc_test_key" },
-      });
-
+      // Use apple_ads_sync — the only project-scoped job remaining now that
+      // revenuecat_sync runs on a daily cron at system scope. The job will
+      // 400 because there's no apple-ads integration, but trigger-job creates
+      // a job_run row before the handler runs, which is what we test here.
       const { parsed: triggered, isError: triggerErr } = parseToolResult(
         await callTool(key, "trigger-job", {
           team_id: teamId,
-          job_type: "revenuecat_sync",
+          job_type: "apple_ads_sync",
           project_id: testData.projectId,
         }),
       );
@@ -921,7 +918,7 @@ describe("MCP endpoint", () => {
         await callTool(key, "get-job", { run_id: triggered.job_run.id }),
       );
       expect(getErr).toBe(false);
-      expect(details.job_run.job_type).toBe("revenuecat_sync");
+      expect(details.job_run.job_type).toBe("apple_ads_sync");
     });
   });
 

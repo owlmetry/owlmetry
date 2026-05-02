@@ -146,6 +146,20 @@ User properties written:
 
 **Debugging "none"**: the SDK emits \`sdk:attribution_capture\` events for each capture attempt with outcomes (\`success\`, \`pending\`, \`gave_up\`, \`token_fetch_failed\`, \`invalid_token\`, \`transport_failure\`). When a specific install shows \`attribution_source = "none"\` and you need to know why, \`query-events\` with \`message: "sdk:attribution_capture"\` and the user's \`user_id\` (or their session) will show the outcome and retry history.
 
+### Advertising Insights
+
+Ranks acquisition campaigns by the lifetime USD revenue they've generated. The hierarchy is **campaign → ad group → keyword | ad** (ad groups contain both keywords and ads in Apple Search Ads — keyword-driven and auto-driven placements get attributed differently). Today only \`attribution_source = "apple_search_ads"\` is populated; the schema and tools accept any value in \`ATTRIBUTION_NETWORK_DIMENSIONS\`, so future Meta/Google/TikTok networks slot in without API changes.
+
+**Where the numbers come from**: per-user lifetime revenue is summed across the RevenueCat V2 \`/subscriptions\` response (\`total_revenue_in_usd\` per subscription, refunds netted by RC) and stored as a typed \`total_revenue_usd_cents\` column on \`app_users\`. Two refresh paths keep it fresh: (1) every RC subscription webhook fire-and-forgets a per-user resync against RC's API — typically within seconds of the transaction; (2) the daily \`revenuecat_sync\` cron at 03:00 UTC fans out across every project and reconciles anyone whose webhook was dropped.
+
+**Tool reference**:
+- \`list-ad-campaigns\` — top campaigns for a project, sorted by revenue desc. Each row has \`user_count\`, \`paying_user_count\`, \`total_revenue_usd\`, \`arpu\`. Optional \`app_id\` scopes to one app; useful for cross-app projects where you want per-app attribution numbers.
+- \`list-ad-groups\` — drill into a campaign. Same row shape.
+- \`list-ad-leaves\` — within an ad group, returns \`keywords\` and \`ads\` arrays side-by-side. Look at both — for keyword-targeted campaigns the keyword side dominates; for Search Match / Discovery campaigns the ad side will.
+- \`sync-ads\` — admin-only manual refresh. Fires \`revenuecat_sync\` (lifetime revenue) and \`apple_ads_sync\` (resolves any unresolved ASA IDs to readable names) for the project.
+
+**Empty results**: a project with no users carrying \`attribution_source = 'apple_search_ads'\` returns an empty list. Check the integration setup — Apple Search Ads attribution is captured by the Swift SDK (auto, no code) and backfilled by RevenueCat sync; both should be enabled for a project to populate this surface.
+
 ### Issues
 Error events are automatically scanned hourly and grouped into **issues** via fingerprinting (normalized error message + source module). Each issue tracks:
 - **Occurrences**: one per unique session. Each occurrence records the \`session_id\`, \`user_id\`, \`event_id\`, \`app_version\`, and \`environment\` — use these to drill into what happened.
@@ -287,6 +301,12 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 - \`get-attachment\` — metadata + 60-second signed download URL
 - \`delete-attachment\` — soft-delete once no longer useful (frees quota)
 - \`get-project-attachment-usage\` — check quota headroom before recommending re-runs
+
+### Advertising Insights
+- \`list-ad-campaigns\` — campaigns ranked by lifetime USD revenue (per attribution_source; defaults to apple_search_ads)
+- \`list-ad-groups\` — drill into a campaign
+- \`list-ad-leaves\` — keywords + ads side-by-side within an ad group
+- \`sync-ads\` — admin-only manual refresh (fires revenuecat_sync + apple_ads_sync for the project)
 
 ### Integrations
 - \`list-providers\` — Supported providers and config fields

@@ -67,10 +67,19 @@ export const JOB_TYPE_META: Record<
   },
   revenuecat_sync: {
     label: "RevenueCat Sync",
-    description: "Syncs subscriber data from RevenueCat for all users in a project",
-    scope: "project",
-    default_schedule: null,
-    params: [],
+    description:
+      "Syncs subscriber data from RevenueCat (subscriptions, entitlements, attribution, lifetime USD revenue). With no project_id, fans out across every project that has an active RevenueCat integration. With project_id set, syncs that single project only (manual-trigger path).",
+    scope: "system",
+    default_schedule: "0 3 * * *",
+    params: [
+      {
+        name: "project_id",
+        description:
+          "Sync only the given project instead of fanning out across all projects with an active RevenueCat integration",
+        type: "string",
+        required: false,
+      },
+    ],
   },
   retention_cleanup: {
     label: "Data Retention Cleanup",

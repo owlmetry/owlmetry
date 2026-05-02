@@ -498,6 +498,9 @@ export interface AppUserResponse {
   last_app_version: string | null;
   last_sdk_name: string | null;
   last_sdk_version: string | null;
+  /** Lifetime USD revenue in cents (e.g. 4295 → $42.95). Null pre-RC-sync. */
+  total_revenue_usd_cents: number | null;
+  revenue_synced_at: string | null;
 }
 
 export interface AppUsersResponse {

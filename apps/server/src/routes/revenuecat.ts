@@ -276,6 +276,52 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       await mergeUserProperties(app.db, projectId, userId, combinedProps);
 
+      // Subscription events change the customer's lifetime revenue
+      // (`total_revenue_in_usd`), which the webhook payload doesn't carry.
+      // Fire-and-forget a per-user resync against RC's V2 API so the typed
+      // `total_revenue_usd_cents` column stays fresh within seconds of the
+      // event, instead of waiting for the next daily reconciliation. Same
+      // pattern as the TRANSFER branch above; webhook ack stays fast.
+      if (SUBSCRIPTION_EVENT_TYPES.has(event.type)) {
+        void (async () => {
+          try {
+            const projectIdResult = await fetchRevenueCatProjectId(config.api_key);
+            if (projectIdResult.status !== "found") {
+              request.log.warn(
+                { projectId, eventId: event.id, status: projectIdResult.status },
+                "Subscription event resync aborted — could not resolve RevenueCat project",
+              );
+              return;
+            }
+            const result = await syncRevenueCatUserProperties({
+              db: app.db,
+              log: app.log,
+              projectId,
+              rcProjectId: projectIdResult.projectId,
+              config,
+              userId,
+            });
+            if (result.status === "error") {
+              request.log.warn(
+                {
+                  projectId,
+                  userId,
+                  eventId: event.id,
+                  statusCode: result.statusCode,
+                  message: result.message,
+                },
+                "Subscription event resync got RC error",
+              );
+            }
+          } catch (err) {
+            request.log.error(
+              { err, projectId, userId, eventId: event.id },
+              "Subscription event resync failed",
+            );
+          }
+        })();
+      }
+
       return { received: true };
     }
   );

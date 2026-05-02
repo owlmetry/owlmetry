@@ -280,11 +280,20 @@ export const appUsers = pgTable(
     last_app_version: varchar("last_app_version", { length: 50 }),
     last_sdk_name: varchar("last_sdk_name", { length: 50 }),
     last_sdk_version: varchar("last_sdk_version", { length: 50 }),
+    // Lifetime USD revenue (no `rc_` prefix — source-agnostic so future
+    // providers like Superwall/Stripe can land without a column rename).
+    // Today only the RevenueCat sync writes here, summing
+    // `total_revenue_in_usd` across the V2 subscriptions response.
+    total_revenue_usd_cents: bigint("total_revenue_usd_cents", { mode: "number" }),
+    revenue_synced_at: timestamp("revenue_synced_at", { withTimezone: true }),
   },
   (table) => [
     uniqueIndex("app_users_project_user_idx").on(table.project_id, table.user_id),
     index("app_users_project_anonymous_idx").on(table.project_id, table.is_anonymous),
     index("app_users_project_last_seen_idx").on(table.project_id, table.last_seen_at),
+    index("app_users_project_revenue_idx")
+      .on(table.project_id, table.total_revenue_usd_cents)
+      .where(sql`${table.total_revenue_usd_cents} IS NOT NULL`),
   ]
 );
 

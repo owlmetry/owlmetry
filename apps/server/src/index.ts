@@ -31,6 +31,7 @@ import { issuesRoutes, teamIssuesRoutes } from "./routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "./routes/feedback.js";
 import { reviewsRoutes, teamReviewsRoutes } from "./routes/reviews.js";
 import { ratingsRoutes, teamRatingsRoutes } from "./routes/ratings.js";
+import { adsRoutes } from "./routes/ads.js";
 import { notificationsRoutes } from "./routes/notifications.js";
 import { devicesRoutes } from "./routes/devices.js";
 import { mcpRoute } from "./mcp/index.js";
@@ -140,6 +141,18 @@ jobRunner.schedule({
   params: () => ({}),
 });
 jobRunner.schedule({
+  jobType: "revenuecat_sync",
+  // Daily 03:00 UTC in prod (before app_store_ratings_sync at 04:30 and
+  // app_store_connect_reviews_sync at 05:30). Fans out across every project
+  // with an active RevenueCat integration. Per-project failures are isolated
+  // so one bad key doesn't kill the run for others. Dev runs every 30 min for
+  // observability. Manual single-project triggers (`POST .../revenuecat/sync`)
+  // bypass the cron via the same handler with `params.project_id` set.
+  cron: isDev ? "*/30 * * * *" : "0 3 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
   jobType: "app_store_ratings_sync",
   // Daily 04:30 UTC in prod (between 04:00 partition_creation and 05:00
   // attachment_cleanup). Dev runs every 30 min so iteration is observable.
@@ -218,6 +231,7 @@ await app.register(reviewsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamReviewsRoutes, { prefix: "/v1" });
 await app.register(ratingsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamRatingsRoutes, { prefix: "/v1" });
+await app.register(adsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(notificationsRoutes, { prefix: "/v1" });
 await app.register(devicesRoutes, { prefix: "/v1" });
 await app.register(mcpRoute);

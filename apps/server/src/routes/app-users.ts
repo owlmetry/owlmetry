@@ -132,6 +132,8 @@ export async function appUsersRoutes(app: FastifyInstance) {
           last_app_version: appUsers.last_app_version,
           last_sdk_name: appUsers.last_sdk_name,
           last_sdk_version: appUsers.last_sdk_version,
+          total_revenue_usd_cents: appUsers.total_revenue_usd_cents,
+          revenue_synced_at: appUsers.revenue_synced_at,
         })
         .from(appUsers)
         .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))
@@ -278,6 +280,8 @@ export async function appUsersRoutes(app: FastifyInstance) {
               last_app_version: appUsers.last_app_version,
               last_sdk_name: appUsers.last_sdk_name,
               last_sdk_version: appUsers.last_sdk_version,
+              total_revenue_usd_cents: appUsers.total_revenue_usd_cents,
+              revenue_synced_at: appUsers.revenue_synced_at,
             })
             .from(appUsers)
             .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))

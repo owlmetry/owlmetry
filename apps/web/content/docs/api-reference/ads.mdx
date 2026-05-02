@@ -1,0 +1,130 @@
+---
+title: Ads
+description: Advertising-insights API — rank campaigns, ad groups, keywords, and ads by lifetime USD revenue from attributed users.
+---
+
+The Ads API surfaces [Advertising Insights](/docs/concepts/advertising-insights) — a ranked view of ad campaigns, ad groups, keywords, and ads by the lifetime USD revenue they've driven. The data is computed at query time from `app_users.properties` (attribution) joined to `app_users.total_revenue_usd_cents` (RevenueCat lifetime revenue).
+
+All endpoints are project-scoped and require `users:read` for read paths or `users:write` for the manual sync trigger.
+
+## Common types
+
+```ts
+interface AdsRow {
+  id: string;          // Network-specific ID (e.g. ASA campaign ID)
+  name: string | null; // Resolved name; null when not yet enriched
+  user_count: number;
+  paying_user_count: number;
+  total_revenue_usd: number;
+  arpu: number;        // total_revenue_usd / user_count, 0 when no users
+}
+```
+
+`attribution_source` query parameter values currently supported:
+
+| Value | Description |
+|---|---|
+| `apple_search_ads` | Default. Captured by the Swift SDK + backfilled by RevenueCat. |
+
+The hierarchy is identical across networks (`campaign → ad group → keyword | ad`), implemented via `ATTRIBUTION_NETWORK_DIMENSIONS` in shared. Future networks plug in there.
+
+## GET /v1/projects/:projectId/ads/campaigns
+
+List campaigns ranked by `total_revenue_usd` desc, then `user_count` desc, then `id` asc.
+
+**Auth required:** Yes (`users:read`)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `attribution_source` | string | Defaults to `apple_search_ads`. |
+| `app_id` | string | Scope to users acquired into a single app. |
+| `limit` | number | Max rows (1–500, default 100). |
+
+### Response
+
+```json
+{
+  "attribution_source": "apple_search_ads",
+  "campaigns": [
+    {
+      "id": "542370539",
+      "name": "Holiday US Campaign",
+      "user_count": 1234,
+      "paying_user_count": 218,
+      "total_revenue_usd": 4598.12,
+      "arpu": 3.73
+    }
+  ],
+  "total_user_count": 1234,
+  "total_paying_user_count": 218,
+  "total_revenue_usd": 4598.12,
+  "revenue_synced_at": "2026-05-01T03:00:00.000Z"
+}
+```
+
+`revenue_synced_at` is the most recent `app_users.revenue_synced_at` across the project — surfaces "as of" freshness without per-row timestamps.
+
+## GET /v1/projects/:projectId/ads/campaigns/:campaignId/ad-groups
+
+Drill into a campaign. Same row shape as campaigns.
+
+**Auth required:** Yes (`users:read`)
+
+### Query parameters
+
+Same as campaigns.
+
+### Response
+
+```json
+{
+  "attribution_source": "apple_search_ads",
+  "campaign_id": "542370539",
+  "campaign_name": "Holiday US Campaign",
+  "ad_groups": [ /* AdsRow[] */ ]
+}
+```
+
+## GET /v1/projects/:projectId/ads/campaigns/:campaignId/ad-groups/:adGroupId/leaves
+
+Within a single ad group, returns **both** `keywords` and `ads` arrays side-by-side. Apple Search Ads attributes each user to one or the other.
+
+**Auth required:** Yes (`users:read`)
+
+### Query parameters
+
+Same as campaigns. (No `leaf_type` filter — the response always includes both.)
+
+### Response
+
+```json
+{
+  "attribution_source": "apple_search_ads",
+  "campaign_id": "542370539",
+  "campaign_name": "Holiday US Campaign",
+  "ad_group_id": "111222333",
+  "ad_group_name": "Holiday App Install",
+  "keywords": [ /* AdsRow[] */ ],
+  "ads": [ /* AdsRow[] */ ]
+}
+```
+
+## POST /v1/projects/:projectId/ads/sync
+
+Manually trigger a refresh of advertising insights for the project. Fires `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names) in parallel.
+
+**Auth required:** Yes (`users:write`, **admin role**)
+
+### Response
+
+```json
+{
+  "syncing": true,
+  "revenuecat_job_run_id": "uuid",
+  "apple_ads_job_run_id": "uuid"
+}
+```
+
+The daily `revenuecat_sync` cron (03:00 UTC) runs automatically across every project — manual sync is for forcing freshness between cron runs or after onboarding a new RevenueCat integration.

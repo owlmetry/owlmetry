@@ -13,6 +13,7 @@ import { AppBadge } from "@/components/badges/app-badge";
 import { UserTypeBadge } from "@/components/badges/user-type-badge";
 import { formatDateTime } from "@/lib/format-date";
 import { formatSdkLabel } from "@/lib/format-sdk";
+import { formatUsd } from "@/lib/currency";
 import { timeAgoOrDate } from "@/app/dashboard/_components/time-ago";
 
 export interface UserColumnHelpers {
@@ -161,6 +162,19 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
     render: (user) => {
       const label = formatSdkLabel(user.last_sdk_name, user.last_sdk_version);
       return label || <span className="text-muted-foreground">—</span>;
+    },
+  },
+  lifetime_revenue: {
+    id: "lifetime_revenue",
+    label: "Lifetime Revenue",
+    headerClassName: "w-[140px]",
+    cellClassName: "text-xs py-1.5 tabular-nums text-right",
+    render: (user) => {
+      const cents = user.total_revenue_usd_cents;
+      if (cents === null || cents === undefined) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return formatUsd(cents / 100);
     },
   },
 };

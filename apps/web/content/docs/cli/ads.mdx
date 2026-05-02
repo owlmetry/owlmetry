@@ -1,0 +1,59 @@
+---
+title: Ads
+description: Rank acquisition campaigns, ad groups, keywords, and ads by lifetime USD revenue from the terminal.
+---
+
+The `owlmetry ads` subcommand surfaces [Advertising Insights](/docs/concepts/advertising-insights) — campaigns ranked by the lifetime USD revenue of users they brought in. Drill from campaigns into ad groups, then into keywords + ads.
+
+## List campaigns
+
+```bash
+owlmetry ads campaigns --project-id <id> [--app-id <id>] [--source apple_search_ads] [--limit <n>]
+```
+
+Lists campaigns ranked by total lifetime revenue desc.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | Yes | Project UUID |
+| `--app-id <id>` | No | Scope to users acquired into a single app |
+| `--source <source>` | No | Attribution network. Defaults to `apple_search_ads` (only value populated today) |
+| `--limit <n>` | No | Max rows (1–500, default 100) |
+
+## Drill into a campaign
+
+```bash
+owlmetry ads ad-groups <campaignId> --project-id <id> [--app-id <id>] [--source <source>] [--limit <n>]
+```
+
+Lists ad groups within a campaign, ranked by revenue.
+
+`<campaignId>` is the network-specific ID returned by `ads campaigns` (e.g. an Apple Search Ads campaign ID).
+
+## List keywords + ads in an ad group
+
+```bash
+owlmetry ads leaves <adGroupId> --campaign-id <id> --project-id <id> [--app-id <id>] [--source <source>] [--limit <n>]
+```
+
+Returns two ranked tables side-by-side: **keywords** and **ads**. Apple Search Ads attributes a user to one or the other depending on whether the install came from a search keyword or an auto-driven ad placement.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `<adGroupId>` | Yes | Ad group ID (from `ads ad-groups`) |
+| `--campaign-id <id>` | Yes | Parent campaign ID |
+| `--project-id <id>` | Yes | Project UUID |
+
+## Trigger a manual sync
+
+```bash
+owlmetry ads sync --project-id <id>
+```
+
+Fires `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names) for the project. **Admin-only.**
+
+The daily `revenuecat_sync` cron at 03:00 UTC runs automatically across every project — use this command to force-refresh between cron runs or right after onboarding a new RevenueCat integration.
+
+## Output
+
+Default `table` format renders ranked tables with columns: name, users, paying users, revenue, ARPU. Pass `--format json` for the raw API response (structured `AdsCampaignsResponse`, `AdsAdGroupsResponse`, `AdsLeavesResponse`).

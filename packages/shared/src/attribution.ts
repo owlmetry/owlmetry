@@ -77,6 +77,45 @@ export const ASA_ID_NAME_PAIRS = [
   { idKey: "asa_ad_id", nameKey: "asa_ad_name" },
 ] as const;
 
+/**
+ * Per-network mapping from logical hierarchy levels (campaign, ad group,
+ * keyword, ad) to the property keys stored on `app_users.properties`. Used
+ * by the advertising-insights routes/SQL aggregator so the same code path
+ * works across networks — adding Meta/Google/TikTok later is one map entry.
+ *
+ * `attribution_source` values used as keys here match
+ * `ATTRIBUTION_SOURCE_VALUES` (e.g. `"apple_search_ads"`).
+ */
+export interface AttributionNetworkDimensions {
+  campaignIdKey: string;
+  campaignNameKey: string;
+  adGroupIdKey: string;
+  adGroupNameKey: string;
+  keywordIdKey: string;
+  keywordNameKey: string;
+  adIdKey: string;
+  adNameKey: string;
+}
+
+export const ATTRIBUTION_NETWORK_DIMENSIONS: Record<string, AttributionNetworkDimensions> = {
+  apple_search_ads: {
+    campaignIdKey: "asa_campaign_id",
+    campaignNameKey: "asa_campaign_name",
+    adGroupIdKey: "asa_ad_group_id",
+    adGroupNameKey: "asa_ad_group_name",
+    keywordIdKey: "asa_keyword_id",
+    keywordNameKey: "asa_keyword",
+    adIdKey: "asa_ad_id",
+    adNameKey: "asa_ad_name",
+  },
+};
+
+export type AdsAttributionSource = keyof typeof ATTRIBUTION_NETWORK_DIMENSIONS;
+
+export const ADS_ATTRIBUTION_SOURCES = Object.keys(
+  ATTRIBUTION_NETWORK_DIMENSIONS,
+) as AdsAttributionSource[];
+
 // All property keys the attribution subsystem may write for a user. Useful
 // for UI filters that need to distinguish attribution props from custom ones.
 export const ATTRIBUTION_RESERVED_KEYS: readonly string[] = [
@@ -116,6 +155,52 @@ export const ATTRIBUTION_COLUMN_KEYS: AttributionColumnKey[] = [
 // and writing `attribution_source="none"`. Apple's attribution record can
 // take up to ~24h to populate, so 5 launches covers ~1–2 days of normal use.
 export const ASA_MAX_PENDING_ATTEMPTS = 5;
+
+// --- Advertising insights types ---
+//
+// Shared between the dashboard, CLI, and MCP. The hierarchy `campaign →
+// ad_group → keyword|ad` is generic over `attribution_source` — see
+// `ATTRIBUTION_NETWORK_DIMENSIONS`.
+
+export type AdsLeafType = "keyword" | "ad";
+
+export interface AdsRow {
+  /** Network-specific ID (e.g. ASA campaign ID). */
+  id: string;
+  /** Resolved name; null pre-enrichment (ID known, name not yet). */
+  name: string | null;
+  user_count: number;
+  paying_user_count: number;
+  total_revenue_usd: number;
+  arpu: number;
+}
+
+export interface AdsCampaignsResponse {
+  attribution_source: string;
+  campaigns: AdsRow[];
+  total_user_count: number;
+  total_paying_user_count: number;
+  total_revenue_usd: number;
+  /** Most recent `revenue_synced_at` across the project's RC-synced users; null when never synced. */
+  revenue_synced_at: string | null;
+}
+
+export interface AdsAdGroupsResponse {
+  attribution_source: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  ad_groups: AdsRow[];
+}
+
+export interface AdsLeavesResponse {
+  attribution_source: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  ad_group_id: string;
+  ad_group_name: string | null;
+  keywords: AdsRow[];
+  ads: AdsRow[];
+}
 
 // Dev-mock values accepted by the attribution route when NODE_ENV !== "production".
 // Lets local/integration tests exercise every branch without hitting Apple.
