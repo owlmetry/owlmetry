@@ -98,7 +98,7 @@ Team-scoped campaign ranking. Aggregates campaigns across every project the call
 
 ### Response
 
-Same shape as the project-scoped campaigns response, but each row in `campaigns` is a `TeamAdsRow` carrying an extra `project_id`:
+Same shape as the project-scoped campaigns response, but each row in `campaigns` is a `TeamAdsRow` carrying an extra `project_id`. Spend / ROAS join per-`(project_id, campaign)` against each project's own `ad_campaign_lifetime` rows, so two ASA orgs with same-named campaigns stay distinct rows.
 
 ```json
 {
@@ -111,13 +111,20 @@ Same shape as the project-scoped campaigns response, but each row in `campaigns`
       "user_count": 1234,
       "paying_user_count": 218,
       "total_revenue_usd": 4598.12,
-      "arpu": 3.73
+      "arpu": 3.73,
+      "total_spend_usd": 1820.50,
+      "roas": 2.53,
+      "start_date": "2025-11-15",
+      "status": "ENABLED"
     }
   ],
   "total_user_count": 1234,
   "total_paying_user_count": 218,
   "total_revenue_usd": 4598.12,
-  "revenue_synced_at": "2026-05-01T03:00:00.000Z"
+  "total_spend_usd": 1820.50,
+  "revenue_synced_at": "2026-05-01T03:00:00.000Z",
+  "ad_metrics_synced_at": "2026-05-01T04:45:00.000Z",
+  "currency_warning": null
 }
 ```
 
@@ -138,7 +145,10 @@ Same as campaigns.
   "attribution_source": "apple_search_ads",
   "campaign_id": "542370539",
   "campaign_name": "Holiday US Campaign",
-  "ad_groups": [ /* AdsRow[] */ ]
+  "ad_groups": [ /* AdsRow[] */ ],
+  "total_spend_usd": 1820.50,
+  "ad_metrics_synced_at": "2026-05-01T04:45:00.000Z",
+  "currency_warning": null
 }
 ```
 
@@ -168,7 +178,7 @@ Same as campaigns. (No `leaf_type` filter — the response always includes both.
 
 ## POST /v1/projects/:projectId/ads/sync
 
-Manually trigger a refresh of advertising insights for the project. Fires `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names) in parallel.
+Manually trigger a refresh of advertising insights for the project. Fires `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names AND pulls campaign + ad-group spend / impressions / taps / installs from Apple's Reports API into `ad_campaign_lifetime` + `ad_adgroup_lifetime`) in parallel.
 
 **Auth required:** Yes (`users:write`, **admin role**)
 
@@ -182,4 +192,4 @@ Manually trigger a refresh of advertising insights for the project. Fires `reven
 }
 ```
 
-The daily `revenuecat_sync` cron (03:00 UTC) runs automatically across every project — manual sync is for forcing freshness between cron runs or after onboarding a new RevenueCat integration.
+Both jobs also run on a daily cron — `revenuecat_sync` at 03:00 UTC, `apple_ads_sync` at 04:45 UTC, both fanning out across every project with the relevant integration. Manual sync is for forcing freshness between cron runs or right after onboarding a new RevenueCat or Apple Search Ads integration.

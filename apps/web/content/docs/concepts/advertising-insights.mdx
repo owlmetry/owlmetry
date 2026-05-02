@@ -3,7 +3,7 @@ title: Advertising Insights
 description: Rank acquisition campaigns, ad groups, keywords, and ads by the lifetime USD revenue they've driven. Apple Search Ads attribution joined to RevenueCat lifetime revenue.
 ---
 
-Advertising Insights ranks your ad campaigns by **the lifetime USD revenue from users they brought in**. The hierarchy drills down from campaign → ad group → keyword and ad — surfaced as `/dashboard/ads`, the `owlmetry ads` CLI subcommand, and the `list-ad-*` MCP tools.
+Advertising Insights ranks your ad campaigns by **the lifetime USD revenue from users they brought in** — and, when an Apple Search Ads integration is connected, by **spend / ROAS** alongside, so you can see which campaigns earn back what they cost. The hierarchy drills down from campaign → ad group → keyword and ad — surfaced as `/dashboard/ads`, the `owlmetry ads` CLI subcommand, and the `list-ad-*` MCP tools.
 
 For v1, the only attribution network populating this surface is **Apple Search Ads** (captured automatically by the Swift SDK and backfilled from RevenueCat). The schema is generic over an `attribution_source` dimension so adding Meta / Google Ads / TikTok later is a data-only change — no API rewrites.
 
@@ -14,16 +14,18 @@ Two integrations, both per-project:
 1. **Apple Search Ads attribution** — captured for free by the Owlmetry Swift SDK on `Owl.configure()`. No code, no setup. See [Attribution](/docs/concepts/attribution).
 2. **RevenueCat** — the lifetime revenue numbers come from RevenueCat's V2 customer data (`total_revenue_in_usd`, summed across all of a customer's subscriptions, refunds netted by RC). Add a RevenueCat integration under `/dashboard/integrations` for any project where you want revenue rollups.
 
-The **Apple Ads integration** (Campaign Management API) is recommended too — without it, the dashboard still ranks campaigns, but they show as numeric IDs instead of human-readable names. The Swift SDK only captures Apple's numeric IDs; the integration resolves them to "Holiday US Campaign" rather than `542370539`.
+The **Apple Ads integration** (Campaign Management API) is what pulls in spend numbers — without it, the dashboard ranks campaigns by revenue alone, with numeric IDs instead of human-readable names and no spend / ROAS / start date / status. With it connected, the same `apple_ads_sync` job that resolves IDs to "Holiday US Campaign" also pulls campaign + ad-group **spend / impressions / taps / installs** from Apple's Reports API into `ad_campaign_lifetime` + `ad_adgroup_lifetime` (filtered by each campaign's `adamId` against your apps' `apple_app_store_id`, so projects sharing an Apple Developer account see only their own campaigns). See [Integrations → Apple Search Ads → Spend & ROAS](/docs/concepts/integrations#spend-roas) for the data flow detail.
 
 ## How the numbers stay fresh
 
-Two refresh paths, both writing into the same `total_revenue_usd_cents` typed column on `app_users`:
+**Revenue** comes from two refresh paths, both writing into the same `total_revenue_usd_cents` typed column on `app_users`:
 
 - **Webhook-triggered (real-time)**: every RevenueCat subscription webhook (`INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `CANCELLATION`, etc.) fires a fire-and-forget per-user resync against RC's V2 API. The user's lifetime revenue updates within seconds of the transaction.
 - **Daily reconciliation (03:00 UTC)**: the `revenuecat_sync` system job fans out across every project with an active RC integration and refreshes everyone. Catches anyone whose webhook was dropped (deploys, network blips), and backfills users on first deploy.
 
-Manual triggers exist on every surface (`POST /v1/projects/:id/ads/sync`, `owlmetry ads sync`, `sync-ads` MCP tool) for when you want to force-refresh without waiting for either path. Admin-only.
+**Spend** comes from one path — the `apple_ads_sync` job that runs daily at **04:45 UTC** (and on every manual sync). It refreshes a rolling 12-month lifetime total per `(project, network, campaign | ad_group)` from Apple's Reports API in 90-day chunks. Numbers stay within ~5–10% of ads.apple.com's UI (drift is settled vs. pending billing on Apple's side; the API is the source of truth).
+
+Manual triggers fire **both** jobs in parallel (`POST /v1/projects/:id/ads/sync`, `owlmetry ads sync`, `sync-ads` MCP tool) — useful right after onboarding a new RevenueCat or Apple Search Ads integration, or to force-refresh without waiting for the cron. Admin-only.
 
 ## Hierarchy & metrics
 
@@ -35,8 +37,16 @@ Each level returns:
 | `paying_user_count` | Subset where `total_revenue_usd_cents > 0` |
 | `total_revenue_usd` | Sum of lifetime revenue across attributed users |
 | `arpu` | `total_revenue_usd / user_count`, 0 when no users |
+| `total_spend_usd` | Lifetime spend over the rolling 12-month window. `null` when no Apple Search Ads integration is connected, no row in `ad_*_lifetime` matches, or the org reports in a non-USD currency |
+| `roas` | `total_revenue_usd / total_spend_usd`. `null` when spend is null or zero (we don't surface `Infinity`) |
+| `start_date` | ISO `YYYY-MM-DD` of when the campaign / ad group started running, when known |
+| `status` | Network-side status snapshot — `ENABLED` / `PAUSED` / `ON_HOLD` / `DELETED` for Apple Search Ads. Surfaces with a tone-coded badge in the dashboard and CLI |
 
-The `leaves` endpoint at the deepest level returns **two arrays side-by-side** — `keywords` and `ads`. Apple Search Ads attributes a user to one or the other depending on whether the install came from a search-keyword campaign or an auto-driven ad placement; the dashboard renders both so you don't miss either dimension.
+The campaigns and ad-groups responses also expose `total_spend_usd` (sum across visible rows), `ad_metrics_synced_at`, and `currency_warning` at the top level. `currency_warning` is non-null (e.g. `"EUR"`) when at least one row's spend was reported in a non-USD currency — the dashboard surfaces a banner, leaves the spend column blank, and ROAS stays null until USD support lands.
+
+The `leaves` endpoint at the deepest level returns **two arrays side-by-side** — `keywords` and `ads`. Apple Search Ads attributes a user to one or the other depending on whether the install came from a search-keyword campaign or an auto-driven ad placement; the dashboard renders both so you don't miss either dimension. Spend isn't broken out at keyword / ad granularity — Apple's Reports API stops at the ad-group level — so leaf rows still carry `total_spend_usd: null` and `roas: null`.
+
+ROAS is tone-coded the same way across web, CLI, and iOS via shared helpers (`roasTone`, `formatRoasLabel` in `@owlmetry/shared`): **green** when ≥ 1.0× (earning back), **amber** when ≥ 0.5× (recovering half), **red** below that, muted "—" when null.
 
 ## All projects vs. single project
 

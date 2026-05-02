@@ -55,10 +55,12 @@ Returns two ranked tables side-by-side: **keywords** and **ads**. Apple Search A
 owlmetry ads sync --project-id <id>
 ```
 
-Fires `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names) for the project. **Admin-only.**
+Fires `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names AND pulls campaign + ad-group spend / impressions / taps / installs from Apple's Reports API into `ad_campaign_lifetime` + `ad_adgroup_lifetime`) for the project. **Admin-only.**
 
-The daily `revenuecat_sync` cron at 03:00 UTC runs automatically across every project — use this command to force-refresh between cron runs or right after onboarding a new RevenueCat integration.
+Both jobs also run on a daily cron — `revenuecat_sync` at 03:00 UTC, `apple_ads_sync` at 04:45 UTC. Use this command to force-refresh between cron runs or right after onboarding a new RevenueCat or Apple Search Ads integration.
 
 ## Output
 
-Default `table` format renders ranked tables with columns: name, users, paying users, revenue, ARPU. Pass `--format json` for the raw API response (structured `AdsCampaignsResponse`, `AdsAdGroupsResponse`, `AdsLeavesResponse`).
+Default `table` format renders ranked tables with columns: name (with `[paused]` / `[deleted]` status badge inline when applicable), users, paying users, revenue, ARPU. **Spend** and **ROAS** columns appear automatically once at least one row carries a non-null `total_spend_usd` — ROAS is colored green / amber / red against the 1.0x and 0.5x thresholds. The summary line above the table adds total spend + overall ROAS alongside total revenue, with a separate `Spend synced` timestamp; a yellow `currency_warning` line surfaces when the project's Apple Search Ads org reports in a non-USD currency (spend stays blank and ROAS unavailable until USD support lands).
+
+Pass `--format json` for the raw API response (structured `AdsCampaignsResponse`, `AdsAdGroupsResponse`, `AdsLeavesResponse`) — every row carries `total_spend_usd`, `roas`, `start_date`, `status`, even when the table view doesn't render every field.
