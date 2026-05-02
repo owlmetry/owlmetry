@@ -165,9 +165,9 @@ export function AdsRowTable({
           <col />
           <col style={{ width: COL_W.users }} />
           <col style={{ width: COL_W.paying }} />
-          <col style={{ width: COL_W.revenue }} />
           <col style={{ width: COL_W.arpu }} />
           {showSpend && <col style={{ width: COL_W.spend }} />}
+          <col style={{ width: COL_W.revenue }} />
           {showSpend && <col style={{ width: COL_W.roas }} />}
         </colgroup>
         <thead className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -190,11 +190,6 @@ export function AdsRowTable({
               tooltip="Users with at least one purchase recorded by the revenue source (e.g. RevenueCat)."
             />
             <HeaderCell
-              label="Revenue"
-              alignRight
-              tooltip="Lifetime USD revenue from these attributed users."
-            />
-            <HeaderCell
               label="ARPU"
               alignRight
               tooltip="Average Revenue Per User — revenue ÷ total users."
@@ -206,6 +201,11 @@ export function AdsRowTable({
                 tooltip="Ad spend reported by the ad network (e.g. Apple Search Ads) for this row."
               />
             )}
+            <HeaderCell
+              label="Revenue"
+              alignRight
+              tooltip="Lifetime USD revenue from these attributed users."
+            />
             {showSpend && (
               <HeaderCell
                 label="ROAS"
@@ -339,13 +339,6 @@ export function AdsRowTable({
                   <td className="px-4 py-3 text-right tabular-nums">
                     {row.paying_user_count.toLocaleString()}
                   </td>
-                  <td
-                    className={`px-4 py-3 text-right tabular-nums font-medium ${
-                      isTop ? "text-foreground" : ""
-                    }`}
-                  >
-                    {formatUsd(row.total_revenue_usd)}
-                  </td>
                   <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
                     {formatUsdCompact(row.arpu)}
                   </td>
@@ -358,6 +351,13 @@ export function AdsRowTable({
                       )}
                     </td>
                   )}
+                  <td
+                    className={`px-4 py-3 text-right tabular-nums font-medium ${
+                      isTop ? "text-foreground" : ""
+                    }`}
+                  >
+                    {formatUsd(row.total_revenue_usd)}
+                  </td>
                   {showSpend && (
                     <td className={`px-4 py-3 text-right tabular-nums font-medium ${roasClass}`}>
                       {roasText}
