@@ -4,6 +4,7 @@ import { appUsers } from "@owlmetry/db";
 import {
   ATTRIBUTION_NETWORK_DIMENSIONS,
   ATTRIBUTION_SOURCE_PROPERTY,
+  ATTRIBUTION_SOURCE_VALUES,
   ADS_ATTRIBUTION_SOURCES,
   type AdsRow,
   type AdsCampaignsResponse,
@@ -14,7 +15,7 @@ import { requirePermission, assertTeamRole } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { formatManualTriggeredBy } from "../utils/integrations.js";
 
-const DEFAULT_ATTRIBUTION_SOURCE = "apple_search_ads";
+const DEFAULT_ATTRIBUTION_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 
 function parseAttributionSource(raw: string | undefined): string {
   if (!raw) return DEFAULT_ATTRIBUTION_SOURCE;
@@ -53,8 +54,6 @@ function appFilter(appId: string | undefined) {
 }
 
 export async function adsRoutes(app: FastifyInstance) {
-  // GET /v1/projects/:projectId/ads/campaigns
-  // Ranked by total_revenue_usd DESC, user_count DESC, id ASC.
   app.get<{
     Params: { projectId: string };
     Querystring: { attribution_source?: string; app_id?: string; limit?: string };
@@ -77,13 +76,23 @@ export async function adsRoutes(app: FastifyInstance) {
       // placeholders for the same value count as different expressions and
       // trip "column must appear in GROUP BY". Position-based `GROUP BY 1`
       // avoids that and makes the rewrite trivial when adding more dimensions.
-      const rows = await app.db.execute<AdsAggregateRow>(sql`
+      // The CTE bundles the project-wide `MAX(revenue_synced_at)` so each row
+      // carries the dashboard's "as of" header without a second roundtrip.
+      const rows = await app.db.execute<
+        AdsAggregateRow & { revenue_synced_at: Date | null }
+      >(sql`
+        WITH project_sync AS (
+          SELECT MAX(revenue_synced_at) AS synced_at
+          FROM ${appUsers}
+          WHERE project_id = ${projectId}
+        )
         SELECT
           properties->>${dims.campaignIdKey} AS id,
           MAX(properties->>${dims.campaignNameKey}) AS name,
           COUNT(*)::int AS user_count,
           COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
-          (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
+          (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd,
+          (SELECT synced_at FROM project_sync) AS revenue_synced_at
         FROM ${appUsers}
         WHERE project_id = ${projectId}
           AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
@@ -98,15 +107,19 @@ export async function adsRoutes(app: FastifyInstance) {
       const totalUserCount = campaigns.reduce((acc, r) => acc + r.user_count, 0);
       const totalPayingUserCount = campaigns.reduce((acc, r) => acc + r.paying_user_count, 0);
       const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
-
-      // Project-level "as of" timestamp — the most recent revenue_synced_at
-      // across users in this project. Surfaces as a single header on the
-      // dashboard so the team knows when their numbers were last refreshed.
-      const [syncRow] = await app.db.execute<{ synced_at: Date | null }>(sql`
-        SELECT MAX(revenue_synced_at) AS synced_at
-        FROM ${appUsers}
-        WHERE project_id = ${projectId}
-      `);
+      // Empty result set means no rows came back, but the timestamp lives on
+      // every row when present — fall back to a 1-row probe.
+      let syncedAt: string | null = rows[0]?.revenue_synced_at
+        ? new Date(rows[0].revenue_synced_at).toISOString()
+        : null;
+      if (rows.length === 0) {
+        const [syncRow] = await app.db.execute<{ synced_at: Date | null }>(sql`
+          SELECT MAX(revenue_synced_at) AS synced_at
+          FROM ${appUsers}
+          WHERE project_id = ${projectId}
+        `);
+        syncedAt = syncRow?.synced_at ? new Date(syncRow.synced_at).toISOString() : null;
+      }
 
       const response: AdsCampaignsResponse = {
         attribution_source: source,
@@ -114,13 +127,12 @@ export async function adsRoutes(app: FastifyInstance) {
         total_user_count: totalUserCount,
         total_paying_user_count: totalPayingUserCount,
         total_revenue_usd: totalRevenueUsd,
-        revenue_synced_at: syncRow?.synced_at ? new Date(syncRow.synced_at).toISOString() : null,
+        revenue_synced_at: syncedAt,
       };
       return response;
     },
   );
 
-  // GET /v1/projects/:projectId/ads/campaigns/:campaignId/ad-groups
   app.get<{
     Params: { projectId: string; campaignId: string };
     Querystring: { attribution_source?: string; app_id?: string; limit?: string };
@@ -139,10 +151,14 @@ export async function adsRoutes(app: FastifyInstance) {
       const appId = request.query.app_id;
       const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 500);
 
-      const rows = await app.db.execute<AdsAggregateRow>(sql`
+      // The campaign name comes back on every aggregation row (same value
+      // since they share a campaign), so we only need a separate fetch when
+      // the ad-groups result is empty.
+      const rows = await app.db.execute<AdsAggregateRow & { campaign_name: string | null }>(sql`
         SELECT
           properties->>${dims.adGroupIdKey} AS id,
           MAX(properties->>${dims.adGroupNameKey}) AS name,
+          MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
           COUNT(*)::int AS user_count,
           COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
           (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
@@ -157,27 +173,30 @@ export async function adsRoutes(app: FastifyInstance) {
         LIMIT ${limit}
       `);
 
-      const [campaignRow] = await app.db.execute<{ name: string | null }>(sql`
-        SELECT MAX(properties->>${dims.campaignNameKey}) AS name
-        FROM ${appUsers}
-        WHERE project_id = ${projectId}
-          AND properties->>${dims.campaignIdKey} = ${campaignId}
-        LIMIT 1
-      `);
+      let campaignName: string | null = rows[0]?.campaign_name ?? null;
+      if (rows.length === 0) {
+        const [campaignRow] = await app.db.execute<{ name: string | null }>(sql`
+          SELECT MAX(properties->>${dims.campaignNameKey}) AS name
+          FROM ${appUsers}
+          WHERE project_id = ${projectId}
+            AND properties->>${dims.campaignIdKey} = ${campaignId}
+        `);
+        campaignName = campaignRow?.name ?? null;
+      }
 
       const response: AdsAdGroupsResponse = {
         attribution_source: source,
         campaign_id: campaignId,
-        campaign_name: campaignRow?.name ?? null,
+        campaign_name: campaignName,
         ad_groups: rows.map(toAdsRow),
       };
       return response;
     },
   );
 
-  // GET /v1/projects/:projectId/ads/campaigns/:campaignId/ad-groups/:adGroupId/leaves
-  // Returns both keyword and ad rankings within the ad group; the dashboard
-  // renders them side-by-side so operators see both attribution dimensions.
+  // Returns keyword and ad rankings side-by-side — Apple Search Ads attributes
+  // each user to one or the other depending on whether the install came from a
+  // search keyword or an auto-driven ad placement.
   app.get<{
     Params: { projectId: string; campaignId: string; adGroupId: string };
     Querystring: { attribution_source?: string; app_id?: string; limit?: string };
@@ -203,11 +222,20 @@ export async function adsRoutes(app: FastifyInstance) {
           AND properties->>${dims.adGroupIdKey} = ${adGroupId}
       `;
 
-      const [keywordRows, adRows, parentRow] = await Promise.all([
-        app.db.execute<AdsAggregateRow>(sql`
+      // Each leaf row carries the parent campaign + ad-group names via MAX,
+      // so we only fall back to a separate parent fetch when both arrays are
+      // empty (the user navigated to an ad group with no attributed users).
+      type LeafRow = AdsAggregateRow & {
+        campaign_name: string | null;
+        ad_group_name: string | null;
+      };
+      const [keywordRows, adRows] = await Promise.all([
+        app.db.execute<LeafRow>(sql`
           SELECT
             properties->>${dims.keywordIdKey} AS id,
             MAX(properties->>${dims.keywordNameKey}) AS name,
+            MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
+            MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
@@ -219,10 +247,12 @@ export async function adsRoutes(app: FastifyInstance) {
           ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
           LIMIT ${limit}
         `),
-        app.db.execute<AdsAggregateRow>(sql`
+        app.db.execute<LeafRow>(sql`
           SELECT
             properties->>${dims.adIdKey} AS id,
             MAX(properties->>${dims.adNameKey}) AS name,
+            MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
+            MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
@@ -234,7 +264,12 @@ export async function adsRoutes(app: FastifyInstance) {
           ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
           LIMIT ${limit}
         `),
-        app.db.execute<{ campaign_name: string | null; ad_group_name: string | null }>(sql`
+      ]);
+
+      let campaignName = keywordRows[0]?.campaign_name ?? adRows[0]?.campaign_name ?? null;
+      let adGroupName = keywordRows[0]?.ad_group_name ?? adRows[0]?.ad_group_name ?? null;
+      if (keywordRows.length === 0 && adRows.length === 0) {
+        const [parentRow] = await app.db.execute<{ campaign_name: string | null; ad_group_name: string | null }>(sql`
           SELECT
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name
@@ -242,16 +277,17 @@ export async function adsRoutes(app: FastifyInstance) {
           WHERE project_id = ${projectId}
             AND properties->>${dims.campaignIdKey} = ${campaignId}
             AND properties->>${dims.adGroupIdKey} = ${adGroupId}
-          LIMIT 1
-        `),
-      ]);
+        `);
+        campaignName = parentRow?.campaign_name ?? null;
+        adGroupName = parentRow?.ad_group_name ?? null;
+      }
 
       const response: AdsLeavesResponse = {
         attribution_source: source,
         campaign_id: campaignId,
-        campaign_name: parentRow[0]?.campaign_name ?? null,
+        campaign_name: campaignName,
         ad_group_id: adGroupId,
-        ad_group_name: parentRow[0]?.ad_group_name ?? null,
+        ad_group_name: adGroupName,
         keywords: keywordRows.map(toAdsRow),
         ads: adRows.map(toAdsRow),
       };
@@ -259,9 +295,8 @@ export async function adsRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /v1/projects/:projectId/ads/sync — admin-only manual refresh.
-  // Triggers a single-project RC sync (which now also writes lifetime revenue)
-  // and an Apple Ads sync (which resolves any unresolved ASA IDs to names).
+  // Manual refresh: fires single-project RC sync (refreshes lifetime revenue
+  // per user) + Apple Ads sync (resolves unresolved ASA IDs to readable names).
   app.post<{ Params: { projectId: string } }>(
     "/ads/sync",
     { preHandler: requirePermission("users:write") },

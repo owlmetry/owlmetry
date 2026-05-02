@@ -3,6 +3,7 @@
 import { use } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared/attribution";
 import { useAdGroups } from "@/hooks/use-ads";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
@@ -10,7 +11,7 @@ import { TableSkeleton } from "@/components/ui/skeletons";
 import { ChevronLeft } from "lucide-react";
 import { AdsRowTable } from "../_components/ads-row-table";
 
-const DEFAULT_SOURCE = "apple_search_ads";
+const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 
 interface PageProps {
   params: Promise<{ campaignId: string }>;

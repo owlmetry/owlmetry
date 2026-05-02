@@ -20,9 +20,7 @@ export function useAdCampaigns(projectId: string | undefined, filters: AdsFilter
   const key = projectId
     ? `/v1/projects/${projectId}/ads/campaigns${qs ? `?${qs}` : ""}`
     : null;
-  const { data, isLoading, error, mutate } = useSWR<AdsCampaignsResponse>(key, {
-    refreshInterval: 60_000,
-  });
+  const { data, isLoading, error, mutate } = useSWR<AdsCampaignsResponse>(key);
   return {
     campaigns: data?.campaigns ?? [],
     totalUserCount: data?.total_user_count ?? 0,

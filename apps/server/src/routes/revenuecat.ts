@@ -15,7 +15,10 @@ import {
   fetchRevenueCatProjectId,
   computeBillingPeriod,
 } from "../utils/revenuecat.js";
-import { syncRevenueCatUserProperties } from "../utils/revenuecat-user-sync.js";
+import {
+  syncRevenueCatUserProperties,
+  resyncRevenueCatUsersInBackground,
+} from "../utils/revenuecat-user-sync.js";
 
 interface RevenueCatWebhookEvent {
   type: string;
@@ -180,61 +183,15 @@ export async function revenuecatRoutes(app: FastifyInstance) {
             typeof id === "string" && id.length > 0 && !id.startsWith("$RCAnonymousID:"),
         );
 
-        if (candidates.length > 0) {
-          void (async () => {
-            try {
-              const projectIdResult = await fetchRevenueCatProjectId(config.api_key);
-              if (projectIdResult.status !== "found") {
-                request.log.warn(
-                  { projectId, eventId: event.id, status: projectIdResult.status },
-                  "TRANSFER reconciliation aborted — could not resolve RevenueCat project",
-                );
-                return;
-              }
-              await Promise.all(
-                candidates.map(async (userId) => {
-                  try {
-                    const result = await syncRevenueCatUserProperties({
-                      db: app.db,
-                      log: request.log,
-                      projectId,
-                      rcProjectId: projectIdResult.projectId,
-                      config,
-                      userId,
-                    });
-                    if (result.status === "not_found") {
-                      request.log.info(
-                        { projectId, userId, eventId: event.id },
-                        "TRANSFER user not found in RC (skipped)",
-                      );
-                    } else if (result.status === "error") {
-                      request.log.warn(
-                        {
-                          projectId,
-                          userId,
-                          eventId: event.id,
-                          statusCode: result.statusCode,
-                          message: result.message,
-                        },
-                        "TRANSFER user resync got RC error",
-                      );
-                    }
-                  } catch (err) {
-                    request.log.error(
-                      { err, projectId, userId, eventId: event.id },
-                      "TRANSFER user resync failed",
-                    );
-                  }
-                }),
-              );
-            } catch (err) {
-              request.log.error(
-                { err, projectId, eventId: event.id },
-                "TRANSFER reconciliation failed",
-              );
-            }
-          })();
-        }
+        resyncRevenueCatUsersInBackground({
+          db: app.db,
+          log: request.log,
+          projectId,
+          config,
+          userIds: candidates,
+          context: "transfer",
+          eventId: event.id,
+        });
 
         return { received: true };
       }
@@ -276,50 +233,20 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       await mergeUserProperties(app.db, projectId, userId, combinedProps);
 
-      // Subscription events change the customer's lifetime revenue
-      // (`total_revenue_in_usd`), which the webhook payload doesn't carry.
-      // Fire-and-forget a per-user resync against RC's V2 API so the typed
-      // `total_revenue_usd_cents` column stays fresh within seconds of the
-      // event, instead of waiting for the next daily reconciliation. Same
-      // pattern as the TRANSFER branch above; webhook ack stays fast.
+      // Subscription events change lifetime revenue (`total_revenue_in_usd`),
+      // which the webhook payload doesn't carry — kick off a per-user resync
+      // against RC's V2 API so the typed `total_revenue_usd_cents` column
+      // stays fresh within seconds of the event.
       if (SUBSCRIPTION_EVENT_TYPES.has(event.type)) {
-        void (async () => {
-          try {
-            const projectIdResult = await fetchRevenueCatProjectId(config.api_key);
-            if (projectIdResult.status !== "found") {
-              request.log.warn(
-                { projectId, eventId: event.id, status: projectIdResult.status },
-                "Subscription event resync aborted — could not resolve RevenueCat project",
-              );
-              return;
-            }
-            const result = await syncRevenueCatUserProperties({
-              db: app.db,
-              log: app.log,
-              projectId,
-              rcProjectId: projectIdResult.projectId,
-              config,
-              userId,
-            });
-            if (result.status === "error") {
-              request.log.warn(
-                {
-                  projectId,
-                  userId,
-                  eventId: event.id,
-                  statusCode: result.statusCode,
-                  message: result.message,
-                },
-                "Subscription event resync got RC error",
-              );
-            }
-          } catch (err) {
-            request.log.error(
-              { err, projectId, userId, eventId: event.id },
-              "Subscription event resync failed",
-            );
-          }
-        })();
+        resyncRevenueCatUsersInBackground({
+          db: app.db,
+          log: request.log,
+          projectId,
+          config,
+          userIds: [userId],
+          context: "subscription_event",
+          eventId: event.id,
+        });
       }
 
       return { received: true };

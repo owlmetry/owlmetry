@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, AppResponse } from "@owlmetry/shared";
+import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared/attribution";
 import { useTeam } from "@/contexts/team-context";
 import { useAdCampaigns, adsActions } from "@/hooks/use-ads";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { AdsFilterBar } from "./_components/ads-filter-bar";
 import { AdsRowTable } from "./_components/ads-row-table";
 
-const DEFAULT_SOURCE = "apple_search_ads";
+const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 
 export default function AdsPage() {
   const router = useRouter();
@@ -35,6 +36,10 @@ export default function AdsPage() {
   const [source, setSourceState] = useState<string>(searchParams.get("source") ?? DEFAULT_SOURCE);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+  }, []);
 
   // Default to the first project if URL didn't pin one. Wait for projects to
   // load so we don't flicker through an empty selection on mount.
@@ -81,15 +86,44 @@ export default function AdsPage() {
 
   const isAdmin = currentRole === "owner" || currentRole === "admin";
 
+  function renderCampaigns() {
+    if (isLoading) return <TableSkeleton rows={5} />;
+    if (!projectId) {
+      return (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Pick a project above to see campaigns.
+          </CardContent>
+        </Card>
+      );
+    }
+    if (campaigns.length === 0) return <EmptyState />;
+    return (
+      <AdsRowTable
+        rows={campaigns}
+        nameHeader="Campaign"
+        rowHref={(row) =>
+          `/dashboard/ads/${encodeURIComponent(row.id)}?project_id=${projectId}&source=${source}${appId ? `&app_id=${appId}` : ""}`
+        }
+        emptyMessage="No campaigns with attributed users yet."
+      />
+    );
+  }
+
   async function handleSync() {
     if (!projectId) return;
     setSyncing(true);
     setSyncError(null);
     try {
       await adsActions.sync(projectId);
-      // Don't await SWR refetch — sync runs async in the background. Schedule
-      // a refresh in 5s so the user sees progress without manually reloading.
-      setTimeout(() => void mutate(), 5_000);
+      // Sync runs async on the server (one user at a time, ~350ms each), so
+      // there's no point refetching immediately — schedule a single refresh
+      // a few seconds out and clear it on unmount to avoid setState-after-unmount.
+      if (refetchTimerRef.current) clearTimeout(refetchTimerRef.current);
+      refetchTimerRef.current = setTimeout(() => {
+        void mutate();
+        refetchTimerRef.current = null;
+      }, 5_000);
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : "Sync failed");
     } finally {
@@ -151,28 +185,7 @@ export default function AdsPage() {
         </div>
       </StaggerItem>
 
-      <StaggerItem index={3}>
-        {isLoading ? (
-          <TableSkeleton rows={5} />
-        ) : !projectId ? (
-          <Card>
-            <CardContent className="p-6 text-sm text-muted-foreground">
-              Pick a project above to see campaigns.
-            </CardContent>
-          </Card>
-        ) : campaigns.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <AdsRowTable
-            rows={campaigns}
-            nameHeader="Campaign"
-            rowHref={(row) =>
-              `/dashboard/ads/${encodeURIComponent(row.id)}?project_id=${projectId}&source=${source}${appId ? `&app_id=${appId}` : ""}`
-            }
-            emptyMessage="No campaigns with attributed users yet."
-          />
-        )}
-      </StaggerItem>
+      <StaggerItem index={3}>{renderCampaigns()}</StaggerItem>
     </AnimatedPage>
   );
 }

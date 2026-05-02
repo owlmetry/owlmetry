@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { AdsRow } from "@owlmetry/shared/attribution";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd, formatUsdCompact } from "@/lib/currency";
@@ -19,8 +19,6 @@ export function AdsRowTable({
   rowHref,
   nameHeader = "Name",
 }: AdsRowTableProps) {
-  const router = useRouter();
-
   if (rows.length === 0) {
     return (
       <Card>
@@ -46,17 +44,29 @@ export function AdsRowTable({
             <tbody>
               {rows.map((row) => {
                 const href = rowHref ? rowHref(row) : null;
+                const display = row.name ?? row.id;
                 return (
                   <tr
                     key={row.id}
                     className={
                       "border-b last:border-b-0 transition-colors " +
-                      (href ? "cursor-pointer hover:bg-muted/40" : "")
+                      (href ? "relative hover:bg-muted/40 focus-within:bg-muted/40" : "")
                     }
-                    onClick={href ? () => router.push(href) : undefined}
                   >
                     <td className="px-4 py-3 font-medium">
-                      {row.name ?? (
+                      {href ? (
+                        // Overlay link spans the row so the whole thing is clickable
+                        // for mouse users while keyboard + screen readers see a real
+                        // <a> with the campaign/ad-group name as accessible text.
+                        <Link
+                          href={href}
+                          className="before:absolute before:inset-0 before:content-[''] hover:underline"
+                        >
+                          {display}
+                        </Link>
+                      ) : row.name ? (
+                        display
+                      ) : (
                         <span className="text-muted-foreground font-mono text-xs">{row.id}</span>
                       )}
                     </td>

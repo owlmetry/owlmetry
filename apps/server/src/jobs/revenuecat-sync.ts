@@ -1,4 +1,4 @@
-import { eq, and, isNull, inArray, sql } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { projectIntegrations, appUsers } from "@owlmetry/db";
 import type { JobContext, JobHandler } from "../services/job-runner.js";
 import {
@@ -44,7 +44,6 @@ type ProjectSyncResult = {
 async function syncProject(
   ctx: JobContext,
   projectId: string,
-  options: { progressBaseline?: { processed: number; total: number; label: string } } = {},
 ): Promise<ProjectSyncResult> {
   // Look up the active RevenueCat integration for this project
   const [integration] = await ctx.db
@@ -66,9 +65,8 @@ async function syncProject(
 
   const rcConfig = integration.config as unknown as RevenueCatConfig;
 
-  // Get all non-anonymous users in the project. `properties` is pulled so
-  // we can apply the per-field merge for RC-backfilled attribution without
-  // a second round-trip.
+  // `properties` is pulled in the same select so the per-field merge for
+  // RC-backfilled attribution doesn't need a second roundtrip.
   const users = await ctx.db
     .select({
       id: appUsers.id,
@@ -188,10 +186,7 @@ async function syncProject(
     return result;
   }
 
-  const baseline = options.progressBaseline;
-  if (!baseline) {
-    await ctx.updateProgress({ processed: 0, total, message: "Starting sync..." });
-  }
+  await ctx.updateProgress({ processed: 0, total, message: "Starting sync..." });
 
   for (let i = 0; i < users.length; i++) {
     if (ctx.isCancelled()) {
@@ -254,15 +249,11 @@ async function syncProject(
       recordErrorStatus(undefined);
     }
 
-    // Update progress every 10 users
     if ((i + 1) % 10 === 0 || i === users.length - 1) {
-      const processed = (baseline?.processed ?? 0) + i + 1;
-      const totalUsers = baseline?.total ?? total;
-      const prefix = baseline?.label ? `${baseline.label} | ` : "";
       await ctx.updateProgress({
-        processed,
-        total: totalUsers,
-        message: `${prefix}Synced ${synced} (${active} active, ${inactive} inactive), ${notFound} not found, ${errors} errors`,
+        processed: i + 1,
+        total,
+        message: `Synced ${synced} (${active} active, ${inactive} inactive), ${notFound} not found, ${errors} errors`,
       });
     }
   }
@@ -276,40 +267,25 @@ async function syncProject(
   return buildResult();
 }
 
-/**
- * Pre-counts users per project so the fan-out can show a meaningful
- * processed/total in the progress bar (otherwise each project would reset
- * the bar to 0 of its own count and the operator can't see overall progress).
- */
-async function countUsersAcrossProjects(
-  ctx: JobContext,
-  projectIds: string[],
-): Promise<Map<string, number>> {
-  if (projectIds.length === 0) return new Map();
-  const rows = await ctx.db
-    .select({
-      project_id: appUsers.project_id,
-      count: sql<number>`COUNT(*)::int`.as("count"),
-    })
-    .from(appUsers)
-    .where(
-      and(
-        eq(appUsers.is_anonymous, false),
-        inArray(appUsers.project_id, projectIds),
-      ),
-    )
-    .groupBy(appUsers.project_id);
-  const counts = new Map<string, number>();
-  for (const id of projectIds) counts.set(id, 0);
-  for (const row of rows) counts.set(row.project_id, row.count);
-  return counts;
-}
+const AGGREGATE_FIELDS = [
+  "total",
+  "synced",
+  "skipped",
+  "active",
+  "inactive",
+  "not_found",
+  "errors",
+  "attribution_synced",
+  "attribution_enriched_existing",
+  "attribution_marked_organic",
+  "attribution_skipped_no_asa",
+  "revenue_filled",
+  "revenue_skipped",
+] as const;
 
 export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   const targetProjectId = typeof params.project_id === "string" ? params.project_id : null;
 
-  // Single-project mode (manual-trigger path). Throws on missing/disabled
-  // integration so the dashboard's last-sync strip surfaces the error.
   if (targetProjectId) {
     return await syncProject(ctx, targetProjectId);
   }
@@ -333,30 +309,17 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
     return { projects_processed: 0, total: 0, synced: 0, _silent: true };
   }
 
-  const userCounts = await countUsersAcrossProjects(ctx, projectIds);
-  const totalUsers = [...userCounts.values()].reduce((a, b) => a + b, 0);
-
-  let processedSoFar = 0;
+  const aggregate: Record<(typeof AGGREGATE_FIELDS)[number], number> = Object.fromEntries(
+    AGGREGATE_FIELDS.map((k) => [k, 0]),
+  ) as Record<(typeof AGGREGATE_FIELDS)[number], number>;
   let projectsProcessed = 0;
   let projectsFailed = 0;
-  let aggSynced = 0;
-  let aggSkipped = 0;
-  let aggActive = 0;
-  let aggInactive = 0;
-  let aggNotFound = 0;
-  let aggErrors = 0;
-  let aggAttributionSynced = 0;
-  let aggAttributionEnriched = 0;
-  let aggAttributionOrganic = 0;
-  let aggAttributionNoAsa = 0;
-  let aggRevenueFilled = 0;
-  let aggRevenueSkipped = 0;
   const projectsAborted: Array<{ project_id: string; reason: string }> = [];
   const projectsErrored: Array<{ project_id: string; message: string }> = [];
 
   await ctx.updateProgress({
     processed: 0,
-    total: totalUsers,
+    total: projectIds.length,
     message: `Starting fan-out across ${projectIds.length} project(s)...`,
   });
 
@@ -366,28 +329,12 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       break;
     }
     const projectId = projectIds[i];
-    const projectUserCount = userCounts.get(projectId) ?? 0;
     try {
-      const result = await syncProject(ctx, projectId, {
-        progressBaseline: {
-          processed: processedSoFar,
-          total: totalUsers,
-          label: `Project ${i + 1}/${projectIds.length}`,
-        },
-      });
+      const result = await syncProject(ctx, projectId);
       projectsProcessed++;
-      aggSynced += result.synced;
-      aggSkipped += result.skipped;
-      aggActive += result.active;
-      aggInactive += result.inactive;
-      aggNotFound += result.not_found;
-      aggErrors += result.errors;
-      aggAttributionSynced += result.attribution_synced;
-      aggAttributionEnriched += result.attribution_enriched_existing;
-      aggAttributionOrganic += result.attribution_marked_organic;
-      aggAttributionNoAsa += result.attribution_skipped_no_asa;
-      aggRevenueFilled += result.revenue_filled;
-      aggRevenueSkipped += result.revenue_skipped;
+      for (const k of AGGREGATE_FIELDS) {
+        aggregate[k] += (result[k] as number) ?? 0;
+      }
       if (result.aborted) {
         projectsAborted.push({ project_id: projectId, reason: result.abort_reason ?? "unknown" });
       }
@@ -396,27 +343,18 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
       const message = err instanceof Error ? err.message : String(err);
       projectsErrored.push({ project_id: projectId, message });
       ctx.log.warn({ err, projectId }, "RC sync project failed (continuing fan-out)");
-    } finally {
-      processedSoFar += projectUserCount;
     }
+    await ctx.updateProgress({
+      processed: i + 1,
+      total: projectIds.length,
+      message: `Synced ${projectsProcessed}/${projectIds.length} project(s), ${projectsFailed} failed`,
+    });
   }
 
   const result: Record<string, unknown> = {
     projects_processed: projectsProcessed,
     projects_failed: projectsFailed,
-    total: totalUsers,
-    synced: aggSynced,
-    skipped: aggSkipped,
-    active: aggActive,
-    inactive: aggInactive,
-    not_found: aggNotFound,
-    errors: aggErrors,
-    attribution_synced: aggAttributionSynced,
-    attribution_enriched_existing: aggAttributionEnriched,
-    attribution_marked_organic: aggAttributionOrganic,
-    attribution_skipped_no_asa: aggAttributionNoAsa,
-    revenue_filled: aggRevenueFilled,
-    revenue_skipped: aggRevenueSkipped,
+    ...aggregate,
   };
   if (projectsAborted.length > 0) result.projects_aborted = projectsAborted;
   if (projectsErrored.length > 0) result.projects_errored = projectsErrored;
@@ -424,7 +362,7 @@ export const revenuecatSyncHandler: JobHandler = async (ctx, params) => {
   // Silent on routine clean runs — RC fan-out is daily housekeeping; surfacing
   // every successful sweep would spam the system-jobs alert. Failures and
   // aborts still report (no `_silent` when those arrays are non-empty).
-  if (projectsFailed === 0 && projectsAborted.length === 0 && aggErrors === 0) {
+  if (projectsFailed === 0 && projectsAborted.length === 0 && aggregate.errors === 0) {
     result._silent = true;
   }
 
