@@ -1,7 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { appUsers } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
-import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
+import {
+  ANONYMOUS_ID_PREFIX,
+  ATTRIBUTION_SOURCE_PROPERTY,
+  ATTRIBUTION_SOURCE_VALUES,
+} from "@owlmetry/shared";
 
 /**
  * Keep only entries whose destination slot is currently unset on `current`.
@@ -9,15 +13,31 @@ import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
  * Swift SDK's live AdServices flow (or an earlier sync) already wrote.
  * Treats undefined, null, and empty string all as "unset" — matches the
  * delete-on-empty semantics of the user-properties endpoint.
+ *
+ * One carve-out: `attribution_source: "none"` is a placeholder written when
+ * RC reports the user as organic (typically a project on RC's basic
+ * AdServices integration, where `$mediaSource` is never surfaced). A later
+ * sync producing a real network value is an upgrade, not an overwrite, so
+ * we let it through. Not generalised: `apple_test_install` stays put (Apple's
+ * TestFlight fixture never becomes real), and `apple_search_ads` never
+ * downgrades to `none` (the value !== "none" guard covers that).
  */
 export function selectUnsetProps(
   candidate: Record<string, string>,
   current: Record<string, unknown>,
 ): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(candidate).filter(([key]) => {
+    Object.entries(candidate).filter(([key, value]) => {
       const existing = current[key];
-      return existing === undefined || existing === null || existing === "";
+      if (existing === undefined || existing === null || existing === "") return true;
+      if (
+        key === ATTRIBUTION_SOURCE_PROPERTY &&
+        existing === ATTRIBUTION_SOURCE_VALUES.none &&
+        value !== ATTRIBUTION_SOURCE_VALUES.none
+      ) {
+        return true;
+      }
+      return false;
     }),
   );
 }

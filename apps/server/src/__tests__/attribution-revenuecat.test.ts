@@ -135,3 +135,61 @@ describe("normalizeWebhookSubscriberAttributes", () => {
     expect(mapped).toEqual({ attribution_source: "none" });
   });
 });
+
+describe("selectUnsetProps attribution_source upgrade", () => {
+  it("upgrades attribution_source from 'none' to 'apple_search_ads' when RC surfaces $mediaSource later", () => {
+    // The Sewing Patterns scenario: project was on RC's basic AdServices
+    // integration → every user got tagged "none". Switching to Advanced
+    // surfaces $mediaSource, and the upgrade must land on existing rows.
+    const candidate = { attribution_source: "apple_search_ads", asa_campaign_name: "USA_main_keyword" };
+    const current = { attribution_source: "none" };
+    expect(selectUnsetProps(candidate, current)).toEqual({
+      attribution_source: "apple_search_ads",
+      asa_campaign_name: "USA_main_keyword",
+    });
+  });
+
+  it("upgrades attribution_source even when asa_*_name slots are already set", () => {
+    // A prior enrichment pass could have written asa_campaign_name from the
+    // ASA Campaign Management API while attribution_source stayed "none".
+    // Names stay put (existing-name guard), attribution_source still upgrades.
+    const candidate = { attribution_source: "apple_search_ads", asa_campaign_name: "Renamed" };
+    const current = { attribution_source: "none", asa_campaign_name: "USA_main_keyword" };
+    expect(selectUnsetProps(candidate, current)).toEqual({
+      attribution_source: "apple_search_ads",
+    });
+  });
+
+  it("never downgrades attribution_source from 'apple_search_ads' to 'none'", () => {
+    // Pins the existing direction: RC organic candidate must not stomp a
+    // real attribution that the SDK or a prior sync wrote.
+    expect(
+      selectUnsetProps({ attribution_source: "none" }, { attribution_source: "apple_search_ads" }),
+    ).toEqual({});
+  });
+
+  it("never overwrites 'apple_test_install' with anything", () => {
+    // TestFlight fixture detection writes apple_test_install precisely so we
+    // know not to look again — Apple's API never returns real data for these.
+    expect(
+      selectUnsetProps(
+        { attribution_source: "apple_search_ads" },
+        { attribution_source: "apple_test_install" },
+      ),
+    ).toEqual({});
+  });
+
+  it("no-op when both current and candidate are 'none'", () => {
+    expect(
+      selectUnsetProps({ attribution_source: "none" }, { attribution_source: "none" }),
+    ).toEqual({});
+  });
+
+  it("the 'none' carve-out is scoped to attribution_source — other keys with literal 'none' stay blocked", () => {
+    // Sanity check: don't generalise "none" into a magic string. A custom
+    // user property with the literal value "none" must still be guarded.
+    expect(
+      selectUnsetProps({ some_other_key: "real" }, { some_other_key: "none" }),
+    ).toEqual({});
+  });
+});
