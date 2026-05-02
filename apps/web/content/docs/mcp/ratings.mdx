@@ -1,0 +1,44 @@
+---
+title: Ratings
+description: View per-country App Store rating aggregates via MCP tools.
+---
+
+import Concept from '../../_snippets/ratings.mdx';
+
+<Concept />
+
+For individual customer reviews (with text, replies, etc.), see [Reviews](/docs/mcp/reviews) instead.
+
+## list-app-ratings
+
+List per-country rating aggregates (average + total count, including star-only ratings) for one app, plus a worldwide weighted-average summary.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `app_id` | UUID | Yes | The app ID — must be an Apple app with a `bundle_id` |
+| `store` | string | No | Defaults to `app_store`. Today only `app_store` is populated. |
+
+Returns `{ ratings: [...], summary: {...} }` where `summary` includes `worldwide_average`, `worldwide_count`, `current_version_average`, and `synced_at`.
+
+## list-ratings-by-country
+
+Group App Store ratings by country across every app in a project (or scoped to one app). Weighted average across apps using each storefront's rating count. Sorted by total ratings desc.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `app_id` | UUID | No | Scope to a single app |
+| `store` | string | No | Defaults to `app_store` |
+
+Returns `{ countries: [...] }` where each entry has `country_code`, `rating_count`, and `average_rating`.
+
+## sync-app-ratings
+
+Trigger a manual rating sync for every Apple app in a project. Fans out across every Apple iTunes storefront (~247) and snapshots per-country ratings, paced by an adaptive throttler shared with other iTunes Lookup callers. **Admin-only.** The daily cron at 04:30 UTC also runs this automatically.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+Returns `{ syncing: boolean, total: number, job_run_id: string | null }`. `syncing: false` when the project has no Apple apps with `bundle_id` (silent no-op). Use [get-job](/docs/mcp/jobs#get-job) on the returned `job_run_id` to monitor progress.

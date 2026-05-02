@@ -1,0 +1,56 @@
+---
+title: Ads
+description: Rank acquisition campaigns, ad groups, keywords, and ads by lifetime USD revenue via MCP tools.
+---
+
+import Concept from '../../_snippets/ads.mdx';
+
+<Concept />
+
+Drill from campaigns into ad groups, then into keyword/ad leaves.
+
+## list-ad-campaigns
+
+Rank campaigns by lifetime USD revenue from attributed users. Aggregates `app_users` by `attribution_source` + campaign and joins each user's lifetime RevenueCat revenue. Returns `user_count`, `paying_user_count`, `total_revenue_usd`, ARPU per campaign, sorted by revenue desc.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `attribution_source` | string | No | Defaults to `apple_search_ads` (only value populated today) |
+| `app_id` | UUID | No | Scope to users acquired into a single app |
+| `limit` | number | No | Max campaigns (1-500, default 100) |
+
+## list-ad-groups
+
+Rank ad groups within a campaign by lifetime USD revenue. Same response shape as [`list-ad-campaigns`](#list-ad-campaigns), one level deeper.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `campaign_id` | string | Yes | Network-specific campaign ID returned by `list-ad-campaigns` |
+| `attribution_source` | string | No | Defaults to `apple_search_ads` |
+| `app_id` | UUID | No | Scope to a single app |
+| `limit` | number | No | Max ad groups (1-500, default 100) |
+
+## list-ad-leaves
+
+Within a single ad group, list keyword-level and ad-level revenue rankings side-by-side. Returns both `keywords` and `ads` arrays — Apple Search Ads attributes a user to one or the other depending on whether the install came from a search keyword or an auto-driven ad placement.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `campaign_id` | string | Yes | Parent campaign ID |
+| `ad_group_id` | string | Yes | Ad group ID returned by `list-ad-groups` |
+| `attribution_source` | string | No | Defaults to `apple_search_ads` |
+| `app_id` | UUID | No | Scope to a single app |
+| `limit` | number | No | Max leaves per side (1-500, default 100) |
+
+## sync-ads
+
+Trigger a manual refresh of advertising insights for one project. Fires both `revenuecat_sync` (refreshes lifetime revenue per user) and `apple_ads_sync` (resolves any unresolved ASA IDs to readable names). **Admin-only.** The daily cron also runs `revenuecat_sync` at 03:00 UTC across every project.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+
+Use this after onboarding a new RevenueCat integration or to force-refresh between cron runs. Use [get-job](/docs/mcp/jobs#get-job) on the returned `job_run_id` to monitor progress.

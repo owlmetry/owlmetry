@@ -1,0 +1,54 @@
+---
+title: Feedback
+description: Triage and annotate user feedback via MCP tools.
+---
+
+import Concept from '../../_snippets/feedback.mdx';
+
+<Concept />
+
+## list-feedback
+
+List user feedback for a project, sorted by most recent first.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `status` | string | No | `new`, `in_review`, `addressed`, or `dismissed` |
+| `app_id` | UUID | No | Filter to a specific app |
+| `is_dev` | boolean | No | Filter by dev/prod (`true` = dev only) |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50) |
+
+Returns `{ feedback: [...], cursor, has_more }`.
+
+## get-feedback
+
+Get a feedback submission with comments. The `session_id` on the feedback links to the user's session timeline — pass it to [`query-events`](/docs/mcp/events#query-events) to see what the user did before submitting.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `feedback_id` | UUID | Yes | The feedback ID |
+
+## update-feedback-status
+
+Update the status of a feedback submission. Statuses: `new` → `in_review` → `addressed` → `dismissed` (any transition is allowed — no forced lifecycle).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `feedback_id` | UUID | Yes | The feedback ID |
+| `status` | string | Yes | `new`, `in_review`, `addressed`, or `dismissed` |
+
+There is intentionally no `delete-feedback` tool — soft-delete is user-only and agent keys receive a 403 from the delete endpoint. To remove feedback from the queue, transition it to `dismissed`.
+
+## add-feedback-comment
+
+Add a comment to a feedback submission. Use this to log investigations, link to issues, or document why you marked it `addressed` or `dismissed`. Markdown is supported. Agent comments are authored under the API key's name.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `feedback_id` | UUID | Yes | The feedback ID |
+| `body` | string | Yes | The comment text (markdown supported) |

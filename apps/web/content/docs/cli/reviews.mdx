@@ -1,0 +1,98 @@
+---
+title: Reviews
+description: List, view, and respond to public App Store / Play Store reviews from the CLI.
+---
+
+import Concept from '../../_snippets/reviews.mdx';
+
+<Concept />
+
+For raw star-rating aggregates (no text), see [Ratings](/docs/cli/ratings).
+
+## List reviews
+
+```bash
+owlmetry reviews list --project-id <id> [filters]
+```
+
+Lists store reviews for a project. Sorted by most recent first; results are paginated via cursor.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | Yes | Project UUID |
+| `--app-id <id>` | No | Filter by app UUID |
+| `--store <store>` | No | `app_store` or `play_store` |
+| `--rating <n>` | No | Exact rating (1-5) |
+| `--rating-lte <n>` | No | Rating ≤ this value |
+| `--rating-gte <n>` | No | Rating ≥ this value |
+| `--country <cc>` | No | ISO country code (e.g. `us`, `gb`) |
+| `--has-response` | No | Only reviews that have a developer response |
+| `--no-response` | No | Only reviews that have no developer response |
+| `--search <text>` | No | Free-text search within title + body |
+| `--limit <n>` | No | Max entries to return |
+| `--cursor <cursor>` | No | Pagination cursor from a previous response |
+
+```bash
+# Five-star reviews from US
+owlmetry reviews list --project-id 550e8400-... --rating 5 --country us
+
+# Negative reviews still awaiting a reply
+owlmetry reviews list --project-id 550e8400-... --rating-lte 2 --no-response
+```
+
+## View a review
+
+```bash
+owlmetry reviews view <reviewId> --project-id <id>
+```
+
+Shows the full review — reviewer name, country, app version, posted/ingested timestamps, full body, and the developer response (with publish state) if one exists.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<reviewId>` | Yes | Review UUID |
+| `--project-id <id>` | Yes | Project UUID |
+
+## Reply to a review
+
+```bash
+owlmetry reviews respond <reviewId> --project-id <id> --body "Thanks for the feedback…"
+owlmetry reviews respond <reviewId> --project-id <id> --body-file ./reply.txt
+echo "…" | owlmetry reviews respond <reviewId> --project-id <id> --body-file -
+```
+
+⚠️ **Sends the response to App Store Connect.** Apple publishes the reply on the App Store listing — it becomes publicly visible. If a reply already exists, it is replaced (Apple has no PATCH for review responses, so the CLI internally deletes-then-creates).
+
+Requires the project to have an active App Store Connect integration. Replies are limited to 5970 characters (Apple's `responseBody` cap) — the CLI rejects longer payloads client-side.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<reviewId>` | Yes | Review UUID |
+| `--project-id <id>` | Yes | Project UUID |
+| `--body <text>` | Conditional | Reply body inline. One of `--body`/`--body-file` required. |
+| `--body-file <path>` | Conditional | Read reply body from a file (use `-` for stdin). |
+
+The CLI prints `Reply sent — pending publish on Apple's side` initially; the next reviews sync flips state to `published`.
+
+## Delete a review response
+
+```bash
+owlmetry reviews delete-response <reviewId> --project-id <id> --yes
+```
+
+⚠️ **Destructive — irrecoverable.** Removes the developer response from the public App Store listing. This is a real Apple-side mutation; the only way back is to post a new reply. The `--yes` flag is required to confirm.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<reviewId>` | Yes | Review UUID |
+| `--project-id <id>` | Yes | Project UUID |
+| `--yes` | Yes | Required confirmation flag |
+
+## JSON output
+
+All reviews commands support `--format json` for machine-readable output:
+
+```bash
+owlmetry reviews list --project-id <id> --format json
+owlmetry reviews view <reviewId> --project-id <id> --format json
+```

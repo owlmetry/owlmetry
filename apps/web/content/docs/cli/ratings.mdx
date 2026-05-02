@@ -1,0 +1,65 @@
+---
+title: Ratings
+description: View per-country App Store rating aggregates from the CLI.
+---
+
+import Concept from '../../_snippets/ratings.mdx';
+
+<Concept />
+
+For individual customer reviews (with text, replies, etc.), see [Reviews](/docs/cli/reviews).
+
+## List ratings for an app
+
+```bash
+owlmetry ratings list <appId> --project-id <id> [--store <store>]
+```
+
+Lists per-country ratings for one app and prints a worldwide summary (worldwide weighted average + count, current-version average + count, last sync timestamp). Useful for inspecting a single Apple app's reception across storefronts.
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<appId>` | Yes | App UUID — must be an Apple app with a `bundle_id` |
+| `--project-id <id>` | Yes | Project UUID |
+| `--store <store>` | No | `app_store` or `play_store`. Defaults to `app_store`. |
+
+```bash
+owlmetry ratings list 550e8400-... --project-id <id>
+```
+
+## Aggregate ratings by country
+
+```bash
+owlmetry ratings by-country --project-id <id> [--app-id <id>] [--store <store>]
+```
+
+Aggregates per-country ratings across every app in a project. Pass `--app-id` to scope to one app. Weighted averages across apps using each storefront's rating count, sorted by total ratings desc.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | Yes | Project UUID |
+| `--app-id <id>` | No | Scope to a single app |
+| `--store <store>` | No | `app_store` or `play_store`. Defaults to `app_store`. |
+
+## Trigger a manual sync
+
+```bash
+owlmetry ratings sync --project-id <id>
+```
+
+Triggers an immediate rating sync for every Apple app in the project. **Admin-only.** Returns the queued `job_run_id`. The daily cron at 04:30 UTC also runs this automatically.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | Yes | Project UUID |
+
+Silent no-op (no job queued) if the project has no Apple apps with a `bundle_id`.
+
+## JSON output
+
+All ratings commands support `--format json` for machine-readable output:
+
+```bash
+owlmetry ratings list <appId> --project-id <id> --format json
+owlmetry ratings by-country --project-id <id> --format json
+```

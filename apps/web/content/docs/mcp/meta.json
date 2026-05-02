@@ -10,9 +10,13 @@
     "metrics",
     "funnels",
     "issues",
+    "feedback",
     "attachments",
     "integrations",
     "jobs",
-    "audit-logs"
+    "audit-logs",
+    "ads",
+    "ratings",
+    "reviews"
   ]
 }

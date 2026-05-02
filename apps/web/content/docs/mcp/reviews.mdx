@@ -1,0 +1,64 @@
+---
+title: Reviews
+description: List, view, and respond to App Store / Play Store reviews via MCP tools.
+---
+
+import Concept from '../../_snippets/reviews.mdx';
+
+<Concept />
+
+For raw star-rating aggregates (no text), see [Ratings](/docs/mcp/ratings) instead.
+
+## list-reviews
+
+List App Store / Play Store reviews for a project, sorted by most recent first. Filter by app, store, rating, country, developer-response presence, or free-text search within title + body.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `app_id` | UUID | No | Filter by app |
+| `store` | string | No | `app_store` or `play_store` |
+| `rating` | number | No | Exact rating (1-5) |
+| `rating_lte` | number | No | Rating ≤ this value (1-5) |
+| `rating_gte` | number | No | Rating ≥ this value (1-5) |
+| `country_code` | string | No | ISO country code (2-char, lower-case e.g. `us`) |
+| `has_developer_response` | boolean | No | Only reviews with (`true`) or without (`false`) a dev response |
+| `search` | string | No | Free-text search within title + body |
+| `cursor` | string | No | Pagination cursor |
+| `limit` | number | No | Max results (default 50) |
+
+Returns `{ reviews: [...], cursor, has_more }`. Each review includes the reviewer name, body, country, app version, and any developer response with its publish state.
+
+## get-review
+
+Get a single store review by ID, including reviewer name, title, body, country, app version, posted/ingested timestamps, and any developer response.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `review_id` | UUID | Yes | The review ID (Owlmetry's UUID, not the App Store's external ID) |
+
+## respond-to-review
+
+⚠️ **Destructive (publishes to App Store).** Reply to an App Store review. The response is sent to App Store Connect and becomes publicly visible on the App Store listing once Apple publishes it. If a reply already exists, it is replaced — Apple has no PATCH for review responses, so this internally deletes-then-creates.
+
+Requires the project to have an active App Store Connect integration whose API key has Customer Support role or higher. **Only call this when the user has explicitly approved the exact response text** — the published reply is publicly visible and persistent.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `review_id` | UUID | Yes | The review ID |
+| `body` | string | Yes | Reply text. Min 1, max 5970 characters (Apple's `responseBody` limit). |
+
+Returns the updated review with `developer_response`, `developer_response_at`, `developer_response_id`, and `developer_response_state` (`PENDING_PUBLISH` initially; flips to `PUBLISHED` on the next reviews sync).
+
+## delete-review-response
+
+⚠️ **Destructive — irrecoverable.** Removes the developer response from the public App Store listing. This is a real Apple-side mutation; the only way back is to post a new reply. Use only when the user has explicitly asked you to delete the reply.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project_id` | UUID | Yes | The project ID |
+| `review_id` | UUID | Yes | The review ID |
+
+Returns the updated review with `developer_response_*` fields cleared.
