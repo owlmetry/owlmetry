@@ -12,6 +12,7 @@ import {
 } from "../utils/attribution/revenuecat.js";
 import {
   type RevenueCatConfig,
+  RC_ANONYMOUS_PREFIX,
   fetchRevenueCatProjectId,
   computeBillingPeriod,
 } from "../utils/revenuecat.js";
@@ -180,7 +181,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
           ...(event.transferred_to ?? []),
         ].filter(
           (id): id is string =>
-            typeof id === "string" && id.length > 0 && !id.startsWith("$RCAnonymousID:"),
+            typeof id === "string" && id.length > 0 && !id.startsWith(RC_ANONYMOUS_PREFIX),
         );
 
         resyncRevenueCatUsersInBackground({

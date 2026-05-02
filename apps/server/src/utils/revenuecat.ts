@@ -110,6 +110,13 @@ export interface RevenueCatV2SubscriptionsResponse {
 const RC_V2_BASE = "https://api.revenuecat.com/v2";
 const REQUEST_TIMEOUT_MS = 10_000;
 
+// RC's anonymous-customer prefix. Distinct from Owlmetry's `owl_anon_`, so
+// `mergeUserProperties` would NOT flag these as `is_anonymous=true` on its
+// own — every code path that ingests an RC user_id must filter this out
+// explicitly to avoid polluting the /dashboard/ads attribution rollup with
+// non-attributable rows.
+export const RC_ANONYMOUS_PREFIX = "$RCAnonymousID:";
+
 function rcHeaders(apiKey: string) {
   return {
     "Authorization": `Bearer ${apiKey}`,

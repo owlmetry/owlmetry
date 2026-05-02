@@ -1,23 +1,19 @@
-import { eq, and, isNull } from "drizzle-orm";
-import { projectIntegrations, appUsers } from "@owlmetry/db";
-import type { JobContext, JobHandler } from "../services/job-runner.js";
+import { eq, and } from "drizzle-orm";
+import { appUsers } from "@owlmetry/db";
+import type { JobHandler } from "../services/job-runner.js";
 import {
   type RevenueCatConfig,
+  RC_ANONYMOUS_PREFIX,
   fetchRevenueCatCustomers,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
 import { syncRevenueCatUserProperties } from "../utils/revenuecat-user-sync.js";
+import { findActiveIntegration } from "../utils/integrations.js";
 
 const PER_USER_DELAY_MS = 400;
 const RATE_LIMIT_BACKOFF_MS = 5000;
 const MAX_USER_IDS = 10;
 const PAGE_SIZE_FALLBACKS = [100, 50, 20] as const;
-
-// RC's anonymous-customer prefix. These IDs don't map to an Owlmetry identity
-// — without filtering, mergeUserProperties would insert them as
-// is_anonymous=false (since its check uses Owlmetry's `owl_anon_` prefix), and
-// they'd pollute the /dashboard/ads attribution rollup.
-const RC_ANONYMOUS_PREFIX = "$RCAnonymousID:";
 
 type BackfillResult = {
   total_listed: number;
@@ -43,19 +39,7 @@ export const revenuecatUserBackfillHandler: JobHandler = async (ctx, params) => 
     throw new Error("revenuecat_user_backfill requires a project_id param");
   }
 
-  const [integration] = await ctx.db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.project_id, projectId),
-        eq(projectIntegrations.provider, "revenuecat"),
-        isNull(projectIntegrations.deleted_at),
-        eq(projectIntegrations.enabled, true),
-      ),
-    )
-    .limit(1);
-
+  const integration = await findActiveIntegration(ctx.db, projectId, "revenuecat");
   if (!integration) {
     throw new Error("RevenueCat integration not found or disabled");
   }
@@ -326,7 +310,6 @@ export const revenuecatUserBackfillHandler: JobHandler = async (ctx, params) => 
     });
 
     if (listResult.nextStartingAfter === null) {
-      // End of the customer list.
       break;
     }
 
