@@ -68,6 +68,8 @@ A project with no users carrying `attribution_source = 'apple_search_ads'` shows
 
 If users *do* carry the right attribution but revenue is zero across the board, RevenueCat hasn't synced yet — manually trigger via the dashboard "Sync now" button, the CLI, or the MCP tool.
 
+If you recently shipped the Owl SDK into an app that already has paying users in RevenueCat, run the [`revenuecat_user_backfill`](/docs/concepts/background-jobs) job to import those historical RC customers as `app_users` rows so their lifetime revenue can attribute against the campaigns that originally acquired them — without it, only users seen by the SDK after install (or surfaced via live RC webhooks) appear here.
+
 ## API reference
 
 See [Ads API reference](/docs/api-reference/ads) for endpoint shapes, query parameters, and response types.
