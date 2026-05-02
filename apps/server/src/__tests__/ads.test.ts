@@ -113,8 +113,10 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     const body = res.json();
     expect(body.campaigns).toHaveLength(3);
 
-    // Ranking: B ($100) > A ($50) > C ($0)
-    expect(body.campaigns[0].id).toBe("B");
+    // Ranking: B ($100) > A ($50) > C ($0). The bucket key is the campaign
+    // name (COALESCE(name, id)) so RC-backfilled name-only users merge with
+    // SDK-attributed (id+name) users for the same campaign.
+    expect(body.campaigns[0].id).toBe("Beta");
     expect(body.campaigns[0].name).toBe("Beta");
     expect(body.campaigns[0].user_count).toBe(2);
     expect(body.campaigns[0].paying_user_count).toBe(1);
@@ -122,14 +124,14 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     // ARPU = $100 / 2 = $50
     expect(body.campaigns[0].arpu).toBe(50);
 
-    expect(body.campaigns[1].id).toBe("A");
+    expect(body.campaigns[1].id).toBe("Alpha");
     expect(body.campaigns[1].user_count).toBe(3);
     expect(body.campaigns[1].paying_user_count).toBe(2);
     expect(body.campaigns[1].total_revenue_usd).toBe(50);
     // ARPU = $50 / 3 ≈ 16.6667
     expect(body.campaigns[1].arpu).toBeCloseTo(50 / 3, 4);
 
-    expect(body.campaigns[2].id).toBe("C");
+    expect(body.campaigns[2].id).toBe("Gamma");
     expect(body.campaigns[2].user_count).toBe(1);
     expect(body.campaigns[2].paying_user_count).toBe(0);
     expect(body.campaigns[2].total_revenue_usd).toBe(0);
@@ -159,6 +161,31 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     expect(body.campaigns).toHaveLength(1);
     expect(body.campaigns[0].id).toBe("A");
     expect(body.total_user_count).toBe(1);
+  });
+
+  it("merges SDK-attributed (id+name) and RC-backfilled (name-only) users for the same campaign", async () => {
+    // SDK-attributed user with both id+name
+    await seedUsers([
+      { user_id: "u1", campaign_id: "123", campaign_name: "Spring", revenue_usd_cents: 0 },
+    ]);
+    // RC-backfilled user: name only, no id (RC stores `$campaign` as a string)
+    await sql`
+      INSERT INTO app_users (project_id, user_id, is_anonymous, properties, total_revenue_usd_cents)
+      VALUES (${projectId}, 'u2', false,
+              ${sql.json({ attribution_source: "apple_search_ads", asa_campaign_name: "Spring" })},
+              5000)
+    `;
+
+    const res = await get(`/v1/projects/${projectId}/ads/campaigns`);
+    const body = res.json();
+    // Both users land in a single bucket keyed by name, so the paying RC
+    // user's revenue surfaces alongside the SDK-attributed install.
+    expect(body.campaigns).toHaveLength(1);
+    expect(body.campaigns[0].id).toBe("Spring");
+    expect(body.campaigns[0].name).toBe("Spring");
+    expect(body.campaigns[0].user_count).toBe(2);
+    expect(body.campaigns[0].paying_user_count).toBe(1);
+    expect(body.campaigns[0].total_revenue_usd).toBe(50);
   });
 
   it("filters by app_id via app_user_apps junction", async () => {
@@ -260,9 +287,9 @@ describe("GET /v1/projects/:projectId/ads/campaigns/:id/ad-groups", () => {
     expect(body.campaign_id).toBe("A");
     expect(body.campaign_name).toBe("Alpha");
     expect(body.ad_groups).toHaveLength(2);
-    expect(body.ad_groups[0].id).toBe("AG2");
+    expect(body.ad_groups[0].id).toBe("Second");
     expect(body.ad_groups[0].total_revenue_usd).toBe(100);
-    expect(body.ad_groups[1].id).toBe("AG1");
+    expect(body.ad_groups[1].id).toBe("First");
     expect(body.ad_groups[1].total_revenue_usd).toBe(30);
   });
 });
@@ -303,12 +330,12 @@ describe("GET /v1/projects/:projectId/ads/campaigns/:c/ad-groups/:g/leaves", () 
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.keywords).toHaveLength(1);
-    expect(body.keywords[0].id).toBe("K1");
+    expect(body.keywords[0].id).toBe("winter coat");
     expect(body.keywords[0].user_count).toBe(2);
     expect(body.keywords[0].total_revenue_usd).toBe(30);
 
     expect(body.ads).toHaveLength(1);
-    expect(body.ads[0].id).toBe("AD1");
+    expect(body.ads[0].id).toBe("Variant A");
     expect(body.ads[0].name).toBe("Variant A");
     expect(body.ads[0].total_revenue_usd).toBe(40);
   });

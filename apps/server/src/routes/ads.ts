@@ -72,12 +72,18 @@ export async function adsRoutes(app: FastifyInstance) {
       const appId = request.query.app_id;
       const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 500);
 
-      // Postgres compares GROUP BY expressions textually — two parameter
-      // placeholders for the same value count as different expressions and
-      // trip "column must appear in GROUP BY". Position-based `GROUP BY 1`
-      // avoids that and makes the rewrite trivial when adding more dimensions.
-      // The CTE bundles the project-wide `MAX(revenue_synced_at)` so each row
-      // carries the dashboard's "as of" header without a second roundtrip.
+      // We group on COALESCE(name, id) — names are present on both
+      // SDK-AdServices attribution (id+name) and RC-backfilled attribution
+      // (name only, since RC stores `$campaign`/`$adGroup`/`$keyword` as
+      // strings, never numeric IDs). Grouping on id alone would split a
+      // single campaign into two buckets and hide the highest-revenue users
+      // (the long-tail RC-backfilled ones) entirely. Drill-down accepts
+      // either side of the COALESCE so URLs work regardless of which path
+      // attributed each user.
+      // Position-based `GROUP BY 1` avoids drizzle's parameter-placeholder
+      // duplication tripping Postgres's textual-equality check on GROUP BY
+      // expressions. The CTE bundles project-wide `MAX(revenue_synced_at)`
+      // so each row carries the "as of" header in one roundtrip.
       const rows = await app.db.execute<
         AdsAggregateRow & { revenue_synced_at: Date | null }
       >(sql`
@@ -87,7 +93,7 @@ export async function adsRoutes(app: FastifyInstance) {
           WHERE project_id = ${projectId}
         )
         SELECT
-          properties->>${dims.campaignIdKey} AS id,
+          COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
           MAX(properties->>${dims.campaignNameKey}) AS name,
           COUNT(*)::int AS user_count,
           COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
@@ -96,7 +102,7 @@ export async function adsRoutes(app: FastifyInstance) {
         FROM ${appUsers}
         WHERE project_id = ${projectId}
           AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
-          AND properties ? ${dims.campaignIdKey}
+          AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
           ${appFilter(appId)}
         GROUP BY 1
         ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
@@ -151,12 +157,13 @@ export async function adsRoutes(app: FastifyInstance) {
       const appId = request.query.app_id;
       const limit = Math.min(Math.max(Number(request.query.limit) || 100, 1), 500);
 
-      // The campaign name comes back on every aggregation row (same value
-      // since they share a campaign), so we only need a separate fetch when
-      // the ad-groups result is empty.
+      // Drill-down accepts either side of the campaign-row COALESCE — the URL
+      // segment is whichever was non-null at aggregation time (name when
+      // present, id otherwise). Same dual-key story for ad groups: RC-only
+      // attributions carry the name, SDK-attributions carry both.
       const rows = await app.db.execute<AdsAggregateRow & { campaign_name: string | null }>(sql`
         SELECT
-          properties->>${dims.adGroupIdKey} AS id,
+          COALESCE(properties->>${dims.adGroupNameKey}, properties->>${dims.adGroupIdKey}) AS id,
           MAX(properties->>${dims.adGroupNameKey}) AS name,
           MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
           COUNT(*)::int AS user_count,
@@ -165,8 +172,8 @@ export async function adsRoutes(app: FastifyInstance) {
         FROM ${appUsers}
         WHERE project_id = ${projectId}
           AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
-          AND properties->>${dims.campaignIdKey} = ${campaignId}
-          AND properties ? ${dims.adGroupIdKey}
+          AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
+          AND (properties ? ${dims.adGroupNameKey} OR properties ? ${dims.adGroupIdKey})
           ${appFilter(appId)}
         GROUP BY 1
         ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
@@ -179,7 +186,7 @@ export async function adsRoutes(app: FastifyInstance) {
           SELECT MAX(properties->>${dims.campaignNameKey}) AS name
           FROM ${appUsers}
           WHERE project_id = ${projectId}
-            AND properties->>${dims.campaignIdKey} = ${campaignId}
+            AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
         `);
         campaignName = campaignRow?.name ?? null;
       }
@@ -218,13 +225,16 @@ export async function adsRoutes(app: FastifyInstance) {
       const baseFilter = sql`
         project_id = ${projectId}
           AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
-          AND properties->>${dims.campaignIdKey} = ${campaignId}
-          AND properties->>${dims.adGroupIdKey} = ${adGroupId}
+          AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
+          AND (properties->>${dims.adGroupIdKey} = ${adGroupId} OR properties->>${dims.adGroupNameKey} = ${adGroupId})
       `;
 
       // Each leaf row carries the parent campaign + ad-group names via MAX,
       // so we only fall back to a separate parent fetch when both arrays are
       // empty (the user navigated to an ad group with no attributed users).
+      // Keywords/ads use the same name-or-id COALESCE bucketing as campaigns
+      // so RC-backfilled name-only attributions land alongside SDK-attributed
+      // (id+name) ones for the same logical keyword/ad.
       type LeafRow = AdsAggregateRow & {
         campaign_name: string | null;
         ad_group_name: string | null;
@@ -232,7 +242,7 @@ export async function adsRoutes(app: FastifyInstance) {
       const [keywordRows, adRows] = await Promise.all([
         app.db.execute<LeafRow>(sql`
           SELECT
-            properties->>${dims.keywordIdKey} AS id,
+            COALESCE(properties->>${dims.keywordNameKey}, properties->>${dims.keywordIdKey}) AS id,
             MAX(properties->>${dims.keywordNameKey}) AS name,
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
@@ -241,7 +251,7 @@ export async function adsRoutes(app: FastifyInstance) {
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE ${baseFilter}
-            AND properties ? ${dims.keywordIdKey}
+            AND (properties ? ${dims.keywordNameKey} OR properties ? ${dims.keywordIdKey})
             ${appFilter(appId)}
           GROUP BY 1
           ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
@@ -249,7 +259,7 @@ export async function adsRoutes(app: FastifyInstance) {
         `),
         app.db.execute<LeafRow>(sql`
           SELECT
-            properties->>${dims.adIdKey} AS id,
+            COALESCE(properties->>${dims.adNameKey}, properties->>${dims.adIdKey}) AS id,
             MAX(properties->>${dims.adNameKey}) AS name,
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
@@ -258,7 +268,7 @@ export async function adsRoutes(app: FastifyInstance) {
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE ${baseFilter}
-            AND properties ? ${dims.adIdKey}
+            AND (properties ? ${dims.adNameKey} OR properties ? ${dims.adIdKey})
             ${appFilter(appId)}
           GROUP BY 1
           ORDER BY total_revenue_usd DESC, user_count DESC, id ASC
@@ -275,8 +285,8 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name
           FROM ${appUsers}
           WHERE project_id = ${projectId}
-            AND properties->>${dims.campaignIdKey} = ${campaignId}
-            AND properties->>${dims.adGroupIdKey} = ${adGroupId}
+            AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
+            AND (properties->>${dims.adGroupIdKey} = ${adGroupId} OR properties->>${dims.adGroupNameKey} = ${adGroupId})
         `);
         campaignName = parentRow?.campaign_name ?? null;
         adGroupName = parentRow?.ad_group_name ?? null;
