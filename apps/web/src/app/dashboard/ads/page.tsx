@@ -142,23 +142,25 @@ export default function AdsPage() {
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Campaigns ranked by lifetime USD revenue from attributed users.
-              {revenueSyncedAt && (
-                <>
-                  {" "}Revenue last synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>.
-                </>
-              )}
             </p>
           </div>
           {isAdmin && projectId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleSync()}
-              disabled={syncing}
-            >
-              <RefreshCw className={"h-3.5 w-3.5 mr-1 " + (syncing ? "animate-spin" : "")} />
-              {syncing ? "Syncing…" : "Sync now"}
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleSync()}
+                disabled={syncing}
+              >
+                <RefreshCw className={"h-3.5 w-3.5 mr-1 " + (syncing ? "animate-spin" : "")} />
+                {syncing ? "Syncing…" : "Sync now"}
+              </Button>
+              {revenueSyncedAt && (
+                <p className="text-xs text-muted-foreground">
+                  Last synced <span className="font-medium">{timeAgo(revenueSyncedAt)}</span>
+                </p>
+              )}
+            </div>
           )}
         </div>
         {syncError && <p className="text-xs text-destructive mt-2">{syncError}</p>}
