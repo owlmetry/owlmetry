@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -9,6 +9,7 @@ import {
   ATTRIBUTION_SOURCE_VALUES,
   formatRoasLabel,
   roasTone,
+  type AdsRow,
   type RoasTone,
 } from "@owlmetry/shared/attribution";
 import { useTeam } from "@/contexts/team-context";
@@ -23,6 +24,7 @@ import { formatUsd } from "@/lib/currency";
 import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { AdsFilterBar, ALL_PROJECTS } from "./_components/ads-filter-bar";
 import { AdsRowTable } from "./_components/ads-row-table";
+import { CampaignAdGroupsRow } from "./_components/expanded-rows";
 
 const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 
@@ -52,6 +54,23 @@ export default function AdsPage() {
 
   const isAllProjects = projectId === ALL_PROJECTS;
   const projectInfoMap = useProjectInfoMap(isAllProjects ? teamId : undefined);
+
+  // Set of expanded campaign keys, keyed `${row.project_id ?? projectId}:${row.id}`
+  // so all-projects mode (where same-named campaigns can share Apple IDs across
+  // ASA orgs) doesn't collide.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+  // Filter changes invalidate any expanded row's data context, so collapse all.
+  useEffect(() => {
+    setExpanded(new Set());
+  }, [projectId, appId, source]);
 
   function updateUrl(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -109,32 +128,31 @@ export default function AdsPage() {
 
   const isAdmin = currentRole === "owner" || currentRole === "admin";
 
+  function rowKey(row: AdsRow & { project_id?: string }) {
+    return `${row.project_id ?? projectId}:${row.id}`;
+  }
+
   function renderCampaigns() {
     if (isLoading) return <TableSkeleton rows={5} />;
     if (campaigns.length === 0) return <EmptyState />;
-    if (isAllProjects) {
-      return (
-        <AdsRowTable
-          rows={campaigns}
-          nameHeader="Campaign"
-          projectInfoMap={projectInfoMap}
-          rowHref={(row) =>
-            row.project_id
-              ? `/dashboard/ads/${encodeURIComponent(row.id)}?project_id=${row.project_id}&source=${source}`
-              : null
-          }
-          emptyMessage="No campaigns with attributed users yet."
-        />
-      );
-    }
     return (
       <AdsRowTable
         rows={campaigns}
         nameHeader="Campaign"
-        rowHref={(row) =>
-          `/dashboard/ads/${encodeURIComponent(row.id)}?project_id=${projectId}&source=${source}${appId ? `&app_id=${appId}` : ""}`
-        }
+        projectInfoMap={isAllProjects ? projectInfoMap : undefined}
         emptyMessage="No campaigns with attributed users yet."
+        expandable={{
+          isExpanded: (row) => expanded.has(rowKey(row)),
+          onToggle: (row) => toggleExpanded(rowKey(row)),
+          renderExpanded: (row) => (
+            <CampaignAdGroupsRow
+              projectId={row.project_id ?? projectId}
+              campaignId={row.id}
+              source={source}
+              appId={isAllProjects ? null : appId}
+            />
+          ),
+        }}
       />
     );
   }
