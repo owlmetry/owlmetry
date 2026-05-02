@@ -1,0 +1,2 @@
+CREATE INDEX "ad_adgroup_lifetime_project_network_name_idx" ON "ad_adgroup_lifetime" USING btree ("project_id","network","ad_group_name");--> statement-breakpoint
+CREATE INDEX "ad_campaign_lifetime_project_network_name_idx" ON "ad_campaign_lifetime" USING btree ("project_id","network","campaign_name");

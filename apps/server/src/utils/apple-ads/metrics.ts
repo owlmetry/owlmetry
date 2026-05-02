@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { adAdGroupLifetime, adCampaignLifetime, apps } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
+import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared";
 import type { AppleAdsConfig } from "./config.js";
 import {
   postAppleAdsAdGroupReport,
@@ -13,29 +14,22 @@ import {
 import { AppleAdsLookupCache } from "./enrich.js";
 
 /**
- * Sync ad-spend metrics from Apple Search Ads' Reports API into
- * `ad_campaign_lifetime` and `ad_adgroup_lifetime` for a single project.
+ * Sync Apple Search Ads spend / impressions / taps / installs into
+ * `ad_campaign_lifetime` + `ad_adgroup_lifetime` for one project.
  *
- * The Reports API is **org-scoped**: every campaign across every app under
- * the same Apple Developer team comes back in the same response, regardless
- * of which Owlmetry project we're syncing. We filter by `metadata.app.adamId`
- * matching `apps.apple_app_store_id` so a project only sees campaigns for
- * the apps it actually owns. Otherwise FaxApp's dashboard would inherit
- * MockupCreator's spend whenever they share an Apple Search Ads org.
+ * The Reports API is **org-scoped** — every campaign across every app under
+ * the same Apple Developer team comes back in one response — so we filter
+ * rows by `metadata.app.adamId` against `apps.apple_app_store_id`, dropping
+ * campaigns that belong to a different project's apps.
  *
- * For lifetime totals we walk back in 4× 90-day chunks (Apple caps single
- * report requests at ~90 days) and sum the per-window `total` blocks. The
- * 360-day window matches Apple's dashboard's default and produces totals
- * within ~7% of the figures shown there (the small delta is settled vs.
- * pending spend in Apple's UI; the API is the source of truth).
- *
- * USD-only for v1: when `localSpend.currency !== "USD"` we leave
- * `total_spend_usd_cents` null but persist the raw value in
- * `spend_local_micros` for a future multi-currency v2. The route layer
- * surfaces a `currency_warning` so the dashboard can render a banner.
+ * Apple caps single report requests at ~90 days, so for lifetime totals we
+ * issue 4 chunked requests in parallel and sum the per-window `total` blocks.
+ * Non-USD orgs get `total_spend_usd_cents` left null and the raw value
+ * preserved in `spend_local_micros`; the route layer surfaces a
+ * `currency_warning` for the dashboard banner.
  */
 
-const NETWORK = "apple_search_ads";
+const NETWORK = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 const CHUNK_DAYS = 90;
 const CHUNK_COUNT = 4; // 360 days ≈ "last 12 months" in Apple's dashboard.
 const REPORT_PAGE_LIMIT = 1000;
@@ -127,8 +121,14 @@ export async function syncAppleAdsMetrics(
   const campaignAcc = new Map<number, CampaignAccumulator>();
   const adGroupTargets = new Set<number>();
 
-  for (const chunk of chunks) {
-    const reportResult = await fetchAllCampaignPages(config, chunk);
+  // The 4 chunks are independent reads against different time windows; fetch
+  // them in parallel. Apple's per-org rate limit is loose (~10/sec) so 4
+  // concurrent calls is well below the ceiling.
+  const chunkResults = await Promise.all(
+    chunks.map((chunk) => fetchAllCampaignPages(config, chunk)),
+  );
+
+  for (const reportResult of chunkResults) {
     if (reportResult.status === "auth_error") {
       result.auth_error = reportResult.message;
       return result;
@@ -191,17 +191,22 @@ export async function syncAppleAdsMetrics(
   }
 
   // Per-campaign GET enriches start/end dates — Reports API doesn't carry
-  // these on campaign rows. Reuses the existing AppleAdsLookupCache so the
-  // names sub-pass and metrics sub-pass don't double-fetch.
+  // these on campaign rows. Run in parallel; AppleAdsLookupCache memoizes
+  // hits already populated by the names pass so most calls return instantly.
   const campaignDateMap = new Map<number, { startDate: string | null; endDate: string | null }>();
-  for (const accum of campaignAcc.values()) {
-    const cached = await cache.getCampaign(config, String(accum.campaignId));
+  const dateLookups = await Promise.all(
+    [...campaignAcc.values()].map(async (accum) => ({
+      campaignId: accum.campaignId,
+      result: await cache.getCampaign(config, String(accum.campaignId)),
+    })),
+  );
+  for (const { campaignId, result: cached } of dateLookups) {
     if (cached.status === "auth_error") {
       result.auth_error = cached.message;
       return result;
     }
     if (cached.status === "found") {
-      campaignDateMap.set(accum.campaignId, {
+      campaignDateMap.set(campaignId, {
         startDate: toDateOnly(cached.data.startTime),
         endDate: toDateOnly(cached.data.endTime),
       });
@@ -258,15 +263,18 @@ export async function syncAppleAdsMetrics(
   }
 
   // Ad-group reports are scoped to a single campaign each — fan out across
-  // the matched campaigns. ASA's per-campaign ad-group count is small in
-  // practice (often 1, occasionally a handful), so the fanout is cheap.
+  // the matched campaigns. The 4 chunks per campaign run in parallel; the
+  // outer loop stays sequential to keep peak QPS bounded for orgs with many
+  // campaigns.
   for (const campaignId of adGroupTargets) {
     const accum = campaignAcc.get(campaignId);
     if (!accum) continue;
     const adGroupAcc = new Map<number, AdGroupAccumulator>();
 
-    for (const chunk of chunks) {
-      const reportResult = await fetchAllAdGroupPages(config, campaignId, chunk);
+    const adGroupChunkResults = await Promise.all(
+      chunks.map((chunk) => fetchAllAdGroupPages(config, campaignId, chunk)),
+    );
+    for (const reportResult of adGroupChunkResults) {
       if (reportResult.status === "auth_error") {
         result.auth_error = reportResult.message;
         return result;

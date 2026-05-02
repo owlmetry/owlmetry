@@ -187,6 +187,45 @@ export interface AdsRow {
   status: string | null;
 }
 
+/**
+ * Classify a ROAS number into a render tone. Each surface (web, CLI, iOS,
+ * docs) maps the tone to its own color/style — keeps the green/amber/red
+ * thresholds consistent without exporting Tailwind classes from shared.
+ *
+ * Thresholds: ≥1.0x earns its way back (good), ≥0.5x recovers half (warn),
+ * lower is bad. Null → muted "—".
+ */
+export type RoasTone = "good" | "warn" | "bad" | "muted";
+export function roasTone(roas: number | null | undefined): RoasTone {
+  if (roas == null) return "muted";
+  if (roas >= 1) return "good";
+  if (roas >= 0.5) return "warn";
+  return "bad";
+}
+
+/** Format ROAS as `1.2x` (one decimal under 10, integer above). */
+export function formatRoasLabel(roas: number | null | undefined): string {
+  if (roas == null) return "—";
+  return `${roas.toFixed(roas < 10 ? 1 : 0)}x`;
+}
+
+/**
+ * Reduce a network-side status string to a render tone + display label, or
+ * null when the status is the "everything's fine" default that doesn't need
+ * a badge. Maps Apple Search Ads' `ENABLED|PAUSED|ON_HOLD|DELETED` today;
+ * unknown values fall through with a muted lowercase label.
+ */
+export function classifyAdStatus(
+  status: string | null | undefined,
+): { label: string; tone: "warn" | "bad" | "muted" } | null {
+  if (!status) return null;
+  const upper = status.toUpperCase();
+  if (upper === "ENABLED" || upper === "RUNNING") return null;
+  if (upper === "PAUSED" || upper === "ON_HOLD") return { label: "Paused", tone: "warn" };
+  if (upper === "DELETED") return { label: "Deleted", tone: "bad" };
+  return { label: upper.toLowerCase(), tone: "muted" };
+}
+
 export interface AdsCampaignsResponse {
   attribution_source: string;
   campaigns: AdsRow[];

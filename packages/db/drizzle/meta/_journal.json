@@ -372,6 +372,13 @@
       "when": 1778160000001,
       "tag": "0052_acoustic_doctor_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1778160000002,
+      "tag": "0053_square_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

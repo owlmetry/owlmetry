@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, AppResponse } from "@owlmetry/shared";
-import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared/attribution";
+import {
+  ATTRIBUTION_SOURCE_VALUES,
+  formatRoasLabel,
+  roasTone,
+  type RoasTone,
+} from "@owlmetry/shared/attribution";
 import { useTeam } from "@/contexts/team-context";
 import { useAdCampaigns, useAdCampaignsAcrossTeam, adsActions } from "@/hooks/use-ads";
 import { useProjectInfoMap } from "@/hooks/use-project-colors";
@@ -232,19 +237,7 @@ export default function AdsPage() {
             label="Lifetime spend"
             value={totalSpendUsd == null ? "—" : formatUsd(totalSpendUsd)}
           />
-          <SummaryCard
-            label="ROAS"
-            value={totalRoas == null ? "—" : `${totalRoas.toFixed(totalRoas < 10 ? 1 : 0)}x`}
-            tone={
-              totalRoas == null
-                ? "muted"
-                : totalRoas >= 1
-                  ? "good"
-                  : totalRoas >= 0.5
-                    ? "warn"
-                    : "bad"
-            }
-          />
+          <SummaryCard label="ROAS" value={formatRoasLabel(totalRoas)} tone={roasTone(totalRoas)} />
         </div>
       </StaggerItem>
 
@@ -253,21 +246,19 @@ export default function AdsPage() {
   );
 }
 
-type CardTone = "muted" | "good" | "warn" | "bad";
-
-const TONE_CLASS: Record<CardTone, string> = {
+const SUMMARY_TONE_CLASS: Record<RoasTone, string> = {
   muted: "",
   good: "text-emerald-600 dark:text-emerald-400",
   warn: "text-amber-600 dark:text-amber-400",
   bad: "text-red-600 dark:text-red-400",
 };
 
-function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: CardTone }) {
+function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: RoasTone }) {
   return (
     <Card>
       <CardContent className="p-4">
         <div className="text-xs text-muted-foreground">{label}</div>
-        <div className={`text-2xl font-semibold tabular-nums mt-1 ${tone ? TONE_CLASS[tone] : ""}`}>
+        <div className={`text-2xl font-semibold tabular-nums mt-1 ${tone ? SUMMARY_TONE_CLASS[tone] : ""}`}>
           {value}
         </div>
       </CardContent>

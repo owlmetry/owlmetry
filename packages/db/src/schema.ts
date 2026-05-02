@@ -1062,6 +1062,13 @@ export const adCampaignLifetime = pgTable(
       table.network,
       table.campaign_id,
     ),
+    // Supports the name-match leg of the route's LEFT JOIN: rows that came
+    // from RC backfill carry only the campaign name, not the numeric ID.
+    index("ad_campaign_lifetime_project_network_name_idx").on(
+      table.project_id,
+      table.network,
+      table.campaign_name,
+    ),
     index("ad_campaign_lifetime_project_app_network_idx").on(
       table.project_id,
       table.app_id,
@@ -1104,6 +1111,11 @@ export const adAdGroupLifetime = pgTable(
       table.project_id,
       table.network,
       table.ad_group_id,
+    ),
+    index("ad_adgroup_lifetime_project_network_name_idx").on(
+      table.project_id,
+      table.network,
+      table.ad_group_name,
     ),
     index("ad_adgroup_lifetime_project_network_campaign_idx").on(
       table.project_id,

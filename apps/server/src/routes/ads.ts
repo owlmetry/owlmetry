@@ -73,18 +73,6 @@ function sumSpend(rows: AdsRow[]): number | null {
   return any ? total : null;
 }
 
-function maxSyncedAt(timestamps: Array<Date | string | null | undefined>): string | null {
-  let max: number | null = null;
-  for (const ts of timestamps) {
-    if (!ts) continue;
-    const ms = ts instanceof Date ? ts.getTime() : new Date(ts).getTime();
-    if (Number.isFinite(ms) && (max === null || ms > max)) {
-      max = ms;
-    }
-  }
-  return max === null ? null : new Date(max).toISOString();
-}
-
 /**
  * Build the SQL filter that scopes app_users to a single app via the
  * app_user_apps junction. Returns `sql\`\`` (no extra clause) when no app is

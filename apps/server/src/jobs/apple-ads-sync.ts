@@ -9,27 +9,15 @@ import { syncAppleAdsMetrics, type MetricsSyncResult } from "../utils/apple-ads/
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 
 /**
- * Apple Search Ads sync — runs two passes per project:
+ * Apple Search Ads sync — two passes per project:
+ *   1. Names: backfill `asa_*_name` for users with a stored `asa_campaign_id`.
+ *   2. Metrics: pull campaign + ad-group spend reports into
+ *      `ad_campaign_lifetime` / `ad_adgroup_lifetime`, filtered by `adamId`.
  *
- *   1. **Names pass**: sweeps every user with a stored `asa_campaign_id` and
- *      back-fills human-readable names via Campaign Management GETs.
- *      Complements the fire-and-forget enrichment done on the attribution
- *      route so users attributed before the integration was connected get
- *      caught up.
- *   2. **Metrics pass**: pulls campaign + ad-group spend reports from the
- *      Reports API and upserts `ad_campaign_lifetime` / `ad_adgroup_lifetime`,
- *      filtered by `adamId` ↔ `apps.apple_app_store_id` so a project only
- *      stores metrics for its own apps. Powers the spend + ROAS columns on
- *      `/dashboard/ads`.
- *
- * **Routing**: with `params.project_id` set we run both passes for that
- * single project (manual-trigger path from `POST /v1/projects/:id/ads/sync`).
- * With no `project_id` we fan out across every project that has an active
- * `apple-search-ads` integration — daily schedule. Per-project try/catch
- * isolates failures so one bad credential set doesn't poison the rest of the
- * sweep, mirroring the `revenuecat_sync` and `app_store_connect_reviews_sync`
- * jobs. Auth errors short-circuit the project (every subsequent call would
- * fail the same way) but are reported, not thrown.
+ * `params.project_id` set ⇒ single-project run (manual trigger from
+ * `POST /v1/projects/:id/ads/sync`). Absent ⇒ fan out across every active
+ * integration with per-project try/catch isolation. Auth errors abort the
+ * current project; subsequent projects keep running.
  */
 
 type ProjectSyncResult = {

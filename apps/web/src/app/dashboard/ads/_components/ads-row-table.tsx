@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { AdsRow } from "@owlmetry/shared/attribution";
+import {
+  classifyAdStatus,
+  formatRoasLabel,
+  roasTone,
+  type AdsRow,
+  type RoasTone,
+} from "@owlmetry/shared/attribution";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatUsd, formatUsdCompact } from "@/lib/currency";
 import { ProjectDot } from "@/lib/project-color";
@@ -26,31 +32,18 @@ function formatStartDate(iso: string): string {
   return SHORT_DATE.format(d);
 }
 
-function formatRoas(roas: number | null): { text: string; className: string } {
-  if (roas == null) return { text: "—", className: "text-muted-foreground" };
-  // Industry convention: "1.2x" with one decimal. Color thresholds match the
-  // "is this campaign profitable?" mental model — green at break-even, amber
-  // when half the spend earns its way back, red below that.
-  const text = `${roas.toFixed(roas < 10 ? 1 : 0)}x`;
-  let className = "text-red-500";
-  if (roas >= 1) className = "text-emerald-600 dark:text-emerald-400";
-  else if (roas >= 0.5) className = "text-amber-600 dark:text-amber-400";
-  return { text, className };
-}
+const ROAS_TONE_CLASS: Record<RoasTone, string> = {
+  good: "text-emerald-600 dark:text-emerald-400",
+  warn: "text-amber-600 dark:text-amber-400",
+  bad: "text-red-500",
+  muted: "text-muted-foreground",
+};
 
-function statusBadge(status: string | null): { text: string; className: string } | null {
-  if (!status) return null;
-  const upper = status.toUpperCase();
-  // ENABLED is the default — don't render a badge for the common case.
-  if (upper === "ENABLED" || upper === "RUNNING") return null;
-  if (upper === "PAUSED" || upper === "ON_HOLD") {
-    return { text: "Paused", className: "border-amber-500/40 text-amber-700 dark:text-amber-300" };
-  }
-  if (upper === "DELETED") {
-    return { text: "Deleted", className: "border-red-500/40 text-red-700 dark:text-red-400" };
-  }
-  return { text: upper.toLowerCase(), className: "border-muted-foreground/30 text-muted-foreground" };
-}
+const STATUS_TONE_CLASS = {
+  warn: "border-amber-500/40 text-amber-700 dark:text-amber-300",
+  bad: "border-red-500/40 text-red-700 dark:text-red-400",
+  muted: "border-muted-foreground/30 text-muted-foreground",
+} as const;
 
 export function AdsRowTable({
   rows,
@@ -94,8 +87,9 @@ export function AdsRowTable({
                 const href = rowHref ? rowHref(row) : null;
                 const display = row.name ?? row.id;
                 const info = row.project_id ? projectInfoMap?.get(row.project_id) : undefined;
-                const badge = statusBadge(row.status);
-                const roas = formatRoas(row.roas);
+                const badge = classifyAdStatus(row.status);
+                const roasText = formatRoasLabel(row.roas);
+                const roasClass = ROAS_TONE_CLASS[roasTone(row.roas)];
                 return (
                   <tr
                     key={`${row.project_id ?? "_"}:${row.id}`}
@@ -134,10 +128,10 @@ export function AdsRowTable({
                             <span
                               className={
                                 "relative z-10 inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide " +
-                                badge.className
+                                STATUS_TONE_CLASS[badge.tone]
                               }
                             >
-                              {badge.text}
+                              {badge.label}
                             </span>
                           )}
                         </div>
@@ -170,8 +164,8 @@ export function AdsRowTable({
                       </td>
                     )}
                     {showSpend && (
-                      <td className={`px-4 py-3 text-right tabular-nums font-medium ${roas.className}`}>
-                        {roas.text}
+                      <td className={`px-4 py-3 text-right tabular-nums font-medium ${roasClass}`}>
+                        {roasText}
                       </td>
                     )}
                   </tr>
