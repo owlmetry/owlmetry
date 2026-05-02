@@ -9,6 +9,7 @@ import {
   type RoasTone,
 } from "@owlmetry/shared/attribution";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatUsd, formatUsdCompact } from "@/lib/currency";
 import { ProjectDot } from "@/lib/project-color";
 
@@ -45,6 +46,31 @@ const STATUS_TONE_CLASS = {
   muted: "border-muted-foreground/30 text-muted-foreground",
 } as const;
 
+function HeaderCell({
+  label,
+  tooltip,
+  alignRight = false,
+}: {
+  label: string;
+  tooltip?: string;
+  alignRight?: boolean;
+}) {
+  const className = `px-4 py-3 font-medium${alignRight ? " text-right" : ""}`;
+  if (!tooltip) return <th className={className}>{label}</th>;
+  return (
+    <th className={className}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="cursor-help underline decoration-dotted underline-offset-4">
+            {label}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    </th>
+  );
+}
+
 export function AdsRowTable({
   rows,
   emptyMessage = "No data yet.",
@@ -72,14 +98,47 @@ export function AdsRowTable({
           <table className="w-full text-sm">
             <thead className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                {showProject && <th className="px-4 py-3 font-medium">Project</th>}
-                <th className="px-4 py-3 font-medium">{nameHeader}</th>
-                <th className="px-4 py-3 font-medium text-right">Users</th>
-                <th className="px-4 py-3 font-medium text-right">Paying</th>
-                <th className="px-4 py-3 font-medium text-right">Revenue</th>
-                <th className="px-4 py-3 font-medium text-right">ARPU</th>
-                {showSpend && <th className="px-4 py-3 font-medium text-right">Spend</th>}
-                {showSpend && <th className="px-4 py-3 font-medium text-right">ROAS</th>}
+                {showProject && (
+                  <HeaderCell
+                    label="Project"
+                    tooltip="Owlmetry project the attributed users belong to."
+                  />
+                )}
+                <HeaderCell label={nameHeader} />
+                <HeaderCell
+                  label="Users"
+                  alignRight
+                  tooltip="Total attributed users — anonymous and identified."
+                />
+                <HeaderCell
+                  label="Paying"
+                  alignRight
+                  tooltip="Users with at least one purchase recorded by the revenue source (e.g. RevenueCat)."
+                />
+                <HeaderCell
+                  label="Revenue"
+                  alignRight
+                  tooltip="Lifetime USD revenue from these attributed users."
+                />
+                <HeaderCell
+                  label="ARPU"
+                  alignRight
+                  tooltip="Average Revenue Per User — revenue ÷ total users."
+                />
+                {showSpend && (
+                  <HeaderCell
+                    label="Spend"
+                    alignRight
+                    tooltip="Ad spend reported by the ad network (e.g. Apple Search Ads) for this row."
+                  />
+                )}
+                {showSpend && (
+                  <HeaderCell
+                    label="ROAS"
+                    alignRight
+                    tooltip="Return On Ad Spend — revenue ÷ spend."
+                  />
+                )}
               </tr>
             </thead>
             <tbody>
