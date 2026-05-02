@@ -85,10 +85,19 @@ export interface RevenueCatV2Subscription {
   gives_access: boolean;
   store: string;
   ownership: string;
-  // RC pre-computes lifetime USD revenue per subscription (sum of every
-  // renewal/initial purchase, refunds subtracted). The number rolls up to a
-  // customer's lifetime value via SUM across `RevenueCatV2SubscriptionsResponse.items`.
-  total_revenue_in_usd?: number;
+  // RC pre-computes lifetime USD revenue per subscription as a breakdown
+  // (gross = what the customer paid; proceeds = what we received after
+  // Apple/Google commission and tax; refunds already netted by RC). We sum
+  // `gross` across `items` for the customer's lifetime value — that's the
+  // customer LTV, not our take-home, and matches what "revenue" means on the
+  // dashboard column.
+  total_revenue_in_usd?: {
+    gross?: number;
+    proceeds?: number;
+    commission?: number;
+    tax?: number;
+    currency?: string;
+  };
 }
 
 export interface RevenueCatV2SubscriptionsResponse {
@@ -387,10 +396,10 @@ export function mapSubscriberToProperties(
 }
 
 /**
- * Sum a customer's lifetime USD revenue across their V2 subscriptions.
- * Returns null when the response is missing or has no subscriptions; otherwise
- * always a non-negative number (subscriptions without `total_revenue_in_usd`
- * contribute 0). Refunds are already netted by RC on the per-subscription field.
+ * Sum a customer's lifetime USD revenue across their V2 subscriptions, using
+ * the `gross` leg of RC's revenue breakdown (refunds already netted by RC).
+ * Returns null when the response is missing; otherwise non-negative number
+ * (subscriptions without a usable gross contribute 0).
  */
 export function sumLifetimeRevenueUsd(
   subscriptions: RevenueCatV2SubscriptionsResponse | undefined,
@@ -400,8 +409,9 @@ export function sumLifetimeRevenueUsd(
   if (items.length === 0) return 0;
   let total = 0;
   for (const sub of items) {
-    if (typeof sub.total_revenue_in_usd === "number" && Number.isFinite(sub.total_revenue_in_usd)) {
-      total += sub.total_revenue_in_usd;
+    const gross = sub.total_revenue_in_usd?.gross;
+    if (typeof gross === "number" && Number.isFinite(gross)) {
+      total += gross;
     }
   }
   return total < 0 ? 0 : total;
