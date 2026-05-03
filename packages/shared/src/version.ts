@@ -60,10 +60,14 @@ export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   return 0;
 }
 
-export function isLatestVersion(
+// -1: version is older than latest, 0: equal, 1: version is newer than latest
+// (e.g. TestFlight ahead of App Store, or app_version_sync hasn't picked up
+// a fresh release yet — Apple's iTunes Lookup lags multi-hour after release).
+// null when either input is missing.
+export function compareToLatest(
   version: string | null,
   latest: string | null,
-): boolean | null {
+): -1 | 0 | 1 | null {
   if (!version || !latest) return null;
-  return compareVersions(version, latest) === 0;
+  return compareVersions(version, latest);
 }

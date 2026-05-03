@@ -1,5 +1,5 @@
 // Deep import bypasses the barrel export which pulls in node:crypto
-import { compareVersions, isLatestVersion } from "@owlmetry/shared/version";
+import { compareToLatest, compareVersions } from "@owlmetry/shared/version";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -54,16 +54,19 @@ export function VersionBadge({ version, latestVersion, size = "sm", className }:
     return <span className={cn("font-mono text-xs text-muted-foreground", className)}>—</span>;
   }
 
-  const isLatest = isLatestVersion(version, latestVersion ?? null);
+  const cmp = compareToLatest(version, latestVersion ?? null);
 
-  if (isLatest === null) {
+  if (cmp === null) {
     return <span className={cn("font-mono text-xs", className)}>{version}</span>;
   }
 
-  const tone = isLatest ? "green" : "amber";
-  const tooltipText = isLatest
-    ? "On the latest released version"
-    : `Older than the latest released version (v${latestVersion})`;
+  const tone = cmp < 0 ? "amber" : "green";
+  const tooltipText =
+    cmp === 0
+      ? "On the latest released version"
+      : cmp < 0
+        ? `Older than the latest released version (v${latestVersion})`
+        : `Newer than the latest detected release (v${latestVersion})`;
 
   return (
     <Tooltip>

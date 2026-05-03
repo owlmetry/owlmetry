@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareVersions, isLatestVersion } from "../version.js";
+import { compareToLatest, compareVersions } from "../version.js";
 
 describe("compareVersions", () => {
   it("treats equal strings as equal", () => {
@@ -47,23 +47,22 @@ describe("compareVersions", () => {
   });
 });
 
-describe("isLatestVersion", () => {
-  it("returns true on equal", () => {
-    expect(isLatestVersion("1.2.3", "1.2.3")).toBe(true);
+describe("compareToLatest", () => {
+  it("returns 0 when equal", () => {
+    expect(compareToLatest("1.2.3", "1.2.3")).toBe(0);
   });
 
-  it("returns false when version is older", () => {
-    expect(isLatestVersion("1.2.2", "1.2.3")).toBe(false);
+  it("returns -1 when version is older", () => {
+    expect(compareToLatest("1.2.2", "1.2.3")).toBe(-1);
   });
 
-  it("returns false even when version is newer than latest (edge case: pre-release)", () => {
-    // If the user is on a TestFlight build ahead of App Store latest, we don't claim "latest" — only equality counts.
-    expect(isLatestVersion("1.2.4", "1.2.3")).toBe(false);
+  it("returns 1 when version is newer than latest (TestFlight or stale latest detection)", () => {
+    expect(compareToLatest("1.2.4", "1.2.3")).toBe(1);
   });
 
   it("returns null when either input is null", () => {
-    expect(isLatestVersion(null, "1.2.3")).toBe(null);
-    expect(isLatestVersion("1.2.3", null)).toBe(null);
-    expect(isLatestVersion(null, null)).toBe(null);
+    expect(compareToLatest(null, "1.2.3")).toBe(null);
+    expect(compareToLatest("1.2.3", null)).toBe(null);
+    expect(compareToLatest(null, null)).toBe(null);
   });
 });
