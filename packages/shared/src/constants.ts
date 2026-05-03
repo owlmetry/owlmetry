@@ -14,6 +14,7 @@ export const LOG_LEVELS = [
 export const MAX_BATCH_SIZE = 100;
 export const MAX_IMPORT_BATCH_SIZE = 1000;
 export const MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH = 200;
+export const MAX_EVENT_MESSAGE_LENGTH = 2000;
 export const DEFAULT_PAGE_SIZE = 50;
 export const MAX_PAGE_SIZE = 200;
 
