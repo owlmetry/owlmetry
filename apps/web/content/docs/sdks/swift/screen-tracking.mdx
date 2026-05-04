@@ -33,10 +33,10 @@ struct SettingsView: View {
 
 | Event | Level | When | Attributes |
 |-------|-------|------|------------|
-| `sdk:screen_appeared` | info | View appears | `screenName` set to the provided name |
+| `sdk:screen_appeared` | debug | View appears | `screenName` set to the provided name |
 | `sdk:screen_disappeared` | debug | View disappears | `screenName` set, `_duration_ms` with time the screen was visible |
 
-The `screen_appeared` event is info-level and included in production data. The `screen_disappeared` event is debug-level and only visible when viewing development data, keeping production data focused on screen visits rather than departures.
+Both screen events are debug-level, so they're filtered out of the default production view. Switch to development data (or filter by level) to see screen flow when you need it. The `screen_disappeared` event carries `_duration_ms` and is the more useful signal for analytics; `screen_appeared` is retained so you can detect screens that were opened but never closed (e.g. a crash mid-screen).
 
 ## Placement Guidelines
 

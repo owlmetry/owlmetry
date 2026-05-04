@@ -131,7 +131,7 @@ The SDK emits several events automatically without any manual calls:
 | `sdk:session_started` | info | On `Owl.configure()`. Includes `_launch_ms` (time from process start to configure). |
 | `sdk:app_foregrounded` | info | When the app enters the foreground. |
 | `sdk:app_backgrounded` | info | When the app enters the background. |
-| `sdk:screen_appeared` | info | When a view with `.owlScreen()` appears. See [Screen Tracking](/docs/sdks/swift/screen-tracking). |
+| `sdk:screen_appeared` | debug | When a view with `.owlScreen()` appears. See [Screen Tracking](/docs/sdks/swift/screen-tracking). |
 | `sdk:screen_disappeared` | debug | When a view with `.owlScreen()` disappears. Includes `_duration_ms`. |
 | `sdk:network_request` | debug/warn/error | On URLSession HTTP request completion. See below. |
 
