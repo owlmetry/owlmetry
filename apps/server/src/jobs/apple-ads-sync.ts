@@ -6,6 +6,7 @@ import { mergeUserProperties, selectUnsetProps } from "../utils/user-properties.
 import { findActiveIntegration } from "../utils/integrations.js";
 import { AppleAdsLookupCache, enrichAppleAdsNames, buildEnrichmentDiagnostic } from "../utils/apple-ads/enrich.js";
 import { syncAppleAdsMetrics, type MetricsSyncResult } from "../utils/apple-ads/metrics.js";
+import { reconcileAppleAdsLifetimeNames } from "../utils/apple-ads/reconcile.js";
 import type { AppleAdsConfig } from "../utils/apple-ads/config.js";
 
 /**
@@ -31,6 +32,8 @@ type ProjectSyncResult = {
   campaigns_matched: number;
   campaigns_upserted: number;
   ad_groups_upserted: number;
+  campaign_names_refreshed: number;
+  ad_group_names_refreshed: number;
   currency_warning?: string;
   aborted?: boolean;
   abort_reason?: string;
@@ -49,6 +52,8 @@ const AGGREGATE_FIELDS = [
   "campaigns_matched",
   "campaigns_upserted",
   "ad_groups_upserted",
+  "campaign_names_refreshed",
+  "ad_group_names_refreshed",
 ] as const;
 
 async function syncProject(ctx: JobContext, projectId: string): Promise<ProjectSyncResult> {
@@ -82,6 +87,8 @@ async function syncProject(ctx: JobContext, projectId: string): Promise<ProjectS
     campaigns_matched: 0,
     campaigns_upserted: 0,
     ad_groups_upserted: 0,
+    campaign_names_refreshed: 0,
+    ad_group_names_refreshed: 0,
   };
   const errorStatusCounts: Record<string, number> = {};
 
@@ -199,10 +206,28 @@ async function syncProject(ctx: JobContext, projectId: string): Promise<ProjectS
     result.abort_reason = `Apple Ads Reports API rejected the credentials: ${metricsResult.auth_error}`;
   }
 
+  // --- Pass 3: reconcile stale names from lifetime tables -----------------
+  // The names pass only fills missing keys, so users keep the original
+  // resolved name even after a campaign/ad-group rename in Apple. The
+  // lifetime tables we just upserted carry current truth — sync user
+  // properties to match. Skipped if the metrics pass aborted, since
+  // lifetime data wasn't refreshed.
+  if (!result.aborted) {
+    try {
+      const reconciled = await reconcileAppleAdsLifetimeNames(ctx.db, projectId);
+      result.campaign_names_refreshed = reconciled.campaign_names_refreshed;
+      result.ad_group_names_refreshed = reconciled.ad_group_names_refreshed;
+    } catch (err) {
+      ctx.log.warn({ err, projectId }, "Apple Ads lifetime-name reconcile failed");
+    }
+  }
+
   ctx.log.info(
     `Apple Ads sync: enriched ${result.enriched}/${result.examined} users (${result.total} total); ` +
     `${result.campaigns_upserted}/${result.campaigns_matched} campaigns + ${result.ad_groups_upserted} ad groups upserted ` +
-    `(${result.campaigns_seen} seen org-wide); ${result.errors} field errors.`,
+    `(${result.campaigns_seen} seen org-wide); ` +
+    `refreshed ${result.campaign_names_refreshed} campaign names + ${result.ad_group_names_refreshed} ad group names; ` +
+    `${result.errors} field errors.`,
   );
 
   if (Object.keys(errorStatusCounts).length > 0) result.error_status_counts = errorStatusCounts;
