@@ -23,34 +23,11 @@ import { Megaphone, RefreshCw } from "lucide-react";
 import { formatUsd } from "@/lib/currency";
 import { timeAgo } from "@/app/dashboard/_components/time-ago";
 import { AdsFilterBar, ALL_PROJECTS } from "./_components/ads-filter-bar";
-import {
-  AdsRowTable,
-  SORT_FIELD_MAP,
-  SORT_KEYS,
-  type SortKey,
-  type SortOrder,
-} from "./_components/ads-row-table";
+import { AdsRowTable } from "./_components/ads-row-table";
 import { CampaignAdGroupsRow } from "./_components/expanded-rows";
+import { ProjectAdsSection, bucketByProject } from "./_components/project-ads-section";
 
 const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
-const DEFAULT_SORT_KEY: SortKey = "revenue";
-const DEFAULT_SORT_ORDER: SortOrder = "desc";
-
-function parseSortKey(raw: string | null): SortKey {
-  return (SORT_KEYS as readonly string[]).includes(raw ?? "") ? (raw as SortKey) : DEFAULT_SORT_KEY;
-}
-function parseSortOrder(raw: string | null): SortOrder {
-  return raw === "asc" || raw === "desc" ? raw : DEFAULT_SORT_ORDER;
-}
-
-// Comparator: nulls always sink to the bottom regardless of direction so rows
-// without spend / ROAS data don't masquerade as "best" or "worst".
-function compareNullable(a: number | null, b: number | null, order: SortOrder): number {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-  return order === "asc" ? a - b : b - a;
-}
 
 export default function AdsPage() {
   const router = useRouter();
@@ -69,8 +46,6 @@ export default function AdsPage() {
   );
   const [appId, setAppIdState] = useState<string | null>(searchParams.get("app_id"));
   const [source, setSourceState] = useState<string>(searchParams.get("source") ?? DEFAULT_SOURCE);
-  const [sortKey, setSortKeyState] = useState<SortKey>(parseSortKey(searchParams.get("sort")));
-  const [sortOrder, setSortOrderState] = useState<SortOrder>(parseSortOrder(searchParams.get("order")));
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,22 +97,6 @@ export default function AdsPage() {
     updateUrl({ source: v });
   }
 
-  // Click handler: same column → toggle direction; different column → desc
-  // (the natural "best at top" starting direction). When the resulting state
-  // matches the default (revenue desc), we drop both params from the URL so
-  // the unsorted view stays cleanly shareable.
-  function setSort(key: SortKey) {
-    const nextOrder: SortOrder =
-      key === sortKey ? (sortOrder === "desc" ? "asc" : "desc") : "desc";
-    setSortKeyState(key);
-    setSortOrderState(nextOrder);
-    const isDefault = key === DEFAULT_SORT_KEY && nextOrder === DEFAULT_SORT_ORDER;
-    updateUrl({
-      sort: isDefault ? null : key,
-      order: isDefault ? null : nextOrder,
-    });
-  }
-
   const { data: appsData } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null,
   );
@@ -182,35 +141,62 @@ export default function AdsPage() {
     return `${row.project_id ?? projectId}:${row.id}`;
   }
 
-  // Client-side sort. Server returns campaigns in revenue-desc order; we
-  // re-sort here so the URL `sort` + `order` params drive the view without
-  // re-querying. Top-row "highlight leader" treatment follows the active
-  // sort (the leader is row 0 of whatever column is sorted).
-  const sortedCampaigns = useMemo(() => {
-    const field = SORT_FIELD_MAP[sortKey];
-    return [...campaigns].sort((a, b) =>
-      compareNullable(
-        (a[field] as number | null) ?? null,
-        (b[field] as number | null) ?? null,
-        sortOrder,
-      ),
-    );
-  }, [campaigns, sortKey, sortOrder]);
+  // In team mode, group campaigns into per-project buckets sorted by ROAS
+  // desc (revenue desc as tie-break for null-spend buckets). Server already
+  // returns campaigns in revenue-desc order, so each bucket's `rows` inherits
+  // that ordering for free. Reads from `allProjects.campaigns` directly so
+  // the `TeamAdsRow[]` type is preserved without a cast.
+  const projectBuckets = useMemo(
+    () => (isAllProjects ? bucketByProject(allProjects.campaigns) : []),
+    [isAllProjects, allProjects.campaigns],
+  );
 
   function renderCampaigns() {
     if (isLoading) return <TableSkeleton rows={5} />;
-    if (sortedCampaigns.length === 0) return <EmptyState />;
-    // Match the AdsRowTable's internal showSpend logic so nested tables
-    // get the same column structure as the parent.
-    const parentShowSpend = sortedCampaigns.some((r) => r.total_spend_usd != null);
+    if (campaigns.length === 0) return <EmptyState />;
+
+    if (isAllProjects) {
+      // Force Spend / ROAS columns on across every per-project table when any
+      // bucket has spend data, so columns line up vertically across sections.
+      const anySpend = projectBuckets.some((b) => b.totalSpendUsd != null);
+      return (
+        <div className="space-y-6">
+          {projectBuckets.map((bucket) => {
+            const info = projectInfoMap.get(bucket.projectId);
+            return (
+              <ProjectAdsSection
+                key={bucket.projectId}
+                projectName={info?.name ?? "Unknown project"}
+                projectColor={info?.color ?? null}
+                bucket={bucket}
+                forceShowSpend={anySpend}
+                expandable={{
+                  isExpanded: (row) => expanded.has(rowKey(row)),
+                  onToggle: (row) => toggleExpanded(rowKey(row)),
+                  renderExpanded: (row) => (
+                    <CampaignAdGroupsRow
+                      projectId={row.project_id ?? bucket.projectId}
+                      campaignId={row.id}
+                      source={source}
+                      appId={null}
+                      forceShowSpend={anySpend}
+                    />
+                  ),
+                }}
+              />
+            );
+          })}
+        </div>
+      );
+    }
+
+    const parentShowSpend = campaigns.some((r) => r.total_spend_usd != null);
     return (
       <AdsRowTable
-        rows={sortedCampaigns}
+        rows={campaigns}
         nameHeader="Campaign"
-        projectInfoMap={isAllProjects ? projectInfoMap : undefined}
         emptyMessage="No campaigns with attributed users yet."
         highlightTop
-        sort={{ key: sortKey, order: sortOrder, onChange: setSort }}
         expandable={{
           isExpanded: (row) => expanded.has(rowKey(row)),
           onToggle: (row) => toggleExpanded(rowKey(row)),
@@ -219,7 +205,7 @@ export default function AdsPage() {
               projectId={row.project_id ?? projectId}
               campaignId={row.id}
               source={source}
-              appId={isAllProjects ? null : appId}
+              appId={appId}
               forceShowSpend={parentShowSpend}
             />
           ),

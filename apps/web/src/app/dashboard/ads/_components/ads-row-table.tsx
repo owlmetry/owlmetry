@@ -2,7 +2,7 @@
 
 import { Fragment, useId, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
   classifyAdStatus,
   formatRoasLabel,
@@ -16,27 +16,6 @@ import { formatUsd, formatUsdCompact } from "@/lib/currency";
 import { ProjectDot } from "@/lib/project-color";
 
 type Row = AdsRow & { project_id?: string };
-
-export const SORT_KEYS = ["users", "paying", "arpu", "spend", "revenue", "roas"] as const;
-export type SortKey = (typeof SORT_KEYS)[number];
-export type SortOrder = "asc" | "desc";
-
-// SortKey → numeric field on AdsRow. `total_spend_usd` and `roas` are nullable;
-// callers should sort nulls to the bottom regardless of direction.
-export const SORT_FIELD_MAP: Record<SortKey, keyof AdsRow> = {
-  users: "user_count",
-  paying: "paying_user_count",
-  arpu: "arpu",
-  spend: "total_spend_usd",
-  revenue: "total_revenue_usd",
-  roas: "roas",
-};
-
-interface SortConfig {
-  key: SortKey;
-  order: SortOrder;
-  onChange: (key: SortKey) => void;
-}
 
 interface ExpandableConfig {
   isExpanded: (row: Row) => boolean;
@@ -66,13 +45,6 @@ interface AdsRowTableProps {
    * level).
    */
   forceShowSpend?: boolean;
-  /**
-   * When provided, numeric column headers become click-to-sort buttons.
-   * Sorting itself happens in the caller (this component just renders the
-   * indicator and fires `onChange`). Omit on nested tables to keep them
-   * static.
-   */
-  sort?: SortConfig;
 }
 
 // Column widths for the right-aligned numeric columns. Identical at every
@@ -125,56 +97,21 @@ function HeaderCell({
   label,
   tooltip,
   alignRight = false,
-  sortKey,
-  sort,
 }: {
   label: string;
   tooltip?: string;
   alignRight?: boolean;
-  sortKey?: SortKey;
-  sort?: SortConfig;
 }) {
   const className = `px-4 py-3 font-medium${alignRight ? " text-right" : ""}`;
-  const sortable = !!(sortKey && sort);
-  const isActive = sortable && sort!.key === sortKey;
-  const Indicator = isActive ? (sort!.order === "asc" ? ChevronUp : ChevronDown) : null;
-  const inlineWrapper = alignRight ? "inline-flex items-center justify-end gap-1" : "inline-flex items-center gap-1";
-
-  // Three header flavors: sortable button (always wins when sortKey+sort given),
-  // tooltipped span (current behavior for non-sortable), plain text otherwise.
-  let trigger: ReactNode;
-  if (sortable) {
-    trigger = (
-      <button
-        type="button"
-        onClick={() => sort!.onChange(sortKey!)}
-        className={`${inlineWrapper} cursor-pointer transition-colors hover:text-foreground ${
-          isActive ? "text-foreground" : ""
-        }`}
-      >
-        {label}
-        {Indicator && <Indicator className="h-3 w-3" aria-hidden="true" />}
-      </button>
-    );
-  } else if (tooltip) {
-    trigger = (
-      <span className="cursor-help underline decoration-dotted underline-offset-4">{label}</span>
-    );
-  } else {
+  if (!tooltip) {
     return <th className={className}>{label}</th>;
   }
-
-  if (!tooltip) {
-    return (
-      <th className={className} aria-sort={isActive ? (sort!.order === "asc" ? "ascending" : "descending") : undefined}>
-        {trigger}
-      </th>
-    );
-  }
   return (
-    <th className={className} aria-sort={isActive ? (sort!.order === "asc" ? "ascending" : "descending") : undefined}>
+    <th className={className}>
       <Tooltip>
-        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipTrigger asChild>
+          <span className="cursor-help underline decoration-dotted underline-offset-4">{label}</span>
+        </TooltipTrigger>
         <TooltipContent>{tooltip}</TooltipContent>
       </Tooltip>
     </th>
@@ -191,7 +128,6 @@ export function AdsRowTable({
   variant = "card",
   highlightTop = false,
   forceShowSpend,
-  sort,
 }: AdsRowTableProps) {
   const tableId = useId();
 
@@ -247,46 +183,34 @@ export function AdsRowTable({
               label="Users"
               alignRight
               tooltip="Total attributed users — anonymous and identified."
-              sortKey="users"
-              sort={sort}
             />
             <HeaderCell
               label="Paying"
               alignRight
               tooltip="Users with at least one purchase recorded by the revenue source (e.g. RevenueCat)."
-              sortKey="paying"
-              sort={sort}
             />
             <HeaderCell
               label="ARPU"
               alignRight
               tooltip="Average Revenue Per User — revenue ÷ total users."
-              sortKey="arpu"
-              sort={sort}
             />
             {showSpend && (
               <HeaderCell
                 label="Spend"
                 alignRight
                 tooltip="Ad spend reported by the ad network (e.g. Apple Search Ads) for this row."
-                sortKey="spend"
-                sort={sort}
               />
             )}
             <HeaderCell
               label="Revenue"
               alignRight
               tooltip="Lifetime USD revenue from these attributed users."
-              sortKey="revenue"
-              sort={sort}
             />
             {showSpend && (
               <HeaderCell
                 label="ROAS"
                 alignRight
                 tooltip="Return On Ad Spend — revenue ÷ spend."
-                sortKey="roas"
-                sort={sort}
               />
             )}
           </tr>
