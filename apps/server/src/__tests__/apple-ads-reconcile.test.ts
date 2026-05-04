@@ -199,6 +199,82 @@ describe("reconcileAppleAdsLifetimeNames", () => {
     expect(other_user.properties.asa_campaign_name).toBe("stale-b");
   });
 
+  it("refreshes RC-only users (no ad_group_id) via campaign-name anchor when only one ad group lives under the campaign", async () => {
+    // The current production reality: Swift SDK with attribution hasn't
+    // shipped yet, so attribution comes from RC's AdServices integration,
+    // which carries `$campaign`/`$adGroup` *names* only — no numeric IDs.
+    // ID-based reconcile can't reach these users; name-anchored fallback can,
+    // when the campaign has exactly one ad group (no ambiguity).
+    await insertUser("u1", {
+      attribution_source: "apple_search_ads",
+      asa_campaign_name: "other_countries_main_keywords",
+      asa_ad_group_name: "usa_main_keywords",
+    });
+    await insertCampaignLifetime("100", "other_countries_main_keywords");
+    await insertAdGroupLifetime("100", "200", "other_countries_main_keywords");
+
+    const result = await reconcileAppleAdsLifetimeNames(app.db, projectId);
+
+    expect(result.ad_group_names_refreshed).toBe(1);
+    expect((await readProps("u1")).asa_ad_group_name).toBe("other_countries_main_keywords");
+  });
+
+  it("does not touch RC-only users when the campaign has multiple ad groups (ambiguous)", async () => {
+    await insertUser("u1", {
+      attribution_source: "apple_search_ads",
+      asa_campaign_name: "campaign_a",
+      asa_ad_group_name: "stale_name",
+    });
+    await insertCampaignLifetime("100", "campaign_a");
+    await insertAdGroupLifetime("100", "200", "ad_group_one");
+    await insertAdGroupLifetime("100", "201", "ad_group_two");
+
+    const result = await reconcileAppleAdsLifetimeNames(app.db, projectId);
+
+    expect(result.ad_group_names_refreshed).toBe(0);
+    expect((await readProps("u1")).asa_ad_group_name).toBe("stale_name");
+  });
+
+  it("does not synthesize an ad group name for RC users that never had one", async () => {
+    // RC integrations sometimes report `$campaign` without `$adGroup`. Don't
+    // invent an ad group attribution for those users just because the campaign
+    // has one child.
+    await insertUser("u1", {
+      attribution_source: "apple_search_ads",
+      asa_campaign_name: "campaign_a",
+    });
+    await insertCampaignLifetime("100", "campaign_a");
+    await insertAdGroupLifetime("100", "200", "the_only_ad_group");
+
+    const result = await reconcileAppleAdsLifetimeNames(app.db, projectId);
+
+    expect(result.ad_group_names_refreshed).toBe(0);
+    const props = await readProps("u1");
+    expect(props.asa_ad_group_name).toBeUndefined();
+  });
+
+  it("does not apply name-anchored fallback to SDK users (those have asa_ad_group_id and use the ID path)", async () => {
+    // SDK user with stale name AND asa_ad_group_id. The ID path correctly
+    // resolves to ad_group_id=200's current name. The name path must skip
+    // because asa_ad_group_id is present — even though there's only one ad
+    // group under the campaign, we trust the ID over the campaign-singleton
+    // heuristic.
+    await insertUser("u1", {
+      attribution_source: "apple_search_ads",
+      asa_campaign_id: "100",
+      asa_campaign_name: "campaign_a",
+      asa_ad_group_id: "200",
+      asa_ad_group_name: "stale_name",
+    });
+    await insertCampaignLifetime("100", "campaign_a");
+    await insertAdGroupLifetime("100", "200", "current_name");
+
+    const result = await reconcileAppleAdsLifetimeNames(app.db, projectId);
+
+    expect(result.ad_group_names_refreshed).toBe(1);
+    expect((await readProps("u1")).asa_ad_group_name).toBe("current_name");
+  });
+
   it("refreshes many users in a single statement", async () => {
     // The phantom-row scenario: 18 users with a stale ad group name, all
     // pointing at the same numeric ad group ID that was renamed on Apple.
