@@ -11,7 +11,7 @@ The **issue scan** job runs hourly (system job, `issue_scan`). It:
 
 1. Queries all error-level events (`level = 'error'`) received since the last scan.
 2. Normalizes each error message by stripping variable parts (UUIDs, numbers, quoted strings) and lowercasing.
-3. Generates a SHA-256 fingerprint from the normalized message + source module.
+3. Generates a SHA-256 fingerprint from the normalized message + source module + an optional per-event-name discriminator (see Fingerprinting below).
 4. Groups events by session and clusters them into 5-second **bursts** (see below).
 5. For each burst: looks up each fingerprint in `issue_fingerprints`; aliases new fingerprints onto a co-occurring issue when one exists, or creates a single new issue for the whole burst when none do.
 6. Records a new occurrence (one per session per issue).
@@ -24,12 +24,24 @@ Two error events are considered the same issue when they produce the same finger
 
 - **Normalized message**: Variable parts stripped — `"User 123 not found"` and `"User 456 not found"` both normalize to `"user <n> not found"`.
 - **Source module**: The `source_module` field from the event, if present.
+- **Per-event-name discriminator** (optional): For some auto-emitted SDK events the fingerprint includes an extra discriminator so a single message name can produce multiple distinct issues. Today only `sdk:network_request` uses one — see below.
 - **App + dev mode**: Fingerprints are scoped per app and per dev/prod mode.
 
 The normalization strips:
 - UUIDs (e.g., `550e8400-...` becomes `<uuid>`)
 - Numbers (e.g., `404` becomes `<n>`)
 - Quoted strings (e.g., `"username"` becomes `"<s>"`)
+
+### Network request errors split by endpoint
+
+`sdk:network_request` errors (connection failures emitted by the Swift SDK's URLSession instrumentation) discriminate on `${method} ${host}${templated_path}` from the event's `_http_url` and `_http_method` custom attributes. So a connection failure to `api.revenuecat.com/v1/subscribers/<id>/offerings` becomes a different issue from one to your own backend, instead of all SDK-tracked network errors collapsing onto a single issue per source module.
+
+Path templating runs over each `/`-separated segment to keep per-user IDs from fragmenting the issue:
+- UUIDs become `<uuid>` (e.g. `/v1/sessions/550e8400-...` → `/v1/sessions/<uuid>`)
+- Pure-numeric segments become `<n>` (e.g. `/users/123` → `/users/<n>`)
+- 12+ char segments containing at least one digit become `<id>` — generic across Firebase Auth UIDs, Stripe IDs (`cus_*`, `sub_*`, `pi_*`), MongoDB ObjectIds, Cuid/Cuid2, Nanoid, KSUID, ULID, Auth0 sub claims (URL-decoded so `auth0%7C...` works), and `did:plc:*` DIDs. The "must contain a digit" guard prevents real endpoint names like `/metrics-aggregator/` from being templated.
+
+Network issues get a human-readable title `Network error: METHOD host/path` (e.g. `Network error: GET api.revenuecat.com/v1/subscribers/<id>/offerings`).
 
 ## Session-burst aliasing
 
