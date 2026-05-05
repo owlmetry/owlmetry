@@ -24,6 +24,7 @@ interface ErrorEvent {
   sdk_version: string | null;
   environment: string | null;
   country_code: string | null;
+  custom_attributes: Record<string, string> | null;
   is_dev: boolean;
   timestamp: Date;
 }
@@ -66,6 +67,93 @@ function isSpecializedMessage(message: string): boolean {
 function pickTitleEvent(items: FingerprintedEvent[]): ErrorEvent {
   const nonSpecialized = items.find((i) => !isSpecializedMessage(i.event.message));
   return (nonSpecialized ?? items[0]).event;
+}
+
+// Per-event-name fingerprint discriminators. Today there's only one entry —
+// `sdk:network_request` splits per HTTP method + host + path so a failure to
+// api.revenuecat.com doesn't collapse onto the same issue as a failure to your
+// own backend. Add new entries here when other auto-emitted SDK events need
+// similar splitting.
+const NETWORK_REQUEST_MESSAGE = "sdk:network_request";
+
+function parseHttpUrl(rawUrl: string): URL | null {
+  try {
+    return new URL(rawUrl);
+  } catch {
+    return null;
+  }
+}
+
+function buildNetworkRequestDiscriminator(
+  attrs: Record<string, string> | null,
+): string | null {
+  if (!attrs) return null;
+  const rawUrl = attrs._http_url;
+  if (!rawUrl) return null;
+  const parsed = parseHttpUrl(rawUrl);
+  if (!parsed) return null;
+  const method = (attrs._http_method ?? "").trim();
+  return `${method} ${parsed.host}${templateUrlPath(parsed.pathname)}`;
+}
+
+function discriminatorForEvent(event: ErrorEvent): string | null {
+  if (event.message === NETWORK_REQUEST_MESSAGE) {
+    return buildNetworkRequestDiscriminator(event.custom_attributes);
+  }
+  return null;
+}
+
+// Template variable path segments into placeholders so a network issue's
+// fingerprint groups by endpoint shape, not by the per-user IDs that ride in
+// the URL. Three rules:
+//   • UUID:    /v1/sessions/550e8400-e29b-...        → /v1/sessions/<uuid>
+//   • Number:  /users/123                            → /users/<n>
+//   • Opaque:  /v1/subscribers/qK2nM9lB8JaAfXt...    → /v1/subscribers/<id>
+// UUID strips first (cross-segment, hyphen-separated) so UUIDs keep their
+// distinct label. Per-segment rules then evaluate each `/`-separated piece
+// of the path. Each segment is URL-decoded before evaluation so encoded
+// separators like `auth0%7C…` (Auth0 sub claims) are seen as `auth0|…`.
+//
+// The "opaque" rule (length 12+, contains a digit) is generic across common
+// backend ID formats: Firebase Auth UIDs, Stripe IDs (cus_*, sub_*, pi_*),
+// MongoDB ObjectIds, Cuid/Cuid2, Nanoid, KSUID, ULID, Auth0 sub claims,
+// did:plc:* DIDs, etc. The digit-required guard prevents false positives on
+// long endpoint names like `/metrics-aggregator/` or `/billing-administration/`.
+function templateUrlPath(path: string): string {
+  const uuidStripped = path.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    "<uuid>",
+  );
+  return uuidStripped.split("/").map(templatePathSegment).join("/");
+}
+
+function templatePathSegment(segment: string): string {
+  if (!segment) return segment;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(segment);
+  } catch {
+    decoded = segment;
+  }
+  if (/^\d+(\.\d+)*$/.test(decoded)) return "<n>";
+  if (decoded.length >= 12 && /\d/.test(decoded)) return "<id>";
+  return segment;
+}
+
+function composeIssueTitle(event: ErrorEvent): string {
+  if (event.message === NETWORK_REQUEST_MESSAGE) {
+    const attrs = event.custom_attributes;
+    const rawUrl = attrs?._http_url;
+    const parsed = rawUrl ? parseHttpUrl(rawUrl) : null;
+    if (parsed) {
+      const method = (attrs?._http_method ?? "").trim();
+      const target = `${parsed.host}${templateUrlPath(parsed.pathname)}`;
+      return method
+        ? `Network error: ${method} ${target}`
+        : `Network error: ${target}`;
+    }
+  }
+  return event.message;
 }
 
 interface IssueSummary {
@@ -149,7 +237,8 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
         const scanSinceIso = scanSince.toISOString();
         const errorEvents = await client<ErrorEvent[]>`
           SELECT id, app_id, client_event_id, session_id, user_id, message, source_module,
-                 app_version, sdk_name, sdk_version, environment, country_code, is_dev, "timestamp"
+                 app_version, sdk_name, sdk_version, environment, country_code,
+                 custom_attributes, is_dev, "timestamp"
           FROM events
           WHERE app_id = ${appRow.id}
             AND level = 'error'
@@ -162,11 +251,18 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
           continue;
         }
 
-        // 4. Compute fingerprint once per event
+        // 4. Compute fingerprint once per event. For events with a per-name
+        // discriminator (today: sdk:network_request → method+host+path), the
+        // discriminator augments the hash so the same event name from
+        // different endpoints produces distinct issues.
         const fingerprinted: FingerprintedEvent[] = await Promise.all(
           errorEvents.map(async (event) => ({
             event,
-            fingerprint: await generateIssueFingerprint(event.message, event.source_module),
+            fingerprint: await generateIssueFingerprint(
+              event.message,
+              event.source_module,
+              discriminatorForEvent(event),
+            ),
           }))
         );
 
@@ -267,7 +363,7 @@ export function issueScanHandler(dispatcher: NotificationDispatcher): JobHandler
 
               const [inserted] = await client<{ id: string; created_at: Date }[]>`
                 INSERT INTO issues (app_id, project_id, status, title, source_module, is_dev, first_seen_at, last_seen_at)
-                VALUES (${appRow.id}, ${appRow.project_id}, 'new', ${titleEvent.message}, ${titleEvent.source_module}, ${isDev}, ${firstSeen.toISOString()}::timestamptz, ${lastSeen.toISOString()}::timestamptz)
+                VALUES (${appRow.id}, ${appRow.project_id}, 'new', ${composeIssueTitle(titleEvent)}, ${titleEvent.source_module}, ${isDev}, ${firstSeen.toISOString()}::timestamptz, ${lastSeen.toISOString()}::timestamptz)
                 RETURNING id, created_at
               `;
               issuesCreated++;

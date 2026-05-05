@@ -191,3 +191,111 @@ describe("generateIssueFingerprint", () => {
     expect(fp).toMatch(/^[0-9a-f]{64}$/);
   });
 });
+
+describe("generateIssueFingerprint with discriminator", () => {
+  it("omitting discriminator matches the legacy 2-arg call", async () => {
+    const a = await generateIssueFingerprint("sdk:network_request", "Net");
+    const b = await generateIssueFingerprint("sdk:network_request", "Net", undefined);
+    expect(a).toBe(b);
+  });
+
+  it("null discriminator equals omitting it", async () => {
+    const a = await generateIssueFingerprint("sdk:network_request", "Net");
+    const b = await generateIssueFingerprint("sdk:network_request", "Net", null);
+    expect(a).toBe(b);
+  });
+
+  it("passing a discriminator changes the fingerprint vs no discriminator", async () => {
+    const a = await generateIssueFingerprint("sdk:network_request", "Net");
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users",
+    );
+    expect(a).not.toBe(b);
+  });
+
+  it("same discriminator → same fingerprint", async () => {
+    const a = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users",
+    );
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users",
+    );
+    expect(a).toBe(b);
+  });
+
+  it("different host → different fingerprint", async () => {
+    const a = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users",
+    );
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.bar.com/v1/users",
+    );
+    expect(a).not.toBe(b);
+  });
+
+  it("different path on same host → different fingerprint", async () => {
+    const a = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users",
+    );
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/orders",
+    );
+    expect(a).not.toBe(b);
+  });
+
+  it("different methods → different fingerprints", async () => {
+    const a = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users",
+    );
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "POST api.foo.com/v1/users",
+    );
+    expect(a).not.toBe(b);
+  });
+
+  it("normalizer is reused — numeric path segments collapse", async () => {
+    const a = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users/123",
+    );
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/users/456",
+    );
+    expect(a).toBe(b);
+  });
+
+  it("normalizer is reused — UUIDs in path collapse", async () => {
+    const a = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/sessions/550e8400-e29b-41d4-a716-446655440000",
+    );
+    const b = await generateIssueFingerprint(
+      "sdk:network_request",
+      "Net",
+      "GET api.foo.com/v1/sessions/6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    );
+    expect(a).toBe(b);
+  });
+});

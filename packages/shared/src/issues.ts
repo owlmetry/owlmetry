@@ -137,14 +137,23 @@ export function normalizeErrorMessage(message: string): string {
 
 /**
  * Generates a SHA-256 fingerprint for an error.
- * Based on normalized message + source_module.
+ * Based on normalized message + source_module, optionally augmented by a
+ * per-event discriminator (e.g. `${method} ${host}${path}` for sdk:network_request).
+ *
+ * When `discriminator` is null/undefined the hash input is byte-identical to
+ * the legacy 2-arg form, so existing fingerprints for non-network events
+ * remain stable.
  */
 export async function generateIssueFingerprint(
   message: string,
   sourceModule: string | null,
+  discriminator?: string | null,
 ): Promise<string> {
   const normalized = normalizeErrorMessage(message);
-  const input = `${sourceModule ?? ""}:${normalized}`;
+  const base = `${sourceModule ?? ""}:${normalized}`;
+  const input = discriminator == null
+    ? base
+    : `${base}|${normalizeErrorMessage(discriminator)}`;
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
   const hash = await crypto.subtle.digest("SHA-256", data);

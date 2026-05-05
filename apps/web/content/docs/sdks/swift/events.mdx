@@ -152,6 +152,8 @@ Each tracked request emits a `sdk:network_request` event with these attributes:
 
 Log levels are assigned based on the response: `debug` for 2xx/3xx, `warn` for 4xx/5xx, and `error` for network failures with no response. Debug-level network events stay out of production views by default, while 4xx/5xx and network errors surface clearly.
 
+Error-level network events are grouped into issues per HTTP method + host + path, so a failure to `api.revenuecat.com/v1/subscribers` produces a different issue from a failure to your own backend. Numeric path segments and UUIDs are templated (e.g. `/users/123` and `/users/456` collapse onto the same issue).
+
 The SDK's own requests to the Owlmetry ingest endpoint are automatically excluded. To disable network request tracking entirely:
 
 ```swift
