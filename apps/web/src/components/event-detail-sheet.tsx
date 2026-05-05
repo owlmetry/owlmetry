@@ -25,7 +25,8 @@ import { countryFlag } from "@/lib/country-flag";
 import { api } from "@/lib/api";
 // Deep import bypasses the barrel export which pulls in node:crypto
 import { formatBytes } from "@owlmetry/shared/constants";
-import { Search } from "lucide-react";
+import Link from "next/link";
+import { Search, ArrowRight } from "lucide-react";
 import type {
   AttachmentListResponse,
   AttachmentSummary,
@@ -170,6 +171,17 @@ export function EventDetailSheet({ event, open, onOpenChange, onEventSelect, onF
           )}
 
           <Separator className="my-4" />
+
+          {event.app_id && event.user_id && (
+            <Button variant="outline" size="sm" className="w-full mb-2" asChild>
+              <Link
+                href={`/dashboard/users?app_id=${event.app_id}&app_user_id=${event.user_id}&sort=first_seen`}
+              >
+                <ArrowRight className="h-3.5 w-3.5 mr-2" />
+                View User
+              </Link>
+            </Button>
+          )}
 
           {!showTimeline ? (
             <Button

@@ -142,13 +142,21 @@ export default function UsersPage() {
   const appUserIdParam = filters.get("app_user_id");
   const sheetOpen = !!appUserIdParam;
 
-  // Resolve selectedUser from URL app_user_id: prefer loaded list, fall back to fetching by id
+  // Resolve selectedUser from URL app_user_id: accepts either the app_users.id UUID
+  // or the SDK user_id string (e.g. linked from the event detail sheet's "View User"
+  // button, where the event only carries the SDK string + app_id scope).
   const userInList = useMemo(
-    () => (appUserIdParam ? users.find((u) => u.id === appUserIdParam) ?? null : null),
+    () =>
+      appUserIdParam
+        ? users.find((u) => u.id === appUserIdParam || u.user_id === appUserIdParam) ?? null
+        : null,
     [appUserIdParam, users],
   );
+  const isUuid = appUserIdParam
+    ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appUserIdParam)
+    : false;
   const { data: fetchedUser } = useSWR<AppUserResponse>(
-    appUserIdParam && !userInList ? `/v1/app-users/${appUserIdParam}` : null,
+    appUserIdParam && !userInList && isUuid ? `/v1/app-users/${appUserIdParam}` : null,
   );
   useEffect(() => {
     if (!appUserIdParam) {
