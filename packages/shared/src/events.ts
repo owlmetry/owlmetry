@@ -7,6 +7,13 @@ export type LogLevel =
 export type AppPlatform = "apple" | "android" | "web" | "backend";
 export type Environment = "ios" | "ipados" | "macos" | "android" | "web" | "backend";
 
+// SDK-emitted event message names + their custom_attributes keys. Mirrored by
+// the Swift SDK's URLSessionInstrumentation. Server consumers (notably issue
+// fingerprinting) read these to apply per-event-name behavior.
+export const NETWORK_REQUEST_MESSAGE = "sdk:network_request";
+export const HTTP_URL_ATTRIBUTE = "_http_url";
+export const HTTP_METHOD_ATTRIBUTE = "_http_method";
+
 export interface IngestEventPayload {
   client_event_id?: string;
   session_id: string;

@@ -6,6 +6,9 @@ import {
   METRIC_MESSAGE_PREFIX,
   STEP_MESSAGE_PREFIX,
   TRACK_MESSAGE_PREFIX,
+  NETWORK_REQUEST_MESSAGE,
+  HTTP_URL_ATTRIBUTE,
+  HTTP_METHOD_ATTRIBUTE,
 } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import type { NotificationDispatcher } from "../services/notifications/dispatcher.js";
@@ -69,38 +72,47 @@ function pickTitleEvent(items: FingerprintedEvent[]): ErrorEvent {
   return (nonSpecialized ?? items[0]).event;
 }
 
-// Per-event-name fingerprint discriminators. Today there's only one entry —
-// `sdk:network_request` splits per HTTP method + host + path so a failure to
+// Per-event-name fingerprint discriminators. Today only `sdk:network_request`
+// has one — splits per HTTP method + host + path so a failure to
 // api.revenuecat.com doesn't collapse onto the same issue as a failure to your
 // own backend. Add new entries here when other auto-emitted SDK events need
 // similar splitting.
-const NETWORK_REQUEST_MESSAGE = "sdk:network_request";
 
-function parseHttpUrl(rawUrl: string): URL | null {
+// Threshold that decides whether a path segment looks like an opaque ID
+// (Firebase UID, Stripe ID, MongoDB ObjectId, Cuid/Nanoid/ULID, etc.) versus
+// a real endpoint name (`metrics-aggregator`). 12 catches every common ID
+// generator without over-collapsing realistic resource names.
+const OPAQUE_ID_MIN_LENGTH = 12;
+
+interface NetworkRequestParts {
+  method: string;
+  host: string;
+  templatedPath: string;
+}
+
+function parseNetworkRequest(
+  attrs: Record<string, string> | null,
+): NetworkRequestParts | null {
+  if (!attrs) return null;
+  const rawUrl = attrs[HTTP_URL_ATTRIBUTE];
+  if (!rawUrl) return null;
+  let parsed: URL;
   try {
-    return new URL(rawUrl);
+    parsed = new URL(rawUrl);
   } catch {
     return null;
   }
-}
-
-function buildNetworkRequestDiscriminator(
-  attrs: Record<string, string> | null,
-): string | null {
-  if (!attrs) return null;
-  const rawUrl = attrs._http_url;
-  if (!rawUrl) return null;
-  const parsed = parseHttpUrl(rawUrl);
-  if (!parsed) return null;
-  const method = (attrs._http_method ?? "").trim();
-  return `${method} ${parsed.host}${templateUrlPath(parsed.pathname)}`;
+  return {
+    method: (attrs[HTTP_METHOD_ATTRIBUTE] ?? "").trim(),
+    host: parsed.host,
+    templatedPath: templateUrlPath(parsed.pathname),
+  };
 }
 
 function discriminatorForEvent(event: ErrorEvent): string | null {
-  if (event.message === NETWORK_REQUEST_MESSAGE) {
-    return buildNetworkRequestDiscriminator(event.custom_attributes);
-  }
-  return null;
+  if (event.message !== NETWORK_REQUEST_MESSAGE) return null;
+  const parts = parseNetworkRequest(event.custom_attributes);
+  return parts ? `${parts.method} ${parts.host}${parts.templatedPath}` : null;
 }
 
 // Template variable path segments into placeholders so a network issue's
@@ -114,11 +126,11 @@ function discriminatorForEvent(event: ErrorEvent): string | null {
 // of the path. Each segment is URL-decoded before evaluation so encoded
 // separators like `auth0%7C…` (Auth0 sub claims) are seen as `auth0|…`.
 //
-// The "opaque" rule (length 12+, contains a digit) is generic across common
-// backend ID formats: Firebase Auth UIDs, Stripe IDs (cus_*, sub_*, pi_*),
-// MongoDB ObjectIds, Cuid/Cuid2, Nanoid, KSUID, ULID, Auth0 sub claims,
-// did:plc:* DIDs, etc. The digit-required guard prevents false positives on
-// long endpoint names like `/metrics-aggregator/` or `/billing-administration/`.
+// The "opaque" rule (length OPAQUE_ID_MIN_LENGTH+, contains a digit) is
+// generic across common backend ID formats: Firebase Auth UIDs, Stripe IDs
+// (cus_*, sub_*, pi_*), MongoDB ObjectIds, Cuid/Cuid2, Nanoid, KSUID, ULID,
+// Auth0 sub claims, did:plc:* DIDs, etc. The digit-required guard prevents
+// false positives on long endpoint names like `/metrics-aggregator/`.
 function templateUrlPath(path: string): string {
   const uuidStripped = path.replace(
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
@@ -136,24 +148,18 @@ function templatePathSegment(segment: string): string {
     decoded = segment;
   }
   if (/^\d+(\.\d+)*$/.test(decoded)) return "<n>";
-  if (decoded.length >= 12 && /\d/.test(decoded)) return "<id>";
+  if (decoded.length >= OPAQUE_ID_MIN_LENGTH && /\d/.test(decoded)) return "<id>";
   return segment;
 }
 
 function composeIssueTitle(event: ErrorEvent): string {
-  if (event.message === NETWORK_REQUEST_MESSAGE) {
-    const attrs = event.custom_attributes;
-    const rawUrl = attrs?._http_url;
-    const parsed = rawUrl ? parseHttpUrl(rawUrl) : null;
-    if (parsed) {
-      const method = (attrs?._http_method ?? "").trim();
-      const target = `${parsed.host}${templateUrlPath(parsed.pathname)}`;
-      return method
-        ? `Network error: ${method} ${target}`
-        : `Network error: ${target}`;
-    }
-  }
-  return event.message;
+  if (event.message !== NETWORK_REQUEST_MESSAGE) return event.message;
+  const parts = parseNetworkRequest(event.custom_attributes);
+  if (!parts) return event.message;
+  const target = `${parts.host}${parts.templatedPath}`;
+  return parts.method
+    ? `Network error: ${parts.method} ${target}`
+    : `Network error: ${target}`;
 }
 
 interface IssueSummary {
