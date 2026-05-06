@@ -63,7 +63,7 @@ export default function FunnelDetailPage() {
   const filters = useUrlFilters({
     path: `/dashboard/funnels/${id}`,
     defaults: {
-      time_range: "7d",
+      time_range: "30d",
       since: "",
       until: "",
       app_version: "",

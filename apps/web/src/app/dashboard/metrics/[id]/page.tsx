@@ -78,7 +78,7 @@ export default function MetricDetailPage() {
   const filters = useUrlFilters({
     path: `/dashboard/metrics/${id}`,
     defaults: {
-      time_range: "24h",
+      time_range: "30d",
       since: "",
       until: "",
       app_version: "",
