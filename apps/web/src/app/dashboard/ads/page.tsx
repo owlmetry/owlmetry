@@ -29,6 +29,13 @@ import { ProjectAdsSection, bucketByProject } from "./_components/project-ads-se
 
 const DEFAULT_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 
+function windowDaysLabel(days: number | null): string {
+  if (!days) return "Trailing window";
+  if (days % 30 === 0 && days >= 60) return `Last ${days / 30} months`;
+  if (days % 7 === 0 && days < 90) return `Last ${days / 7} weeks`;
+  return `Last ${days} days`;
+}
+
 export default function AdsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -126,6 +133,7 @@ export default function AdsPage() {
     totalPayingUserCount,
     totalRevenueUsd,
     totalSpendUsd,
+    windowDays,
     revenueSyncedAt,
     adMetricsSyncedAt,
     currencyWarning,
@@ -259,6 +267,11 @@ export default function AdsPage() {
             <Megaphone className="h-5 w-5 text-muted-foreground" />
             Advertising insights
           </h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {windowDaysLabel(windowDays)} — spend pulled from the network's reporting API; revenue
+            from RevenueCat. Both sides scope to users acquired in the same window so ROAS stays
+            comparable.
+          </p>
         </div>
         {syncError && <p className="text-xs text-destructive mt-2">{syncError}</p>}
         {currencyWarning && (

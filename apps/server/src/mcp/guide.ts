@@ -148,7 +148,9 @@ User properties written:
 
 ### Advertising Insights
 
-Ranks acquisition campaigns by the lifetime USD revenue they've generated. The hierarchy is **campaign → ad group → keyword | ad** (ad groups contain both keywords and ads in Apple Search Ads — keyword-driven and auto-driven placements get attributed differently). Today only \`attribution_source = "apple_search_ads"\` is populated; the schema and tools accept any value in \`ATTRIBUTION_NETWORK_DIMENSIONS\`, so future Meta/Google/TikTok networks slot in without API changes.
+Ranks acquisition campaigns by USD revenue and ROAS. The hierarchy is **campaign → ad group → keyword | ad** (ad groups contain both keywords and ads in Apple Search Ads — keyword-driven and auto-driven placements get attributed differently). Today only \`attribution_source = "apple_search_ads"\` is populated; the schema and tools accept any value in \`ATTRIBUTION_NETWORK_DIMENSIONS\`, so future Meta/Google/TikTok networks slot in without API changes.
+
+**Trailing 12-month window** applied symmetrically to both sides of ROAS: spend is summed from \`ad_campaign_lifetime\` (synced daily from Apple's Reports API in 4×90-day chunks — Apple caps single requests at ~90 days), and revenue is filtered server-side to users with \`app_users.first_seen_at\` inside the same window. Without the matching filter, users acquired before the spend window's start would inflate ROAS by contributing revenue against zero matchable spend. Each response echoes the window in \`window_days\` so clients can label the time range.
 
 **Where the numbers come from**: per-user lifetime revenue is summed across the RevenueCat V2 \`/subscriptions\` response (\`total_revenue_in_usd\` per subscription, refunds netted by RC) and stored as a typed \`total_revenue_usd_cents\` column on \`app_users\`. Two refresh paths keep it fresh: (1) every RC subscription webhook fire-and-forgets a per-user resync against RC's API — typically within seconds of the transaction; (2) the daily \`revenuecat_sync\` cron at 03:00 UTC fans out across every project and reconciles anyone whose webhook was dropped.
 

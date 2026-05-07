@@ -164,6 +164,20 @@ export const ASA_MAX_PENDING_ATTEMPTS = 5;
 
 export type AdsLeafType = "keyword" | "ad";
 
+/**
+ * Trailing window applied symmetrically to both sides of the ROAS calculation:
+ * Apple Search Ads spend (capped server-side by the chunked Reports API sync,
+ * `4 × 90 = 360 days`) and attributed-user revenue (filtered server-side by
+ * `app_users.first_seen_at >= now() - this window`). Without the matching
+ * filter on the revenue side, users acquired before the spend window's start
+ * would inflate ROAS — their revenue would count but the campaign spend that
+ * acquired them would have already aged out of the spend rollups.
+ *
+ * The web/CLI/MCP surfaces echo `window_days` back in every ads response so
+ * UIs can label the time range without hard-coding it.
+ */
+export const ADS_INSIGHTS_WINDOW_DAYS = 360;
+
 export interface AdsRow {
   /** Network-specific ID (e.g. ASA campaign ID). */
   id: string;
@@ -234,6 +248,8 @@ export interface AdsCampaignsResponse {
   total_revenue_usd: number;
   /** SUM of visible rows' `total_spend_usd`; null when no row reported spend. */
   total_spend_usd: number | null;
+  /** Trailing window (in days) applied to both spend and revenue. See `ADS_INSIGHTS_WINDOW_DAYS`. */
+  window_days: number;
   /** Most recent `revenue_synced_at` across the project's RC-synced users; null when never synced. */
   revenue_synced_at: string | null;
   /** Most recent `last_synced_at` across the project's `ad_*_lifetime` rows; null when never synced. */
@@ -258,6 +274,7 @@ export interface TeamAdsCampaignsResponse {
   total_paying_user_count: number;
   total_revenue_usd: number;
   total_spend_usd: number | null;
+  window_days: number;
   /** Most recent `revenue_synced_at` across every accessible project's RC-synced users; null when never synced. */
   revenue_synced_at: string | null;
   ad_metrics_synced_at: string | null;
@@ -270,6 +287,7 @@ export interface AdsAdGroupsResponse {
   campaign_name: string | null;
   ad_groups: AdsRow[];
   total_spend_usd: number | null;
+  window_days: number;
   ad_metrics_synced_at: string | null;
   currency_warning: string | null;
 }
@@ -282,6 +300,7 @@ export interface AdsLeavesResponse {
   ad_group_name: string | null;
   keywords: AdsRow[];
   ads: AdsRow[];
+  window_days: number;
 }
 
 // Dev-mock values accepted by the attribution route when NODE_ENV !== "production".

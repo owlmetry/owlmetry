@@ -23,7 +23,18 @@ The **Apple Ads integration** (Campaign Management API) is what pulls in spend n
 - **Webhook-triggered (real-time)**: every RevenueCat subscription webhook (`INITIAL_PURCHASE`, `RENEWAL`, `PRODUCT_CHANGE`, `CANCELLATION`, etc.) fires a fire-and-forget per-user resync against RC's V2 API. The user's lifetime revenue updates within seconds of the transaction.
 - **Daily reconciliation (03:00 UTC)**: the `revenuecat_sync` system job fans out across every project with an active RC integration and refreshes everyone. Catches anyone whose webhook was dropped (deploys, network blips), and backfills users on first deploy.
 
-**Spend** comes from one path — the `apple_ads_sync` job that runs daily at **04:45 UTC** (and on every manual sync). It refreshes a rolling 12-month lifetime total per `(project, network, campaign | ad_group)` from Apple's Reports API in 90-day chunks. Numbers stay within ~5–10% of ads.apple.com's UI (drift is settled vs. pending billing on Apple's side; the API is the source of truth).
+**Spend** comes from one path — the `apple_ads_sync` job that runs daily at **04:45 UTC** (and on every manual sync). It refreshes a rolling 12-month total per `(project, network, campaign | ad_group)` from Apple's Reports API in 90-day chunks. Numbers stay within ~5–10% of ads.apple.com's UI for mature campaigns (drift is settled vs. pending billing on Apple's side — the UI lags realtime by a few days; the API is the source of truth). For young campaigns the variance can be larger because a few days of un-settled spend is a bigger fraction of a smaller lifetime total.
+
+## Trailing window — both sides scoped together
+
+Both sides of the ROAS calculation are scoped to the same trailing 12-month window:
+
+- **Spend** is bounded by Apple's Reports API itself — a single request can span at most ~90 days, and the sync issues 4×90-day chunks for ~360 days of lifetime totals.
+- **Revenue** is filtered server-side by `app_users.first_seen_at >= now() - 360 days`, so users acquired before the spend window's start don't contribute revenue against zero matchable spend.
+
+Without this symmetric filter, ROAS would inflate at the boundary — a paying user acquired 13 months ago through Campaign X would still count toward revenue today, but Apple's Reports API has already aged out the spend that acquired them, leaving the ratio mathematically broken.
+
+The window in days is echoed back as `window_days` on every campaigns / ad-groups / leaves response, so dashboards and clients can label the time range without hard-coding it. Today the value is **360**; both the sync chunk count and the revenue filter derive from the same shared constant (`ADS_INSIGHTS_WINDOW_DAYS`) so they can never drift.
 
 Manual triggers fire **both** jobs in parallel (`POST /v1/projects/:id/ads/sync`, `owlmetry ads sync`, `sync-ads` MCP tool) — useful right after onboarding a new RevenueCat or Apple Search Ads integration, or to force-refresh without waiting for the cron. Admin-only.
 
@@ -37,7 +48,7 @@ Each level returns:
 | `paying_user_count` | Subset where `total_revenue_usd_cents > 0` |
 | `total_revenue_usd` | Sum of lifetime revenue across attributed users |
 | `arpu` | `total_revenue_usd / user_count`, 0 when no users |
-| `total_spend_usd` | Lifetime spend over the rolling 12-month window. `null` when no Apple Search Ads integration is connected, no row in `ad_*_lifetime` matches, or the org reports in a non-USD currency |
+| `total_spend_usd` | Spend over the rolling 12-month window. `null` when no Apple Search Ads integration is connected, no row in `ad_*_lifetime` matches, or the org reports in a non-USD currency |
 | `roas` | `total_revenue_usd / total_spend_usd`. `null` when spend is null or zero (we don't surface `Infinity`) |
 | `start_date` | ISO `YYYY-MM-DD` of when the campaign / ad group started running, when known |
 | `status` | Network-side status snapshot — `ENABLED` / `PAUSED` / `ON_HOLD` / `DELETED` for Apple Search Ads. Surfaces with a tone-coded badge in the dashboard and CLI |

@@ -48,6 +48,8 @@ interface SeedUser {
   ad_id?: string;
   ad_name?: string;
   revenue_usd_cents?: number | null;
+  /** ISO timestamp; defaults to now() so most tests don't have to think about the trailing-window filter. */
+  first_seen_at?: string;
 }
 
 async function seedUsers(users: SeedUser[]) {
@@ -64,12 +66,19 @@ async function seedUsers(users: SeedUser[]) {
     if (u.ad_id) props.asa_ad_id = u.ad_id;
     if (u.ad_name) props.asa_ad_name = u.ad_name;
 
-    const [row] = await sql`
-      INSERT INTO app_users (project_id, user_id, is_anonymous, properties, total_revenue_usd_cents)
-      VALUES (${projectId}, ${u.user_id}, false, ${sql.json(props)},
-              ${u.revenue_usd_cents ?? null})
-      RETURNING id
-    `;
+    const [row] = u.first_seen_at
+      ? await sql`
+          INSERT INTO app_users (project_id, user_id, is_anonymous, properties, total_revenue_usd_cents, first_seen_at, last_seen_at)
+          VALUES (${projectId}, ${u.user_id}, false, ${sql.json(props)},
+                  ${u.revenue_usd_cents ?? null}, ${u.first_seen_at}, ${u.first_seen_at})
+          RETURNING id
+        `
+      : await sql`
+          INSERT INTO app_users (project_id, user_id, is_anonymous, properties, total_revenue_usd_cents)
+          VALUES (${projectId}, ${u.user_id}, false, ${sql.json(props)},
+                  ${u.revenue_usd_cents ?? null})
+          RETURNING id
+        `;
     // Junction so app_id filter has something to bind to.
     await sql`
       INSERT INTO app_user_apps (app_user_id, app_id)
@@ -226,6 +235,27 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     const filtered = filteredRes.json();
     expect(filtered.campaigns[0].user_count).toBe(2);
     expect(filtered.total_revenue_usd).toBe(20); // only $10 + $10
+  });
+
+  it("excludes users acquired before the trailing window and echoes window_days", async () => {
+    // Users acquired more than 360 days ago must NOT contribute to revenue,
+    // since the spend window in `ad_campaign_lifetime` is also 360 days —
+    // counting them would inflate ROAS at the boundary.
+    const today = new Date();
+    const inWindow = new Date(today.getTime() - 30 * 86400_000).toISOString();
+    const outOfWindow = new Date(today.getTime() - 400 * 86400_000).toISOString();
+    await seedUsers([
+      { user_id: "recent", campaign_id: "Z", campaign_name: "Zeta", revenue_usd_cents: 5000, first_seen_at: inWindow },
+      { user_id: "old", campaign_id: "Z", campaign_name: "Zeta", revenue_usd_cents: 100_000, first_seen_at: outOfWindow },
+    ]);
+
+    const res = await get(`/v1/projects/${projectId}/ads/campaigns`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.window_days).toBe(360);
+    expect(body.campaigns).toHaveLength(1);
+    expect(body.campaigns[0].user_count).toBe(1);
+    expect(body.campaigns[0].total_revenue_usd).toBe(50);
   });
 
   it("rejects with 400 for unsupported attribution_source", async () => {

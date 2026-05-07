@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { adAdGroupLifetime, adCampaignLifetime, apps } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
-import { ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared";
+import { ADS_INSIGHTS_WINDOW_DAYS, ATTRIBUTION_SOURCE_VALUES } from "@owlmetry/shared";
 import type { AppleAdsConfig } from "./config.js";
 import {
   postAppleAdsAdGroupReport,
@@ -31,7 +31,11 @@ import { AppleAdsLookupCache } from "./enrich.js";
 
 const NETWORK = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 const CHUNK_DAYS = 90;
-const CHUNK_COUNT = 4; // 360 days ≈ "last 12 months" in Apple's dashboard.
+// Apple caps single Reports API requests at ~90 days. Derive the chunk count
+// from the shared insights window so spend (this sync) and revenue (the ads
+// routes' `app_users.first_seen_at` filter) stay symmetric — adjusting one
+// without the other would skew ROAS at the window boundary.
+const CHUNK_COUNT = Math.ceil(ADS_INSIGHTS_WINDOW_DAYS / CHUNK_DAYS);
 const REPORT_PAGE_LIMIT = 1000;
 
 export interface MetricsSyncResult {

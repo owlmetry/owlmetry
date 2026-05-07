@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { sql } from "drizzle-orm";
 import { appUsers, projects } from "@owlmetry/db";
 import {
+  ADS_INSIGHTS_WINDOW_DAYS,
   ATTRIBUTION_NETWORK_DIMENSIONS,
   ATTRIBUTION_SOURCE_PROPERTY,
   ATTRIBUTION_SOURCE_VALUES,
@@ -83,6 +84,18 @@ function appFilter(appId: string | undefined) {
   return sql`AND ${appUsers.id} IN (SELECT app_user_id FROM app_user_apps WHERE app_id = ${appId})`;
 }
 
+/**
+ * Trailing-window filter for `app_users.first_seen_at`. Mirrors the spend
+ * sync's chunked Reports API window so revenue and spend cover the same
+ * acquisition period — without this filter, users acquired before the spend
+ * window's start would inflate ROAS by contributing revenue against zero
+ * matchable spend. Today the constant is 360 days; the value is echoed back
+ * to clients via `window_days` on every ads response.
+ */
+function windowFilter() {
+  return sql`AND ${appUsers.first_seen_at} >= now() - (${ADS_INSIGHTS_WINDOW_DAYS} || ' days')::interval`;
+}
+
 export async function adsRoutes(app: FastifyInstance) {
   app.get<{
     Params: { projectId: string };
@@ -145,6 +158,7 @@ export async function adsRoutes(app: FastifyInstance) {
           WHERE project_id = ${projectId}
             AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
             AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
+            ${windowFilter()}
             ${appFilter(appId)}
           GROUP BY 1
         ),
@@ -243,6 +257,7 @@ export async function adsRoutes(app: FastifyInstance) {
         total_paying_user_count: totalPayingUserCount,
         total_revenue_usd: totalRevenueUsd,
         total_spend_usd: sumSpend(campaigns),
+        window_days: ADS_INSIGHTS_WINDOW_DAYS,
         revenue_synced_at: revenueSyncedAt,
         ad_metrics_synced_at: adMetricsSyncedAt,
         currency_warning: currencyWarning,
@@ -298,6 +313,7 @@ export async function adsRoutes(app: FastifyInstance) {
             AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
             AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
             AND (properties ? ${dims.adGroupNameKey} OR properties ? ${dims.adGroupIdKey})
+            ${windowFilter()}
             ${appFilter(appId)}
           GROUP BY 1
         ),
@@ -404,6 +420,7 @@ export async function adsRoutes(app: FastifyInstance) {
         campaign_name: campaignName,
         ad_groups: adGroups,
         total_spend_usd: sumSpend(adGroups),
+        window_days: ADS_INSIGHTS_WINDOW_DAYS,
         ad_metrics_synced_at: adMetricsSyncedAt,
         currency_warning: currencyWarning,
       };
@@ -437,6 +454,7 @@ export async function adsRoutes(app: FastifyInstance) {
           AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
           AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
           AND (properties->>${dims.adGroupIdKey} = ${adGroupId} OR properties->>${dims.adGroupNameKey} = ${adGroupId})
+          ${windowFilter()}
       `;
 
       // Each leaf row carries the parent campaign + ad-group names via MAX,
@@ -510,6 +528,7 @@ export async function adsRoutes(app: FastifyInstance) {
         ad_group_name: adGroupName,
         keywords: keywordRows.map(toAdsRow),
         ads: adRows.map(toAdsRow),
+        window_days: ADS_INSIGHTS_WINDOW_DAYS,
       };
       return response;
     },
@@ -583,6 +602,7 @@ export async function teamAdsRoutes(app: FastifyInstance) {
           total_paying_user_count: 0,
           total_revenue_usd: 0,
           total_spend_usd: null,
+          window_days: ADS_INSIGHTS_WINDOW_DAYS,
           revenue_synced_at: null,
           ad_metrics_synced_at: null,
           currency_warning: null,
@@ -633,6 +653,7 @@ export async function teamAdsRoutes(app: FastifyInstance) {
           WHERE project_id IN (SELECT id FROM team_projects)
             AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
             AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
+            ${windowFilter()}
           GROUP BY 1, 2
         ),
         team_spend AS (
@@ -742,6 +763,7 @@ export async function teamAdsRoutes(app: FastifyInstance) {
         total_paying_user_count: totalPayingUserCount,
         total_revenue_usd: totalRevenueUsd,
         total_spend_usd: sumSpend(campaigns),
+        window_days: ADS_INSIGHTS_WINDOW_DAYS,
         revenue_synced_at: revenueSyncedAt,
         ad_metrics_synced_at: adMetricsSyncedAt,
         currency_warning: currencyWarning,
