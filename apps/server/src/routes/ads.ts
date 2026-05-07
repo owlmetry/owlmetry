@@ -29,7 +29,8 @@ type AdsAggregateRow = {
   id: string;
   name: string | null;
   user_count: number;
-  paying_user_count: number;
+  paid_user_count: number;
+  retained_user_count: number;
   total_revenue_usd: number;
   /** Optional spend join — null when no `ad_*_lifetime` row matched. */
   total_spend_usd_cents?: number | null;
@@ -52,7 +53,8 @@ function toAdsRow(row: AdsAggregateRow): AdsRow {
     id: row.id,
     name: row.name,
     user_count: userCount,
-    paying_user_count: Number(row.paying_user_count) || 0,
+    paid_user_count: Number(row.paid_user_count) || 0,
+    retained_user_count: Number(row.retained_user_count) || 0,
     total_revenue_usd: totalRevenue,
     arpu: userCount > 0 ? totalRevenue / userCount : 0,
     total_spend_usd: totalSpend,
@@ -94,6 +96,19 @@ function appFilter(appId: string | undefined) {
  */
 function windowFilter() {
   return sql`AND ${appUsers.first_seen_at} >= now() - (${ADS_INSIGHTS_WINDOW_DAYS} || ' days')::interval`;
+}
+
+/**
+ * "Retained" predicate — bare-column form for use inside a `COUNT(*) FILTER
+ * (WHERE …)` clause that selects from a single `app_users` source. Matches
+ * the `paid` billing tier exactly (auto-renewing subscription, not in trial),
+ * mirroring `buildBillingStatusCondition` in `routes/app-users.ts`. Trials
+ * and cancelled-but-still-in-period users are deliberately excluded — the
+ * "Retained" column sits next to ROAS and counts revenue-generating users
+ * right now.
+ */
+function retainedPredicate() {
+  return sql`properties->>'rc_subscriber' = 'true' AND (properties->>'rc_period_type') IS DISTINCT FROM 'trial'`;
 }
 
 export async function adsRoutes(app: FastifyInstance) {
@@ -152,7 +167,8 @@ export async function adsRoutes(app: FastifyInstance) {
             COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
             MAX(properties->>${dims.campaignNameKey}) AS name,
             COUNT(*)::int AS user_count,
-            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE project_id = ${projectId}
@@ -185,7 +201,8 @@ export async function adsRoutes(app: FastifyInstance) {
             cr.id,
             cr.name,
             cr.user_count,
-            cr.paying_user_count,
+            cr.paid_user_count,
+            cr.retained_user_count,
             cr.total_revenue_usd,
             cs.total_spend_usd_cents,
             cs.spend_currency,
@@ -202,7 +219,8 @@ export async function adsRoutes(app: FastifyInstance) {
             COALESCE(cs.name_match, cs.id_match) AS id,
             cs.name_match AS name,
             0::int AS user_count,
-            0::int AS paying_user_count,
+            0::int AS paid_user_count,
+            0::int AS retained_user_count,
             0::float AS total_revenue_usd,
             cs.total_spend_usd_cents,
             cs.spend_currency,
@@ -223,7 +241,8 @@ export async function adsRoutes(app: FastifyInstance) {
 
       const campaigns = rows.map(toAdsRow);
       const totalUserCount = campaigns.reduce((acc, r) => acc + r.user_count, 0);
-      const totalPayingUserCount = campaigns.reduce((acc, r) => acc + r.paying_user_count, 0);
+      const totalPaidUserCount = campaigns.reduce((acc, r) => acc + r.paid_user_count, 0);
+      const totalRetainedUserCount = campaigns.reduce((acc, r) => acc + r.retained_user_count, 0);
       const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
       // Empty result set means no rows came back, but the timestamp lives on
       // every row when present — fall back to a 1-row probe.
@@ -254,7 +273,8 @@ export async function adsRoutes(app: FastifyInstance) {
         attribution_source: source,
         campaigns,
         total_user_count: totalUserCount,
-        total_paying_user_count: totalPayingUserCount,
+        total_paid_user_count: totalPaidUserCount,
+        total_retained_user_count: totalRetainedUserCount,
         total_revenue_usd: totalRevenueUsd,
         total_spend_usd: sumSpend(campaigns),
         window_days: ADS_INSIGHTS_WINDOW_DAYS,
@@ -306,7 +326,8 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.adGroupNameKey}) AS name,
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             COUNT(*)::int AS user_count,
-            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE project_id = ${projectId}
@@ -352,7 +373,8 @@ export async function adsRoutes(app: FastifyInstance) {
             ar.name,
             ar.campaign_name,
             ar.user_count,
-            ar.paying_user_count,
+            ar.paid_user_count,
+            ar.retained_user_count,
             ar.total_revenue_usd,
             asd.total_spend_usd_cents,
             asd.spend_currency,
@@ -369,7 +391,8 @@ export async function adsRoutes(app: FastifyInstance) {
             asd.name_match AS name,
             (SELECT campaign_name FROM campaign_name_lookup) AS campaign_name,
             0::int AS user_count,
-            0::int AS paying_user_count,
+            0::int AS paid_user_count,
+            0::int AS retained_user_count,
             0::float AS total_revenue_usd,
             asd.total_spend_usd_cents,
             asd.spend_currency,
@@ -475,7 +498,8 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
             COUNT(*)::int AS user_count,
-            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE ${baseFilter}
@@ -492,7 +516,8 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
             COUNT(*)::int AS user_count,
-            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE ${baseFilter}
@@ -599,7 +624,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
           attribution_source: source,
           campaigns: [],
           total_user_count: 0,
-          total_paying_user_count: 0,
+          total_paid_user_count: 0,
+          total_retained_user_count: 0,
           total_revenue_usd: 0,
           total_spend_usd: null,
           window_days: ADS_INSIGHTS_WINDOW_DAYS,
@@ -647,7 +673,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
             COALESCE(properties->>${dims.campaignNameKey}, properties->>${dims.campaignIdKey}) AS id,
             MAX(properties->>${dims.campaignNameKey}) AS name,
             COUNT(*)::int AS user_count,
-            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paying_user_count,
+            COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE project_id IN (SELECT id FROM team_projects)
@@ -681,7 +708,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
             tr.id,
             tr.name,
             tr.user_count,
-            tr.paying_user_count,
+            tr.paid_user_count,
+            tr.retained_user_count,
             tr.total_revenue_usd,
             ts.total_spend_usd_cents,
             ts.spend_currency,
@@ -700,7 +728,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
             COALESCE(ts.name_match, ts.id_match) AS id,
             ts.name_match AS name,
             0::int AS user_count,
-            0::int AS paying_user_count,
+            0::int AS paid_user_count,
+            0::int AS retained_user_count,
             0::float AS total_revenue_usd,
             ts.total_spend_usd_cents,
             ts.spend_currency,
@@ -725,7 +754,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
         project_id: row.project_id,
       }));
       const totalUserCount = campaigns.reduce((acc, r) => acc + r.user_count, 0);
-      const totalPayingUserCount = campaigns.reduce((acc, r) => acc + r.paying_user_count, 0);
+      const totalPaidUserCount = campaigns.reduce((acc, r) => acc + r.paid_user_count, 0);
+      const totalRetainedUserCount = campaigns.reduce((acc, r) => acc + r.retained_user_count, 0);
       const totalRevenueUsd = campaigns.reduce((acc, r) => acc + r.total_revenue_usd, 0);
       let revenueSyncedAt: string | null = rows[0]?.revenue_synced_at
         ? new Date(rows[0].revenue_synced_at).toISOString()
@@ -760,7 +790,8 @@ export async function teamAdsRoutes(app: FastifyInstance) {
         attribution_source: source,
         campaigns,
         total_user_count: totalUserCount,
-        total_paying_user_count: totalPayingUserCount,
+        total_paid_user_count: totalPaidUserCount,
+        total_retained_user_count: totalRetainedUserCount,
         total_revenue_usd: totalRevenueUsd,
         total_spend_usd: sumSpend(campaigns),
         window_days: ADS_INSIGHTS_WINDOW_DAYS,

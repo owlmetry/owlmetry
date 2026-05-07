@@ -14,7 +14,7 @@ const attributionSourceSchema = z
 export function registerAdsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-ad-campaigns", {
     description:
-      "Rank advertising campaigns by USD revenue + spend (ROAS). Both sides are scoped to the same trailing 12-month window: spend is summed from `ad_campaign_lifetime` (synced daily from Apple's Reports API in 4×90-day chunks), and revenue is the sum of each acquired user's lifetime RevenueCat revenue, filtered server-side to users with `first_seen_at` inside the same window — so users acquired before the spend window's start don't inflate ROAS. The window in days is echoed back as `window_days` on the response. Returns user_count, paying_user_count, total_revenue_usd, ARPU, total_spend_usd, roas (revenue/spend), start_date, status per campaign, sorted by revenue desc. `total_spend_usd` and `roas` are null when no integration is connected, no row matches, or the org's reporting currency isn't USD (response carries `currency_warning` in that case). Pass `project_id` for a single project, or `team_id` (without `project_id`) to aggregate across every project in a team — each row then carries `project_id` so you can tell which project owns it.",
+      "Rank advertising campaigns by USD revenue + spend (ROAS). Both sides are scoped to the same trailing 12-month window: spend is summed from `ad_campaign_lifetime` (synced daily from Apple's Reports API in 4×90-day chunks), and revenue is the sum of each acquired user's lifetime RevenueCat revenue, filtered server-side to users with `first_seen_at` inside the same window — so users acquired before the spend window's start don't inflate ROAS. The window in days is echoed back as `window_days` on the response. Returns user_count, paid_user_count, retained_user_count, total_revenue_usd, ARPU, total_spend_usd, roas (revenue/spend), start_date, status per campaign, sorted by revenue desc. `paid_user_count` = users who have ever paid (lifetime fact, includes churned users). `retained_user_count` = users on an auto-renewing paid subscription right now (`rc_subscriber='true'` AND not in trial; matches the `paid` billing tier exactly — excludes trials and cancelled-but-still-in-period users). `total_spend_usd` and `roas` are null when no integration is connected, no row matches, or the org's reporting currency isn't USD (response carries `currency_warning` in that case). Pass `project_id` for a single project, or `team_id` (without `project_id`) to aggregate across every project in a team — each row then carries `project_id` so you can tell which project owns it.",
     inputSchema: {
       project_id: z
         .string()
@@ -75,7 +75,7 @@ export function registerAdsTools(server: McpServer, app: FastifyInstance, agentK
 
   server.registerTool("list-ad-groups", {
     description:
-      "Rank ad groups within a campaign by USD revenue + spend (ROAS). Same shape as list-ad-campaigns but one level deeper, joined against `ad_adgroup_lifetime`. Each row carries total_spend_usd, roas, start_date, status alongside revenue / users / paying / ARPU. Same trailing 12-month window applied symmetrically to spend and revenue (see `window_days`).",
+      "Rank ad groups within a campaign by USD revenue + spend (ROAS). Same shape as list-ad-campaigns but one level deeper, joined against `ad_adgroup_lifetime`. Each row carries total_spend_usd, roas, start_date, status alongside revenue / users / paid_user_count / retained_user_count / ARPU (paid = lifetime ever-paid; retained = currently on an auto-renewing paid subscription, excludes trials). Same trailing 12-month window applied symmetrically to spend and revenue (see `window_days`).",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       campaign_id: z
@@ -96,7 +96,7 @@ export function registerAdsTools(server: McpServer, app: FastifyInstance, agentK
 
   server.registerTool("list-ad-leaves", {
     description:
-      "Within a single ad group, list keyword-level and ad-level revenue rankings side-by-side. Returns both `keywords` and `ads` arrays — Apple Search Ads attributes a user to one or the other depending on whether the install came from a search keyword or an auto-driven ad placement. Same trailing 12-month window applied to revenue (see `window_days`).",
+      "Within a single ad group, list keyword-level and ad-level revenue rankings side-by-side. Returns both `keywords` and `ads` arrays — Apple Search Ads attributes a user to one or the other depending on whether the install came from a search keyword or an auto-driven ad placement. Each row carries paid_user_count (lifetime ever-paid) + retained_user_count (currently on an auto-renewing paid subscription, excludes trials) alongside revenue / users / ARPU. Same trailing 12-month window applied to revenue (see `window_days`).",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       campaign_id: z.string(),

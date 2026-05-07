@@ -25,7 +25,8 @@ export function useAdCampaigns(projectId: string | undefined, filters: AdsFilter
   return {
     campaigns: data?.campaigns ?? [],
     totalUserCount: data?.total_user_count ?? 0,
-    totalPayingUserCount: data?.total_paying_user_count ?? 0,
+    totalPaidUserCount: data?.total_paid_user_count ?? 0,
+    totalRetainedUserCount: data?.total_retained_user_count ?? 0,
     totalRevenueUsd: data?.total_revenue_usd ?? 0,
     totalSpendUsd: data?.total_spend_usd ?? null,
     windowDays: data?.window_days ?? null,
@@ -53,7 +54,8 @@ export function useAdCampaignsAcrossTeam(
   return {
     campaigns: data?.campaigns ?? [],
     totalUserCount: data?.total_user_count ?? 0,
-    totalPayingUserCount: data?.total_paying_user_count ?? 0,
+    totalPaidUserCount: data?.total_paid_user_count ?? 0,
+    totalRetainedUserCount: data?.total_retained_user_count ?? 0,
     totalRevenueUsd: data?.total_revenue_usd ?? 0,
     totalSpendUsd: data?.total_spend_usd ?? null,
     windowDays: data?.window_days ?? null,

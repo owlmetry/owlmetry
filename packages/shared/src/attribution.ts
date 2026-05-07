@@ -184,7 +184,20 @@ export interface AdsRow {
   /** Resolved name; null pre-enrichment (ID known, name not yet). */
   name: string | null;
   user_count: number;
-  paying_user_count: number;
+  /**
+   * Conversions: users with `total_revenue_usd_cents > 0` — anyone who has ever
+   * paid through this campaign / ad group / leaf. Lifetime fact, not present
+   * tense. Surfaced as the "Conversions" column.
+   */
+  paid_user_count: number;
+  /**
+   * Retained: users on an auto-renewing paid subscription right now. Matches
+   * the `paid` billing tier exactly (`rc_subscriber='true'` AND `rc_period_type`
+   * is not `'trial'`). Excludes trials (no revenue yet) and cancelled-but-still-
+   * in-period users (won't renew). Surfaced as the "Retained" column next to
+   * Spend / ROAS.
+   */
+  retained_user_count: number;
   total_revenue_usd: number;
   arpu: number;
   /**
@@ -244,7 +257,8 @@ export interface AdsCampaignsResponse {
   attribution_source: string;
   campaigns: AdsRow[];
   total_user_count: number;
-  total_paying_user_count: number;
+  total_paid_user_count: number;
+  total_retained_user_count: number;
   total_revenue_usd: number;
   /** SUM of visible rows' `total_spend_usd`; null when no row reported spend. */
   total_spend_usd: number | null;
@@ -271,7 +285,8 @@ export interface TeamAdsCampaignsResponse {
   attribution_source: string;
   campaigns: TeamAdsRow[];
   total_user_count: number;
-  total_paying_user_count: number;
+  total_paid_user_count: number;
+  total_retained_user_count: number;
   total_revenue_usd: number;
   total_spend_usd: number | null;
   window_days: number;

@@ -29,7 +29,8 @@ export interface ProjectBucket {
   projectId: string;
   rows: TeamAdsRow[];
   userCount: number;
-  payingUserCount: number;
+  paidUserCount: number;
+  retainedUserCount: number;
   totalRevenueUsd: number;
   totalSpendUsd: number | null;
   roas: number | null;
@@ -49,7 +50,8 @@ export function bucketByProject(rows: TeamAdsRow[]): ProjectBucket[] {
         projectId: row.project_id,
         rows: [],
         userCount: 0,
-        payingUserCount: 0,
+        paidUserCount: 0,
+        retainedUserCount: 0,
         totalRevenueUsd: 0,
         totalSpendUsd: null,
         roas: null,
@@ -58,7 +60,8 @@ export function bucketByProject(rows: TeamAdsRow[]): ProjectBucket[] {
     }
     bucket.rows.push(row);
     bucket.userCount += row.user_count;
-    bucket.payingUserCount += row.paying_user_count;
+    bucket.paidUserCount += row.paid_user_count;
+    bucket.retainedUserCount += row.retained_user_count;
     bucket.totalRevenueUsd += row.total_revenue_usd;
     if (row.total_spend_usd != null) {
       bucket.totalSpendUsd = (bucket.totalSpendUsd ?? 0) + row.total_spend_usd;
@@ -113,9 +116,15 @@ export function ProjectAdsSection({
           </span>
           <span>
             <span className="text-foreground font-medium">
-              {bucket.payingUserCount.toLocaleString()}
+              {bucket.paidUserCount.toLocaleString()}
             </span>{" "}
-            paying
+            conversions
+          </span>
+          <span>
+            <span className="text-foreground font-medium">
+              {bucket.retainedUserCount.toLocaleString()}
+            </span>{" "}
+            retained
           </span>
           <span>
             <span className="text-foreground font-medium">

@@ -130,7 +130,8 @@ export default function AdsPage() {
   const {
     campaigns,
     totalUserCount,
-    totalPayingUserCount,
+    totalPaidUserCount,
+    totalRetainedUserCount,
     totalRevenueUsd,
     totalSpendUsd,
     windowDays,
@@ -326,9 +327,10 @@ export default function AdsPage() {
       </StaggerItem>
 
       <StaggerItem index={2}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <SummaryCard label="Attributed users" value={totalUserCount.toLocaleString()} />
-          <SummaryCard label="Paying users" value={totalPayingUserCount.toLocaleString()} />
+          <SummaryCard label="Conversions" value={totalPaidUserCount.toLocaleString()} />
+          <SummaryCard label="Retained" value={totalRetainedUserCount.toLocaleString()} />
           <SummaryCard label="Lifetime revenue" value={formatUsd(totalRevenueUsd)} prominent />
           <SummaryCard
             label="Lifetime spend"

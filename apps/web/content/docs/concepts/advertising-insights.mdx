@@ -45,7 +45,8 @@ Each level returns:
 | Field | Meaning |
 |---|---|
 | `user_count` | Distinct attributed users at this level |
-| `paying_user_count` | Subset where `total_revenue_usd_cents > 0` |
+| `paid_user_count` | Subset where `total_revenue_usd_cents > 0` — anyone who has ever paid (lifetime fact, includes churned users). Surfaced as the **Conversions** column in the dashboard. |
+| `retained_user_count` | Subset where `properties.rc_subscriber = 'true'` AND `properties.rc_period_type` is not `'trial'` — users on an auto-renewing paid subscription right now. Matches the `paid` billing tier exactly. **Trials are excluded** (no revenue yet); cancelled-but-still-in-period users are also excluded (their last cycle is running out). Surfaced as the **Retained** column. |
 | `total_revenue_usd` | Sum of lifetime revenue across attributed users |
 | `arpu` | `total_revenue_usd / user_count`, 0 when no users |
 | `total_spend_usd` | Spend over the rolling 12-month window. `null` when no Apple Search Ads integration is connected, no row in `ad_*_lifetime` matches, or the org reports in a non-USD currency |

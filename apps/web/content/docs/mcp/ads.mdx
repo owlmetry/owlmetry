@@ -11,7 +11,7 @@ Drill from campaigns into ad groups, then into keyword/ad leaves.
 
 ## list-ad-campaigns
 
-Rank campaigns by lifetime USD revenue from attributed users, joined to ad spend (where available) for ROAS. Aggregates `app_users` by `attribution_source` + campaign, joins each user's lifetime RevenueCat revenue, then LEFT JOINs `ad_campaign_lifetime` for spend / impressions / taps / installs synced from the network's Reports API (Apple Search Ads today). Returns `user_count`, `paying_user_count`, `total_revenue_usd`, `arpu`, **`total_spend_usd`**, **`roas`** (revenue ÷ spend), **`start_date`**, **`status`** per campaign, sorted by revenue desc. Spend / ROAS are `null` when no Apple Search Ads integration is connected, no row in `ad_campaign_lifetime` matches yet, or the org reports in a non-USD currency — the response top-level carries `total_spend_usd`, `ad_metrics_synced_at`, and `currency_warning` (non-null currency code, e.g. `"EUR"`, when at least one row's spend was reported in something other than USD).
+Rank campaigns by lifetime USD revenue from attributed users, joined to ad spend (where available) for ROAS. Aggregates `app_users` by `attribution_source` + campaign, joins each user's lifetime RevenueCat revenue, then LEFT JOINs `ad_campaign_lifetime` for spend / impressions / taps / installs synced from the network's Reports API (Apple Search Ads today). Returns `user_count`, `paid_user_count` (lifetime ever-paid), `retained_user_count` (currently on an auto-renewing paid subscription, excludes trials), `total_revenue_usd`, `arpu`, **`total_spend_usd`**, **`roas`** (revenue ÷ spend), **`start_date`**, **`status`** per campaign, sorted by revenue desc. Spend / ROAS are `null` when no Apple Search Ads integration is connected, no row in `ad_campaign_lifetime` matches yet, or the org reports in a non-USD currency — the response top-level carries `total_spend_usd`, `ad_metrics_synced_at`, and `currency_warning` (non-null currency code, e.g. `"EUR"`, when at least one row's spend was reported in something other than USD).
 
 Pass `project_id` for a single project, or `team_id` to aggregate the best-performing campaigns across every project in a team — each row then also carries a `project_id` so you can tell which project owns each campaign and use it on the project-scoped drill-downs ([`list-ad-groups`](#list-ad-groups), [`list-ad-leaves`](#list-ad-leaves)).
 
@@ -25,7 +25,7 @@ Pass `project_id` for a single project, or `team_id` to aggregate the best-perfo
 
 ## list-ad-groups
 
-Rank ad groups within a campaign by lifetime USD revenue + spend (ROAS). Same response shape as [`list-ad-campaigns`](#list-ad-campaigns), one level deeper, joined against `ad_adgroup_lifetime` for ad-group-level spend / start_date / status. Each row carries `total_spend_usd`, `roas`, `start_date`, `status` alongside revenue / users / paying / ARPU; the response top-level also exposes `total_spend_usd`, `ad_metrics_synced_at`, and `currency_warning`.
+Rank ad groups within a campaign by lifetime USD revenue + spend (ROAS). Same response shape as [`list-ad-campaigns`](#list-ad-campaigns), one level deeper, joined against `ad_adgroup_lifetime` for ad-group-level spend / start_date / status. Each row carries `total_spend_usd`, `roas`, `start_date`, `status` alongside revenue / users / `paid_user_count` / `retained_user_count` / ARPU; the response top-level also exposes `total_spend_usd`, `ad_metrics_synced_at`, and `currency_warning`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

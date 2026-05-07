@@ -14,7 +14,8 @@ interface AdsRow {
   id: string;          // Network-specific ID (e.g. ASA campaign ID)
   name: string | null; // Resolved name; null when not yet enriched
   user_count: number;
-  paying_user_count: number;
+  paid_user_count: number;     // Lifetime: total_revenue_usd_cents > 0 (anyone who ever paid; includes churned)
+  retained_user_count: number; // Right now: rc_subscriber='true' AND rc_period_type != 'trial' (auto-renewing paid; excludes trials)
   total_revenue_usd: number;
   arpu: number;        // total_revenue_usd / user_count, 0 when no users
   total_spend_usd: number | null; // null = no integration / non-USD currency
@@ -61,7 +62,8 @@ List campaigns ranked by `total_revenue_usd` desc, then `user_count` desc, then 
       "id": "542370539",
       "name": "Holiday US Campaign",
       "user_count": 1234,
-      "paying_user_count": 218,
+      "paid_user_count": 218,
+      "retained_user_count": 142,
       "total_revenue_usd": 4598.12,
       "arpu": 3.73,
       "total_spend_usd": 1820.50,
@@ -71,7 +73,8 @@ List campaigns ranked by `total_revenue_usd` desc, then `user_count` desc, then 
     }
   ],
   "total_user_count": 1234,
-  "total_paying_user_count": 218,
+  "total_paid_user_count": 218,
+  "total_retained_user_count": 142,
   "total_revenue_usd": 4598.12,
   "total_spend_usd": 1820.50,
   "window_days": 360,
@@ -112,7 +115,8 @@ Same shape as the project-scoped campaigns response, but each row in `campaigns`
       "name": "Holiday US Campaign",
       "project_id": "11111111-2222-3333-4444-555555555555",
       "user_count": 1234,
-      "paying_user_count": 218,
+      "paid_user_count": 218,
+      "retained_user_count": 142,
       "total_revenue_usd": 4598.12,
       "arpu": 3.73,
       "total_spend_usd": 1820.50,
@@ -122,7 +126,8 @@ Same shape as the project-scoped campaigns response, but each row in `campaigns`
     }
   ],
   "total_user_count": 1234,
-  "total_paying_user_count": 218,
+  "total_paid_user_count": 218,
+  "total_retained_user_count": 142,
   "total_revenue_usd": 4598.12,
   "total_spend_usd": 1820.50,
   "window_days": 360,

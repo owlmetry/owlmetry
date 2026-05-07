@@ -56,7 +56,8 @@ interface AdsRowTableProps {
 const COL_W = {
   project: 200,
   users: 100,
-  paying: 100,
+  paid: 110,
+  retained: 100,
   revenue: 140,
   arpu: 100,
   spend: 140,
@@ -153,7 +154,7 @@ export function AdsRowTable({
   // `forceShowSpend` overrides this so nested tables stay column-aligned
   // with their parent.
   const showSpend = forceShowSpend ?? rows.some((r) => r.total_spend_usd != null);
-  const colCount = (showProject ? 1 : 0) + 1 + 4 + (showSpend ? 2 : 0);
+  const colCount = (showProject ? 1 : 0) + 1 + 5 + (showSpend ? 2 : 0);
 
   const tableEl = (
     <div className="overflow-x-auto">
@@ -164,7 +165,8 @@ export function AdsRowTable({
               ad-group / keyword names get the breathing room they need */}
           <col />
           <col style={{ width: COL_W.users }} />
-          <col style={{ width: COL_W.paying }} />
+          <col style={{ width: COL_W.paid }} />
+          <col style={{ width: COL_W.retained }} />
           <col style={{ width: COL_W.arpu }} />
           {showSpend && <col style={{ width: COL_W.spend }} />}
           <col style={{ width: COL_W.revenue }} />
@@ -185,9 +187,14 @@ export function AdsRowTable({
               tooltip="Total attributed users — anonymous and identified."
             />
             <HeaderCell
-              label="Paying"
+              label="Conversions"
               alignRight
-              tooltip="Users with at least one purchase recorded by the revenue source (e.g. RevenueCat)."
+              tooltip="Users who have made at least one purchase recorded by the revenue source (e.g. RevenueCat). Lifetime — counts churned users too."
+            />
+            <HeaderCell
+              label="Retained"
+              alignRight
+              tooltip="Users on an auto-renewing paid subscription right now. Excludes trials and cancelled subscriptions still inside their unexpired window."
             />
             <HeaderCell
               label="ARPU"
@@ -337,7 +344,10 @@ export function AdsRowTable({
                     {row.user_count.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {row.paying_user_count.toLocaleString()}
+                    {row.paid_user_count.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {row.retained_user_count.toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
                     {formatUsdCompact(row.arpu)}

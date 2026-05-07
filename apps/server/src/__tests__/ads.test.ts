@@ -50,6 +50,9 @@ interface SeedUser {
   revenue_usd_cents?: number | null;
   /** ISO timestamp; defaults to now() so most tests don't have to think about the trailing-window filter. */
   first_seen_at?: string;
+  /** RevenueCat subscription state — drives the `retained_user_count` predicate. */
+  rc_subscriber?: "true" | "false";
+  rc_period_type?: "trial" | "normal" | "promotional" | "intro";
 }
 
 async function seedUsers(users: SeedUser[]) {
@@ -65,6 +68,8 @@ async function seedUsers(users: SeedUser[]) {
     if (u.keyword_name) props.asa_keyword = u.keyword_name;
     if (u.ad_id) props.asa_ad_id = u.ad_id;
     if (u.ad_name) props.asa_ad_name = u.ad_name;
+    if (u.rc_subscriber) props.rc_subscriber = u.rc_subscriber;
+    if (u.rc_period_type) props.rc_period_type = u.rc_period_type;
 
     const [row] = u.first_seen_at
       ? await sql`
@@ -108,11 +113,11 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
 
   it("aggregates by campaign and ranks by revenue desc", async () => {
     await seedUsers([
-      // Campaign A: 3 users, $20 + $30 + $0 = $50, 2 paying
+      // Campaign A: 3 users, $20 + $30 + $0 = $50, 2 paid
       { user_id: "u1", campaign_id: "A", campaign_name: "Alpha", revenue_usd_cents: 2000 },
       { user_id: "u2", campaign_id: "A", campaign_name: "Alpha", revenue_usd_cents: 3000 },
       { user_id: "u3", campaign_id: "A", campaign_name: "Alpha", revenue_usd_cents: 0 },
-      // Campaign B: 2 users, $100 + $0 = $100, 1 paying
+      // Campaign B: 2 users, $100 + $0 = $100, 1 paid
       { user_id: "u4", campaign_id: "B", campaign_name: "Beta", revenue_usd_cents: 10000 },
       { user_id: "u5", campaign_id: "B", campaign_name: "Beta", revenue_usd_cents: null },
       // Campaign C: 1 user, no revenue → 0
@@ -130,29 +135,105 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     expect(body.campaigns[0].id).toBe("Beta");
     expect(body.campaigns[0].name).toBe("Beta");
     expect(body.campaigns[0].user_count).toBe(2);
-    expect(body.campaigns[0].paying_user_count).toBe(1);
+    expect(body.campaigns[0].paid_user_count).toBe(1);
+    expect(body.campaigns[0].retained_user_count).toBe(0);
     expect(body.campaigns[0].total_revenue_usd).toBe(100);
     // ARPU = $100 / 2 = $50
     expect(body.campaigns[0].arpu).toBe(50);
 
     expect(body.campaigns[1].id).toBe("Alpha");
     expect(body.campaigns[1].user_count).toBe(3);
-    expect(body.campaigns[1].paying_user_count).toBe(2);
+    expect(body.campaigns[1].paid_user_count).toBe(2);
+    expect(body.campaigns[1].retained_user_count).toBe(0);
     expect(body.campaigns[1].total_revenue_usd).toBe(50);
     // ARPU = $50 / 3 ≈ 16.6667
     expect(body.campaigns[1].arpu).toBeCloseTo(50 / 3, 4);
 
     expect(body.campaigns[2].id).toBe("Gamma");
     expect(body.campaigns[2].user_count).toBe(1);
-    expect(body.campaigns[2].paying_user_count).toBe(0);
+    expect(body.campaigns[2].paid_user_count).toBe(0);
+    expect(body.campaigns[2].retained_user_count).toBe(0);
     expect(body.campaigns[2].total_revenue_usd).toBe(0);
     // ARPU = $0 / 1 = $0
     expect(body.campaigns[2].arpu).toBe(0);
 
     // Aggregate totals
     expect(body.total_user_count).toBe(6);
-    expect(body.total_paying_user_count).toBe(3);
+    expect(body.total_paid_user_count).toBe(3);
+    expect(body.total_retained_user_count).toBe(0);
     expect(body.total_revenue_usd).toBe(150);
+  });
+
+  it("counts retained users (rc_subscriber=true AND not in trial) separately from ever-paid", async () => {
+    // Six users all on the same campaign, covering every paid × retained combo:
+    //
+    // | user | revenue | rc_subscriber | rc_period_type | Paid | Retained | why                                         |
+    // |------|---------|---------------|----------------|------|----------|---------------------------------------------|
+    // | r1   |   $10   | true          | normal         |  ✓   |    ✓     | active renewing paid sub                    |
+    // | r2   |   $30   | true          | (none)         |  ✓   |    ✓     | rc_subscriber=true, no period_type → paid   |
+    // | r3   |   $50   | false         | (none)         |  ✓   |    ✗     | churned (cancelled, expired) — paid in past |
+    // | r4   |   $20   | true          | trial          |  ✓   |    ✗     | ever paid, currently in a trial             |
+    // | r5   |    $0   | true          | trial          |  ✗   |    ✗     | active trial, never paid                    |
+    // | r6   |    $0   | false         | (none)         |  ✗   |    ✗     | free user                                   |
+    await seedUsers([
+      {
+        user_id: "r1",
+        campaign_id: "X",
+        campaign_name: "Mixed",
+        revenue_usd_cents: 1000,
+        rc_subscriber: "true",
+        rc_period_type: "normal",
+      },
+      {
+        user_id: "r2",
+        campaign_id: "X",
+        campaign_name: "Mixed",
+        revenue_usd_cents: 3000,
+        rc_subscriber: "true",
+      },
+      {
+        user_id: "r3",
+        campaign_id: "X",
+        campaign_name: "Mixed",
+        revenue_usd_cents: 5000,
+        rc_subscriber: "false",
+      },
+      {
+        user_id: "r4",
+        campaign_id: "X",
+        campaign_name: "Mixed",
+        revenue_usd_cents: 2000,
+        rc_subscriber: "true",
+        rc_period_type: "trial",
+      },
+      {
+        user_id: "r5",
+        campaign_id: "X",
+        campaign_name: "Mixed",
+        revenue_usd_cents: 0,
+        rc_subscriber: "true",
+        rc_period_type: "trial",
+      },
+      { user_id: "r6", campaign_id: "X", campaign_name: "Mixed", revenue_usd_cents: 0, rc_subscriber: "false" },
+    ]);
+
+    const res = await get(`/v1/projects/${projectId}/ads/campaigns`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.campaigns).toHaveLength(1);
+    const row = body.campaigns[0];
+
+    expect(row.user_count).toBe(6);
+    // Paid = anyone with revenue > 0 (lifetime fact). Includes r4 even though
+    // they're currently in a trial — they paid in a prior cycle.
+    expect(row.paid_user_count).toBe(4);
+    // Retained = rc_subscriber='true' AND not in trial. Just r1 + r2.
+    // r3 cancelled (rc_subscriber=false). r4/r5 are in a trial (excluded).
+    // r6 is free.
+    expect(row.retained_user_count).toBe(2);
+
+    expect(body.total_paid_user_count).toBe(4);
+    expect(body.total_retained_user_count).toBe(2);
   });
 
   it("excludes users with attribution_source != apple_search_ads", async () => {
@@ -195,7 +276,7 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     expect(body.campaigns[0].id).toBe("Spring");
     expect(body.campaigns[0].name).toBe("Spring");
     expect(body.campaigns[0].user_count).toBe(2);
-    expect(body.campaigns[0].paying_user_count).toBe(1);
+    expect(body.campaigns[0].paid_user_count).toBe(1);
     expect(body.campaigns[0].total_revenue_usd).toBe(50);
   });
 
@@ -295,7 +376,7 @@ describe("GET /v1/projects/:projectId/ads/campaigns", () => {
     expect(body.campaigns[0].name).toBe("sewing_usa_main_keywords");
     expect(body.campaigns[0].total_spend_usd).toBeCloseTo(14.91, 2);
     expect(body.campaigns[0].user_count).toBe(0);
-    expect(body.campaigns[0].paying_user_count).toBe(0);
+    expect(body.campaigns[0].paid_user_count).toBe(0);
     expect(body.campaigns[0].total_revenue_usd).toBe(0);
     // ROAS: 0 revenue / >0 spend = 0
     expect(body.campaigns[0].roas).toBe(0);
