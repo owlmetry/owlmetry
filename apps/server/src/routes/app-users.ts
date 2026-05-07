@@ -12,6 +12,7 @@ import type { AppUsersQueryParams, TeamAppUsersQueryParams } from "@owlmetry/sha
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { serializeAppUser } from "../utils/serialize.js";
 import { normalizeLimit } from "../utils/pagination.js";
+import { paidTierPredicate } from "../utils/billing-sql.js";
 
 /**
  * Build a SQL predicate that matches users in any of the requested billing tiers.
@@ -28,9 +29,7 @@ function buildBillingStatusCondition(tiers: Set<BillingTier>): SQL | undefined {
     exprs.push(sql`${appUsers.properties}->>'rc_period_type' = 'trial'`);
   }
   if (tiers.has("paid")) {
-    exprs.push(
-      sql`${appUsers.properties}->>'rc_subscriber' = 'true' AND (${appUsers.properties}->>'rc_period_type') IS DISTINCT FROM 'trial'`,
-    );
+    exprs.push(paidTierPredicate(sql`${appUsers.properties}`));
   }
   if (tiers.has("free")) {
     exprs.push(

@@ -17,6 +17,7 @@ import {
 import { requirePermission, assertTeamRole, getAuthTeamIds } from "../middleware/auth.js";
 import { resolveProject } from "../utils/project.js";
 import { formatManualTriggeredBy } from "../utils/integrations.js";
+import { paidTierPredicate } from "../utils/billing-sql.js";
 
 const DEFAULT_ATTRIBUTION_SOURCE = ATTRIBUTION_SOURCE_VALUES.appleSearchAds;
 
@@ -98,18 +99,12 @@ function windowFilter() {
   return sql`AND ${appUsers.first_seen_at} >= now() - (${ADS_INSIGHTS_WINDOW_DAYS} || ' days')::interval`;
 }
 
-/**
- * "Retained" predicate — bare-column form for use inside a `COUNT(*) FILTER
- * (WHERE …)` clause that selects from a single `app_users` source. Matches
- * the `paid` billing tier exactly (auto-renewing subscription, not in trial),
- * mirroring `buildBillingStatusCondition` in `routes/app-users.ts`. Trials
- * and cancelled-but-still-in-period users are deliberately excluded — the
- * "Retained" column sits next to ROAS and counts revenue-generating users
- * right now.
- */
-function retainedPredicate() {
-  return sql`properties->>'rc_subscriber' = 'true' AND (properties->>'rc_period_type') IS DISTINCT FROM 'trial'`;
-}
+// Bare-column form of the `paid` billing tier — used inside the CTE
+// `COUNT(*) FILTER (WHERE …)` clauses below to populate `retained_user_count`.
+// Shares the predicate with `buildBillingStatusCondition` in
+// `routes/app-users.ts` via `paidTierPredicate` so the two surfaces can't
+// drift.
+const retainedPredicate = paidTierPredicate(sql`properties`);
 
 export async function adsRoutes(app: FastifyInstance) {
   app.get<{
@@ -168,7 +163,7 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.campaignNameKey}) AS name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
-            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE project_id = ${projectId}
@@ -327,7 +322,7 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.campaignNameKey}) AS campaign_name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
-            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE project_id = ${projectId}
@@ -499,7 +494,7 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
-            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE ${baseFilter}
@@ -517,7 +512,7 @@ export async function adsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.adGroupNameKey}) AS ad_group_name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
-            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE ${baseFilter}
@@ -674,7 +669,7 @@ export async function teamAdsRoutes(app: FastifyInstance) {
             MAX(properties->>${dims.campaignNameKey}) AS name,
             COUNT(*)::int AS user_count,
             COUNT(*) FILTER (WHERE COALESCE(total_revenue_usd_cents, 0) > 0)::int AS paid_user_count,
-            COUNT(*) FILTER (WHERE ${retainedPredicate()})::int AS retained_user_count,
+            COUNT(*) FILTER (WHERE ${retainedPredicate})::int AS retained_user_count,
             (COALESCE(SUM(total_revenue_usd_cents), 0) / 100.0)::float AS total_revenue_usd
           FROM ${appUsers}
           WHERE project_id IN (SELECT id FROM team_projects)
