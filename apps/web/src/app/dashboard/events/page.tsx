@@ -20,6 +20,10 @@ const LEVEL_LABEL: Record<LogLevel, string> = {
   warn: "⚠️ warn",
   error: "🔴 error",
 };
+
+function isLogLevel(v: string): v is LogLevel {
+  return (LOG_LEVELS as string[]).includes(v);
+}
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
@@ -108,8 +112,7 @@ export default function EventsPage() {
 
   const selectedLevels = useMemo(() => {
     if (!level) return new Set<LogLevel>();
-    const parts = level.split(",").map((s) => s.trim());
-    return new Set(parts.filter((p): p is LogLevel => LOG_LEVELS.includes(p as LogLevel)));
+    return new Set(level.split(",").map((s) => s.trim()).filter(isLogLevel));
   }, [level]);
 
   function toggleLevel(l: LogLevel) {
@@ -375,13 +378,11 @@ export default function EventsPage() {
                 size="sm"
                 className="h-8 w-full justify-start text-xs font-normal"
               >
-                {selectedLevels.size === 0
+                {selectedLevels.size === 0 || selectedLevels.size === LOG_LEVELS.length
                   ? "All levels"
-                  : selectedLevels.size === LOG_LEVELS.length
-                    ? "All levels"
-                    : LOG_LEVELS.filter((l) => selectedLevels.has(l))
-                        .map((l) => LEVEL_LABEL[l])
-                        .join(", ")}
+                  : LOG_LEVELS.filter((l) => selectedLevels.has(l))
+                      .map((l) => LEVEL_LABEL[l])
+                      .join(", ")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-48 p-1.5" align="start">

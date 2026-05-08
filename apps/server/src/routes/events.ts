@@ -26,6 +26,12 @@ function parseLevelParam(
   return { levels: parts as LogLevel[], invalid: [] };
 }
 
+function badLevelReply(reply: any, invalid: string[]) {
+  return reply.code(400).send({
+    error: `Unknown log level(s): ${invalid.join(", ")}. Allowed: ${LOG_LEVELS.join(", ")}`,
+  });
+}
+
 export async function eventsRoutes(app: FastifyInstance) {
   // Query events
   app.get<{ Querystring: EventsQueryParams }>(
@@ -109,11 +115,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       if (devCondition) conditions.push(devCondition);
 
       const parsedLevel = parseLevelParam(level);
-      if (parsedLevel.invalid.length > 0) {
-        return reply.code(400).send({
-          error: `Unknown log level(s): ${parsedLevel.invalid.join(", ")}. Allowed: ${LOG_LEVELS.join(", ")}`,
-        });
-      }
+      if (parsedLevel.invalid.length > 0) return badLevelReply(reply, parsedLevel.invalid);
       if (parsedLevel.levels) {
         conditions.push(inArray(events.level, parsedLevel.levels));
       }
@@ -224,11 +226,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       const devCondition = dataModeToDrizzle(events.is_dev, data_mode);
       if (devCondition) conditions.push(devCondition);
       const parsedLevel = parseLevelParam(level);
-      if (parsedLevel.invalid.length > 0) {
-        return reply.code(400).send({
-          error: `Unknown log level(s): ${parsedLevel.invalid.join(", ")}. Allowed: ${LOG_LEVELS.join(", ")}`,
-        });
-      }
+      if (parsedLevel.invalid.length > 0) return badLevelReply(reply, parsedLevel.invalid);
       if (parsedLevel.levels) conditions.push(inArray(events.level, parsedLevel.levels));
       if (user_id) conditions.push(eq(events.user_id, user_id));
       if (session_id) conditions.push(eq(events.session_id, session_id));
