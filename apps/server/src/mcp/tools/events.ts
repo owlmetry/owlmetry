@@ -40,7 +40,7 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
     inputSchema: {
       project_id: z.string().uuid().optional().describe("Filter by project"),
       app_id: z.string().uuid().optional().describe("Filter by app (takes precedence over project_id)"),
-      level: z.enum(LOG_LEVELS).optional().describe("Filter by log level"),
+      level: z.array(z.enum(LOG_LEVELS)).optional().describe("Filter by log levels. Pass an array, e.g. [\"info\",\"warn\",\"error\"]. Empty/omitted = all levels."),
       user_id: z.string().optional().describe("Filter by user ID"),
       session_id: z.string().uuid().optional().describe("Filter by session ID — for issue investigation, prefer `investigate-event` with the occurrence's `event_id` instead, which returns the same session plus cross-app enrichment"),
       environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
@@ -54,7 +54,8 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
       compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, experiments, device metadata). Recommended for session timelines to avoid MCP token overflow."),
     },
   }, async (params) => {
-    const { compact, ...apiParams } = params;
+    const { compact, level, ...rest } = params;
+    const apiParams = { ...rest, level: level?.join(",") };
     if (!compact) {
       return callApi(app, agentKey, {
         method: "GET",

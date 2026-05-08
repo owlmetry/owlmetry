@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import useSWR from "swr";
 import type {
   EventsQueryParams,
@@ -14,6 +14,12 @@ import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/c
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 
 const LOG_LEVELS: LogLevel[] = ["info", "debug", "warn", "error"];
+const LEVEL_LABEL: Record<LogLevel, string> = {
+  info: "ℹ️ info",
+  debug: "🐛 debug",
+  warn: "⚠️ warn",
+  error: "🔴 error",
+};
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
@@ -32,6 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { TableSkeleton } from "@/components/ui/skeletons";
 import { ConfigurableTable } from "@/components/configurable-table";
@@ -97,6 +105,34 @@ export default function EventsPage() {
   if (appId) filterParams.app_id = appId;
   const level = filters.get("level");
   if (level) filterParams.level = level;
+
+  const selectedLevels = useMemo(() => {
+    if (!level) return new Set<LogLevel>();
+    const parts = level.split(",").map((s) => s.trim());
+    return new Set(parts.filter((p): p is LogLevel => LOG_LEVELS.includes(p as LogLevel)));
+  }, [level]);
+
+  function toggleLevel(l: LogLevel) {
+    const next = new Set(selectedLevels);
+    if (next.has(l)) next.delete(l);
+    else next.add(l);
+    // Preserve the canonical LOG_LEVELS order in the URL string
+    filters.set("level", LOG_LEVELS.filter((x) => next.has(x)).join(","));
+  }
+
+  // On first mount, if no `level` URL param, default to non-debug. Debug is
+  // noisy enough that the dashboard's "give me what's interesting" stance is
+  // info+warn+error unless the user explicitly opts in.
+  const didDefaultLevel = useRef(false);
+  useEffect(() => {
+    if (didDefaultLevel.current) return;
+    didDefaultLevel.current = true;
+    if (typeof window === "undefined") return;
+    const urlLevel = new URLSearchParams(window.location.search).get("level");
+    if (urlLevel === null) {
+      filters.set("level", "info,warn,error");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const userId = filters.get("user_id");
   if (userId) filterParams.user_id = userId;
   const sessionId = filters.get("session_id");
@@ -189,7 +225,13 @@ export default function EventsPage() {
     if (projectId) c.push({ label: "Project", value: resolveEntityName(projects, projectId), onDismiss: () => filters.set("project_id", "") });
     if (appId) c.push({ label: "App", value: resolveEntityName(allApps, appId), onDismiss: () => filters.set("app_id", "") });
     if (timeRange) c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "", since: "", until: "" }) });
-    if (level) c.push({ label: "Level", value: level, onDismiss: () => filters.set("level", "") });
+    if (selectedLevels.size > 0 && selectedLevels.size < LOG_LEVELS.length) {
+      c.push({
+        label: "Level",
+        value: LOG_LEVELS.filter((l) => selectedLevels.has(l)).join(", "),
+        onDismiss: () => filters.set("level", ""),
+      });
+    }
     if (environment) c.push({ label: "Env", value: environment, onDismiss: () => filters.set("environment", "") });
     if (userId) c.push({ label: "User", value: truncateId(userId), onDismiss: () => filters.set("user_id", "") });
     if (sessionId) c.push({ label: "Session", value: truncateId(sessionId), onDismiss: () => filters.set("session_id", "") });
@@ -326,22 +368,38 @@ export default function EventsPage() {
 
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Level</label>
-          <Select
-            value={level || "all"}
-            onValueChange={(v) => filters.set("level", v === "all" ? "" : v)}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All levels</SelectItem>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-full justify-start text-xs font-normal"
+              >
+                {selectedLevels.size === 0
+                  ? "All levels"
+                  : selectedLevels.size === LOG_LEVELS.length
+                    ? "All levels"
+                    : LOG_LEVELS.filter((l) => selectedLevels.has(l))
+                        .map((l) => LEVEL_LABEL[l])
+                        .join(", ")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1.5" align="start">
               {LOG_LEVELS.map((l) => (
-                <SelectItem key={l} value={l}>
-                  {l === "info" ? "ℹ️ info" : l === "debug" ? "🐛 debug" : l === "warn" ? "⚠️ warn" : "🔴 error"}
-                </SelectItem>
+                <label
+                  key={l}
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent/60 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={selectedLevels.has(l)}
+                    onCheckedChange={() => toggleLevel(l)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="flex-1">{LEVEL_LABEL[l]}</span>
+                </label>
               ))}
-            </SelectContent>
-          </Select>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="space-y-1">

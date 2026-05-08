@@ -316,6 +316,7 @@ export interface EventsQueryParams {
   team_id?: string;
   project_id?: string;
   app_id?: string;
+  /** Single level (`"info"`) or comma-separated list (`"info,warn,error"`). */
   level?: string;
   user_id?: string;
   session_id?: string;
@@ -339,6 +340,7 @@ export interface EventsCountQueryParams {
   team_id?: string;
   project_id?: string;
   app_id?: string;
+  /** Single level (`"info"`) or comma-separated list (`"info,warn,error"`). */
   level?: string;
   user_id?: string;
   session_id?: string;

@@ -1,12 +1,30 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, lte, lt, gt, desc, asc, inArray, isNull, sql } from "drizzle-orm";
 import { events, apps, eventAttachments } from "@owlmetry/db";
-import { parseTimeParam } from "@owlmetry/shared";
-import type { EventsQueryParams, EventsCountQueryParams } from "@owlmetry/shared";
+import { parseTimeParam, LOG_LEVELS } from "@owlmetry/shared";
+import type { EventsQueryParams, EventsCountQueryParams, LogLevel } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { normalizeLimit } from "../utils/pagination.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
+
+// Parse the `level` query param. Accepts a single value (`"info"`) or a
+// comma-separated list (`"info,warn,error"`). Empty / undefined → null (no
+// filter). Unknown values → { invalid } so the route can 400.
+function parseLevelParam(
+  raw: string | undefined,
+): { levels: LogLevel[] | null; invalid: string[] } {
+  if (!raw) return { levels: null, invalid: [] };
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (parts.length === 0) return { levels: null, invalid: [] };
+  const valid = LOG_LEVELS as readonly string[];
+  const invalid = parts.filter((p) => !valid.includes(p));
+  if (invalid.length > 0) return { levels: null, invalid };
+  return { levels: parts as LogLevel[], invalid: [] };
+}
 
 export async function eventsRoutes(app: FastifyInstance) {
   // Query events
@@ -90,8 +108,14 @@ export async function eventsRoutes(app: FastifyInstance) {
       const devCondition = dataModeToDrizzle(events.is_dev, data_mode);
       if (devCondition) conditions.push(devCondition);
 
-      if (level) {
-        conditions.push(eq(events.level, level as any));
+      const parsedLevel = parseLevelParam(level);
+      if (parsedLevel.invalid.length > 0) {
+        return reply.code(400).send({
+          error: `Unknown log level(s): ${parsedLevel.invalid.join(", ")}. Allowed: ${LOG_LEVELS.join(", ")}`,
+        });
+      }
+      if (parsedLevel.levels) {
+        conditions.push(inArray(events.level, parsedLevel.levels));
       }
       if (user_id) {
         conditions.push(eq(events.user_id, user_id));
@@ -144,7 +168,7 @@ export async function eventsRoutes(app: FastifyInstance) {
   app.get<{ Querystring: EventsCountQueryParams }>(
     "/events/count",
     { preHandler: [requirePermission("events:read"), rateLimit] },
-    async (request) => {
+    async (request, reply) => {
       const auth = request.auth;
       const allTeamIds = getAuthTeamIds(auth);
 
@@ -199,7 +223,13 @@ export async function eventsRoutes(app: FastifyInstance) {
 
       const devCondition = dataModeToDrizzle(events.is_dev, data_mode);
       if (devCondition) conditions.push(devCondition);
-      if (level) conditions.push(eq(events.level, level as any));
+      const parsedLevel = parseLevelParam(level);
+      if (parsedLevel.invalid.length > 0) {
+        return reply.code(400).send({
+          error: `Unknown log level(s): ${parsedLevel.invalid.join(", ")}. Allowed: ${LOG_LEVELS.join(", ")}`,
+        });
+      }
+      if (parsedLevel.levels) conditions.push(inArray(events.level, parsedLevel.levels));
       if (user_id) conditions.push(eq(events.user_id, user_id));
       if (session_id) conditions.push(eq(events.session_id, session_id));
       if (environment) conditions.push(eq(events.environment, environment as any));

@@ -25,6 +25,7 @@ export function RecentEventsPanel() {
   const { events, isLoading } = useEvents({
     team_id: teamId,
     data_mode: dataMode,
+    level: "info,warn,error",
     limit: 20,
   });
 
@@ -41,7 +42,7 @@ export function RecentEventsPanel() {
     return map;
   }, [appsData, projectColorMap]);
 
-  const visible = events.filter((e) => e.level !== "debug").slice(0, 5);
+  const visible = events.slice(0, 5);
 
   return (
     <DashboardSection eyebrow="Stream" title="Recent Events" viewAllHref="/dashboard/events">
