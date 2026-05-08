@@ -24,7 +24,7 @@ Two error events are considered the same issue when they produce the same finger
 
 - **Normalized message**: Variable parts stripped — `"User 123 not found"` and `"User 456 not found"` both normalize to `"user <n> not found"`.
 - **Source module**: The `source_module` field from the event, if present.
-- **Per-event-name discriminator** (optional): For some auto-emitted SDK events the fingerprint includes an extra discriminator so a single message name can produce multiple distinct issues. Today only `sdk:network_request` uses one — see below.
+- **Discriminator** (optional): The fingerprint can include an extra discriminator so semantically distinct errors don't collapse onto a single issue. Two cases use one today: `sdk:network_request` events (see below) and any error event carrying an `_error_type` reserved attribute (set automatically when you call `Owl.error(error)` with an Error/Exception value — different runtime types stay on separate issues even when the message is identical).
 - **App + dev mode**: Fingerprints are scoped per app and per dev/prod mode.
 
 The normalization strips:

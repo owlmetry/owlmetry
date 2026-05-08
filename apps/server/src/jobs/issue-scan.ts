@@ -9,6 +9,7 @@ import {
   NETWORK_REQUEST_MESSAGE,
   HTTP_URL_ATTRIBUTE,
   HTTP_METHOD_ATTRIBUTE,
+  ERROR_TYPE_ATTRIBUTE,
 } from "@owlmetry/shared";
 import type { JobHandler } from "../services/job-runner.js";
 import type { NotificationDispatcher } from "../services/notifications/dispatcher.js";
@@ -110,9 +111,17 @@ function parseNetworkRequest(
 }
 
 function discriminatorForEvent(event: ErrorEvent): string | null {
-  if (event.message !== NETWORK_REQUEST_MESSAGE) return null;
-  const parts = parseNetworkRequest(event.custom_attributes);
-  return parts ? `${parts.method} ${parts.host}${parts.templatedPath}` : null;
+  if (event.message === NETWORK_REQUEST_MESSAGE) {
+    const parts = parseNetworkRequest(event.custom_attributes);
+    return parts ? `${parts.method} ${parts.host}${parts.templatedPath}` : null;
+  }
+  // Errors carrying a runtime type (Owl.error(error) extraction in the SDKs)
+  // split per type so e.g. TypeError vs RangeError with the same wording stay
+  // on separate issues. Events without _error_type fall through to the
+  // legacy 2-arg fingerprint, so existing rows aren't disturbed.
+  const errorType = event.custom_attributes?.[ERROR_TYPE_ATTRIBUTE];
+  if (errorType) return errorType;
+  return null;
 }
 
 // Template variable path segments into placeholders so a network issue's

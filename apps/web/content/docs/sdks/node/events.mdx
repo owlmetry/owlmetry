@@ -14,6 +14,46 @@ Owl.warn("Retry attempt on payment gateway", { attempt: "2" });
 Owl.error("Failed to send notification email", { email: "user@example.com" });
 ```
 
+## Reporting an `Error` Value
+
+`Owl.error` is overloaded — pass a string message (logger-style) or pass an `Error` value (exception-style). When given an Error, the SDK extracts the type name, full stack, `Error.cause` chain, `AggregateError` children, and Node `code/syscall/path` fields into reserved `_error_*` attributes. The server's issue tracker uses `_error_type` as a fingerprint discriminator so different error classes with the same wording stay on separate issues.
+
+```typescript
+try {
+  await processOrder(req.body);
+} catch (err) {
+  Owl.error(err);                                 // auto-derives message
+  Owl.error(err, "while processing order");       // caller-supplied context
+  Owl.error(err, "while processing order", {      // + extra attributes
+    order_id: req.body.id,
+  });
+}
+```
+
+The Error overload accepts `unknown`, so `throw "boom"` / `throw 42` patterns are handled too — they surface as `_error_type=string` / `_error_type=number`. Auto-attached attributes:
+
+| Attribute | When set |
+|---|---|
+| `_error_type` | Always. `error.name` for Errors, `typeof error` otherwise. |
+| `_error_stack` | When `error.stack` is present. Truncated at 16000 chars. |
+| `_error_code` / `_error_errno` / `_error_syscall` / `_error_path` | When the error has the Node `ErrnoException` shape (filesystem / network errors). |
+| `_error_cause_<n>_type`, `_error_cause_<n>_message` | When `error.cause` is set. Walked up to 5 levels. Cycle-safe. |
+| `_error_aggregate_count`, `_error_aggregate_first_*` | When the value is an `AggregateError`. |
+
+## Auto-Capture of Unhandled Errors
+
+By default the SDK installs `process.on('uncaughtException')` and `process.on('unhandledRejection')` listeners that capture and forward unhandled errors as `Owl.error` events tagged with `_unhandled = "uncaught_exception" | "unhandled_rejection"`. Crash semantics are preserved: a crashing app stays crashing, your own listeners still run, and any failure inside the SDK's listener is swallowed so it never compounds the original crash.
+
+To opt out:
+
+```typescript
+Owl.configure({
+  endpoint: "...",
+  apiKey: "owl_client_...",
+  captureUnhandled: false,
+});
+```
+
 Each method accepts:
 
 | Parameter | Type | Description |

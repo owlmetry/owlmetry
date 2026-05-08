@@ -39,6 +39,32 @@ Something failed: network errors, parse failures, missing data, caught exception
 Owl.error("Failed to load profile image", screenName: "Profile", attributes: ["error": error.localizedDescription])
 ```
 
+### Error from a caught `Error` value
+
+If you have an `Error` instance from a `do/catch` (or any other source), pass it directly. The SDK extracts the runtime type, NSError domain/code, the underlying-error cause chain, and the call stack into reserved `_error_*` attributes — and the server's issue tracker uses `_error_type` as a fingerprint discriminator so different error classes with the same wording stay on separate issues.
+
+```swift
+do {
+    try await PhotoConverter.convert(inputURL: url)
+} catch {
+    Owl.error(error, "while converting photo", screenName: "PhotoConverterView")
+}
+```
+
+The second argument is an optional caller-supplied message that overrides the auto-derived one. Pass `nil` (or omit) to use `error.localizedDescription` / `String(describing: error)`.
+
+The SDK auto-attaches these reserved attributes (all underscore-prefixed):
+
+| Attribute | Description |
+|-----------|-------------|
+| `_error_type` | Fully-qualified Swift type name (e.g. `Foundation.URLError`). Drives issue grouping. |
+| `_error_stack` | Thread call stack at the call site (truncated at 16000 chars). |
+| `_error_domain` | Bridged NSError `domain`. |
+| `_error_code` | Bridged NSError `code` (stringified). |
+| `_error_cause_<n>_type`, `_error_cause_<n>_message` | Underlying-error chain via `userInfo[NSUnderlyingErrorKey]`, up to 5 levels deep. |
+
+Caller-provided keys in `attributes` survive untouched; the SDK never overwrites a non-`_error_*` key you pass.
+
 ## Method Signature
 
 All four methods share the same signature:

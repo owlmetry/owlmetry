@@ -5,6 +5,7 @@ import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseFunnelStepMessage } from 
 import {
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
   LOG_LEVELS,
+  RESERVED_ATTRIBUTE_VALUE_LENGTH_OVERRIDES,
 } from "@owlmetry/shared";
 import type { IngestEventPayload } from "@owlmetry/shared";
 import type { FastifyBaseLogger } from "fastify";
@@ -83,9 +84,10 @@ export function truncateCustomAttributes(
   if (!customAttributes) return null;
   const truncated: Record<string, string> = {};
   for (const [k, v] of Object.entries(customAttributes)) {
+    const cap = RESERVED_ATTRIBUTE_VALUE_LENGTH_OVERRIDES[k] ?? MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH;
     truncated[k] =
-      typeof v === "string" && v.length > MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH
-        ? v.slice(0, MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH)
+      typeof v === "string" && v.length > cap
+        ? v.slice(0, cap)
         : String(v);
   }
   return truncated;
