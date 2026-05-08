@@ -6,6 +6,7 @@ import {
   parseTimeParam,
   parseBillingTiers,
   isBillingFilterActive,
+  APP_PLATFORMS,
   type BillingTier,
 } from "@owlmetry/shared";
 import type { AppUsersQueryParams, TeamAppUsersQueryParams } from "@owlmetry/shared";
@@ -39,6 +40,13 @@ function buildBillingStatusCondition(tiers: Set<BillingTier>): SQL | undefined {
   return or(...exprs);
 }
 
+// User-facing surfaces show one app pill + "+N more" — order by platform so client
+// platforms (apple/android/web) surface ahead of backend.
+const platformRank = (p: string): number => {
+  const i = APP_PLATFORMS.indexOf(p as (typeof APP_PLATFORMS)[number]);
+  return i === -1 ? APP_PLATFORMS.length : i;
+};
+
 /** Fetch junction app info for a set of app_user IDs and build a lookup map. */
 async function loadAppInfoForUsers(
   db: Db,
@@ -53,16 +61,37 @@ async function loadAppInfoForUsers(
       first_seen_at: appUserApps.first_seen_at,
       last_seen_at: appUserApps.last_seen_at,
       app_name: apps.name,
+      platform: apps.platform,
     })
     .from(appUserApps)
     .innerJoin(apps, eq(apps.id, appUserApps.app_id))
     .where(inArray(appUserApps.app_user_id, userIds));
 
-  const map = new Map<string, Array<{ app_id: string; app_name: string; first_seen_at: Date; last_seen_at: Date }>>();
+  type Entry = { app_id: string; app_name: string; first_seen_at: Date; last_seen_at: Date; platform: string };
+  const buckets = new Map<string, Entry[]>();
   for (const j of junctions) {
-    const list = map.get(j.app_user_id) ?? [];
-    list.push({ app_id: j.app_id, app_name: j.app_name, first_seen_at: j.first_seen_at, last_seen_at: j.last_seen_at });
-    map.set(j.app_user_id, list);
+    const list = buckets.get(j.app_user_id) ?? [];
+    list.push({
+      app_id: j.app_id,
+      app_name: j.app_name,
+      first_seen_at: j.first_seen_at,
+      last_seen_at: j.last_seen_at,
+      platform: j.platform,
+    });
+    buckets.set(j.app_user_id, list);
+  }
+
+  const map = new Map<string, Array<{ app_id: string; app_name: string; first_seen_at: Date; last_seen_at: Date }>>();
+  for (const [userId, list] of buckets) {
+    list.sort((a, b) => {
+      const r = platformRank(a.platform) - platformRank(b.platform);
+      if (r !== 0) return r;
+      return b.last_seen_at.getTime() - a.last_seen_at.getTime();
+    });
+    map.set(
+      userId,
+      list.map(({ platform: _platform, ...rest }) => rest),
+    );
   }
   return map;
 }
