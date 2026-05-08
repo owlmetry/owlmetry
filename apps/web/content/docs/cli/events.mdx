@@ -19,7 +19,7 @@ owlmetry events [options]
 | `--app-id <id>` | No | Filter by app UUID |
 | `--since <time>` | No | Start time (default: `24h`) |
 | `--until <time>` | No | End time (default: now) |
-| `--level <level>` | No | Filter by log level: `info`, `debug`, `warn`, `error` |
+| `--level <levels>` | No | Filter by log level: `info`, `debug`, `warn`, `error`. Accepts a single value or a comma-separated list (e.g. `--level info,warn`) |
 | `--user-id <id>` | No | Filter by user ID |
 | `--session-id <id>` | No | Filter by session UUID |
 | `--screen-name <name>` | No | Filter by screen name |
@@ -57,6 +57,9 @@ owlmetry events --since 1h
 
 # Errors from a specific app in the last 7 days
 owlmetry events --app-id 550e8400-... --level error --since 7d
+
+# Warnings and errors only
+owlmetry events --level warn,error --since 7d
 
 # Events for a specific user session
 owlmetry events --session-id a1b2c3d4-...

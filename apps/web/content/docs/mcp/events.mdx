@@ -17,7 +17,7 @@ Query analytics events with flexible filters. Defaults to the last 24 hours.
 |-----------|------|----------|-------------|
 | `project_id` | UUID | No | Filter by project |
 | `app_id` | UUID | No | Filter by app (takes precedence over `project_id`) |
-| `level` | string | No | `info`, `debug`, `warn`, or `error` |
+| `level` | string[] | No | Array of log levels to include: any of `info`, `debug`, `warn`, `error` (e.g. `["info","warn"]`). A single-string value is also accepted for backwards compatibility. |
 | `user_id` | string | No | Filter by user ID |
 | `session_id` | UUID | No | Filter by session ID |
 | `environment` | string | No | `ios`, `ipados`, `macos`, `android`, `web`, or `backend` |
