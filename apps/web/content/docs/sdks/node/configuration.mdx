@@ -32,6 +32,7 @@ Owl.configure({
 | `flushThreshold` | `number` | `20` | Maximum buffered events before an automatic flush is triggered. |
 | `maxBufferSize` | `number` | `10000` | Hard cap on buffered events. When the buffer is full, the oldest event is dropped. |
 | `consoleLogging` | `boolean` | `true` | Print events to the console. Each line is prefixed with `🦉 Owlmetry` and the log level. Set to `false` to suppress. |
+| `captureUnhandled` | `boolean` | `true` | Auto-capture unhandled errors as `Owl.error` events via `process.on('uncaughtException')` and `process.on('unhandledRejection')` listeners. Crash semantics are preserved — see [Auto-Capture of Unhandled Errors](/docs/sdks/node/events#auto-capture-of-unhandled-errors). Set to `false` to opt out and rely on explicit `Owl.error(err)` calls only. |
 
 ## What Happens on Configure
 
@@ -41,8 +42,9 @@ When `Owl.configure()` is called:
 2. **Generates a session ID** -- a fresh UUID that groups all events until the next `configure()` call or `shutdown()`. This is the *default* session ID; for servers that handle many clients, per-request overrides are available via [`Owl.withSession()`](/docs/sdks/node/identity#withsession) and the `options.sessionId` parameter on event methods
 3. **Starts the flush timer** -- the buffer is flushed every `flushIntervalMs` milliseconds
 4. **Registers a `beforeExit` handler** -- automatically flushes remaining events when the Node.js process exits gracefully
-5. **Loads experiment assignments** from `~/.owlmetry/experiments.json` (see [Experiments](/docs/sdks/node/experiments))
-6. **Prepares the session bracket** -- a `sdk:session_started` event is emitted *lazily*, just before the first user-tracked event. Cold-started processes that never call `Owl.info()` / `Owl.step()` / etc. produce no events at all. The matching `sdk:session_ended` event is emitted on `shutdown()` only if a session ever started
+5. **Installs unhandled-error listeners** -- when `captureUnhandled` is `true` (default), registers `process.on('uncaughtException')` and `process.on('unhandledRejection')` listeners that capture the error as an `Owl.error` event tagged with `_unhandled`. Crash semantics are preserved (see [Auto-Capture of Unhandled Errors](/docs/sdks/node/events#auto-capture-of-unhandled-errors)). `Owl.shutdown()` removes both listeners cleanly
+6. **Loads experiment assignments** from `~/.owlmetry/experiments.json` (see [Experiments](/docs/sdks/node/experiments))
+7. **Prepares the session bracket** -- a `sdk:session_started` event is emitted *lazily*, just before the first user-tracked event. Cold-started processes that never call `Owl.info()` / `Owl.step()` / etc. produce no events at all. The matching `sdk:session_ended` event is emitted on `shutdown()` only if a session ever started
 
 If you call `configure()` again (for example during hot reload), the previous transport is shut down cleanly before the new one starts.
 

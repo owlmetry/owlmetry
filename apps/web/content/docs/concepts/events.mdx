@@ -102,7 +102,7 @@ Events can carry arbitrary metadata as `custom_attributes` -- a flat object of s
 }
 ```
 
-The SDKs also auto-capture certain fields as custom attributes. For example, the Swift SDK records `_connection` (wifi, cellular, ethernet, offline) via its network monitor.
+The SDKs also auto-capture certain fields as custom attributes. Underscore-prefixed keys (`_*`) are reserved for SDK use — for example, the Swift SDK records `_connection` (wifi, cellular, ethernet, offline) via its network monitor; auto-instrumented network requests carry `_http_url` / `_http_method` / `_http_status`; and `Owl.error(error)` extracts `_error_type` / `_error_stack` / `_error_code` / `_error_domain` / `_error_cause_<n>_*` from the caught Error so the issue tracker can fingerprint by runtime type. `_error_stack` is exempt from the 200-char value cap (capped at 16000 instead) so stack traces survive intact. Avoid using your own underscore-prefixed keys to prevent collisions with future SDK additions.
 
 ## Auto-Captured Fields
 
