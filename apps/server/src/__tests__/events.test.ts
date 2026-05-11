@@ -194,6 +194,43 @@ describe("GET /v1/events", () => {
     expect(body3.has_more).toBe(false);
   });
 
+  it("returns a stable order when events share a timestamp", async () => {
+    // Batch flush from an SDK assigns the same Date to every event in the batch;
+    // without a tiebreaker, Postgres can shuffle the order across polls and the
+    // cursor either skips or duplicates rows at page boundaries.
+    const ts = new Date().toISOString();
+    const batch = Array.from({ length: 6 }, (_, i) => ({
+      level: "info" as const,
+      message: `Tie ${i}`,
+      timestamp: ts,
+      session_id: TEST_SESSION_ID,
+    }));
+    await ingestEvents(batch);
+
+    const first = await queryEvents();
+    const firstIds = first.json().events.map((e: any) => e.id);
+
+    for (let i = 0; i < 3; i++) {
+      const repeat = await queryEvents();
+      expect(repeat.json().events.map((e: any) => e.id)).toEqual(firstIds);
+    }
+
+    const page1 = await queryEvents({ limit: "3" });
+    const body1 = page1.json();
+    expect(body1.events).toHaveLength(3);
+    expect(body1.has_more).toBe(true);
+
+    const page2 = await queryEvents({ limit: "3", cursor: body1.cursor });
+    const body2 = page2.json();
+    expect(body2.events).toHaveLength(3);
+    expect(body2.has_more).toBe(false);
+
+    const ids1 = body1.events.map((e: any) => e.id);
+    const ids2 = body2.events.map((e: any) => e.id);
+    expect(ids1.filter((id: string) => ids2.includes(id))).toHaveLength(0);
+    expect(new Set([...ids1, ...ids2]).size).toBe(6);
+  });
+
   it("excludes development events by default", async () => {
     await ingestEvents([
       { level: "info", message: "Production event", session_id: TEST_SESSION_ID },

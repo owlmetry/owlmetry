@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, lte, lt, gt, desc, asc, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, lte, desc, asc, inArray, isNull, sql } from "drizzle-orm";
 import { events, apps, eventAttachments } from "@owlmetry/db";
 import { parseTimeParam, LOG_LEVELS } from "@owlmetry/shared";
 import type { EventsQueryParams, EventsCountQueryParams, LogLevel } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds, hasTeamAccess } from "../middleware/auth.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { normalizeLimit } from "../utils/pagination.js";
+import { normalizeLimit, encodeKeysetCursor, decodeKeysetCursor } from "../utils/pagination.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
 
 // Parse the `level` query param. Accepts a single value (`"info"`) or a
@@ -138,19 +138,29 @@ export async function eventsRoutes(app: FastifyInstance) {
         conditions.push(lte(events.timestamp, parseTimeParam(until)));
       }
       if (cursor) {
-        const cursorDate = new Date(cursor);
-        conditions.push(isAsc ? gt(events.timestamp, cursorDate) : lt(events.timestamp, cursorDate));
+        const decoded = decodeKeysetCursor(cursor);
+        if (decoded) {
+          conditions.push(
+            isAsc
+              ? sql`(${events.timestamp} > ${decoded.timestamp}::timestamptz OR (${events.timestamp} = ${decoded.timestamp}::timestamptz AND ${events.id} > ${decoded.id}))`
+              : sql`(${events.timestamp} < ${decoded.timestamp}::timestamptz OR (${events.timestamp} = ${decoded.timestamp}::timestamptz AND ${events.id} < ${decoded.id}))`
+          );
+        }
       }
 
       const rows = await app.db
         .select()
         .from(events)
         .where(and(...conditions))
-        .orderBy(isAsc ? asc(events.timestamp) : desc(events.timestamp))
+        .orderBy(
+          isAsc ? asc(events.timestamp) : desc(events.timestamp),
+          isAsc ? asc(events.id) : desc(events.id)
+        )
         .limit(limit + 1);
 
       const has_more = rows.length > limit;
       const page = has_more ? rows.slice(0, limit) : rows;
+      const last = page[page.length - 1];
 
       return {
         events: page.map((e) => ({
@@ -158,9 +168,7 @@ export async function eventsRoutes(app: FastifyInstance) {
           timestamp: e.timestamp.toISOString(),
           received_at: e.received_at.toISOString(),
         })),
-        cursor: has_more
-          ? page[page.length - 1].timestamp.toISOString()
-          : null,
+        cursor: has_more && last && last.id ? encodeKeysetCursor(last.timestamp, last.id) : null,
         has_more,
       };
     }

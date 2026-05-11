@@ -17,6 +17,7 @@ import { requirePermission, getAuthTeamIds, hasTeamAccess, assertTeamRole } from
 import { logAuditEvent } from "../utils/audit.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
 import { resolveProject, resolveProjectAppIds } from "../utils/project.js";
+import { encodeKeysetCursor, decodeKeysetCursor } from "../utils/pagination.js";
 
 function serializeMetricDefinition(row: typeof metricDefinitions.$inferSelect) {
   return {
@@ -584,18 +585,28 @@ export async function metricsRoutes(app: FastifyInstance) {
       if (until) conditions.push(lte(metricEvents.timestamp, parseTimeParam(until)));
       const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
       if (devCondition) conditions.push(devCondition);
-      if (cursor) conditions.push(lte(metricEvents.timestamp, new Date(cursor)));
+      if (cursor) {
+        const decoded = decodeKeysetCursor(cursor);
+        if (decoded) {
+          conditions.push(
+            sql`(${metricEvents.timestamp} < ${decoded.timestamp}::timestamptz OR (${metricEvents.timestamp} = ${decoded.timestamp}::timestamptz AND ${metricEvents.id} < ${decoded.id}))`
+          );
+        }
+      }
 
       const rows = await app.db
         .select()
         .from(metricEvents)
         .where(and(...conditions))
-        .orderBy(desc(metricEvents.timestamp))
+        .orderBy(desc(metricEvents.timestamp), desc(metricEvents.id))
         .limit(limit + 1);
 
       const hasMore = rows.length > limit;
       const pageRows = hasMore ? rows.slice(0, limit) : rows;
-      const nextCursor = hasMore ? pageRows[pageRows.length - 1].timestamp.toISOString() : null;
+      const lastRow = pageRows[pageRows.length - 1];
+      const nextCursor = hasMore && lastRow && lastRow.id
+        ? encodeKeysetCursor(lastRow.timestamp, lastRow.id)
+        : null;
 
       return {
         events: pageRows.map((r) => ({
