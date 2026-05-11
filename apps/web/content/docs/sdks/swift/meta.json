@@ -11,6 +11,7 @@
     "screen-tracking",
     "identity",
     "user-properties",
-    "feedback"
+    "feedback",
+    "watchos"
   ]
 }

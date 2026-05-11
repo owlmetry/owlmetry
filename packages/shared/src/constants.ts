@@ -26,7 +26,7 @@ export const RESERVED_ATTRIBUTE_VALUE_LENGTH_OVERRIDES: Readonly<Record<string, 
 };
 
 export const APP_PLATFORMS = ["apple", "android", "web", "backend"] as const;
-export const ENVIRONMENTS = ["ios", "ipados", "macos", "android", "web", "backend"] as const;
+export const ENVIRONMENTS = ["ios", "ipados", "macos", "watchos", "android", "web", "backend"] as const;
 
 /**
  * Platforms a registered push device (`user_devices.platform`) can be on. The
@@ -42,7 +42,7 @@ export const ALLOWED_ENVIRONMENTS_FOR_PLATFORM: Record<
   (typeof APP_PLATFORMS)[number],
   readonly (typeof ENVIRONMENTS)[number][]
 > = {
-  apple: ["ios", "ipados", "macos"],
+  apple: ["ios", "ipados", "macos", "watchos"],
   android: ["android"],
   web: ["web"],
   backend: ["backend"],

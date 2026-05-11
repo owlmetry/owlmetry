@@ -474,15 +474,16 @@ describe("POST /v1/ingest", () => {
   });
 
   describe("environment validation against app platform", () => {
-    it("apple app accepts ios, ipados, and macos environments", async () => {
+    it("apple app accepts ios, ipados, macos, and watchos environments", async () => {
       const res = await ingest([
         { level: "info", message: "iOS event", session_id: TEST_SESSION_ID, environment: "ios" },
         { level: "info", message: "iPadOS event", session_id: TEST_SESSION_ID, environment: "ipados" },
         { level: "info", message: "macOS event", session_id: TEST_SESSION_ID, environment: "macos" },
+        { level: "info", message: "watchOS event", session_id: TEST_SESSION_ID, environment: "watchos" },
       ]);
 
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ accepted: 3, rejected: 0 });
+      expect(res.json()).toEqual({ accepted: 4, rejected: 0 });
     });
 
     it("apple app rejects android, web, and backend environments", async () => {

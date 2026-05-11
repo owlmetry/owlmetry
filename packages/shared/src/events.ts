@@ -5,7 +5,7 @@ export type LogLevel =
   | "error";
 
 export type AppPlatform = "apple" | "android" | "web" | "backend";
-export type Environment = "ios" | "ipados" | "macos" | "android" | "web" | "backend";
+export type Environment = "ios" | "ipados" | "macos" | "watchos" | "android" | "web" | "backend";
 
 // SDK-emitted event message names + their custom_attributes keys. Mirrored by
 // the Swift SDK's URLSessionInstrumentation. Server consumers (notably issue

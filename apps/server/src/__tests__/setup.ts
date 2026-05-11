@@ -165,7 +165,7 @@ export async function setupTestDb() {
       SELECT 1 FROM pg_type WHERE typname = 'environment'
     `;
     if (environmentCheck.length === 0) {
-      await migrationClient.unsafe(`CREATE TYPE environment AS ENUM ('ios', 'ipados', 'macos', 'android', 'web', 'backend')`);
+      await migrationClient.unsafe(`CREATE TYPE environment AS ENUM ('ios', 'ipados', 'macos', 'watchos', 'android', 'web', 'backend')`);
     }
 
     // Make bundle_id nullable if not already

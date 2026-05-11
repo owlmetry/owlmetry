@@ -170,7 +170,7 @@ const EXPERIMENT_VARIANTS: Record<string, string[]> = {
 };
 
 type DeviceProfile = {
-  environment: "ios" | "ipados" | "macos" | "android" | "web" | "backend";
+  environment: "ios" | "ipados" | "macos" | "watchos" | "android" | "web" | "backend";
   os_version: string;
   device_model: string;
   locale: string;

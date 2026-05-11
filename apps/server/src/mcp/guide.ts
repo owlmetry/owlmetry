@@ -34,7 +34,7 @@ Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error
 - **session_id**: unique per SDK \`configure()\` call, groups events in a session. See **Cross-SDK Session Correlation** below for the iOS-to-Node pattern.
 - **user_id**: optional, set via identity claim
 - **screen_name**: optional, from SDK screen tracking
-- **environment**: the runtime — \`ios\`, \`ipados\`, \`macos\`, \`android\`, \`web\`, \`backend\`
+- **environment**: the runtime — \`ios\`, \`ipados\`, \`macos\`, \`watchos\`, \`android\`, \`web\`, \`backend\`
 - **custom_attributes**: freeform JSONB data
 - **experiments**: A/B variant assignments active at the time
 

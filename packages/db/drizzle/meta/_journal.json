@@ -379,6 +379,13 @@
       "when": 1778160000002,
       "tag": "0053_square_squirrel_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1778482306101,
+      "tag": "0054_clear_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

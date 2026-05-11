@@ -36,7 +36,7 @@ type IssueDef = {
   occurrences: Array<{
     userId: string | null;
     appVersion: string;
-    environment: "ios" | "ipados" | "macos" | "android" | "web" | "backend";
+    environment: "ios" | "ipados" | "macos" | "watchos" | "android" | "web" | "backend";
     timestampOffset: number; // ms before NOW
   }>;
   comments: Array<{

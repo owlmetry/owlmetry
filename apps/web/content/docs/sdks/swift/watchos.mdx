@@ -1,0 +1,118 @@
+---
+title: Apple Watch
+description: Reliably ship Owlmetry events from a watchOS app, even when the watch is far from its iPhone and has no cellular signal.
+---
+
+watchOS is a hostile environment for analytics. Watch apps are suspended within seconds of going to the background, cellular signal is intermittent, and `UIApplication.beginBackgroundTask` doesn't exist. The Owlmetry Swift SDK addresses this with a two-tier delivery pipeline that puts almost all of the work onto the operating system.
+
+## How it works
+
+When you call `Owl.track(...)` on the watch, the SDK tries three transports in order. Events flow through **exactly one** destination per attempt — there is no double-delivery.
+
+1. **Direct HTTP to the ingest endpoint** — the existing transport, gated by `NWPathMonitor`. A cellular watch with signal ships events in real time during the workout.
+2. **`WCSession.transferUserInfo` to the paired iPhone** — if the watch is offline (or HTTP exhausts retries) and a paired iPhone is reachable, the batch is handed to WatchConnectivity. The OS holds the payload across watch suspension, watch reboot, and bluetooth disconnection, and wakes the iPhone counterpart app to deliver when the devices come back in range.
+3. **On-disk OfflineQueue** — for standalone watches with no paired iPhone (phone sold, lost, never installed), events persist to disk just like on iOS / macOS.
+
+The clever bit: **`transferUserInfo` is itself a persistent, OS-managed queue.** You don't need to write any "rider returned to phone" detection — the OS handles re-pairing automatically. When events land on the iPhone, your iPhone app's already-running Owlmetry pipeline ships them with the existing batching, retry, and reachability behavior.
+
+Server-side deduplication on `client_event_id` covers the rare case where direct HTTP succeeds but the response is lost and the batch later retries via WC.
+
+## Setup
+
+### On the watch
+
+Configure the SDK exactly the same way as on iOS. There is no separate watch API — `Owl.track`, `Owl.error`, `Owl.step`, attachments, attribution, everything works identically.
+
+```swift
+import Owlmetry
+import SwiftUI
+
+@main
+struct WorkoutWatchApp: App {
+    init() {
+        try? Owl.configure(
+            endpoint: "https://ingest.owlmetry.com",
+            apiKey: "owl_client_..."
+        )
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+The SDK auto-activates `WCSession.default` on the watch side. There is no other valid consumer of WCSession in a watch app, so the SDK claims the delegate slot.
+
+### On the iPhone counterpart
+
+The iPhone-side host app **owns its own `WCSessionDelegate`** — the SDK never claims it. To receive events from the watch, add **one line** to your existing `session(_:didReceiveUserInfo:)` callback:
+
+```swift
+import WatchConnectivity
+import Owlmetry
+
+final class PhoneSessionDelegate: NSObject, WCSessionDelegate {
+    func session(
+        _ session: WCSession,
+        didReceiveUserInfo userInfo: [String: Any]
+    ) {
+        if Owl.handleWatchUserInfo(userInfo) { return }
+        // ... your existing handling for non-Owlmetry payloads
+    }
+
+    func session(
+        _ session: WCSession,
+        activationDidCompleteWith activationState: WCSessionActivationState,
+        error: Error?
+    ) {}
+
+    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionDidDeactivate(_ session: WCSession) {
+        WCSession.default.activate()
+    }
+}
+```
+
+`Owl.handleWatchUserInfo(_:)` returns `true` when it recognized and consumed an Owlmetry envelope, `false` otherwise — let the rest of your delegate continue running for payloads that aren't ours.
+
+If your app doesn't use WatchConnectivity for any other feature, add the minimal delegate above in `application(_:didFinishLaunchingWithOptions:)`:
+
+```swift
+import WatchConnectivity
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    private let sessionDelegate = PhoneSessionDelegate()
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        if WCSession.isSupported() {
+            WCSession.default.delegate = sessionDelegate
+            WCSession.default.activate()
+        }
+        return true
+    }
+}
+```
+
+### Cold-launch race
+
+iOS may launch the iPhone host app cold to deliver a watch `transferUserInfo` payload. If the OS delivers the payload before your app's `Owl.configure(...)` runs, `Owl.handleWatchUserInfo(_:)` buffers the events internally and drains them once `configure(...)` completes. No events are lost.
+
+For this to work, call `Owl.configure(...)` early — in `application(_:didFinishLaunchingWithOptions:)` or your SwiftUI `App.init`. This is the standard guidance anyway.
+
+## What you don't need to think about
+
+- **Re-pairing detection.** The OS wakes your iPhone when the watch comes back into Bluetooth range and delivers queued events automatically.
+- **Bandwidth.** WC payloads are chunked at ~60 KB; multiple chunks deliver FIFO so timestamps stay monotonic.
+- **App suspension.** Watch app suspension after backgrounding is fine — anything already handed to `transferUserInfo` is OS-owned.
+- **Duplicates.** Server-side dedup on `client_event_id` covers retries.
+- **Standalone watches.** If a watch has no paired iPhone ever, events fall through to the on-disk OfflineQueue and retry next launch.
+
+## Reading watch events in the dashboard
+
+Watch events arrive with `environment: "watchos"` — distinct from `ios` / `ipados` / `macos`. The app row's `platform` is still `apple` (the Apple watch is part of the same app, same bundle, same client key) so you don't need a separate app — query by environment if you want to slice watch traffic specifically.

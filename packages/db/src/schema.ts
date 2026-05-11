@@ -21,7 +21,7 @@ import {
 export const teamRoleEnum = pgEnum("team_role", ["owner", "admin", "member"]);
 export const apiKeyTypeEnum = pgEnum("api_key_type", ["client", "agent", "server", "import"]);
 export const appPlatformEnum = pgEnum("app_platform", ["apple", "android", "web", "backend"]);
-export const environmentEnum = pgEnum("environment", ["ios", "ipados", "macos", "android", "web", "backend"]);
+export const environmentEnum = pgEnum("environment", ["ios", "ipados", "macos", "watchos", "android", "web", "backend"]);
 export const logLevelEnum = pgEnum("log_level", [
   "info",
   "debug",
