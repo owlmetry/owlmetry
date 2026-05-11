@@ -932,7 +932,7 @@ describe("Funnel Cross-Platform Environment", () => {
   });
 
   it("android funnel rejects non-android environment events", async () => {
-    for (const env of ["ios", "ipados", "macos", "web", "backend"]) {
+    for (const env of ["ios", "ipados", "macos", "watchos", "web", "backend"]) {
       const res = await ingestForPlatform("android", [
         { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: env },
       ]);

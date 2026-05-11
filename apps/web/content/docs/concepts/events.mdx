@@ -32,7 +32,7 @@ Each event contains the following fields:
 | `source_module` | string | No | Module or component that generated the event |
 | `screen_name` | string | No | Current screen or page name |
 | `custom_attributes` | object | No | Arbitrary string key-value pairs (200 char value limit) |
-| `environment` | string | No | Runtime environment (`ios`, `ipados`, `macos`, `android`, `web`, `backend`) |
+| `environment` | string | No | Runtime environment (`ios`, `ipados`, `macos`, `watchos`, `android`, `web`, `backend`) |
 | `os_version` | string | No | Operating system version |
 | `app_version` | string | No | App version string |
 | `sdk_name` | string | No | Identifier of the Owlmetry SDK that produced the event (e.g. `owlmetry-swift`, `owlmetry-node`). Auto-set by official SDKs. |
@@ -113,7 +113,7 @@ The SDKs automatically populate device and app metadata on every event without a
 - **`app_version`** -- the app's version string from its bundle or package
 - **`build_number`** -- the app's build number
 - **`locale`** -- the device locale (e.g., "en_US")
-- **`environment`** -- the runtime platform (ios, ipados, macos, android, web, backend)
+- **`environment`** -- the runtime platform (ios, ipados, macos, watchos, android, web, backend)
 - **`sdk_name`** -- identifier of the Owlmetry SDK producing the event (e.g. `owlmetry-swift`, `owlmetry-node`)
 - **`sdk_version`** -- version of the Owlmetry SDK producing the event
 - **`is_dev`** -- whether this is a development build (see [Data Mode](/docs/concepts/data-mode))

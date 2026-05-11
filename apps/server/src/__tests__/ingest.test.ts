@@ -624,7 +624,7 @@ describe("POST /v1/ingest", () => {
     });
 
     it("backend app rejects all non-backend environments", async () => {
-      for (const env of ["ios", "ipados", "macos", "android", "web"]) {
+      for (const env of ["ios", "ipados", "macos", "watchos", "android", "web"]) {
         const res = await ingest(
           [{ level: "info", message: `${env} event`, session_id: TEST_SESSION_ID, environment: env }],
           TEST_BACKEND_CLIENT_KEY,

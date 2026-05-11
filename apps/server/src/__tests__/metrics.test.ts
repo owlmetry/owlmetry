@@ -1132,7 +1132,7 @@ describe("Metric Cross-Platform Environment", () => {
 
   it("android app rejects non-android environments for metrics", async () => {
     const slug = "android-reject";
-    for (const env of ["ios", "ipados", "macos", "web", "backend"]) {
+    for (const env of ["ios", "ipados", "macos", "watchos", "web", "backend"]) {
       const res = await ingestMetricForPlatform("android", slug, "record", { environment: env });
       expect(res.statusCode).toBe(200);
       expect(res.json().rejected).toBe(1);

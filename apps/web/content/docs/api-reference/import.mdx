@@ -130,7 +130,7 @@ When migrating from another analytics system, map your existing fields to Owlmet
 |-------------------|---------------|-------|
 | `body`, `event_name` | `message` | Required. |
 | `log_level`, `severity` | `level` | Must be `info`, `debug`, `warn`, or `error`. |
-| `source`, `platform` | `environment` | Must be `ios`, `ipados`, `macos`, `android`, `web`, or `backend`. |
+| `source`, `platform` | `environment` | Must be `ios`, `ipados`, `macos`, `watchos`, `android`, `web`, or `backend`. |
 | `meta`, `metadata`, `properties` | `custom_attributes` | Key-value string pairs. Values truncated to 200 chars. |
 | `isDebug`, `debug` | `is_dev` | Boolean. |
 | `userId`, `user_id` | `user_id` | String. Anonymous users should use `owl_anon_` prefix. |

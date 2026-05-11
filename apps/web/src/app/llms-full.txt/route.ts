@@ -31,7 +31,7 @@ export function GET() {
     "- **Advertising insights**: Rank ad campaigns by lifetime revenue, spend, and ROAS from attributed users, drilled down through campaign → ad group → keyword/ad",
     "- **Store reviews & ratings**: Per-country App Store ratings with daily snapshots (free, no setup) plus individual reviews via App Store Connect integration, filterable by rating/country/version and repliable from every surface",
     "- **Notifications**: Unified multi-channel inbox (in-app, email, mobile push) with per-user channel preferences",
-    "- **SDKs**: Swift (iOS/macOS) and Node.js — batching, compression, and retry built in",
+    "- **SDKs**: Swift (iOS/macOS/watchOS) and Node.js — batching, compression, and retry built in; watch events relay through paired iPhone via WatchConnectivity when offline",
     "- **CLI**: Agent-native CLI for setup, querying, and management (`npm i -g @owlmetry/cli`)",
     "- **Self-hosted**: Single Postgres database, deploy on your own infrastructure",
     "",
