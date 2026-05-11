@@ -101,7 +101,7 @@ export function registerFunnelsTools(server: McpServer, app: FastifyInstance, ag
       app_version: z.string().optional().describe("Filter by app version"),
       environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
       mode: z.enum(["open", "closed"]).optional().describe("Funnel mode (default: open)"),
-      group_by: z.string().optional().describe("Group by: environment or app_version"),
+      group_by: z.enum(["environment", "app_version"]).optional().describe("Group by: environment or app_version"),
       data_mode: z.enum(DATA_MODES).optional().describe("Data mode"),
     },
   }, async ({ project_id, slug, ...params }) => {

@@ -33,7 +33,9 @@ import { ProjectDot } from "@/lib/project-color";
 const FUNNEL_GROUP_BY_OPTIONS = [
   { value: "environment", label: "Environment" },
   { value: "app_version", label: "App Version" },
-];
+] as const;
+
+type FunnelGroupBy = (typeof FUNNEL_GROUP_BY_OPTIONS)[number]["value"];
 
 export default function FunnelDetailPage() {
   const params = useParams();
@@ -94,7 +96,7 @@ export default function FunnelDetailPage() {
     app_version: deferredAppVersion || undefined,
     environment: filters.get("environment") || undefined,
     mode: closedMode ? "closed" : "open",
-    group_by: filters.get("group_by") || undefined,
+    group_by: (filters.get("group_by") as FunnelGroupBy) || undefined,
     data_mode: dataMode,
   });
 
@@ -128,7 +130,7 @@ export default function FunnelDetailPage() {
       {/* Filter bar */}
       <AnalyticsFilterBar
         filters={filters}
-        groupByOptions={FUNNEL_GROUP_BY_OPTIONS}
+        groupByOptions={[...FUNNEL_GROUP_BY_OPTIONS]}
         groupByAllowNone
         chips={chips}
         leadingChildren={
