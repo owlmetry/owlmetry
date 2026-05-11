@@ -370,7 +370,7 @@ describe("MCP endpoint", () => {
       const { parsed } = parseToolResult(
         await callTool(TEST_AGENT_KEY, "query-events", {
           app_id: testData.appId,
-          level: "error",
+          level: ["error"],
           data_mode: "all",
         }),
       );
