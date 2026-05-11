@@ -26,7 +26,7 @@ Owl.configure({
 | `apiKey` | `string` | *required* | Client API key for a backend-platform app. Must start with `owl_client_`. |
 | `serviceName` | `string` | `"unknown"` | Name of this service. Useful for identifying which backend emitted an event when you run multiple services. |
 | `appVersion` | `string` | `undefined` | Version string included on every event. |
-| `debug` | `boolean` | `false` | When `true`, SDK internals log to `console.error` -- failed requests, slug corrections, experiment save errors. |
+| `debug` | `boolean` | `false` | When `true`, SDK internals log to `console.error` -- failed requests and slug corrections. |
 | `isDev` | `boolean` | `process.env.NODE_ENV !== "production"` | Marks all events with `is_dev: true`. Defaults to `true` unless `NODE_ENV` is `"production"`. See [Data Mode](/docs/concepts/data-mode). |
 | `flushIntervalMs` | `number` | `5000` | Milliseconds between automatic buffer flushes. |
 | `flushThreshold` | `number` | `20` | Maximum buffered events before an automatic flush is triggered. |
@@ -43,8 +43,7 @@ When `Owl.configure()` is called:
 3. **Starts the flush timer** -- the buffer is flushed every `flushIntervalMs` milliseconds
 4. **Registers a `beforeExit` handler** -- automatically flushes remaining events when the Node.js process exits gracefully
 5. **Installs unhandled-error listeners** -- when `captureUnhandled` is `true` (default), registers `process.on('uncaughtException')` and `process.on('unhandledRejection')` listeners that capture the error as an `Owl.error` event tagged with `_unhandled`. Crash semantics are preserved (see [Auto-Capture of Unhandled Errors](/docs/sdks/node/events#auto-capture-of-unhandled-errors)). `Owl.shutdown()` removes both listeners cleanly
-6. **Loads experiment assignments** from `~/.owlmetry/experiments.json` (see [Experiments](/docs/sdks/node/experiments))
-7. **Prepares the session bracket** -- a `sdk:session_started` event is emitted *lazily*, just before the first user-tracked event. Cold-started processes that never call `Owl.info()` / `Owl.step()` / etc. produce no events at all. The matching `sdk:session_ended` event is emitted on `shutdown()` only if a session ever started
+6. **Prepares the session bracket** -- a `sdk:session_started` event is emitted *lazily*, just before the first user-tracked event. Cold-started processes that never call `Owl.info()` / `Owl.step()` / etc. produce no events at all. The matching `sdk:session_ended` event is emitted on `shutdown()` only if a session ever started
 
 If you call `configure()` again (for example during hot reload), the previous transport is shut down cleanly before the new one starts.
 

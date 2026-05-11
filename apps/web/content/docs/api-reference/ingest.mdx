@@ -28,8 +28,7 @@ Accept a batch of events for a specific app.
       "source_module": "HomeViewController",
       "screen_name": "Home",
       "custom_attributes": {
-        "button_color": "blue",
-        "experiment_group": "variant_a"
+        "button_color": "blue"
       },
       "environment": "ios",
       "os_version": "17.4",
@@ -40,9 +39,6 @@ Accept a batch of events for a specific app.
       "device_model": "iPhone15,2",
       "locale": "en_US",
       "is_dev": false,
-      "experiments": {
-        "onboarding_flow": "variant_b"
-      },
       "timestamp": "2024-01-15T10:30:00.000Z"
     }
   ]
@@ -77,7 +73,6 @@ Accept a batch of events for a specific app.
 | `device_model` | string | No | Device model identifier. |
 | `locale` | string | No | User locale (e.g., `en_US`). |
 | `is_dev` | boolean | No | Whether this event is from a development build. Default `false`. |
-| `experiments` | object | No | A/B experiment assignments as `{ name: variant }` pairs. |
 | `timestamp` | string | No | ISO 8601 timestamp. Defaults to server time if omitted. |
 
 ### Allowed environments by platform

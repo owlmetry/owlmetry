@@ -91,10 +91,6 @@ export default function PrivacyPolicyPage() {
                 explicitly send
               </li>
               <li>
-                <strong>Experiment assignments:</strong> A/B test variant
-                assignments
-              </li>
-              <li>
                 <strong>Network connection type</strong> (Swift SDK only,
                 opt-in)
               </li>

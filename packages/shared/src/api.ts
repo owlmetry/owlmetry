@@ -394,7 +394,6 @@ export interface FunnelQueryParams {
   app_id?: string;
   app_version?: string;
   environment?: string;
-  experiment?: string;
   mode?: "closed" | "open";
   group_by?: string;
   data_mode?: DataMode;

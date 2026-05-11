@@ -95,7 +95,7 @@ export default async function OGImage() {
 						marginTop: 40,
 					}}
 				>
-					{["Events", "Metrics", "Funnels", "A/B Experiments"].map(
+					{["Events", "Metrics", "Funnels", "Issues"].map(
 						(label) => (
 							<div
 								key={label}

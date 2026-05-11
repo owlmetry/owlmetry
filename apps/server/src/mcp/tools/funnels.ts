@@ -91,7 +91,7 @@ export function registerFunnelsTools(server: McpServer, app: FastifyInstance, ag
 
   server.registerTool("query-funnel", {
     description:
-      "Query funnel analytics: conversion rates and drop-off between steps. Supports open (independent) and closed (sequential) modes, grouping by environment, app_version, or experiment variant.",
+      "Query funnel analytics: conversion rates and drop-off between steps. Supports open (independent) and closed (sequential) modes, grouping by environment or app_version.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       slug: z.string().describe("Funnel slug"),
@@ -100,9 +100,8 @@ export function registerFunnelsTools(server: McpServer, app: FastifyInstance, ag
       app_id: z.string().uuid().optional().describe("Filter by app"),
       app_version: z.string().optional().describe("Filter by app version"),
       environment: z.enum(ENVIRONMENTS).optional().describe("Filter by environment"),
-      experiment: z.string().optional().describe("Filter by experiment (format: name:variant)"),
       mode: z.enum(["open", "closed"]).optional().describe("Funnel mode (default: open)"),
-      group_by: z.string().optional().describe("Group by: environment, app_version, or experiment:<name>"),
+      group_by: z.string().optional().describe("Group by: environment or app_version"),
       data_mode: z.enum(DATA_MODES).optional().describe("Data mode"),
     },
   }, async ({ project_id, slug, ...params }) => {

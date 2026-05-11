@@ -7,7 +7,6 @@
     "events",
     "metrics",
     "funnels",
-    "experiments",
     "screen-tracking",
     "identity",
     "user-properties",

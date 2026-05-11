@@ -36,7 +36,6 @@ Events are raw log records emitted by SDKs — every \`Owl.info()\`, \`Owl.error
 - **screen_name**: optional, from SDK screen tracking
 - **environment**: the runtime — \`ios\`, \`ipados\`, \`macos\`, \`watchos\`, \`android\`, \`web\`, \`backend\`
 - **custom_attributes**: freeform JSONB data
-- **experiments**: A/B variant assignments active at the time
 
 Query events when debugging specific issues, investigating user behavior, or reviewing what happened in a time window. Default range is last 24 hours.
 
@@ -92,13 +91,6 @@ All time parameters (\`since\`, \`until\`) accept:
 - **ISO 8601 dates**: \`2025-01-15T10:00:00Z\`
 
 Default ranges: events = 24 hours, funnels = 30 days, metrics = 24 hours.
-
-### A/B Experiments
-SDKs support client-side experiment assignment. All events include an \`experiments\` field (JSONB, \`Record<string, string>\`) with current variant assignments.
-
-Funnel queries can:
-- **Filter** by experiment variant: \`experiment: "onboarding-test:control"\`
-- **Segment** by variant: \`group_by: "experiment:onboarding-test"\`
 
 ### User Properties
 Custom key-value properties stored on project-level users. Users are unique per project, not per app — the same user ID seen from multiple apps (e.g., iOS + backend) is a single user. Each user tracks which apps they've been seen from. Properties are set via SDK (\`setUserProperties()\`) or synced from integrations (e.g., RevenueCat). Properties are shallow-merged on update; empty string values delete keys. Limits: 50 keys max, 50-char keys, 200-char values.
@@ -187,7 +179,7 @@ To fully investigate an issue, follow this workflow:
    - \`event_id\` — the specific error event
    - \`app_version\` / \`environment\` — which build and platform
    - \`timestamp\` — when it happened
-4. **Reconstruct breadcrumbs**: For each occurrence, call \`investigate-event\` with the \`event_id\` to get the best timeline we can build — the full session (or a ±5 min window for events without a session_id), enriched with cross-app events (e.g. backend) for the same user in the same project. Results come merged, deduped, and sorted ascending by timestamp. Pass \`compact: true\` to drop verbose fields (custom_attributes, experiments, device metadata) and avoid MCP token overflow on long timelines.
+4. **Reconstruct breadcrumbs**: For each occurrence, call \`investigate-event\` with the \`event_id\` to get the best timeline we can build — the full session (or a ±5 min window for events without a session_id), enriched with cross-app events (e.g. backend) for the same user in the same project. Results come merged, deduped, and sorted ascending by timestamp. Pass \`compact: true\` to drop verbose fields (custom_attributes, device metadata) and avoid MCP token overflow on long timelines.
 5. **Read the error event**: Use \`get-event\` with the occurrence's \`event_id\` to see the full error details including \`custom_attributes\` (stack traces, error codes, etc.).
 6. **Iterate every occurrence, then look for patterns**: Repeat steps 4-5 across the occurrences returned by \`get-issue\` — one breadcrumb is rarely enough, the goal is to surface what they have in common (same screen, same \`app_version\`, same user flow, same preceding step). If \`occurrence_has_more\` is true on the \`get-issue\` response, call \`get-issue\` again with the returned \`occurrence_cursor\` to walk the next page. For very high-frequency issues, a representative sample across occurrences is fine — sample broadly enough to be confident the pattern is real.
 7. **Document findings**: \`add-issue-comment\` to record what you found — root cause, the common pattern across occurrences, affected versions, reproduction steps, or a fix plan. This is visible to the team.
@@ -411,8 +403,8 @@ That exposes three skills Claude Code can load on demand:
 
 Each skill covers the full surface. Summary:
 
-- **Swift** — package installation, \`Owl.configure()\`, event logging, automatic screen tracking, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback collection** (drop-in \`OwlFeedbackView\` or programmatic \`Owl.sendFeedback\`), **Apple Search Ads attribution** (auto-capture, opt-out, manual submission), and reading \`Owl.sessionId\` to forward to a backend for session correlation.
-- **Node** — package installation, \`Owl.configure()\`, event logging, structured metrics, funnels, A/B experiments, user identity, user properties, **error attachments**, **feedback forwarding** (when the team collects feedback through their own frontend and wants it pushed to Owlmetry with \`Owl.sendFeedback\`), and **per-request session/user scoping** (\`Owl.withSession(...)\` / \`Owl.withUser(...)\` / per-call \`options.sessionId\`) for linking backend events to a client session via the \`X-Owl-Session-Id\` header.
+- **Swift** — package installation, \`Owl.configure()\`, event logging, automatic screen tracking, structured metrics, funnels, user identity, user properties, **error attachments**, **feedback collection** (drop-in \`OwlFeedbackView\` or programmatic \`Owl.sendFeedback\`), **Apple Search Ads attribution** (auto-capture, opt-out, manual submission), and reading \`Owl.sessionId\` to forward to a backend for session correlation.
+- **Node** — package installation, \`Owl.configure()\`, event logging, structured metrics, funnels, user identity, user properties, **error attachments**, **feedback forwarding** (when the team collects feedback through their own frontend and wants it pushed to Owlmetry with \`Owl.sendFeedback\`), and **per-request session/user scoping** (\`Owl.withSession(...)\` / \`Owl.withUser(...)\` / per-call \`options.sessionId\`) for linking backend events to a client session via the \`X-Owl-Session-Id\` header.
 
 **Note:** The guides reference CLI commands for creating metrics and funnels. You can use the equivalent MCP tools instead (\`create-metric\`, \`create-funnel\`).
 

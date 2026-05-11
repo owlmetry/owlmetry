@@ -227,7 +227,6 @@ export const events = pgTable(
     locale: varchar("locale", { length: 20 }),
     country_code: varchar("country_code", { length: 2 }),
     is_dev: boolean("is_dev").notNull().default(false),
-    experiments: jsonb("experiments").$type<Record<string, string>>(),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
     received_at: timestamp("received_at", { withTimezone: true })
       .notNull()
@@ -484,7 +483,6 @@ export const funnelEvents = pgTable(
     message: text("message").notNull(),
     screen_name: varchar("screen_name", { length: 255 }),
     custom_attributes: jsonb("custom_attributes").$type<Record<string, string>>(),
-    experiments: jsonb("experiments").$type<Record<string, string>>(),
     environment: environmentEnum("environment"),
     os_version: varchar("os_version", { length: 50 }),
     app_version: varchar("app_version", { length: 50 }),

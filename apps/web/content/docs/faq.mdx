@@ -6,7 +6,7 @@ icon: CircleHelp
 
 ## What is Owlmetry?
 
-Owlmetry is a self-hosted observability platform for mobile and backend apps. It provides structured event logging, performance metrics with p50/p95 tracking, multi-step conversion funnels, A/B experiment analysis, automatic error clustering via the issue tracker, and event attachments for logs and screenshots. It is designed to be driven by AI coding agents through its MCP endpoint, CLI, and REST API, though it includes a full web dashboard for human use.
+Owlmetry is a self-hosted observability platform for mobile and backend apps. It provides structured event logging, performance metrics with p50/p95 tracking, multi-step conversion funnels, automatic error clustering via the issue tracker, and event attachments for logs and screenshots. It is designed to be driven by AI coding agents through its MCP endpoint, CLI, and REST API, though it includes a full web dashboard for human use.
 
 ## Is Owlmetry free?
 
@@ -36,10 +36,6 @@ Owlmetry is purpose-built for the agent-first development workflow. Where other 
 ## What does "agent-first" mean?
 
 Agent-first means Owlmetry is designed so that AI coding agents (Claude Code, Codex, Cursor, etc.) can handle the entire observability workflow — from installing SDKs and configuring API keys to querying events and diagnosing production issues. Dedicated skill files for the CLI, Swift SDK, and Node SDK are distributed as a [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills) so agents know the correct command syntax and SDK APIs. You still get a full web dashboard, but the API is the primary interface.
-
-## Does Owlmetry support A/B experiments?
-
-Yes. Both SDKs provide client-side variant assignment with `getVariant(name, options)`, which randomly assigns a variant on first call and persists it across sessions. All events automatically include experiment assignments, and funnel queries can filter or segment by variant to measure the impact of each experiment.
 
 ## Is Owlmetry open source?
 

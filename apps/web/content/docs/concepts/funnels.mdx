@@ -109,9 +109,6 @@ Funnel queries support a `group_by` parameter to break down results by a dimensi
 |---|---|
 | `environment` | Segment by runtime platform (ios, android, web, etc.) |
 | `app_version` | Segment by app version |
-| `experiment:<name>` | Segment by A/B experiment variant |
-
-Experiment grouping is particularly useful for measuring how different [A/B variants](/docs/concepts/experiments) affect conversion through a funnel.
 
 ## Filtering
 
@@ -121,12 +118,11 @@ Funnel queries accept optional filters to narrow the data:
 - **`app_id`** -- restrict to a specific app
 - **`app_version`** -- restrict to a specific version
 - **`environment`** -- restrict to a runtime platform
-- **`experiment`** -- filter to a specific experiment variant (format: `name:variant`)
 - **`mode`** -- `open` or `closed`
 - **`data_mode`** -- `production`, `development`, or `all` (see [Data Mode](/docs/concepts/data-mode))
 
 ## Storage
 
-Funnel events are stored in a dedicated `funnel_events` table, partitioned monthly by `timestamp`, with structured rows containing `step_name`, `user_id`, `screen_name`, and `experiments`.
+Funnel events are stored in a dedicated `funnel_events` table, partitioned monthly by `timestamp`, with structured rows containing `step_name`, `user_id`, and `screen_name`.
 
 For API details, see the [funnels API reference](/docs/api-reference/funnels).

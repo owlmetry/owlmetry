@@ -91,7 +91,6 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 | `--closed` | No | Use closed (sequential) mode instead of the default open (independent) mode |
 | `--app-version <version>` | No | Filter by app version |
 | `--environment <env>` | No | Filter by environment: `ios`, `ipados`, `macos`, `watchos`, `android`, `web`, `backend` |
-| `--experiment <name:variant>` | No | Filter by experiment assignment (format: `name:variant`) |
 | `--group-by <field>` | No | Segment results (see below) |
 | `--data-mode <mode>` | No | `production` (default), `development`, or `all` |
 
@@ -106,7 +105,6 @@ Returns step-by-step analytics: unique users at each step, percentage of start, 
 |-------|-------------|
 | `environment` | Segment by environment |
 | `app_version` | Segment by app version |
-| `experiment:<name>` | Segment by experiment variant assignment |
 
 ### Examples
 
@@ -117,11 +115,8 @@ owlmetry funnels query onboarding --project-id 550e8400-... --since 2025-01-01
 # Closed funnel (sequential)
 owlmetry funnels query onboarding --project-id 550e8400-... --closed
 
-# A/B test comparison
-owlmetry funnels query onboarding --project-id 550e8400-... --group-by experiment:onboarding-variant
-
-# Filter to a specific experiment arm
-owlmetry funnels query onboarding --project-id 550e8400-... --experiment onboarding-variant:control
+# Segment by app version
+owlmetry funnels query onboarding --project-id 550e8400-... --group-by app_version
 ```
 
 ## Update a funnel

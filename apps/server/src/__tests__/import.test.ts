@@ -165,7 +165,6 @@ describe("event field validation", () => {
         build_number: "100",
         locale: "en_US",
         is_dev: false,
-        experiments: { variant: "a" },
         timestamp: new Date().toISOString(),
       }),
     ]);

@@ -173,7 +173,6 @@ export async function importRoutes(app: FastifyInstance) {
               build_number: ev.build_number,
               locale: ev.locale,
               is_dev: ev.is_dev,
-              experiments: ev.experiments,
             })
             .where(
               and(

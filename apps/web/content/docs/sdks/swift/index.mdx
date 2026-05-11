@@ -20,7 +20,6 @@ The SDK is a static `Owl` enum. All calls are non-blocking -- events are buffere
 - **[Event logging](/docs/sdks/swift/events)** -- four log levels (info, debug, warn, error) with optional screen name and custom attributes. Source file, function, and line are captured automatically. `Owl.error` is overloaded — pass a `String` (logger-style) or pass any Swift `Error` (exception-style; the SDK extracts type, NSError domain/code, the underlying-error cause chain, and the call stack into reserved `_error_*` attributes).
 - **[Structured metrics](/docs/sdks/swift/metrics)** -- lifecycle operations (`startOperation` / `complete` / `fail` / `cancel`) with automatic duration tracking, and single-shot measurements via `recordMetric`.
 - **[Funnel tracking](/docs/sdks/swift/funnels)** -- track user progression through multi-step flows with `Owl.step()`.
-- **[A/B experiments](/docs/sdks/swift/experiments)** -- client-side variant assignment persisted in Keychain, automatically included on all events.
 - **[Screen tracking](/docs/sdks/swift/screen-tracking)** -- `.owlScreen()` SwiftUI view modifier for automatic screen view and time-on-screen tracking.
 - **[Identity management](/docs/sdks/swift/identity)** -- anonymous IDs generated and persisted in Keychain, with server-side claim to link anonymous events to real users after login.
 - **[User properties](/docs/sdks/swift/user-properties)** -- attach custom key-value metadata to the current user with `Owl.setUserProperties()`.
@@ -40,7 +39,6 @@ Every event automatically includes:
 - `app_version` and `build_number` from the app bundle
 - `is_dev` -- `true` when built in DEBUG mode
 - `_connection` -- current network type (wifi, cellular, ethernet, offline)
-- `experiments` -- all current A/B experiment assignments
 - `environment` -- specific runtime platform (ios, ipados, macos, watchos)
 
 ## Getting Started

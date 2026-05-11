@@ -7,7 +7,6 @@
     "events",
     "metrics",
     "funnels",
-    "experiments",
     "serverless",
     "identity",
     "user-properties",

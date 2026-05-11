@@ -165,10 +165,6 @@ const ONBOARDING_STEPS = [
   "step:first-post",
 ];
 
-const EXPERIMENT_VARIANTS: Record<string, string[]> = {
-  onboarding: ["A", "B"],
-};
-
 type DeviceProfile = {
   environment: "ios" | "ipados" | "macos" | "watchos" | "android" | "web" | "backend";
   os_version: string;
@@ -356,11 +352,6 @@ async function main() {
         appVersion: pick(APP_VERSIONS),
         buildNumber: pick(BUILD_NUMBERS),
       };
-      // Assign experiment variant
-      const experiments: Record<string, string> = {};
-      for (const [name, variants] of Object.entries(EXPERIMENT_VARIANTS)) {
-        experiments[name] = pick(variants);
-      }
 
       const baseTime = now - Math.floor(Math.random() * spanMs);
 
@@ -386,7 +377,6 @@ async function main() {
           build_number: session.buildNumber,
           device_model: session.device.device_model,
           locale: session.device.locale,
-          experiments,
           timestamp: ts,
         };
         funnelStepRows.push(eventRow);
@@ -398,7 +388,6 @@ async function main() {
           step_name: stepName,
           message: stepMessage,
           screen_name: "OnboardingScreen",
-          experiments,
           environment: session.device.environment,
           os_version: session.device.os_version,
           app_version: session.appVersion,

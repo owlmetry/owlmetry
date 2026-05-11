@@ -15,7 +15,6 @@ import { FunnelChart } from "@/components/funnels/funnel-chart";
 import { AnimatedPage } from "@/components/ui/animated-page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -68,7 +67,6 @@ export default function FunnelDetailPage() {
       until: "",
       app_version: "",
       environment: "",
-      experiment: "",
       group_by: "",
       mode: "open",
       app_id: "",
@@ -76,7 +74,6 @@ export default function FunnelDetailPage() {
   });
 
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
-  const deferredExperiment = useDeferredValue(filters.get("experiment"));
   const closedMode = filters.get("mode") === "closed";
 
   // Fetch apps for app_id filter
@@ -96,7 +93,6 @@ export default function FunnelDetailPage() {
     app_id: filters.get("app_id") || undefined,
     app_version: deferredAppVersion || undefined,
     environment: filters.get("environment") || undefined,
-    experiment: deferredExperiment || undefined,
     mode: closedMode ? "closed" : "open",
     group_by: filters.get("group_by") || undefined,
     data_mode: dataMode,
@@ -109,17 +105,15 @@ export default function FunnelDetailPage() {
   const untilInput = filters.get("until");
   const environmentVal = filters.get("environment");
   const appVersionVal = filters.get("app_version");
-  const experimentVal = filters.get("experiment");
 
   const chips = useMemo(() => {
     const c: FilterChip[] = [];
     if (timeRange && timeRange !== "7d") c.push({ label: "Time", value: formatTimeRangeChip(timeRange, sinceInput, untilInput), onDismiss: () => filters.setMany({ time_range: "7d", since: "", until: "" }) });
     if (environmentVal) c.push({ label: "Env", value: environmentVal, onDismiss: () => filters.set("environment", "") });
     if (appVersionVal) c.push({ label: "Version", value: appVersionVal, onDismiss: () => filters.set("app_version", "") });
-    if (experimentVal) c.push({ label: "Experiment", value: experimentVal, onDismiss: () => filters.set("experiment", "") });
     if (closedMode) c.push({ label: "Mode", value: "Sequential", onDismiss: () => filters.set("mode", "open") });
     return c;
-  }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, experimentVal, closedMode, filters]);
+  }, [timeRange, sinceInput, untilInput, environmentVal, appVersionVal, closedMode, filters]);
 
   return (
     <AnimatedPage className="space-y-6">
@@ -162,17 +156,6 @@ export default function FunnelDetailPage() {
           </div>
         }
       >
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Experiment</label>
-          <Input
-            type="text"
-            placeholder="name:variant"
-            value={filters.get("experiment")}
-            onChange={(e) => filters.set("experiment", e.target.value)}
-            className="h-8 text-xs"
-          />
-        </div>
-
         {/* Sequential mode toggle */}
         <TooltipProvider>
           <Tooltip>

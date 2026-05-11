@@ -120,7 +120,6 @@ export function buildEventRow(
     locale: e.locale || null,
     country_code,
     is_dev: e.is_dev ?? false,
-    experiments: e.experiments || null,
     timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
   };
 }
@@ -184,7 +183,6 @@ export function buildFunnelRows(
       message: ev.message,
       screen_name: ev.screen_name ?? null,
       custom_attributes: ev.custom_attributes ?? null,
-      experiments: ev.experiments ?? null,
       environment: ev.environment ?? null,
       os_version: ev.os_version ?? null,
       app_version: ev.app_version ?? null,

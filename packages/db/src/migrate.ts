@@ -114,7 +114,6 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       locale VARCHAR(20),
       country_code VARCHAR(2),
       is_dev BOOLEAN NOT NULL DEFAULT FALSE,
-      experiments JSONB,
       "timestamp" TIMESTAMPTZ NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     ) PARTITION BY RANGE ("timestamp");
@@ -173,7 +172,6 @@ async function convertFunnelEventsTableToPartitioned(client: postgres.Sql) {
       message TEXT NOT NULL,
       screen_name VARCHAR(255),
       custom_attributes JSONB,
-      experiments JSONB,
       environment environment,
       os_version VARCHAR(50),
       app_version VARCHAR(50),

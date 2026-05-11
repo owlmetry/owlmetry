@@ -82,21 +82,6 @@ struct SignupView: View {
 }
 ```
 
-## Combining with Experiments
-
-Funnel steps automatically include any active [experiment](/docs/sdks/swift/experiments) assignments. This allows you to segment funnel analytics by variant to compare conversion rates across A/B test groups.
-
-```swift
-// Assign a variant before the funnel begins
-let variant = Owl.getVariant("onboarding-flow", options: ["control", "simplified"])
-
-// All subsequent step() calls include the experiment assignment
-Owl.step("welcome-screen")
-Owl.step("create-account")
-```
-
-Query funnel results grouped by experiment variant in the dashboard or CLI to see which variant converts better.
-
 ## Funnel Definitions
 
 Funnel definitions are created through the CLI or the dashboard, not through the SDK. The SDK only emits the step events. See [Funnels](/docs/concepts/funnels) for details on creating definitions, analysis modes (open vs closed), and query options.

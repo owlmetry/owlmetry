@@ -512,7 +512,6 @@ describe("MCP endpoint", () => {
           timestamp: now.toISOString(),
           screen_name: "HomeScreen",
           custom_attributes: { big_payload: "x".repeat(200) },
-          experiments: { flag_a: "on" },
           device_model: "iPhone15,2",
         },
       ]);
@@ -534,7 +533,6 @@ describe("MCP endpoint", () => {
       expect(compact.events[0].level).toBe("info");
       expect(compact.events[0].timestamp).toBeTruthy();
       expect(compact.events[0].custom_attributes).toBeUndefined();
-      expect(compact.events[0].experiments).toBeUndefined();
       expect(compact.events[0].device_model).toBeUndefined();
       expect(compact.events[0].app_id).toBeUndefined();
       // Pagination metadata still present
@@ -579,7 +577,6 @@ describe("MCP endpoint", () => {
       for (const ev of parsed.events) {
         expect(ev.custom_attributes).toBeUndefined();
         expect(ev.device_model).toBeUndefined();
-        expect(ev.experiments).toBeUndefined();
         expect(ev.timestamp).toBeTruthy();
       }
     });

@@ -54,7 +54,6 @@ And it's simple: one Postgres database, one Node.js API server, one optional Nex
 - **Country tracking** — server auto-derives country from Cloudflare's `CF-IPCountry` header at ingest; rendered as flags across the dashboard
 - **Anonymous identity** — SDKs generate `owl_anon_` IDs; `/v1/identity/claim` retroactively links anonymous events to a known user, including late-arriving events after the claim
 - **Bundle ID validation** — client API keys are scoped to an app's registered bundle ID, validated on every ingest request
-- **A/B experiments** — SDKs assign random variants on first call, persist assignments locally, and tag all events with the active experiment; no server config needed
 - **SDK console logging** — opt-in via `consoleLogging: true` on `Owl.configure()` (Swift + Node); prints every tracked event, metric, and funnel step to the console so you can verify instrumentation without a dashboard round-trip
 
 ### Debugging and incident response
@@ -156,7 +155,7 @@ Full documentation is available at [owlmetry.com/docs](https://owlmetry.com/docs
 - **[MCP](https://owlmetry.com/docs/mcp)** — setup and tool reference for MCP clients
 - **[Node.js SDK](https://owlmetry.com/docs/sdks/node)** — server-side instrumentation (`npm install @owlmetry/node`)
 - **[Swift SDK](https://owlmetry.com/docs/sdks/swift)** — iOS, iPadOS, and macOS instrumentation (Swift Package)
-- **[Concepts](https://owlmetry.com/docs/concepts)** — events, issues, feedback, attachments, metrics, funnels, experiments, integrations, and more
+- **[Concepts](https://owlmetry.com/docs/concepts)** — events, issues, feedback, attachments, metrics, funnels, integrations, and more
 - **[Self-Hosting](https://owlmetry.com/docs/self-hosting)** — VPS setup, nginx, pm2, SSL, environment variables
 
 ## Links

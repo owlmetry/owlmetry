@@ -449,26 +449,6 @@ describe("Funnel Analytics", () => {
     expect(res.json().analytics.steps[0].unique_users).toBe(1);
   });
 
-  it("filters by experiment", async () => {
-    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
-
-    const now = Date.now();
-    await ingest([
-      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", experiments: { onboarding: "A" }, timestamp: new Date(now - 5000).toISOString() },
-      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b", experiments: { onboarding: "B" }, timestamp: new Date(now - 4000).toISOString() },
-    ]);
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/projects/${projectId}/funnels/test/query?experiment=onboarding:A&data_mode=all`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    expect(res.json().analytics.steps[0].unique_users).toBe(1);
-  });
-
   it("filters funnel analytics by app_version", async () => {
     await createFunnel({ name: "Version Filter", slug: "ver-filter", steps: ONBOARDING_STEPS });
 
@@ -642,58 +622,9 @@ describe("Funnel Analytics", () => {
     expect(analytics.breakdown).toEqual([]);
   });
 
-  it("groups by experiment variant", async () => {
-    await createFunnel({ name: "Test", slug: "test", steps: ONBOARDING_STEPS });
-
-    const now = Date.now();
-    await ingest([
-      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a1", experiments: { onboarding: "A" }, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b1", experiments: { onboarding: "B" }, timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b2", experiments: { onboarding: "B" }, timestamp: new Date(now - 40000).toISOString() },
-    ]);
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/projects/${projectId}/funnels/test/query?group_by=experiment:onboarding&data_mode=all`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    expect(res.statusCode).toBe(200);
-    const { analytics } = res.json();
-    expect(analytics.breakdown).toBeDefined();
-
-    const variantA = analytics.breakdown.find((b: any) => b.value === "A");
-    expect(variantA.steps[0].unique_users).toBe(1);
-
-    const variantB = analytics.breakdown.find((b: any) => b.value === "B");
-    expect(variantB.steps[0].unique_users).toBe(2);
-  });
 });
 
 describe("Ingest: track events dual-write to funnel_events", () => {
-  it("stores experiments field on events", async () => {
-    await ingest([
-      {
-        level: "info",
-        message: "test event",
-        session_id: TEST_SESSION_ID,
-        user_id: "user-1",
-        experiments: { onboarding: "A", pricing: "control" },
-      },
-    ]);
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/events?project_id=${projectId}&data_mode=all`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    const event = res.json().events[0];
-    expect(event.experiments).toEqual({ onboarding: "A", pricing: "control" });
-  });
-
   it("dual-writes track events to funnel_events", async () => {
     await ingest([
       {
@@ -723,43 +654,6 @@ describe("Ingest: track events dual-write to funnel_events", () => {
     expect(res.json().analytics.steps[0].unique_users).toBe(1);
   });
 
-  it("includes experiments in dual-written funnel events", async () => {
-    await ingest([
-      {
-        level: "info",
-        message: "step:welcome",
-        session_id: TEST_SESSION_ID,
-        user_id: "user-1",
-        experiments: { onboarding: "B" },
-      },
-    ]);
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    await createFunnel({
-      name: "Test",
-      slug: "test",
-      steps: [{ name: "Welcome", event_filter: { step_name: "welcome" } }],
-    });
-
-    // Query with experiment filter
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/projects/${projectId}/funnels/test/query?experiment=onboarding:B&data_mode=all`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    expect(res.json().analytics.steps[0].unique_users).toBe(1);
-
-    // Query with wrong variant should return 0
-    const res2 = await app.inject({
-      method: "GET",
-      url: `/v1/projects/${projectId}/funnels/test/query?experiment=onboarding:A&data_mode=all`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    expect(res2.json().analytics.steps[0].unique_users).toBe(0);
-  });
 });
 
 // ─── Cross-platform funnel tests ─────────────────────────────────────────────
@@ -941,30 +835,6 @@ describe("Funnel Cross-Platform Environment", () => {
     }
   });
 
-  it("android funnel supports experiment grouping", async () => {
-    await createFunnel({ name: "Android Exp", slug: "android-exp", steps: STEPS }, token, androidProjectId);
-
-    const now = Date.now();
-    await ingestForPlatform("android", [
-      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u1", environment: "android", experiments: { checkout: "A" }, timestamp: new Date(now - 60000).toISOString() },
-      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u2", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 50000).toISOString() },
-      { level: "info", message: "step:landing", session_id: TEST_SESSION_ID, user_id: "u3", environment: "android", experiments: { checkout: "B" }, timestamp: new Date(now - 40000).toISOString() },
-    ]);
-
-    await new Promise((r) => setTimeout(r, 200));
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/v1/projects/${androidProjectId}/funnels/android-exp/query?group_by=experiment:checkout&data_mode=all`,
-      headers: { authorization: `Bearer ${token}` },
-    });
-
-    expect(res.statusCode).toBe(200);
-    const variantA = res.json().analytics.breakdown.find((b: any) => b.value === "A");
-    const variantB = res.json().analytics.breakdown.find((b: any) => b.value === "B");
-    expect(variantA.steps[0].unique_users).toBe(1);
-    expect(variantB.steps[0].unique_users).toBe(2);
-  });
 });
 
 describe("Backwards compatibility: legacy track: prefix", () => {

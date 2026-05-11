@@ -14,7 +14,6 @@ Your agent can set up the entire integration, query events, diagnose issues, and
 - **Funnel analytics** to measure conversion and drop-off across multi-step flows
 - **Issue tracker** that clusters error events into actionable issues with regression detection
 - **Event attachments** for uploading logs, screenshots, and crash dumps alongside error events
-- **A/B experiments** with client-side variant assignment and server-side analysis
 - **Third-party integrations** like RevenueCat that sync subscription data into user properties
 - **Agent-native API** where every operation is available through `owl_agent_` keys
 - **Single PostgreSQL** backend with monthly-partitioned event tables -- no Kafka, no ClickHouse, no Redis
@@ -36,8 +35,8 @@ Learn more: [MCP setup](/docs/mcp/setup) · [CLI installation](/docs/cli/install
 ## Documentation Sections
 
 - **[Getting Started](/docs/getting-started)** -- Set up your first project and start sending events in minutes. Connect your agent via MCP or CLI, then add an SDK.
-- **[Concepts](/docs/concepts)** -- Core building blocks: [events](/docs/concepts/events), [metrics](/docs/concepts/metrics), [funnels](/docs/concepts/funnels), [experiments](/docs/concepts/experiments), [projects and apps](/docs/concepts/projects-and-apps), [authentication](/docs/concepts/authentication), and [data mode](/docs/concepts/data-mode).
-- **[Swift SDK](/docs/sdks/swift)** -- Native SDK for iOS, iPadOS, and macOS. Zero external dependencies. Covers events, screen tracking, metrics, funnels, identity, and experiments.
+- **[Concepts](/docs/concepts)** -- Core building blocks: [events](/docs/concepts/events), [metrics](/docs/concepts/metrics), [funnels](/docs/concepts/funnels), [projects and apps](/docs/concepts/projects-and-apps), [authentication](/docs/concepts/authentication), and [data mode](/docs/concepts/data-mode).
+- **[Swift SDK](/docs/sdks/swift)** -- Native SDK for iOS, iPadOS, and macOS. Zero external dependencies. Covers events, screen tracking, metrics, funnels, and identity.
 - **[Node.js SDK](/docs/sdks/node)** -- Server-side SDK for backends and serverless functions. Zero runtime dependencies. Covers events, metrics, funnels, identity, and serverless support.
 - **[MCP](/docs/mcp)** -- Connect AI agents directly to Owlmetry via the Model Context Protocol. No installation, automatic updates, 52 tools covering every operation.
 - **[CLI](/docs/cli)** -- Command-line interface for agents and humans. Query events, manage resources, and inspect audit logs. Supports `--format json` and `--format table`.

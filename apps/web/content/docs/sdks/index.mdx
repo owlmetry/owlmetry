@@ -7,8 +7,8 @@ Owlmetry provides two SDKs, both with zero runtime dependencies. They handle bat
 
 ## Available SDKs
 
-- **[Swift SDK](/docs/sdks/swift)** — Native SDK for iOS, iPadOS, and macOS apps. Distributed as a Swift Package. Covers event logging, screen tracking, structured metrics, funnels, identity management, A/B experiments, network monitoring, and app launch time measurement.
-- **[Node.js SDK](/docs/sdks/node)** — Server-side SDK for Express, Fastify, and serverless functions. Pure ESM package. Covers event logging, structured metrics, funnels, identity scoping, serverless support, and A/B experiments.
+- **[Swift SDK](/docs/sdks/swift)** — Native SDK for iOS, iPadOS, and macOS apps. Distributed as a Swift Package. Covers event logging, screen tracking, structured metrics, funnels, identity management, network monitoring, and app launch time measurement.
+- **[Node.js SDK](/docs/sdks/node)** — Server-side SDK for Express, Fastify, and serverless functions. Pure ESM package. Covers event logging, structured metrics, funnels, identity scoping, and serverless support.
 
 ## Comparison
 
@@ -17,13 +17,11 @@ Owlmetry provides two SDKs, both with zero runtime dependencies. They handle bat
 | Events with log levels | Yes | Yes |
 | Structured metrics | Yes | Yes |
 | Funnel tracking | Yes | Yes |
-| A/B experiments | Yes | Yes |
 | Auto screen tracking | Yes | — |
 | Network monitoring | Yes | — |
 | App launch time | Yes | — |
 | Serverless support | — | Yes |
 | User scoping | `Owl.setUser()` | `Owl.withUser()` |
-| Persistence | Keychain | Filesystem |
 | Compression | Gzip | Gzip |
 | Min runtime | iOS 16 / macOS 13 | Node.js 20 |
 

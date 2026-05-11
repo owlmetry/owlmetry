@@ -348,7 +348,6 @@ export async function funnelsRoutes(app: FastifyInstance) {
         app_id,
         app_version,
         environment,
-        experiment,
         mode = "open",
         group_by,
         data_mode,
@@ -404,7 +403,6 @@ export async function funnelsRoutes(app: FastifyInstance) {
         dataMode: data_mode,
         environment,
         appVersion: app_version,
-        experiment,
         groupBy: group_by,
       });
 
@@ -580,7 +578,6 @@ interface FunnelQueryOptions {
   dataMode?: string;
   environment?: string;
   appVersion?: string;
-  experiment?: string;
   groupBy?: string;
 }
 
@@ -588,7 +585,7 @@ async function buildFunnelQuery(
   fastify: FastifyInstance,
   opts: FunnelQueryOptions,
 ): Promise<FunnelQueryResult> {
-  const { appIds, steps, sinceDate, untilDate, mode, dataMode, environment, appVersion, experiment, groupBy } = opts;
+  const { appIds, steps, sinceDate, untilDate, mode, dataMode, environment, appVersion, groupBy } = opts;
 
   // Build base Drizzle conditions on funnelEvents
   const baseConditions: SQL[] = [
@@ -607,15 +604,6 @@ async function buildFunnelQuery(
 
   if (appVersion) {
     baseConditions.push(eq(funnelEvents.app_version, appVersion));
-  }
-
-  if (experiment) {
-    const colonIdx = experiment.indexOf(":");
-    if (colonIdx > 0) {
-      const expName = experiment.slice(0, colonIdx);
-      const expVariant = experiment.slice(colonIdx + 1);
-      baseConditions.push(sql`${funnelEvents.experiments}->>${expName} = ${expVariant}`);
-    }
   }
 
   if (groupBy) {
@@ -737,10 +725,6 @@ async function buildGroupedFunnelQuery(
   } else if (groupBy === "app_version") {
     groupExpr = sql`${funnelEvents.app_version}`;
     groupKey = "app_version";
-  } else if (groupBy.startsWith("experiment:")) {
-    const expName = groupBy.slice("experiment:".length);
-    groupExpr = sql`${funnelEvents.experiments}->>${expName}`;
-    groupKey = groupBy;
   } else {
     return { totalUsers: 0, steps: [], breakdown: [] };
   }

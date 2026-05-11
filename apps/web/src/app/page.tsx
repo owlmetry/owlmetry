@@ -38,7 +38,7 @@ const features = [
   {
     icon: Filter,
     title: "Funnels",
-    description: "See where users drop off. Define multi-step funnels, compare conversion across app versions, and measure the impact of A/B experiments.",
+    description: "See where users drop off. Define multi-step funnels and compare conversion across app versions and environments.",
   },
   {
     icon: Bug,
@@ -439,24 +439,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Card 5 — A/B experiment */}
-            <div className="rounded-xl border overflow-hidden md:col-span-2" style={{ background: "oklch(0.13 0.015 55)" }}>
-              <div className="px-5 pt-4 pb-3 border-b border-white/[0.06]">
-                <p className="text-[13px] text-white/70">
-                  <span className="text-white/30 mr-1.5">&gt;</span>
-                  How is the checkout redesign experiment performing?
-                </p>
-              </div>
-              <div className="px-5 py-4 text-[12.5px] leading-relaxed space-y-1.5">
-                <p className="text-white/35">Querying checkout funnel segmented by experiment variant...</p>
-                <p className="text-white/35">Comparing checkout completion time across variants...</p>
-                <div className="pt-2.5 mt-1.5 border-t border-white/[0.04]">
-                  <p className="text-white/55">
-                    Variant B converts 23% better than control (68% vs 55%) and checkout time dropped from 4.2s to 2.8s. Variant A shows no significant difference. Recommend shipping Variant B.
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -701,7 +683,7 @@ export default function LandingPage() {
                 "Agent-native API",
                 "Structured event ingestion",
                 "Performance metrics with lifecycle tracking",
-                "Funnel analytics with A/B experiments",
+                "Funnel analytics with drop-off detection",
                 "Error issue tracker with semver-aware regression detection",
                 "Apple Search Ads acquisition attribution",
                 "User feedback with kanban workflow",

@@ -42,7 +42,6 @@ Each event contains the following fields:
 | `locale` | string | No | User locale (e.g., `en_US`) |
 | `country_code` | string | No | 2-letter ISO country code, derived server-side from the request IP via Cloudflare. Never sent by SDKs. Always `null` for backend apps. |
 | `is_dev` | boolean | No | Whether the event came from a development build |
-| `experiments` | object | No | Active A/B experiment variant assignments |
 | `timestamp` | string (ISO 8601) | No | When the event occurred (server uses receipt time if omitted) |
 
 Events are sent to the server in batches via the [ingest endpoint](/docs/api-reference/ingest). The SDKs handle batching automatically.

@@ -36,7 +36,7 @@ function compactEvent(event: Record<string, unknown>): Record<string, unknown> {
 export function registerEventsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("query-events", {
     description:
-      "Query analytics events with flexible filters — project, app, level, user, session, environment, screen, time range, data mode. Defaults to last 24 hours. Returns cursor-paginated results. Set compact=true to drop verbose fields (custom_attributes, experiments, device metadata) and stay under MCP token limits. **For investigating an issue's occurrences, use `investigate-event` instead** — it builds a richer breadcrumb (full session + cross-app events for the same user) automatically from an occurrence's `event_id`. Reach for `query-events` for ad-hoc filter-driven searches (all errors of a given level, all events on a screen, walking a session manually).",
+      "Query analytics events with flexible filters — project, app, level, user, session, environment, screen, time range, data mode. Defaults to last 24 hours. Returns cursor-paginated results. Set compact=true to drop verbose fields (custom_attributes, device metadata) and stay under MCP token limits. **For investigating an issue's occurrences, use `investigate-event` instead** — it builds a richer breadcrumb (full session + cross-app events for the same user) automatically from an occurrence's `event_id`. Reach for `query-events` for ad-hoc filter-driven searches (all errors of a given level, all events on a screen, walking a session manually).",
     inputSchema: {
       project_id: z.string().uuid().optional().describe("Filter by project"),
       app_id: z.string().uuid().optional().describe("Filter by app (takes precedence over project_id)"),
@@ -51,7 +51,7 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
       limit: z.number().optional().describe("Max results (default 50, max 1000)"),
       data_mode: z.enum(DATA_MODES).optional().describe("Filter by data mode (default: production)"),
       order: z.enum(ORDER_DIRECTIONS).optional().describe("Sort direction by timestamp. Default 'desc' (newest first). Use 'asc' to walk events chronologically — preferred for session timelines and breadcrumb investigations."),
-      compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, experiments, device metadata). Recommended for session timelines to avoid MCP token overflow."),
+      compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, device metadata). Recommended for session timelines to avoid MCP token overflow."),
     },
   }, async (params) => {
     const { compact, level, ...rest } = params;
@@ -96,7 +96,7 @@ export function registerEventsTools(server: McpServer, app: FastifyInstance, age
       event_id: z.string().uuid().describe("The target event ID"),
       window_minutes: z.number().optional().default(5).describe("Fallback time window in minutes, used only when the target has no session_id (default: 5)"),
       data_mode: z.enum(DATA_MODES).optional().describe("Data mode (default: production). Set to match the target event's mode."),
-      compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, experiments, device metadata)."),
+      compact: z.boolean().optional().describe("Return a compact event shape (drops custom_attributes, device metadata)."),
     },
   }, async ({ event_id, window_minutes, data_mode, compact }) => {
     const targetRes = await callApiRaw(app, agentKey, {
