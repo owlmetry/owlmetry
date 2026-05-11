@@ -63,13 +63,13 @@ export function RecentEventsPanel() {
             <Link
               key={event.id}
               href={`/dashboard/events?event_id=${event.id}`}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
             >
               <div className="shrink-0 w-16 flex justify-start">
                 <EventLevelBadge level={event.level as LogLevel} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-mono truncate">{event.message}</p>
+                <p className="text-sm font-mono truncate">{event.message}</p>
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                   {meta && (
                     <span className="flex items-center gap-1 truncate">
@@ -101,7 +101,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+        <div key={i} className="flex items-center gap-3 px-4 py-3">
           <Skeleton className="h-5 w-14" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-3 w-5/6" />
