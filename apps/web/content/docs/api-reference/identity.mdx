@@ -35,8 +35,11 @@ Reassign all events, metric events, and funnel events from an anonymous user to 
 
 1. All `events` rows where `user_id` matches `anonymous_id` across all apps in the project are updated to the new `user_id`.
 2. All `funnel_events` and `metric_events` rows with the same anonymous user_id are also reassigned across all project apps.
-3. The user record for the anonymous ID is merged into the identified user's record. The `claimed_from` array on the identified user is updated to include the anonymous ID, `first_seen_at` takes the earlier of the two records, and app associations are merged.
-4. The anonymous user record is deleted.
+3. The `app_users` mapping is recorded:
+   - If both an anonymous user record and the identified user record exist, the anonymous record is merged into the identified one (`claimed_from` appends the anonymous ID, `first_seen_at` takes the earlier of the two, junction rows merge) and the anonymous record is deleted.
+   - If only the anonymous record exists, it is renamed in place to `user_id`, `is_anonymous` flips to `false`, and `claimed_from` is set to `[anonymous_id]`.
+   - If only the identified record exists, `claimed_from` appends the anonymous ID.
+   - If neither exists (the SDK fired the claim before any event reached the server), a new identified record is inserted with `claimed_from: [anonymous_id]`.
 
 ### Idempotent
 
@@ -44,25 +47,25 @@ If the same `anonymous_id` has already been claimed by the same `user_id`, the e
 
 ### Response
 
+Always returns `200` on a successful claim, even when zero events were reassigned (the SDK can race its own ingest flush — see "SDK integration note" below):
+
 ```json
-// Success (200)
+// Events were present and reassigned (200)
 {
   "claimed": true,
   "events_reassigned_count": 42
 }
 
-// Already claimed (200)
+// Already claimed, or claim arrived before any events (200)
 {
   "claimed": true,
   "events_reassigned_count": 0
 }
 ```
 
-Returns `404` if no events exist for the given `anonymous_id` across the project's apps.
-
 ### SDK integration note
 
-SDKs must flush all buffered events before calling this endpoint. Otherwise, in-flight events sent after the claim may still carry the old anonymous ID and will not be reassigned.
+SDKs flush all buffered events before calling this endpoint so the server's `UPDATE events` reassignment catches them in one pass. Even if a claim races ahead of its own ingest flush (early in a session, when the buffer hasn't been drained yet), the server still registers the anon → real mapping in `app_users.claimed_from`. Late-arriving events are then rewritten by the [ingest-side re-attribution](#ingest-side-re-attribution) below — no manual retry is needed.
 
 ### Ingest-side re-attribution
 
