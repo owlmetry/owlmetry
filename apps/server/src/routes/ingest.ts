@@ -145,7 +145,7 @@ export async function ingestRoutes(app: FastifyInstance) {
       if (valid.length > 0) {
         await app.db.insert(events).values(valid);
         dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
-        upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+        await upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
 
         const insertedClientIds = valid
           .map((v) => v.client_event_id)

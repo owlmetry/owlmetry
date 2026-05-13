@@ -149,6 +149,27 @@ describe("POST /v1/ingest", () => {
     expect(userRow.last_sdk_version).toBe("0.4.2");
   });
 
+  it("Test E: writes app_users synchronously (no sleep needed before query)", async () => {
+    // Regression for the claim race: a concurrent /v1/identity/claim that
+    // arrives between an /v1/ingest response and the fire-and-forget app_users
+    // upsert would see stale state and fail to merge the anon row. The fix
+    // makes upsertAppUsers awaited; this test pins the new contract by
+    // querying app_users immediately after ingest with no polling.
+    const userId = "race-test-user";
+    const res = await ingest([
+      { level: "info", message: "race", session_id: TEST_SESSION_ID, user_id: userId },
+    ]);
+    expect(res.statusCode).toBe(200);
+
+    const [row] = await app.db
+      .select({ user_id: appUsers.user_id })
+      .from(appUsers)
+      .where(eq(appUsers.user_id, userId))
+      .limit(1);
+    expect(row).toBeDefined();
+    expect(row.user_id).toBe(userId);
+  });
+
   it("rejects batch over 100 events", async () => {
     const events = Array.from({ length: 101 }, (_, i) => ({
       level: "info",

@@ -227,14 +227,17 @@ export function dualWriteSpecializedEvents(
   }
 }
 
-/** Fire-and-forget upsert of project-scoped app_users + junction entries. */
-export function upsertAppUsers(
+// Upsert project-scoped app_users + junction entries. Now awaited by callers
+// so a concurrent /v1/identity/claim sees a consistent app_users view — the
+// previous fire-and-forget pattern let claim handlers query stale state and
+// orphan the anon row when the SDK's setUser raced its own ingest flush.
+export async function upsertAppUsers(
   db: Db,
   validEvents: Array<typeof events.$inferInsert>,
   project_id: string,
   app_id: string,
   log: FastifyBaseLogger,
-) {
+): Promise<void> {
   const uniqueUserIds = [...new Set(
     validEvents.map((e) => e.user_id).filter((id): id is string => !!id)
   )];
@@ -254,35 +257,39 @@ export function upsertAppUsers(
     last_sdk_name: sdkName,
     last_sdk_version: sdkVersion,
   }));
-  // Don't wipe a previously-resolved country/version when this batch came without one.
-  db.insert(appUsers)
-    .values(userRows)
-    .onConflictDoUpdate({
-      target: [appUsers.project_id, appUsers.user_id],
-      set: {
-        last_seen_at: sql`NOW()`,
-        ...(countryCode ? { last_country_code: countryCode } : {}),
-        ...(appVersion ? { last_app_version: appVersion } : {}),
-        ...(sdkName ? { last_sdk_name: sdkName } : {}),
-        ...(sdkVersion ? { last_sdk_version: sdkVersion } : {}),
-      },
-    })
-    .returning({ id: appUsers.id, user_id: appUsers.user_id })
-    .then((upserted) => {
-      const junctionRows = upserted.map((u) => ({
-        app_user_id: u.id,
-        app_id,
-      }));
-      return db
-        .insert(appUserApps)
-        .values(junctionRows)
-        .onConflictDoUpdate({
-          target: [appUserApps.app_user_id, appUserApps.app_id],
-          set: { last_seen_at: sql`NOW()` },
-        })
-        .execute();
-    })
-    .catch((err) => {
-      log.warn({ err }, "Failed to upsert app_users");
-    });
+  try {
+    // Don't wipe a previously-resolved country/version when this batch came without one.
+    const upserted = await db
+      .insert(appUsers)
+      .values(userRows)
+      .onConflictDoUpdate({
+        target: [appUsers.project_id, appUsers.user_id],
+        set: {
+          last_seen_at: sql`NOW()`,
+          ...(countryCode ? { last_country_code: countryCode } : {}),
+          ...(appVersion ? { last_app_version: appVersion } : {}),
+          ...(sdkName ? { last_sdk_name: sdkName } : {}),
+          ...(sdkVersion ? { last_sdk_version: sdkVersion } : {}),
+        },
+      })
+      .returning({ id: appUsers.id, user_id: appUsers.user_id });
+
+    const junctionRows = upserted.map((u) => ({
+      app_user_id: u.id,
+      app_id,
+    }));
+    await db
+      .insert(appUserApps)
+      .values(junctionRows)
+      .onConflictDoUpdate({
+        target: [appUserApps.app_user_id, appUserApps.app_id],
+        set: { last_seen_at: sql`NOW()` },
+      })
+      .execute();
+  } catch (err) {
+    // Preserve the historical "app_users blip doesn't fail the request"
+    // guarantee — events are already committed by the caller, this is
+    // the denormalised view.
+    log.warn({ err }, "Failed to upsert app_users");
+  }
 }

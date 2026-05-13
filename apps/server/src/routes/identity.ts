@@ -62,10 +62,22 @@ export async function identityRoutes(app: FastifyInstance) {
         .where(and(eq(apps.project_id, project_id), isNull(apps.deleted_at)));
       const projectAppIds = projectApps.map((a) => a.id);
 
-      // Execute all checks and updates in a single transaction
+      // Execute all checks and updates in a single transaction.
+      //
+      // Contract change vs. earlier behaviour: this endpoint now ALWAYS
+      // registers the anon→real mapping in app_users.claimed_from, even
+      // when zero events match the anonymous_id at the moment the claim
+      // arrives. The previous "return 404 if no events" path silently
+      // dropped the claim and let any late-arriving anon events orphan
+      // onto a separate app_users row that resolveClaimedUserIds could
+      // never find a mapping for. The Signature Creator orphan-user bug
+      // (CLAUDE.md "Identity") was exactly that race — the SDK's setUser
+      // beat its own ingest flush and the server returned 404 instead of
+      // remembering the mapping.
       const eventsReassignedCount = await app.db.transaction(async (tx) => {
-        // Idempotency: check if the real user already has this anonymous_id in claimed_from
-        const [realUserRow] = await tx
+        // Idempotency: if the real user already has this anonymous_id in
+        // claimed_from, the merge is done — short-circuit.
+        const [existingRealUserRow] = await tx
           .select()
           .from(appUsers)
           .where(
@@ -76,11 +88,14 @@ export async function identityRoutes(app: FastifyInstance) {
           )
           .limit(1);
 
-        if (realUserRow?.claimed_from?.includes(anonymous_id)) {
+        if (existingRealUserRow?.claimed_from?.includes(anonymous_id)) {
           return -1; // sentinel: already claimed
         }
 
-        // Update events user_id from anonymous to real (across all project apps)
+        // Reassign events user_id from anonymous to real (across all project apps).
+        // Zero rows is a valid outcome — the events may not have arrived yet
+        // (SDK race). resolveClaimedUserIds at /v1/ingest will rewrite them
+        // when they do, because the merge below registers claimed_from.
         const updatedEvents = await tx
           .update(events)
           .set({ user_id: user_id })
@@ -91,10 +106,6 @@ export async function identityRoutes(app: FastifyInstance) {
             )
           )
           .returning({ id: events.id });
-
-        if (updatedEvents.length === 0) {
-          return 0;
-        }
 
         // Reassign funnel_events user_id from anonymous to real
         await tx
@@ -118,7 +129,20 @@ export async function identityRoutes(app: FastifyInstance) {
             )
           );
 
-        // Merge app_users: fetch anonymous row (project-scoped)
+        // Re-fetch realUserRow inside the transaction in case the events
+        // UPDATE above (or a concurrent ingest) has materialised it via the
+        // app_users upsert path. Same for the anon row.
+        const [realUserRow] = await tx
+          .select()
+          .from(appUsers)
+          .where(
+            and(
+              eq(appUsers.project_id, project_id),
+              eq(appUsers.user_id, user_id)
+            )
+          )
+          .limit(1);
+
         const [anonRow] = await tx
           .select()
           .from(appUsers)
@@ -190,8 +214,38 @@ export async function identityRoutes(app: FastifyInstance) {
               claimed_from: [anonymous_id],
             })
             .where(eq(appUsers.id, anonRow.id));
+        } else {
+          // Neither row exists — register the mapping anyway. Late events
+          // arriving via /v1/ingest will be rewritten through claimed_from
+          // by resolveClaimedUserIds. The ON CONFLICT branch handles the
+          // case where a parallel ingest's upsertAppUsers materialises the
+          // real-user row between our SELECT above and this INSERT.
+          await tx
+            .insert(appUsers)
+            .values({
+              project_id,
+              user_id,
+              is_anonymous: false,
+              claimed_from: [anonymous_id],
+            })
+            .onConflictDoUpdate({
+              target: [appUsers.project_id, appUsers.user_id],
+              set: {
+                claimed_from: sql`
+                  CASE
+                    WHEN ${appUsers.claimed_from} IS NULL
+                      THEN ${JSON.stringify([anonymous_id])}::jsonb
+                    WHEN NOT EXISTS (
+                      SELECT 1 FROM jsonb_array_elements_text(${appUsers.claimed_from}) elt
+                      WHERE elt = ${anonymous_id}
+                    )
+                      THEN ${appUsers.claimed_from} || ${JSON.stringify([anonymous_id])}::jsonb
+                    ELSE ${appUsers.claimed_from}
+                  END
+                `,
+              },
+            });
         }
-        // If neither exists, the claim still succeeds (events were reassigned)
 
         return updatedEvents.length;
       });
@@ -201,12 +255,6 @@ export async function identityRoutes(app: FastifyInstance) {
           claimed: true,
           events_reassigned_count: 0,
         } satisfies IdentityClaimResponse;
-      }
-
-      if (eventsReassignedCount === 0) {
-        return reply
-          .code(404)
-          .send({ error: "No events found for this anonymous_id" });
       }
 
       return {

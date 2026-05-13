@@ -212,9 +212,10 @@ export async function importRoutes(app: FastifyInstance) {
           });
       }
 
-      // Upsert users for all events (new + updated)
+      // Upsert users for all events (new + updated). Awaited symmetrically
+      // with the /v1/ingest path so a concurrent claim sees consistent state.
       if (allRows.length > 0) {
-        upsertAppUsers(app.db, allRows, appRow.project_id, app_id, request.log);
+        await upsertAppUsers(app.db, allRows, appRow.project_id, app_id, request.log);
       }
 
       return {

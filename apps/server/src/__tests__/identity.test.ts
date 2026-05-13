@@ -170,13 +170,25 @@ describe("POST /v1/identity/claim", () => {
     expect(res.json().error).toMatch(/anonymous prefix/);
   });
 
-  it("returns 404 when no events match the anonymous_id", async () => {
-    const res = await claim({
-      anonymous_id: "owl_anon_nonexistent",
-      user_id: "user",
-    });
-    expect(res.statusCode).toBe(404);
-    expect(res.json().error).toMatch(/No events/);
+  it("succeeds with events_reassigned_count=0 when no events match the anonymous_id", async () => {
+    // Even with zero events to reassign, the claim must register the anon→real
+    // mapping in app_users.claimed_from. Otherwise late-arriving anon events
+    // (sent by an SDK that beat its own ingest flush — see CLAUDE.md "Identity"
+    // section) bypass resolveClaimedUserIds and orphan onto a separate row.
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_nonexistent";
+    const realId = "user";
+
+    const res = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ claimed: true, events_reassigned_count: 0 });
+
+    // Real user row created with claimed_from set
+    const users = await getProjectUsers(projectId);
+    const realRow = users.find((u: any) => u.user_id === realId);
+    expect(realRow).toBeDefined();
+    expect(realRow!.is_anonymous).toBe(false);
+    expect(realRow!.claimed_from).toEqual([anonId]);
   });
 
   it("rejects agent key (no events:write permission)", async () => {
@@ -711,6 +723,157 @@ describe("claim + late-arriving ingest race", () => {
 
     const underReal = await queryEvents({ user_id: realId });
     expect(underReal.json().events.length).toBe(3); // anchor + two late
+
+    const underAnon = await queryEvents({ user_id: anonId });
+    expect(underAnon.json().events.length).toBe(0);
+  });
+});
+
+/**
+ * Reproduction of the Signature Creator orphan bug — anon row created by the
+ * attribution endpoint, then a Firebase-anon-auth setUser fires the claim
+ * before the SDK's own log Tasks have reached the EventTransport buffer. The
+ * server must register claimed_from on the real user row even when zero
+ * events are reassigned, and the merge of an existing anon row must run
+ * unconditionally, so late-arriving events are rewritten via
+ * resolveClaimedUserIds at /v1/ingest.
+ */
+describe("POST /v1/identity/claim — robustness against zero-event races", () => {
+  async function insertAppUser(
+    projectId: string,
+    userId: string,
+    {
+      isAnonymous = true,
+      properties = null as Record<string, string> | null,
+    }: { isAnonymous?: boolean; properties?: Record<string, string> | null } = {},
+  ): Promise<string> {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      const [row] = await client`
+        INSERT INTO app_users (project_id, user_id, is_anonymous, properties)
+        VALUES (${projectId}, ${userId}, ${isAnonymous}, ${properties as any})
+        RETURNING id
+      `;
+      return row.id as string;
+    } finally {
+      await client.end();
+    }
+  }
+
+  it("Test A: claim merges a pre-existing anon app_users row when zero events are present", async () => {
+    // Mimics the production case: the attribution endpoint created the anon
+    // app_users row before any events were ingested. The claim arrives while
+    // the events are still in flight on the SDK side.
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_test-A-zero-events-with-anon-row";
+    const realId = "real-test-A";
+
+    await insertAppUser(projectId, anonId, {
+      isAnonymous: true,
+      properties: { attribution_source: "none" },
+    });
+
+    const res = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ claimed: true, events_reassigned_count: 0 });
+
+    const users = await getProjectUsers(projectId);
+
+    // No row should remain with the anon user_id (the merge either renamed
+    // it in place or deleted it after copying its junctions to the real row).
+    expect(users.find((u: any) => u.user_id === anonId)).toBeUndefined();
+
+    // Real row exists with claimed_from + properties carried over
+    const realRow = users.find((u: any) => u.user_id === realId);
+    expect(realRow).toBeDefined();
+    expect(realRow!.is_anonymous).toBe(false);
+    expect(realRow!.claimed_from).toEqual([anonId]);
+    expect(realRow!.properties).toEqual({ attribution_source: "none" });
+  });
+
+  it("Test B: claim creates a real app_users row with claimed_from when no rows exist at all", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_test-B-no-rows";
+    const realId = "real-test-B";
+
+    const res = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ claimed: true, events_reassigned_count: 0 });
+
+    const users = await getProjectUsers(projectId);
+    expect(users.find((u: any) => u.user_id === anonId)).toBeUndefined();
+
+    const realRow = users.find((u: any) => u.user_id === realId);
+    expect(realRow).toBeDefined();
+    expect(realRow!.is_anonymous).toBe(false);
+    expect(realRow!.claimed_from).toEqual([anonId]);
+  });
+
+  it("Test C: anon ingest after a zero-event claim is rewritten to the real user", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_test-C-late-after-zero-claim";
+    const realId = "real-test-C";
+
+    // Pre-insert anon row only (no events) — same shape as Test A
+    await insertAppUser(projectId, anonId, { isAnonymous: true });
+
+    const claimRes = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(claimRes.statusCode).toBe(200);
+
+    // Now an anon event arrives (e.g., from an in-flight log Task that
+    // reached the SDK's transport buffer after the claim POST went out).
+    await ingest([
+      { level: "info", message: "late-after-zero-claim", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+
+    const underReal = await queryEvents({ user_id: realId });
+    expect(underReal.json().events.length).toBe(1);
+    expect(underReal.json().events[0].user_id).toBe(realId);
+
+    const underAnon = await queryEvents({ user_id: anonId });
+    expect(underAnon.json().events.length).toBe(0);
+
+    const users = await getProjectUsers(projectId);
+    expect(users.find((u: any) => u.user_id === anonId)).toBeUndefined();
+  });
+
+  it("Test D: concurrent ingest + claim does not orphan an anon app_users row", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_test-D-concurrent";
+    const realId = "real-test-D";
+
+    // Anchor: ensure anon row exists via the awaited ingest path so this
+    // test focuses on the in-flight ingest race, not on the missing-anon-row
+    // path that Tests A/B already cover.
+    await ingest([
+      { level: "info", message: "anchor", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+    await waitForAppUser(projectId, anonId);
+
+    // Fire a second ingest in parallel with the claim — the bug is that
+    // this ingest's events can land while the claim's events-table UPDATE
+    // is mid-transaction, leaving stragglers under the anon id.
+    const [, claimRes] = await Promise.all([
+      ingest([
+        { level: "info", message: "concurrent-1", user_id: anonId, session_id: TEST_SESSION_ID },
+        { level: "info", message: "concurrent-2", user_id: anonId, session_id: TEST_SESSION_ID },
+      ]),
+      claim({ anonymous_id: anonId, user_id: realId }),
+    ]);
+    expect(claimRes.statusCode).toBe(200);
+
+    // Drain any straggler late events the same way the SDK would: by
+    // sending them after the claim. With the server fix, claimed_from is
+    // set on the real user row, so resolveClaimedUserIds rewrites them.
+    await ingest([
+      { level: "info", message: "post-claim-late", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+
+    const users = await getProjectUsers(projectId);
+    expect(users.find((u: any) => u.user_id === anonId)).toBeUndefined();
+    const realRow = users.find((u: any) => u.user_id === realId);
+    expect(realRow).toBeDefined();
+    expect(realRow!.claimed_from).toEqual([anonId]);
 
     const underAnon = await queryEvents({ user_id: anonId });
     expect(underAnon.json().events.length).toBe(0);
