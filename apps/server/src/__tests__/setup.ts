@@ -685,6 +685,42 @@ export async function seedTestData() {
 }
 
 /**
+ * Direct INSERT into app_users for tests that need to seed a row without
+ * going through /v1/ingest or /v1/identity/attribution. Returns the row id.
+ * Defaults match the most common test shape: a real (non-anonymous) user
+ * row with no claimed_from and no properties. Identity-claim tests that
+ * need an anonymous row pass `{ isAnonymous: true }` explicitly.
+ */
+export async function insertAppUser(
+  projectId: string,
+  userId: string,
+  opts: {
+    isAnonymous?: boolean;
+    properties?: Record<string, string> | null;
+    claimedFrom?: string[] | null;
+  } = {},
+): Promise<string> {
+  const { isAnonymous = false, properties = null, claimedFrom = null } = opts;
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  try {
+    const [row] = await client`
+      INSERT INTO app_users (project_id, user_id, is_anonymous, claimed_from, properties)
+      VALUES (
+        ${projectId},
+        ${userId},
+        ${isAnonymous},
+        ${claimedFrom === null ? null : client.json(claimedFrom)},
+        ${properties === null ? null : client.json(properties)}
+      )
+      RETURNING id
+    `;
+    return row.id as string;
+  } finally {
+    await client.end();
+  }
+}
+
+/**
  * Creates a user via the send-code/verify-code flow and returns token + user info.
  */
 export async function createUserAndGetToken(

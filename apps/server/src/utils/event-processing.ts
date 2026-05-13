@@ -199,31 +199,31 @@ export function buildFunnelRows(
   return rows;
 }
 
-/** Fire-and-forget dual-write to metric_events and funnel_events. */
-export function dualWriteSpecializedEvents(
+// Dual-write to metric_events and funnel_events. Awaited by callers so a
+// concurrent /v1/identity/claim's UPDATE on metric_events / funnel_events
+// sees a consistent view — same race that motivated awaiting upsertAppUsers.
+export async function dualWriteSpecializedEvents(
   db: Db,
   validEvents: Array<typeof events.$inferInsert>,
   api_key_id: string | null,
   log: FastifyBaseLogger,
-) {
+): Promise<void> {
   const metricRows = buildMetricRows(validEvents, api_key_id);
   if (metricRows.length > 0) {
-    db.insert(metricEvents)
-      .values(metricRows)
-      .execute()
-      .catch((err) => {
-        log.warn({ err }, "Failed to dual-write metric events");
-      });
+    try {
+      await db.insert(metricEvents).values(metricRows).execute();
+    } catch (err) {
+      log.warn({ err }, "Failed to dual-write metric events");
+    }
   }
 
   const funnelRows = buildFunnelRows(validEvents, api_key_id);
   if (funnelRows.length > 0) {
-    db.insert(funnelEvents)
-      .values(funnelRows)
-      .execute()
-      .catch((err) => {
-        log.warn({ err }, "Failed to dual-write funnel events");
-      });
+    try {
+      await db.insert(funnelEvents).values(funnelRows).execute();
+    } catch (err) {
+      log.warn({ err }, "Failed to dual-write funnel events");
+    }
   }
 }
 

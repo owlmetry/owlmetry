@@ -129,9 +129,11 @@ export async function identityRoutes(app: FastifyInstance) {
             )
           );
 
-        // Re-fetch realUserRow inside the transaction in case the events
-        // UPDATE above (or a concurrent ingest) has materialised it via the
-        // app_users upsert path. Same for the anon row.
+        // Re-fetch realUserRow + anonRow inside the transaction. Under
+        // READ COMMITTED a concurrent /v1/ingest (with its now-awaited
+        // upsertAppUsers) can commit and become visible between the
+        // idempotency SELECT above and here, and we need the freshest view
+        // before deciding which merge branch to take.
         const [realUserRow] = await tx
           .select()
           .from(appUsers)

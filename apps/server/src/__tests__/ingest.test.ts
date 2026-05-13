@@ -149,7 +149,7 @@ describe("POST /v1/ingest", () => {
     expect(userRow.last_sdk_version).toBe("0.4.2");
   });
 
-  it("Test E: writes app_users synchronously (no sleep needed before query)", async () => {
+  it("writes app_users synchronously so a follow-up query returns the row without polling", async () => {
     // Regression for the claim race: a concurrent /v1/identity/claim that
     // arrives between an /v1/ingest response and the fire-and-forget app_users
     // upsert would see stale state and fail to merge the anon row. The fix

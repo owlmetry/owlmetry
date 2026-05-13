@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createHash } from "node:crypto";
 import {
   buildApp,
+  insertAppUser,
   truncateAll,
   seedTestData,
   TEST_CLIENT_KEY,
@@ -739,28 +740,7 @@ describe("claim + late-arriving ingest race", () => {
  * resolveClaimedUserIds at /v1/ingest.
  */
 describe("POST /v1/identity/claim — robustness against zero-event races", () => {
-  async function insertAppUser(
-    projectId: string,
-    userId: string,
-    {
-      isAnonymous = true,
-      properties = null as Record<string, string> | null,
-    }: { isAnonymous?: boolean; properties?: Record<string, string> | null } = {},
-  ): Promise<string> {
-    const client = postgres(TEST_DB_URL, { max: 1 });
-    try {
-      const [row] = await client`
-        INSERT INTO app_users (project_id, user_id, is_anonymous, properties)
-        VALUES (${projectId}, ${userId}, ${isAnonymous}, ${properties as any})
-        RETURNING id
-      `;
-      return row.id as string;
-    } finally {
-      await client.end();
-    }
-  }
-
-  it("Test A: claim merges a pre-existing anon app_users row when zero events are present", async () => {
+  it("merges a pre-existing anon app_users row when zero events are present", async () => {
     // Mimics the production case: the attribution endpoint created the anon
     // app_users row before any events were ingested. The claim arrives while
     // the events are still in flight on the SDK side.
@@ -791,7 +771,7 @@ describe("POST /v1/identity/claim — robustness against zero-event races", () =
     expect(realRow!.properties).toEqual({ attribution_source: "none" });
   });
 
-  it("Test B: claim creates a real app_users row with claimed_from when no rows exist at all", async () => {
+  it("creates a real app_users row with claimed_from when no rows exist at all", async () => {
     const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
     const anonId = "owl_anon_test-B-no-rows";
     const realId = "real-test-B";
@@ -809,7 +789,7 @@ describe("POST /v1/identity/claim — robustness against zero-event races", () =
     expect(realRow!.claimed_from).toEqual([anonId]);
   });
 
-  it("Test C: anon ingest after a zero-event claim is rewritten to the real user", async () => {
+  it("rewrites a late anon ingest to the real user when the claim ran with zero events", async () => {
     const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
     const anonId = "owl_anon_test-C-late-after-zero-claim";
     const realId = "real-test-C";
@@ -837,7 +817,7 @@ describe("POST /v1/identity/claim — robustness against zero-event races", () =
     expect(users.find((u: any) => u.user_id === anonId)).toBeUndefined();
   });
 
-  it("Test D: concurrent ingest + claim does not orphan an anon app_users row", async () => {
+  it("does not orphan an anon app_users row when ingest and claim run concurrently", async () => {
     const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
     const anonId = "owl_anon_test-D-concurrent";
     const realId = "real-test-D";

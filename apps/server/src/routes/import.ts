@@ -148,7 +148,7 @@ export async function importRoutes(app: FastifyInstance) {
       // Insert new events
       if (newRows.length > 0) {
         await app.db.insert(events).values(newRows);
-        dualWriteSpecializedEvents(app.db, newRows, auth.key_id, request.log);
+        await dualWriteSpecializedEvents(app.db, newRows, auth.key_id, request.log);
       }
 
       // Update existing events (all mutable fields)
@@ -204,9 +204,9 @@ export async function importRoutes(app: FastifyInstance) {
               ))
               .execute()
           )
-          .then(() => {
-            dualWriteSpecializedEvents(app.db, updateRows, auth.key_id, request.log);
-          })
+          .then(() =>
+            dualWriteSpecializedEvents(app.db, updateRows, auth.key_id, request.log)
+          )
           .catch((err) => {
             request.log.warn({ err }, "Failed to update metric/funnel events for import");
           });
