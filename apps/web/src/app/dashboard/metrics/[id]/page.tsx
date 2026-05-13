@@ -4,7 +4,13 @@ import { useEffect, useState, useMemo, useDeferredValue } from "react";
 import { useParams, usePathname } from "next/navigation";
 import useSWR from "swr";
 import { formatDuration } from "@owlmetry/shared/constants";
-import type { MetricDefinitionResponse, AppResponse, MetricPhase } from "@owlmetry/shared";
+import type {
+  MetricDefinitionResponse,
+  AppResponse,
+  MetricPhase,
+  ProjectResponse,
+  StoredMetricEventResponse,
+} from "@owlmetry/shared";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { useBreadcrumbs } from "@/contexts/breadcrumb-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
@@ -35,6 +41,7 @@ import {
 import { BreakdownChart } from "@/components/metrics/breakdown-chart";
 import { TimeSeriesChart } from "@/components/metrics/time-series-chart";
 import { MetricDocsSheet } from "@/components/metrics/metric-docs-sheet";
+import { MetricEventDetailSheet } from "@/components/metric-event-detail-sheet";
 import { MetricPhaseBadge } from "@/components/badges/metric-phase-badge";
 import { BookOpen } from "lucide-react";
 import { AnimatedPage } from "@/components/ui/animated-page";
@@ -89,7 +96,10 @@ export default function MetricDetailPage() {
       user_id: "",
       phase: "",
       tracking_id: "",
+      tracking_id_view: "",
+      event_id_view: "",
     },
+    persistKeys: ["tracking_id_view", "event_id_view"],
   });
 
   const deferredAppVersion = useDeferredValue(filters.get("app_version"));
@@ -103,6 +113,11 @@ export default function MetricDetailPage() {
     projectId ? `/v1/apps?project_id=${projectId}` : null,
   );
   const apps = appsData?.apps ?? [];
+
+  // Fetch project for color-dot in the operation detail sheet
+  const { data: projectData } = useSWR<ProjectResponse>(
+    projectId ? `/v1/projects/${projectId}` : null,
+  );
 
   // Aggregation query
   const { data: queryData, isLoading: queryLoading } = useMetricQuery(slug, projectId, {
@@ -127,6 +142,53 @@ export default function MetricDetailPage() {
     environment: filters.get("environment") || undefined,
     data_mode: dataMode,
   });
+
+  // Operation detail sheet — open state derived from URL
+  const [selectedEvent, setSelectedEvent] = useState<StoredMetricEventResponse | null>(null);
+  const trackingIdView = filters.get("tracking_id_view");
+  const eventIdView = filters.get("event_id_view");
+  const sheetOpen = !!(trackingIdView || eventIdView);
+
+  // Re-resolve initialEvent from the loaded list when URL state outlives a click
+  // (page reload, link share). The sheet's own tracking_id fetch fills in
+  // sibling phases either way; this just gives the header an instant anchor.
+  useEffect(() => {
+    if (!sheetOpen) {
+      setSelectedEvent(null);
+      return;
+    }
+    if (selectedEvent) {
+      const stillRelevant = trackingIdView
+        ? selectedEvent.tracking_id === trackingIdView
+        : selectedEvent.id === eventIdView;
+      if (stillRelevant) return;
+    }
+    const match = events.find((e) =>
+      trackingIdView ? e.tracking_id === trackingIdView : e.id === eventIdView,
+    );
+    if (match) setSelectedEvent(match);
+  }, [sheetOpen, trackingIdView, eventIdView, events, selectedEvent]);
+
+  function handleRowClick(event: StoredMetricEventResponse) {
+    setSelectedEvent(event);
+    if (event.tracking_id) {
+      filters.setMany({ tracking_id_view: event.tracking_id, event_id_view: "" });
+    } else {
+      filters.setMany({ event_id_view: event.id, tracking_id_view: "" });
+    }
+  }
+
+  function handleSheetOpenChange(open: boolean) {
+    if (!open) filters.setMany({ tracking_id_view: "", event_id_view: "" });
+  }
+
+  function handleSheetFilter(key: string, value: string) {
+    filters.setMany({ [key]: value, tracking_id_view: "", event_id_view: "" });
+  }
+
+  const sheetLatestAppVersion = selectedEvent
+    ? apps.find((a) => a.id === selectedEvent.app_id)?.latest_app_version ?? null
+    : null;
 
   const agg = queryData?.aggregation;
   const isLifecycle = (agg?.start_count ?? 0) > 0 || (agg?.complete_count ?? 0) > 0;
@@ -364,8 +426,15 @@ export default function MetricDetailPage() {
                   const ts = new Date(event.timestamp);
                   const date = formatShortDate(ts);
                   const time = formatTime(ts);
+                  const isSelected =
+                    (trackingIdView && event.tracking_id === trackingIdView) ||
+                    (eventIdView && event.id === eventIdView);
                   return (
-                    <TableRow key={`${event.timestamp}-${i}`}>
+                    <TableRow
+                      key={`${event.timestamp}-${i}`}
+                      onClick={() => handleRowClick(event)}
+                      className={`cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-muted/50" : ""}`}
+                    >
                       <TableCell className="font-mono text-xs py-1.5">{time} {date}</TableCell>
                       <TableCell className="py-1.5">
                         <MetricPhaseBadge phase={event.phase} />
@@ -403,6 +472,20 @@ export default function MetricDetailPage() {
           documentation={metricData.documentation}
         />
       )}
+
+      {/* Operation detail sheet */}
+      <MetricEventDetailSheet
+        trackingId={trackingIdView || null}
+        initialEvent={selectedEvent}
+        metricSlug={slug}
+        projectId={projectId}
+        open={sheetOpen}
+        onOpenChange={handleSheetOpenChange}
+        onFilter={handleSheetFilter}
+        projectColor={projectData?.color}
+        latestAppVersion={sheetLatestAppVersion}
+        dataMode={dataMode}
+      />
     </AnimatedPage>
   );
 }
