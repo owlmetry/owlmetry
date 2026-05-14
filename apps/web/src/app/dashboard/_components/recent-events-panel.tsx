@@ -7,7 +7,7 @@ import { ScrollText } from "lucide-react";
 import type { AppResponse, LogLevel } from "@owlmetry/shared";
 import { EventLevelBadge } from "@/components/event-level-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProjectDot } from "@/lib/project-color";
+import { AppBadge } from "@/components/badges/app-badge";
 import { CountryEmoji } from "@/components/country-flag";
 import { useEvents } from "@/hooks/use-events";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
@@ -69,20 +69,16 @@ export function RecentEventsPanel() {
                 <EventLevelBadge level={event.level as LogLevel} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-mono truncate">{event.message}</p>
+                <p className="text-sm font-mono leading-tight truncate">{event.message}</p>
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                   {meta && (
-                    <span className="flex items-center gap-1 truncate">
-                      <ProjectDot color={meta.projectColor} size={5} />
-                      <span className="truncate max-w-[140px]">{meta.name}</span>
-                    </span>
+                    <AppBadge
+                      name={meta.name}
+                      color={meta.projectColor}
+                      className="max-w-[140px]"
+                    />
                   )}
-                  {event.environment && (
-                    <>
-                      <span>·</span>
-                      <span>{event.environment}</span>
-                    </>
-                  )}
+                  {event.environment && <span>{event.environment}</span>}
                 </div>
               </div>
               <CountryEmoji code={event.country_code} />
