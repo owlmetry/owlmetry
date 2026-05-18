@@ -1,0 +1,91 @@
+---
+title: Privacy & App Store compliance
+description: What ships in the SDK, what you need to declare in App Store Connect, and how Owlmetry handles tracking, IDFA, and required-reason APIs.
+---
+
+The Owlmetry Swift SDK ships an Apple-compliant `PrivacyInfo.xcprivacy` manifest and never requires an App Tracking Transparency (ATT) prompt. This page lists what you need to do in App Store Connect on your next submission — typically a one-time, five-minute task — and what carries forward unchanged after that.
+
+## What we ship
+
+The SDK bundles `PrivacyInfo.xcprivacy` as a resource. SPM merges it into your app at build time — there's nothing to import, configure, or call. When you archive your app in Xcode, the Organizer's **Generate Privacy Report** action aggregates Owlmetry's declarations into your app's combined Privacy Report PDF alongside any other SDKs you use.
+
+You do not need to edit `Package.swift`, copy a file, or run a script.
+
+## App Store Connect Nutrition Label
+
+The privacy manifest and the in-store Privacy Nutrition Label are **separate systems**. Apple does not auto-sync them — the manifest is for static analysis at submission, the Nutrition Label is what users see on your App Store listing. On your next submission, update **App Store Connect → App Privacy** to tick the categories below.
+
+| Data type | Linked to User? | Used for tracking? | Purpose |
+|---|---|---|---|
+| Crash Data | No | No | App Functionality, Analytics |
+| Other Diagnostic Data | No | No | App Functionality, Analytics |
+| Product Interaction | No | No | Analytics, App Functionality |
+| Performance Data | No | No | App Functionality, Analytics |
+| Other User Content | No | No | App Functionality, Analytics |
+| User ID | **Yes** *(if you call `Owl.setUser`)* | No | App Functionality, Analytics |
+
+These are exactly what Owlmetry's manifest declares. The categories cover error/crash events, lifecycle and event logs, screen views and funnel/metric events, network instrumentation timings, custom event attributes, and free-text feedback bodies.
+
+## Conditional declarations
+
+A few features add categories you should declare yourself in addition to the table above.
+
+### Calling `Owl.setUser`
+
+`Owl.setUser(_:)` ties the SDK's anonymous ID to a real user identifier you supply. Declare **User ID** as **Linked to User** in your Nutrition Label.
+
+### Using `OwlFeedbackView` with contact fields
+
+`OwlFeedbackView` is a SwiftUI form that lets users submit free-text feedback. With `showsContactFields: true` (the default), the form renders optional **Name** and **Email Address** inputs that the user types in themselves. These fields are user-initiated and opt-in, so Owlmetry's SDK manifest does not declare them — but if you ship this UI in your app, you are collecting that data and should add to your Nutrition Label:
+
+- **Email Address** — Linked to User, App Functionality, Customer Support
+- **Name** — Linked to User, App Functionality, Customer Support
+
+If you instead set `showsContactFields: false`, or call `Owl.sendFeedback(_:)` programmatically without forwarding contact info, neither needs to be declared.
+
+## App Tracking Transparency
+
+The SDK does **not** require an ATT prompt:
+
+- We do **not** access the IDFA (`advertisingIdentifier`) and do not link against the `AdSupport` framework.
+- We do **not** access `identifierForVendor` (IDFV).
+- We use an SDK-owned anonymous identifier (`owl_anon_*`) stored only in the host app's UserDefaults — never shared across apps.
+- Apple Search Ads attribution goes through `AAAttribution.attributionToken()`, which Apple explicitly classifies as **not** tracking under the ATT framework.
+
+If you do not show an ATT prompt for other reasons, Owlmetry will not change that. If you do show one for other SDKs, Owlmetry continues to work whether the user grants or denies tracking — there is no separate user-facing prompt for Owlmetry.
+
+To opt out of Apple Search Ads attribution entirely:
+
+```swift
+try Owl.configure(
+    endpoint: "https://ingest.owlmetry.com",
+    apiKey: "owl_client_...",
+    attributionEnabled: false
+)
+```
+
+See the [Apple Search Ads Attribution](/docs/sdks/swift/configuration#apple-search-ads-attribution) section for the full capture pipeline.
+
+## Required-reason APIs
+
+Apple requires SDKs and apps to declare any use of certain "required-reason" APIs in their privacy manifest. Owlmetry declares the one it uses:
+
+| API category | Reason code | Where |
+|---|---|---|
+| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | Persist the SDK's anonymous user ID and Apple Search Ads capture state in your app's own UserDefaults suite |
+
+We do not access file timestamp APIs, system boot-time APIs, disk-space APIs, or active-keyboard APIs.
+
+**You still need your own manifest.** If your app uses any required-reason APIs directly — and most apps do, since `UserDefaults` is on the list — you need a `PrivacyInfo.xcprivacy` file at the root of your app target declaring your own usage. Owlmetry's manifest only covers Owlmetry's usage.
+
+## Privacy policy template
+
+Apple requires a privacy policy URL in App Store Connect. If your current policy does not already mention third-party analytics, paste a paragraph like this:
+
+> We use Owlmetry, a self-hosted analytics service, to understand how users interact with our app and to diagnose errors. Owlmetry collects diagnostic data (including crash reports and event logs), product interaction data (such as screen views), and any user feedback you choose to submit. If you sign in, your user identifier is linked to this data so we can support you and improve the product. Owlmetry does not use the data for cross-app tracking or advertising and does not access your device's advertising identifier (IDFA).
+
+Adjust to match your app's voice and the specific Owlmetry features you use.
+
+## What carries forward
+
+After the one-time Nutrition Label update on your next submission, every subsequent submission is unchanged. The manifest ships with the SDK and updates automatically when you upgrade Owlmetry. You only need to revisit App Store Connect's App Privacy section if you start using a new Owlmetry feature that introduces a category you have not yet declared (for example, enabling `OwlFeedbackView` contact fields for the first time).
