@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
+// Mirror of the server's MAX_PAGE_SIZE in apps/server/src/routes/issues.ts
+// (clamped server-side; we request the cap on auto-load to minimize round-trips).
+const SERVER_MAX_PAGE_SIZE = 200;
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import { buildQueryString } from "@/lib/query";
@@ -44,14 +48,7 @@ type UseIssuesByStatusArgs = {
   pageSize?: number;
 };
 
-/**
- * Per-status kanban column fetcher with optional full-set drain.
- *
- * SERVER_MAX_PAGE_SIZE mirrors the route's cap in apps/server/src/routes/issues.ts
- * (MAX_PAGE_SIZE = 200). Requests above this are clamped server-side.
- */
-const SERVER_MAX_PAGE_SIZE = 200;
-
+/** Per-status kanban column fetcher with optional full-set drain. */
 export function useIssuesByStatus(args: UseIssuesByStatusArgs) {
   const { team_id, project_id, data_mode, status, autoLoadAll, pageSize = 50 } = args;
 
@@ -69,32 +66,23 @@ export function useIssuesByStatus(args: UseIssuesByStatusArgs) {
     refreshInterval: 30_000,
   });
 
-  // Sticky snapshot of the full drained set. Cleared on every fresh SWR response
-  // so newly-arrived issues aren't masked; re-populated by drain() on the next tick.
   const [drainedIssues, setDrainedIssues] = useState<IssueResponse[] | null>(null);
   const [isDraining, setIsDraining] = useState(false);
   // Sticks "user wants full view" across SWR refreshes — without it, every 30s
   // refresh would collapse a manually-expanded column back to the first page.
   const [userOptedIntoAll, setUserOptedIntoAll] = useState(false);
 
-  const prevKeyRef = useRef(key);
+  // Clear the sticky snapshot on every fresh SWR response so newly-arrived issues
+  // aren't masked; the auto-drain effect below re-populates it on the next tick.
   useEffect(() => {
-    if (prevKeyRef.current !== key) {
-      prevKeyRef.current = key;
-      setDrainedIssues(null);
-      setUserOptedIntoAll(false);
-    }
+    setDrainedIssues(null);
+  }, [key, data]);
+
+  // Filter/project switches reset the user's opt-in too.
+  useEffect(() => {
+    setUserOptedIntoAll(false);
   }, [key]);
 
-  const prevDataRef = useRef<IssuesResponse | undefined>(undefined);
-  useEffect(() => {
-    if (data && prevDataRef.current !== data) {
-      prevDataRef.current = data;
-      setDrainedIssues(null);
-    }
-  }, [data]);
-
-  // Stable refs so drain() doesn't churn its identity each render.
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -119,8 +107,6 @@ export function useIssuesByStatus(args: UseIssuesByStatusArgs) {
     }
   }, [data, isDraining]);
 
-  // Auto-drain when the column is configured to always show everything, OR when
-  // the user has previously opted in this session.
   useEffect(() => {
     const wantsDrain = autoLoadAll || userOptedIntoAll;
     if (wantsDrain && data && data.has_more && !drainedIssues && !isDraining) {
@@ -128,10 +114,11 @@ export function useIssuesByStatus(args: UseIssuesByStatusArgs) {
     }
   }, [autoLoadAll, userOptedIntoAll, data, drainedIssues, isDraining, drain]);
 
+  // Flipping the opt-in flag triggers the effect above on next render — calling
+  // drain() here too would race with that effect (isDraining is async).
   const loadAll = useCallback(() => {
     setUserOptedIntoAll(true);
-    void drain();
-  }, [drain]);
+  }, []);
 
   const issues = drainedIssues ?? data?.issues ?? [];
   const hasMore = drainedIssues ? false : (data?.has_more ?? false);

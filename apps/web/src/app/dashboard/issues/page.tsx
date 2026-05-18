@@ -57,6 +57,9 @@ import { ProjectDot } from "@/lib/project-color";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { KanbanSkeleton } from "@/components/ui/skeletons";
 
+// Off-ramp columns: capped at the hook's default page size with a Load all button.
+const MANUAL_LOAD_STATUSES = new Set<IssueStatus>(["resolved", "snoozed", "silenced"]);
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -490,22 +493,14 @@ export default function IssuesPage() {
     });
   }, [newCol.issues]);
 
-  const columnsByStatus: Record<IssueStatus, {
-    issues: IssueResponse[];
-    hasMore: boolean;
-    isLoadingMore: boolean;
-    loadAll: () => void;
-  }> = {
-    new: { issues: newIssuesSorted, hasMore: newCol.hasMore, isLoadingMore: newCol.isLoadingMore, loadAll: newCol.loadAll },
-    regressed: { issues: regressedCol.issues, hasMore: regressedCol.hasMore, isLoadingMore: regressedCol.isLoadingMore, loadAll: regressedCol.loadAll },
-    in_progress: { issues: inProgressCol.issues, hasMore: inProgressCol.hasMore, isLoadingMore: inProgressCol.isLoadingMore, loadAll: inProgressCol.loadAll },
-    resolved: { issues: resolvedCol.issues, hasMore: resolvedCol.hasMore, isLoadingMore: resolvedCol.isLoadingMore, loadAll: resolvedCol.loadAll },
-    snoozed: { issues: snoozedCol.issues, hasMore: snoozedCol.hasMore, isLoadingMore: snoozedCol.isLoadingMore, loadAll: snoozedCol.loadAll },
-    silenced: { issues: silencedCol.issues, hasMore: silencedCol.hasMore, isLoadingMore: silencedCol.isLoadingMore, loadAll: silencedCol.loadAll },
+  const columnsByStatus: Record<IssueStatus, ReturnType<typeof useIssuesByStatus>> = {
+    new: { ...newCol, issues: newIssuesSorted },
+    regressed: regressedCol,
+    in_progress: inProgressCol,
+    resolved: resolvedCol,
+    snoozed: snoozedCol,
+    silenced: silencedCol,
   };
-
-  // Auto-load columns are always-show; manual columns are off-ramps with a button.
-  const MANUAL_LOAD_STATUSES = new Set<IssueStatus>(["resolved", "snoozed", "silenced"]);
 
   const allIssues = useMemo(
     () => [
