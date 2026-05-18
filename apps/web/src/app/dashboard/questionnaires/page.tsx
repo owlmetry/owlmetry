@@ -130,7 +130,7 @@ export default function QuestionnairesPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {questionnaires.map((q, idx) => (
               <StaggerItem key={q.id} index={idx}>
-                <Link href={`/dashboard/questionnaires/${q.id}`}>
+                <Link href={`/dashboard/questionnaires/${q.id}?project_id=${q.project_id}`}>
                   <Card className="hover:border-primary/30 transition-colors h-full">
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between gap-2 text-base">

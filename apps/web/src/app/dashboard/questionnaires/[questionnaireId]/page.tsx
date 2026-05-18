@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type {
   ProjectResponse,
+  QuestionnaireListResponse,
+  QuestionnaireQuestion,
   QuestionnaireQuestionAnalytics,
 } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
@@ -24,45 +26,57 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, RefreshCw, Star } from "lucide-react";
+import { ArrowLeft, Star } from "lucide-react";
 import Link from "next/link";
 import { AnimatedPage } from "@/components/ui/animated-page";
 
 export default function QuestionnaireDetailPage() {
   const params = useParams<{ questionnaireId: string }>();
   const questionnaireId = params?.questionnaireId;
+  const searchParams = useSearchParams();
+  const projectIdFromUrl = searchParams?.get("project_id") ?? null;
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
 
-  // Find the project that owns this questionnaire via a fan-out lookup.
+  // The list page links here with ?project_id=… so the owning project is known
+  // up front. As a fallback for direct URL hits, look up the team's project
+  // list once and find the project whose questionnaires include this id —
+  // one extra GET, not N GETs.
   const { data: projects } = useSWR<{ projects: ProjectResponse[] }>(
-    teamId ? `/v1/projects?team_id=${teamId}` : null,
+    teamId && !projectIdFromUrl ? `/v1/projects?team_id=${teamId}` : null,
+  );
+  const [resolvedProjectId, setResolvedProjectId] = useState<string | null>(
+    projectIdFromUrl,
   );
 
-  // We don't know which project owns the questionnaire up front, so try each in
-  // the team until one returns 200. In practice teams usually have one or two
-  // projects so this is cheap.
-  const [resolvedProjectId, setResolvedProjectId] = useState<string | null>(null);
-  if (!resolvedProjectId && projects && questionnaireId) {
+  useEffect(() => {
+    if (resolvedProjectId || !projects || !questionnaireId) return;
+    let cancelled = false;
     (async () => {
       for (const p of projects.projects) {
         try {
-          const res = await fetch(`/v1/projects/${p.id}/questionnaires/${questionnaireId}`);
-          if (res.ok) {
-            setResolvedProjectId(p.id);
+          const res = await fetch(
+            `/v1/projects/${p.id}/questionnaires?limit=1&app_id=`,
+          );
+          if (!res.ok) continue;
+          const body = (await res.json()) as QuestionnaireListResponse;
+          if (body.questionnaires.some((q) => q.id === questionnaireId)) {
+            if (!cancelled) setResolvedProjectId(p.id);
             return;
           }
         } catch {}
       }
     })();
-  }
+    return () => { cancelled = true; };
+  }, [projects, questionnaireId, resolvedProjectId]);
 
-  const { questionnaire } = useQuestionnaire(resolvedProjectId ?? undefined, questionnaireId);
-  const { responses } = useQuestionnaireResponses(resolvedProjectId ?? undefined, questionnaireId, { limit: "50" });
-  const { analytics } = useQuestionnaireAnalytics(resolvedProjectId ?? undefined, questionnaireId);
+  const projectId = resolvedProjectId ?? undefined;
+  const { questionnaire, mutate: mutateQuestionnaire } = useQuestionnaire(projectId, questionnaireId);
+  const { responses } = useQuestionnaireResponses(projectId, questionnaireId, { limit: "50" });
+  const { analytics } = useQuestionnaireAnalytics(projectId, questionnaireId);
   const [openResponseId, setOpenResponseId] = useState<string | null>(null);
   const { response: openResponse } = useQuestionnaireResponseDetail(
-    resolvedProjectId ?? undefined,
+    projectId,
     questionnaireId,
     openResponseId ?? undefined,
   );
@@ -110,7 +124,7 @@ export default function QuestionnaireDetailPage() {
                 await questionnaireActions.update(resolvedProjectId, questionnaire.id, {
                   is_active: !questionnaire.is_active,
                 });
-                window.location.reload();
+                await mutateQuestionnaire();
               }}
             >
               {questionnaire.is_active ? "Pause" : "Resume"}
@@ -279,7 +293,7 @@ function QuestionAnalytics({
   schemaQuestion,
 }: {
   analytics: QuestionnaireQuestionAnalytics;
-  schemaQuestion: any;
+  schemaQuestion: QuestionnaireQuestion | undefined;
 }) {
   const title = schemaQuestion?.title ?? analytics.id;
   if (analytics.type === "text") {

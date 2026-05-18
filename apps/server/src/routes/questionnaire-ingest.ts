@@ -310,7 +310,7 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
       const isDev = body.is_dev === true;
       // Snapshot the schema by value so future edits don't retroactively change
       // how this response renders.
-      const schemaSnapshot = JSON.parse(JSON.stringify(schema));
+      const schemaSnapshot = structuredClone(schema);
 
       // Race-safe insert: partial unique index on (project_id, slug, user_id)
       // WHERE deleted_at IS NULL AND user_id IS NOT NULL drives the conflict.

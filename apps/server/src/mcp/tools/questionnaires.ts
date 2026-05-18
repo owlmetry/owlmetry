@@ -4,56 +4,13 @@ import { z } from "zod";
 import { QUESTIONNAIRE_RESPONSE_STATUSES } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
-// Zod shapes for the questionnaire schema, mirroring the shared TS types.
-const choiceOptionSchema = z.object({
-  id: z.string().min(1).max(32),
-  label: z.string().min(1).max(100),
-});
-const questionSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("text"),
-    id: z.string().min(1).max(32),
-    title: z.string().min(1).max(200),
-    subtitle: z.string().max(500).optional(),
-    required: z.boolean(),
-    placeholder: z.string().max(200).optional(),
-    multiline: z.boolean().optional(),
-  }),
-  z.object({
-    type: z.literal("single_choice"),
-    id: z.string().min(1).max(32),
-    title: z.string().min(1).max(200),
-    subtitle: z.string().max(500).optional(),
-    required: z.boolean(),
-    options: z.array(choiceOptionSchema).min(2).max(20),
-  }),
-  z.object({
-    type: z.literal("multi_choice"),
-    id: z.string().min(1).max(32),
-    title: z.string().min(1).max(200),
-    subtitle: z.string().max(500).optional(),
-    required: z.boolean(),
-    options: z.array(choiceOptionSchema).min(2).max(20),
-  }),
-  z.object({
-    type: z.literal("rating"),
-    id: z.string().min(1).max(32),
-    title: z.string().min(1).max(200),
-    subtitle: z.string().max(500).optional(),
-    required: z.boolean(),
-    scale: z.literal(5),
-  }),
-  z.object({
-    type: z.literal("nps"),
-    id: z.string().min(1).max(32),
-    title: z.string().min(1).max(200),
-    subtitle: z.string().max(500).optional(),
-    required: z.boolean(),
-  }),
-]);
+// Structural-only schema for the MCP tool — the server's
+// validateQuestionnaireSchema (packages/shared/src/questionnaires.ts) is the
+// authoritative validator and runs on every create/update, so MCP doesn't
+// re-state per-field rules and risk drift.
 const fullSchema = z.object({
   version: z.literal(1),
-  questions: z.array(questionSchema).min(1).max(30),
+  questions: z.array(z.record(z.string(), z.unknown())).min(1).max(30),
 });
 
 export function registerQuestionnaireTools(

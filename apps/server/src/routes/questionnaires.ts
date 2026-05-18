@@ -10,8 +10,6 @@ import {
   appUsers,
 } from "@owlmetry/db";
 import {
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
   QUESTIONNAIRE_RESPONSE_STATUSES,
   QUESTIONNAIRE_SLUG_REGEX,
   MAX_QUESTIONNAIRE_SLUG_LENGTH,
@@ -20,6 +18,7 @@ import {
   validateQuestionnaireSchema,
 } from "@owlmetry/shared";
 import type {
+  DataMode,
   QuestionnaireResponseStatus,
   QuestionnaireQueryParams,
   QuestionnaireResponseQueryParams,
@@ -505,7 +504,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       if (is_dev !== undefined) {
         conditions.push(eq(questionnaireResponses.is_dev, is_dev === "true"));
       } else {
-        const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as any);
+        const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as DataMode);
         if (devCondition) conditions.push(devCondition);
       }
       if (cursor) {
@@ -852,7 +851,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       if (is_dev !== undefined) {
         filters.push(eq(questionnaireResponses.is_dev, is_dev === "true"));
       } else {
-        const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as any);
+        const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as DataMode);
         if (devCondition) filters.push(devCondition);
       }
 
@@ -862,10 +861,12 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         .where(and(...filters));
 
       const schema = parent.schema as QuestionnaireSchema;
-      const analytics: QuestionnaireQuestionAnalytics[] = [];
-      for (const q of schema.questions) {
-        analytics.push(await analyzeQuestion(app, q, filters));
-      }
+      // Per-question queries are independent SELECTs against the same table;
+      // run them in parallel. With ≤30 questions and a 10-conn pool this fits
+      // a single pool snapshot.
+      const analytics = await Promise.all(
+        schema.questions.map((q) => analyzeQuestion(app, q, filters)),
+      );
 
       const response: QuestionnaireAnalyticsResponse = {
         questionnaire_id: parent.id,
@@ -988,10 +989,11 @@ async function analyzeQuestion(
         WHERE ${and(...filters, sql`${questionnaireResponses.answers} ? ${path}`)}
         GROUP BY 1
       `);
+      const byValue = new Map<number, number>();
+      for (const r of rows) byValue.set(Number(r.value), Number(r.count));
       const buckets: QuestionnaireRatingBucket[] = [];
       for (let v = 1; v <= question.scale; v++) {
-        const row = [...rows].find((r) => Number(r.value) === v);
-        buckets.push({ value: v, count: Number(row?.count ?? 0) });
+        buckets.push({ value: v, count: byValue.get(v) ?? 0 });
       }
       const totalAnswered = buckets.reduce((s, b) => s + b.count, 0);
       const sum = buckets.reduce((s, b) => s + b.value * b.count, 0);
@@ -1012,10 +1014,11 @@ async function analyzeQuestion(
         WHERE ${and(...filters, sql`${questionnaireResponses.answers} ? ${path}`)}
         GROUP BY 1
       `);
+      const byValue = new Map<number, number>();
+      for (const r of rows) byValue.set(Number(r.value), Number(r.count));
       const buckets: QuestionnaireRatingBucket[] = [];
       for (let v = 0; v <= 10; v++) {
-        const row = [...rows].find((r) => Number(r.value) === v);
-        buckets.push({ value: v, count: Number(row?.count ?? 0) });
+        buckets.push({ value: v, count: byValue.get(v) ?? 0 });
       }
       const totalAnswered = buckets.reduce((s, b) => s + b.count, 0);
       let detractors = 0;
