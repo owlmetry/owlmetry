@@ -49,7 +49,7 @@ The SDK does **not** require an ATT prompt:
 
 - We do **not** access the IDFA (`advertisingIdentifier`) and do not link against the `AdSupport` framework.
 - We do **not** access `identifierForVendor` (IDFV).
-- We use an SDK-owned anonymous identifier (`owl_anon_*`) stored only in the host app's UserDefaults — never shared across apps.
+- We use an SDK-owned anonymous identifier (`owl_anon_*`) stored only in the device Keychain (scoped to this app and this device) — never shared across apps. The real user identifier you supply via `Owl.setUser` is stored in your app's UserDefaults.
 - Apple Search Ads attribution goes through `AAAttribution.attributionToken()`, which Apple explicitly classifies as **not** tracking under the ATT framework.
 
 If you do not show an ATT prompt for other reasons, Owlmetry will not change that. If you do show one for other SDKs, Owlmetry continues to work whether the user grants or denies tracking — there is no separate user-facing prompt for Owlmetry.
@@ -72,7 +72,7 @@ Apple requires SDKs and apps to declare any use of certain "required-reason" API
 
 | API category | Reason code | Where |
 |---|---|---|
-| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | Persist the SDK's anonymous user ID and Apple Search Ads capture state in your app's own UserDefaults suite |
+| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | Persist the real user identifier (set via `Owl.setUser`) and Apple Search Ads attribution capture state in your app's own UserDefaults suite |
 
 We do not access file timestamp APIs, system boot-time APIs, disk-space APIs, or active-keyboard APIs.
 
