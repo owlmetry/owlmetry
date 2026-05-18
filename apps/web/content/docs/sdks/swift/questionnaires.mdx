@@ -11,6 +11,16 @@ import Concept from '../../../_snippets/questionnaires.mdx';
 
 Create a questionnaire with a slug first — via the [dashboard](/dashboard/questionnaires), [CLI](/docs/cli/questionnaires) (`owlmetry questionnaires create`), or [MCP](/docs/mcp/questionnaires). The SDK only reads and submits — it doesn't define questionnaires.
 
+## How the sheet behaves
+
+When the trigger fires AND the user is eligible (not already responded, not globally dismissed), the SDK opens a sheet at a small detent showing a **consent prompt** ("Quick favor?" + body + three buttons):
+
+- **Sure, happy to help** → expands the sheet to full size and starts the step flow
+- **Maybe later** → closes the sheet, no server write; the trigger re-evaluates on the next foreground
+- **Don't ask again** → confirmation dialog, then writes the global-dismiss flag (`Owl.dismissQuestionnaires()`); never asked again
+
+Once accepted, questions render **one per page** with a top progress bar and Back / Next / Submit buttons at the bottom. The sheet is **non-swipe-dismissible** — users exit by tapping Cancel (toolbar), finishing the flow, or choosing a consent option. On successful submit, an in-sheet success page (checkmark + "Thanks!" + Done) replaces the questions.
+
 ## Auto-trigger view modifier
 
 The easiest path is to attach `.owlQuestionnaire(slug:…)` to a long-lived view (often the root of your app or a tab's content):
@@ -30,7 +40,7 @@ struct ContentView: View {
 }
 ```
 
-When the trigger fires AND the user is eligible (not already responded, not globally dismissed), the SDK fetches the questionnaire from the server and presents `OwlQuestionnaireView` in a sheet.
+The consent prompt is shown by default. Pass `showsConsent: false` to skip it and open straight to the first question.
 
 ### Composable triggers
 
@@ -92,15 +102,20 @@ The Submit button, rating stars, single-choice checkmarks, and multi-choice togg
     onSubmitted: { receipt in
         print("Response id: \(receipt.id)")
     },
+    onCancel: {
+        print("User cancelled or tapped Maybe later")
+    },
     onDismissed: {
         print("User opted out of all future questionnaires")
     }
 )
 ```
 
+`onCancel` fires when the user taps Cancel mid-flow or "Maybe later" on the consent prompt — no server write happens. `onDismissed` fires when the user taps "Don't ask again" → confirm, after the server-side global-dismiss flag is written.
+
 ## Manual presentation
 
-For ad-hoc triggers ("show this survey after the user finishes the import wizard"), call `Owl.fetchQuestionnaire` and present `OwlQuestionnaireView` yourself:
+For ad-hoc triggers ("show this survey after the user finishes the import wizard"), call `Owl.fetchQuestionnaire` and present `OwlQuestionnaireView` yourself. The public init defaults `showsConsent: false` — the consumer is already deciding to show it, so the step flow opens directly. Pass `showsConsent: true` if you want the small-detent prompt in front:
 
 ```swift
 @State private var spec: OwlQuestionnaire?
@@ -158,10 +173,18 @@ Toggle("Show in-app surveys", isOn: $surveysEnabled)
     trigger: .afterLaunch,
     strings: .default.with(
         submitButton: "Send",
-        doNotShowAgain: "Don't ask me again"
+        consentTitle: "Got a minute?",
+        consentBody: "Your feedback shapes the roadmap.",
+        consentAccept: "I'm in",
+        consentLater: "Not right now",
+        consentNever: "Stop asking me"
     )
 )
 ```
+
+Every consent button + step-flow button label is independently overridable. The full overridable set (passed to `.with(...)`): `title`, `submitButton`, `skipButton`, `nextButton`, `backButton`, `doneButton`, `cancelButton`, `consentTitle`, `consentBody`, `consentAccept`, `consentLater`, `consentNever`, `doNotShowAgain`, `successTitle`, `successBody`, `errorTitle`, `errorRequiredMissing`, `errorGeneric`, `npsLowLabel`, `npsHighLabel`.
+
+If the questionnaire's server-side `description` field is non-empty, it overrides `consentBody` so different surveys can carry their own context without per-call string overrides.
 
 ## Trigger state accessors
 
