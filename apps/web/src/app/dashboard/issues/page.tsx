@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import useSWR from "swr";
-import type { ProjectResponse, IssueResponse, AppResponse } from "@owlmetry/shared";
+import type { ProjectResponse, IssueResponse, IssueStatus, AppResponse } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
-import { useIssues, useIssue, issueActions } from "@/hooks/use-issues";
+import { useIssuesByStatus, useIssue, issueActions } from "@/hooks/use-issues";
 import { useProjectColorMap } from "@/hooks/use-project-colors";
 import { formatDateTime } from "@/lib/format-date";
 import { CountryEmoji } from "@/components/country-flag";
@@ -465,29 +465,79 @@ export default function IssuesPage() {
 
   const selectedProjectId = projectId !== ALL ? projectId : "";
 
-  const { issues, isLoading, mutate } = useIssues({
+  // One fetch per kanban column. Active-work columns (new / regressed / in_progress)
+  // auto-drain every page so nothing falls off the bottom. Off-ramp columns
+  // (resolved / snoozed / silenced) cap at 50 with a "Load all" button.
+  const baseArgs = {
     team_id: teamId,
     ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
     data_mode: dataMode,
-  });
+  };
+  const newCol = useIssuesByStatus({ ...baseArgs, status: "new", autoLoadAll: true });
+  const regressedCol = useIssuesByStatus({ ...baseArgs, status: "regressed", autoLoadAll: true });
+  const inProgressCol = useIssuesByStatus({ ...baseArgs, status: "in_progress", autoLoadAll: true });
+  const resolvedCol = useIssuesByStatus({ ...baseArgs, status: "resolved", autoLoadAll: false });
+  const snoozedCol = useIssuesByStatus({ ...baseArgs, status: "snoozed", autoLoadAll: false });
+  const silencedCol = useIssuesByStatus({ ...baseArgs, status: "silenced", autoLoadAll: false });
 
-  const selectedIssue = selectedIssueId ? issues.find((i) => i.id === selectedIssueId) : null;
-
-  // Group issues by status for kanban columns.
   // "New" is sorted by severity (unique users affected) so the most impactful issues surface first.
-  const issuesByStatus: Record<string, IssueResponse[]> = {};
-  for (const status of ISSUE_STATUS_COLUMNS) {
-    const col = issues.filter((i) => i.status === status);
-    if (status === "new") {
-      col.sort((a, b) => {
-        if (b.unique_user_count !== a.unique_user_count) {
-          return b.unique_user_count - a.unique_user_count;
-        }
-        return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime();
-      });
-    }
-    issuesByStatus[status] = col;
-  }
+  const newIssuesSorted = useMemo(() => {
+    return [...newCol.issues].sort((a, b) => {
+      if (b.unique_user_count !== a.unique_user_count) {
+        return b.unique_user_count - a.unique_user_count;
+      }
+      return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime();
+    });
+  }, [newCol.issues]);
+
+  const columnsByStatus: Record<IssueStatus, {
+    issues: IssueResponse[];
+    hasMore: boolean;
+    isLoadingMore: boolean;
+    loadAll: () => void;
+  }> = {
+    new: { issues: newIssuesSorted, hasMore: newCol.hasMore, isLoadingMore: newCol.isLoadingMore, loadAll: newCol.loadAll },
+    regressed: { issues: regressedCol.issues, hasMore: regressedCol.hasMore, isLoadingMore: regressedCol.isLoadingMore, loadAll: regressedCol.loadAll },
+    in_progress: { issues: inProgressCol.issues, hasMore: inProgressCol.hasMore, isLoadingMore: inProgressCol.isLoadingMore, loadAll: inProgressCol.loadAll },
+    resolved: { issues: resolvedCol.issues, hasMore: resolvedCol.hasMore, isLoadingMore: resolvedCol.isLoadingMore, loadAll: resolvedCol.loadAll },
+    snoozed: { issues: snoozedCol.issues, hasMore: snoozedCol.hasMore, isLoadingMore: snoozedCol.isLoadingMore, loadAll: snoozedCol.loadAll },
+    silenced: { issues: silencedCol.issues, hasMore: silencedCol.hasMore, isLoadingMore: silencedCol.isLoadingMore, loadAll: silencedCol.loadAll },
+  };
+
+  // Auto-load columns are always-show; manual columns are off-ramps with a button.
+  const MANUAL_LOAD_STATUSES = new Set<IssueStatus>(["resolved", "snoozed", "silenced"]);
+
+  const allIssues = useMemo(
+    () => [
+      ...newIssuesSorted,
+      ...regressedCol.issues,
+      ...inProgressCol.issues,
+      ...resolvedCol.issues,
+      ...snoozedCol.issues,
+      ...silencedCol.issues,
+    ],
+    [newIssuesSorted, regressedCol.issues, inProgressCol.issues, resolvedCol.issues, snoozedCol.issues, silencedCol.issues],
+  );
+
+  const selectedIssue = selectedIssueId ? allIssues.find((i) => i.id === selectedIssueId) : null;
+
+  const isAnyLoading =
+    newCol.isLoading || regressedCol.isLoading || inProgressCol.isLoading ||
+    resolvedCol.isLoading || snoozedCol.isLoading || silencedCol.isLoading;
+  const isAllEmpty = allIssues.length === 0;
+
+  // A status change (e.g. new → resolved) needs both the source and destination
+  // columns to refresh. Easiest is to revalidate every column.
+  const revalidateAll = useCallback(() => {
+    void Promise.all([
+      newCol.mutate(),
+      regressedCol.mutate(),
+      inProgressCol.mutate(),
+      resolvedCol.mutate(),
+      snoozedCol.mutate(),
+      silencedCol.mutate(),
+    ]);
+  }, [newCol, regressedCol, inProgressCol, resolvedCol, snoozedCol, silencedCol]);
 
   return (
     <AnimatedPage className="space-y-4">
@@ -516,9 +566,9 @@ export default function IssuesPage() {
       </StaggerItem>
 
       <StaggerItem index={1}>
-      {isLoading ? (
-        <KanbanSkeleton columns={5} />
-      ) : issues.length === 0 ? (
+      {isAnyLoading && isAllEmpty ? (
+        <KanbanSkeleton columns={6} />
+      ) : isAllEmpty ? (
         <div className="text-center py-12">
           <Bug className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-muted-foreground">No issues found</p>
@@ -530,16 +580,17 @@ export default function IssuesPage() {
         <div className="flex gap-4 overflow-x-auto pb-4">
           {ISSUE_STATUS_COLUMNS.map((status) => {
             const config = ISSUE_STATUS_CONFIG[status];
-            const colIssues = issuesByStatus[status] ?? [];
+            const col = columnsByStatus[status];
+            const canLoadMore = MANUAL_LOAD_STATUSES.has(status) && col.hasMore;
             return (
               <div key={status} className="flex-shrink-0 w-[250px]">
                 <div className="flex items-center gap-2 mb-3">
                   <span>{config.emoji}</span>
                   <span className="text-sm font-semibold">{config.label}</span>
-                  <CountBadge className="ml-auto">{colIssues.length}</CountBadge>
+                  <CountBadge className="ml-auto">{col.issues.length}</CountBadge>
                 </div>
                 <div className="space-y-2">
-                  {colIssues.map((issue) => (
+                  {col.issues.map((issue) => (
                     <IssueCard
                       key={issue.id}
                       issue={issue}
@@ -548,10 +599,21 @@ export default function IssuesPage() {
                       onClick={() => openIssue(issue.id)}
                     />
                   ))}
-                  {colIssues.length === 0 && (
+                  {col.issues.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-4">
                       No issues
                     </p>
+                  )}
+                  {canLoadMore && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={col.loadAll}
+                      disabled={col.isLoadingMore}
+                    >
+                      {col.isLoadingMore ? "Loading..." : "Load all"}
+                    </Button>
                   )}
                 </div>
               </div>
@@ -568,8 +630,8 @@ export default function IssuesPage() {
           issueId={selectedIssueId}
           open={!!selectedIssueId}
           onClose={closeIssue}
-          onMutate={() => mutate()}
-          allIssues={issues}
+          onMutate={revalidateAll}
+          allIssues={allIssues}
           latestAppVersion={appLatestVersionMap.get(selectedIssue.app_id)}
         />
       )}
