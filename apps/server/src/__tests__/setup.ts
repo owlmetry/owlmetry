@@ -19,6 +19,7 @@ import type { Permission, TeamRole } from "@owlmetry/shared";
 import { authRoutes } from "../routes/auth.js";
 import { ingestRoutes } from "../routes/ingest.js";
 import { feedbackIngestRoutes } from "../routes/feedback-ingest.js";
+import { questionnaireIngestRoutes } from "../routes/questionnaire-ingest.js";
 import { ingestAttachmentRoutes } from "../routes/ingest-attachment.js";
 import { attachmentsRoutes } from "../routes/attachments.js";
 import { importRoutes } from "../routes/import.js";
@@ -40,6 +41,7 @@ import { appleSearchAdsRoutes } from "../routes/apple-search-ads.js";
 import { jobsRoutes, jobsByIdRoutes } from "../routes/jobs.js";
 import { issuesRoutes, teamIssuesRoutes } from "../routes/issues.js";
 import { feedbackRoutes, teamFeedbackRoutes } from "../routes/feedback.js";
+import { questionnaireRoutes, teamQuestionnaireRoutes } from "../routes/questionnaires.js";
 import { reviewsRoutes, teamReviewsRoutes } from "../routes/reviews.js";
 import { ratingsRoutes, teamRatingsRoutes } from "../routes/ratings.js";
 import { adsRoutes, teamAdsRoutes } from "../routes/ads.js";
@@ -448,6 +450,7 @@ export async function buildApp() {
   await app.register(authRoutes, { prefix: "/v1/auth" });
   await app.register(ingestRoutes, { prefix: "/v1" });
   await app.register(feedbackIngestRoutes, { prefix: "/v1" });
+  await app.register(questionnaireIngestRoutes, { prefix: "/v1" });
   await app.register(ingestAttachmentRoutes, { prefix: "/v1" });
   await app.register(attachmentsRoutes, { prefix: "/v1" });
   await app.register(importRoutes, { prefix: "/v1" });
@@ -474,6 +477,8 @@ export async function buildApp() {
   await app.register(teamIssuesRoutes, { prefix: "/v1" });
   await app.register(feedbackRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamFeedbackRoutes, { prefix: "/v1" });
+  await app.register(questionnaireRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(teamQuestionnaireRoutes, { prefix: "/v1" });
   await app.register(reviewsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamReviewsRoutes, { prefix: "/v1" });
   await app.register(ratingsRoutes, { prefix: "/v1/projects/:projectId" });
@@ -579,7 +584,7 @@ export async function seedTestData() {
       ${team.id},
       'Test Agent Key',
       ${user.id},
-      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read", "feedback:read", "feedback:write"])}::jsonb
+      ${JSON.stringify(["events:read", "funnels:read", "apps:read", "projects:read", "metrics:read", "feedback:read", "feedback:write", "questionnaires:read", "questionnaires:write"])}::jsonb
     )
   `;
 

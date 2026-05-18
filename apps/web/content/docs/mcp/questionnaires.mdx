@@ -1,0 +1,75 @@
+---
+title: Questionnaires
+description: MCP tools for creating, editing, and triaging in-app questionnaires.
+---
+
+import Concept from '../../_snippets/questionnaires.mdx';
+
+<Concept />
+
+The questionnaire tool surface mirrors the CLI — agents can create + edit + triage, but soft-deleting a questionnaire is user-only (mirroring the dashboard behaviour).
+
+## Tools
+
+| Tool | Description |
+| --- | --- |
+| `list-questionnaires` | List questionnaire definitions in a project |
+| `get-questionnaire` | Fetch a single definition with response_count + last_response_at |
+| `create-questionnaire` | Create a new questionnaire with slug + schema |
+| `update-questionnaire` | Update name, description, schema, is_active, app_id pin |
+| `delete-questionnaire` | ⚠️ User-only — agent calls receive 403 |
+| `list-questionnaire-responses` | List responses with filters + pagination |
+| `get-questionnaire-response` | Fetch a single response with comments + schema_snapshot |
+| `update-questionnaire-response-status` | Triage state transition |
+| `add-questionnaire-response-comment` | Annotate a response |
+| `get-questionnaire-analytics` | Pre-aggregated per-question distribution |
+
+## Schema shape
+
+`create-questionnaire` and `update-questionnaire` accept the same JSON schema:
+
+```jsonc
+{
+  "version": 1,
+  "questions": [
+    { "id": "q_rating", "type": "rating", "title": "Rate us", "required": true, "scale": 5 },
+    {
+      "id": "q_role",
+      "type": "single_choice",
+      "title": "How would you describe yourself?",
+      "required": true,
+      "options": [
+        { "id": "hobby", "label": "Hobbyist" },
+        { "id": "indie", "label": "Indie developer" }
+      ]
+    },
+    { "id": "q_nps", "type": "nps", "title": "How likely to recommend?", "required": false },
+    { "id": "q_text", "type": "text", "title": "Anything else?", "required": false, "multiline": true }
+  ]
+}
+```
+
+Constraints:
+
+- `slug` matches `^[a-z0-9-]+$`, max 64 chars, **immutable after creation**
+- Up to 30 questions per questionnaire
+- Question id matches `^[a-z0-9_]+$`, max 32 chars, unique per questionnaire
+- `single_choice` and `multi_choice` require 2–20 options
+- `rating.scale` is fixed at `5` in V1
+- `nps` is implicit 0–10
+
+## Typical workflow
+
+1. **Create a survey definition** — `create-questionnaire` with a slug + schema (agent-friendly: agents can build short market-research surveys autonomously).
+2. **Wait for responses** — the iOS app's `.owlQuestionnaire(slug:trigger:…)` modifier fetches and presents the survey on the configured trigger.
+3. **Aggregate analytics** — `get-questionnaire-analytics` returns counts/averages/NPS score per question; the agent can summarize trends without paging through individual responses.
+4. **Drill into interesting answers** — `list-questionnaire-responses` then `get-questionnaire-response` for context. `session_id` on the response links to the user's event timeline — pass it to `investigate-event` to see what they were doing.
+5. **Annotate or triage** — `add-questionnaire-response-comment` and `update-questionnaire-response-status` cooperate with human teammates on the dashboard.
+
+## Eligibility model (read-only)
+
+The eligibility envelope (already_responded / globally_dismissed / inactive) is enforced by the SDK ingest endpoints and isn't directly exposed via MCP. To understand why a particular user wouldn't see a survey, check:
+
+- The questionnaire's `is_active` flag (`get-questionnaire`)
+- The user's `app_users.properties._questionnaires_dismissed_at` (visible via the user page in the dashboard; soon via a `get-user` MCP tool)
+- Whether the user already has a response (`list-questionnaire-responses` filtered to their `user_id`)

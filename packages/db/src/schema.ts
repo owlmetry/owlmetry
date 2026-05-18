@@ -34,6 +34,7 @@ export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "comple
 export const issueStatusEnum = pgEnum("issue_status", ["new", "in_progress", "resolved", "silenced", "regressed", "snoozed"]);
 export const issueAlertFrequencyEnum = pgEnum("issue_alert_frequency", ["none", "hourly", "6_hourly", "daily", "weekly"]);
 export const feedbackStatusEnum = pgEnum("feedback_status", ["new", "in_review", "addressed", "dismissed"]);
+export const questionnaireResponseStatusEnum = pgEnum("questionnaire_response_status", ["new", "in_review", "addressed", "dismissed"]);
 
 // Users
 export const users = pgTable("users", {
@@ -791,6 +792,132 @@ export const feedbackComments = pgTable(
   (table) => [
     index("feedback_comments_feedback_created_at_idx").on(table.feedback_id, table.created_at),
     index("feedback_comments_author_id_idx").on(table.author_id),
+  ]
+);
+
+// Questionnaires — structured multi-question surveys. The schema is stored as
+// JSONB and snapshotted into each response so historical answers always render
+// against the schema they were captured under. Slug is unique per project among
+// non-deleted rows; restoring a soft-deleted definition is allowed by reusing
+// the slug at the application layer.
+export const questionnaires = pgTable(
+  "questionnaires",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    slug: varchar("slug", { length: 64 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    description: text("description"),
+    schema: jsonb("schema").notNull(),
+    is_active: boolean("is_active").notNull().default(true),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("questionnaires_project_slug_active_idx")
+      .on(table.project_id, table.slug)
+      .where(sql`${table.deleted_at} IS NULL`),
+    index("questionnaires_project_idx").on(table.project_id, table.deleted_at),
+  ]
+);
+
+// Questionnaire responses — one row per user submission. `schema_snapshot` is
+// frozen at write time so editing the parent questionnaire's schema never
+// retroactively changes how an existing response renders.
+// onDelete: "restrict" on the FK prevents accidental hard deletes while
+// responses exist — users soft-delete the questionnaire instead.
+export const questionnaireResponses = pgTable(
+  "questionnaire_responses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    questionnaire_id: uuid("questionnaire_id")
+      .notNull()
+      .references(() => questionnaires.id, { onDelete: "restrict" }),
+    slug: varchar("slug", { length: 64 }).notNull(),
+    app_id: uuid("app_id")
+      .notNull()
+      .references(() => apps.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    session_id: uuid("session_id"),
+    user_id: varchar("user_id", { length: 255 }),
+    answers: jsonb("answers").notNull(),
+    schema_snapshot: jsonb("schema_snapshot").notNull(),
+    status: questionnaireResponseStatusEnum("status").notNull().default("new"),
+    is_dev: boolean("is_dev").notNull().default(false),
+    environment: environmentEnum("environment"),
+    os_version: varchar("os_version", { length: 50 }),
+    app_version: varchar("app_version", { length: 50 }),
+    sdk_name: varchar("sdk_name", { length: 50 }),
+    sdk_version: varchar("sdk_version", { length: 50 }),
+    device_model: varchar("device_model", { length: 100 }),
+    country_code: varchar("country_code", { length: 2 }),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    // Partial unique index drives the race-safe ON CONFLICT DO NOTHING during
+    // ingest. One non-deleted response per (project, slug, user) — when user is
+    // present. Anonymous (NULL user_id) responses are not deduped here.
+    uniqueIndex("questionnaire_responses_one_per_user_idx")
+      .on(table.project_id, table.slug, table.user_id)
+      .where(sql`${table.deleted_at} IS NULL AND ${table.user_id} IS NOT NULL`),
+    index("questionnaire_responses_project_status_idx").on(table.project_id, table.status),
+    index("questionnaire_responses_project_created_at_idx").on(table.project_id, table.created_at),
+    index("questionnaire_responses_questionnaire_created_at_idx").on(
+      table.questionnaire_id,
+      table.created_at
+    ),
+    index("questionnaire_responses_app_status_idx").on(table.app_id, table.status),
+    index("questionnaire_responses_session_id_idx").on(table.session_id),
+    index("questionnaire_responses_user_id_idx").on(table.user_id),
+  ]
+);
+
+// Questionnaire response comments — team discussion thread per response.
+// Mirrors feedback_comments shape and edit/delete semantics exactly.
+export const questionnaireResponseComments = pgTable(
+  "questionnaire_response_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    questionnaire_response_id: uuid("questionnaire_response_id")
+      .notNull()
+      .references(() => questionnaireResponses.id, { onDelete: "cascade" }),
+    author_type: varchar("author_type", { length: 10 }).notNull(),
+    author_id: uuid("author_id").notNull(),
+    author_name: varchar("author_name", { length: 255 }).notNull(),
+    body: text("body").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    deleted_at: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("questionnaire_response_comments_response_created_at_idx").on(
+      table.questionnaire_response_id,
+      table.created_at
+    ),
+    index("questionnaire_response_comments_author_id_idx").on(table.author_id),
   ]
 );
 

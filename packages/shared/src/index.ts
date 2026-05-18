@@ -12,6 +12,7 @@ export * from "./integrations.js";
 export * from "./jobs.js";
 export * from "./issues.js";
 export * from "./feedback.js";
+export * from "./questionnaires.js";
 export * from "./project-colors.js";
 export * from "./billing.js";
 export * from "./attachments.js";

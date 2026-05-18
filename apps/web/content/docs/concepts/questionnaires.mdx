@@ -1,0 +1,106 @@
+---
+title: Questionnaires
+description: Structured multi-question surveys shown in-app on launch-count, foreground-count, or time-since-install triggers — answers feed into the dashboard with per-question analytics.
+---
+
+Questionnaires are short, structured surveys you build once on the server and present in-app via the Swift SDK. Where [feedback](./feedback) is a single free-text message, a questionnaire walks the user through a sequence of typed questions — rating scales, NPS, multiple choice, free text — and rolls each answer up in dashboard analytics.
+
+## How It Works
+
+1. Create a questionnaire via the dashboard, CLI (`owlmetry questionnaires create`), or MCP. Pick an immutable slug like `post-onboarding`. The schema is JSON: up to 30 questions, mix of `text`, `single_choice`, `multi_choice`, `rating` (1–5), `nps` (0–10).
+2. In your iOS app, add a SwiftUI view modifier referencing the slug — e.g. `.owlQuestionnaire(slug: "post-onboarding", trigger: .afterLaunches(3))`.
+3. When the trigger fires, the SDK calls `GET /v1/questionnaires/:slug` to fetch the latest schema and check eligibility for the current user (not already responded, not globally dismissed).
+4. If eligible, the SDK presents `OwlQuestionnaireView` in a sheet with the fetched questions. The user submits answers, or skips, or taps "Don't show again" to globally opt out of every questionnaire forever.
+5. The submitted response lands at `POST /v1/questionnaires/:slug/responses` and shows up under `/dashboard/questionnaires/<id>` with per-question analytics.
+
+## Question types
+
+V1 supports five question types, all configured in the JSON schema:
+
+| Type | Answer shape | Notes |
+| --- | --- | --- |
+| `text` | string | `multiline: true` renders a text editor, otherwise a single-line field |
+| `single_choice` | option id | 2–20 options per question; each option has its own short id + label |
+| `multi_choice` | array of option ids | Same option shape as single_choice; renders as toggles |
+| `rating` | int 1–5 | Scale is fixed at 5 in V1 |
+| `nps` | int 0–10 | Implicit "Not at all likely / Extremely likely" scale labels |
+
+Each question can be marked `required: true` (Submit stays disabled until answered) or optional.
+
+## Triggers
+
+The `.owlQuestionnaire(trigger:)` modifier accepts a composable trigger. Conditions are ANDed — all must be true for the sheet to present.
+
+```swift
+// Show on third launch
+.owlQuestionnaire(slug: "after-3-launches", trigger: .afterLaunches(3))
+
+// Show after 3 launches AND at least a week since install
+.owlQuestionnaire(
+    slug: "weekly-checkin",
+    trigger: .when(
+        .launches(atLeast: 3),
+        .daysSinceFirstLaunch(atLeast: 7)
+    )
+)
+
+// Custom gate — show only to free users
+.owlQuestionnaire(
+    slug: "free-user-survey",
+    trigger: .afterLaunch,
+    isEligible: { !user.isPaid }
+)
+```
+
+V1 supports four condition types: `launches`, `foregrounds`, `daysSinceFirstLaunch`, `hoursSinceFirstLaunch`. OR-logic isn't part of V1 — use the `isEligible` closure or split into two modifier applications with different slugs.
+
+## Dismissal
+
+When a user taps **Don't show again** inside any questionnaire sheet, the SDK posts to `POST /v1/questionnaires/dismiss` and the server writes `_questionnaires_dismissed_at` to that user's `app_users.properties`. Once that flag is set, every future eligibility check returns `eligible: false, reason: "globally_dismissed"` regardless of slug. The flag survives reinstall (it's keyed on the user id on the server, not on the device).
+
+Tapping **Not now** (the toolbar skip action) just dismisses the sheet without writing the flag — the next trigger evaluation can re-present.
+
+## Schema editing & snapshots
+
+You can edit a questionnaire's schema after responses exist — rename question titles, reorder, add new questions, change option labels. Each response stores its own `schema_snapshot` JSONB column, so the dashboard always renders historical answers against the schema they were captured under. Removing or renaming a question id orphans those answers in analytics rollups (the question simply disappears from the chart for new responses), but the raw response data is preserved in `schema_snapshot`.
+
+Slugs are immutable to keep the SDK call site stable. To replace a slug, create a new questionnaire with a new slug.
+
+## Analytics
+
+`GET /v1/projects/:projectId/questionnaires/:id/analytics` returns pre-aggregated distributions per question:
+
+- **text** — the 10 most recent answers (text isn't aggregated)
+- **single_choice / multi_choice** — counts per option, with `total_answered` so percentages render correctly
+- **rating** — bucket counts for each 1–5 value plus the arithmetic mean
+- **nps** — bucket counts for each 0–10 value, plus a detractor/passive/promoter split and the standard NPS score (% promoters − % detractors)
+
+The dashboard renders these as horizontal bars, star bars, and an 11-column NPS histogram.
+
+## Status Lifecycle
+
+Each response moves through the same four states as feedback — any transition is allowed:
+
+```
+new → in_review → addressed → dismissed
+```
+
+Statuses are independent of the global "Don't show again" dismissal — they're a triage signal for your team, not an SDK signal.
+
+## Comments
+
+Each response gets a comment thread mirroring [feedback comments](./feedback#comments) — author-only edit, author-or-admin delete, both users and agent keys can comment.
+
+## Permissions
+
+- `questionnaires:read` — read definitions, responses, analytics
+- `questionnaires:write` — create/update/comment, update response status
+- Client SDK keys use `events:write` for ingest (the same scope as feedback)
+- Soft-deleting a questionnaire is **user-only**. Agent keys get 403 — by design, to prevent an agent from removing live SDK integrations
+
+## Related Resources
+
+- [`/dashboard/questionnaires`](/dashboard/questionnaires) — list + analytics UI
+- [`owlmetry questionnaires`](/docs/cli/questionnaires) — CLI reference
+- [`list-questionnaires` (MCP)](/docs/mcp/questionnaires) — agent tooling
+- [Swift SDK questionnaires](/docs/sdks/swift/questionnaires) — view modifier + manual presentation

@@ -1,0 +1,160 @@
+---
+title: Questionnaires
+description: Create, edit, and review in-app questionnaires from the Owlmetry CLI.
+---
+
+import Concept from '../../_snippets/questionnaires.mdx';
+
+<Concept />
+
+The `owlmetry questionnaires` command group manages definitions and reads responses.
+
+## Create a questionnaire
+
+```bash
+owlmetry questionnaires create \
+  --project-id <id> \
+  --slug post-onboarding \
+  --name "Onboarding survey" \
+  --schema-file ./onboarding-survey.json
+```
+
+The `--schema-file` flag points at a JSON file shaped like `{ version: 1, questions: [...] }`. You can also pass `--schema '<json>'` inline.
+
+A minimal schema file:
+
+```jsonc
+{
+  "version": 1,
+  "questions": [
+    {
+      "id": "q_rating",
+      "type": "rating",
+      "title": "How would you rate the app?",
+      "required": true,
+      "scale": 5
+    },
+    {
+      "id": "q_role",
+      "type": "single_choice",
+      "title": "How would you describe yourself?",
+      "required": true,
+      "options": [
+        { "id": "hobby", "label": "Hobbyist" },
+        { "id": "indie", "label": "Indie developer" },
+        { "id": "team", "label": "Part of a team" }
+      ]
+    },
+    {
+      "id": "q_feedback",
+      "type": "text",
+      "title": "Anything you'd like to add?",
+      "required": false,
+      "multiline": true
+    }
+  ]
+}
+```
+
+Slug must be lowercase letters/digits/hyphens (max 64 chars) and is immutable after creation.
+
+## List questionnaires
+
+```bash
+owlmetry questionnaires list --project-id <id>
+```
+
+| Flag | Description |
+| --- | --- |
+| `--app-id <id>` | Filter to a specific app |
+| `--active` | Show only active questionnaires |
+| `--inactive` | Show only paused questionnaires |
+| `--limit <n>` | Max entries |
+| `--cursor <cursor>` | Pagination cursor |
+
+## View definition
+
+```bash
+owlmetry questionnaires view <questionnaireId> --project-id <id>
+```
+
+Prints the schema, response count, last-response timestamp.
+
+## Update
+
+```bash
+# Pause a questionnaire so the SDK stops returning it as eligible
+owlmetry questionnaires update <id> --project-id <pid> --active false
+
+# Replace the schema (slug stays the same — existing responses keep their snapshot)
+owlmetry questionnaires update <id> --project-id <pid> --schema-file ./v2-schema.json
+
+# Pin to a specific app
+owlmetry questionnaires update <id> --project-id <pid> --app-id <app-id>
+```
+
+Slug cannot be updated. Passing `--description ""` clears the description.
+
+## Delete
+
+```bash
+owlmetry questionnaires delete <id> --project-id <pid>
+```
+
+**User-only.** Agent keys get 403. Existing responses are preserved (soft delete sets `deleted_at` and `is_active=false`).
+
+## List responses
+
+```bash
+owlmetry questionnaires responses <questionnaireId> --project-id <id>
+```
+
+| Flag | Description |
+| --- | --- |
+| `--status <status>` | Filter: `new`, `in_review`, `addressed`, `dismissed` |
+| `--app-id <id>` | Filter to a specific app |
+| `--dev` | Dev responses only |
+| `--data-mode <m>` | `production` (default), `development`, `all` |
+| `--limit <n>` | Max entries |
+| `--cursor <cursor>` | Pagination cursor |
+
+## View a response
+
+```bash
+owlmetry questionnaires response <responseId> --project-id <pid> --questionnaire <qid>
+```
+
+Renders each question (from the response's frozen `schema_snapshot`) alongside the answer plus any comments.
+
+## Update response status
+
+```bash
+owlmetry questionnaires status <responseId> \
+  --project-id <pid> --questionnaire <qid> --to in_review
+```
+
+## Add a comment
+
+```bash
+owlmetry questionnaires comment <responseId> \
+  --project-id <pid> --questionnaire <qid> \
+  --body "Cross-linked to issue #321"
+```
+
+## Analytics
+
+```bash
+owlmetry questionnaires analytics <questionnaireId> --project-id <id>
+```
+
+Pre-aggregated distribution per question:
+
+- text → 10 most recent answers
+- single_choice / multi_choice → bar list with counts + %
+- rating → 1–5 buckets + average
+- nps → 0–10 buckets + score + detractor/passive/promoter split
+
+| Flag | Description |
+| --- | --- |
+| `--dev` | Dev responses only |
+| `--data-mode <m>` | `production`, `development`, `all` |

@@ -51,6 +51,7 @@ export const NOTIFICATION_TYPES = [
   "issue.new",
   "issue.digest",
   "feedback.new",
+  "questionnaire.response_new",
   "job.completed",
   "team.invitation",
   "app.rating_changed",
@@ -85,6 +86,14 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
     description: "When a user submits feedback in one of your apps.",
     channels: ["in_app", "email", "mobile_push"],
     defaults: { in_app: true, email: true, mobile_push: true },
+  },
+  // iOS app: not surfaced in V1 — when iOS questionnaires ship, mirror this
+  // entry in NOTIFICATION_TYPE_SPECS so the iOS prefs UI picks it up.
+  "questionnaire.response_new": {
+    label: "New questionnaire responses",
+    description: "When a user submits a questionnaire response in one of your apps. Responses can be high volume; push is opt-in.",
+    channels: ["in_app", "email", "mobile_push"],
+    defaults: { in_app: true, email: false, mobile_push: false },
   },
   "job.completed": {
     label: "Job completion",

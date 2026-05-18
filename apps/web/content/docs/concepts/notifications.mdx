@@ -34,6 +34,7 @@ Each notification has a `type` that determines its formatters and which channels
 | `issue.new` | Fires from the `issue_scan` job at the end of every run when one or more **production** issues were created or regressed. One push per team per scan, summarizing all of that run's new + regressed issues — bypasses the per-project digest cadence so push lands in close to real time. Dev-build crashes are excluded. | `in_app`, `email`, `mobile_push` | `in_app`, `mobile_push` (email off by default) |
 | `issue.digest` | Per-project periodic digest of new and regressed issues, sent by the `issue_notify` job at the project's configured frequency. | `in_app`, `email`, `mobile_push` | `email` only (in_app + mobile_push off so the digest doesn't double up with the instant `issue.new` push) |
 | `feedback.new` | A user submitted feedback in one of the team's apps. | `in_app`, `email`, `mobile_push` | All three |
+| `questionnaire.response_new` | A user submitted a questionnaire response in one of the team's apps. Defaults skew to in-app only because responses can be high-volume — push and email are opt-in. | `in_app`, `email`, `mobile_push` | `in_app` only (email + mobile_push off by default) |
 | `job.completed` | A manual job run with `--notify` finished — only the triggering user is notified, never the whole team. | `in_app`, `email`, `mobile_push` | All three |
 | `app.rating_changed` | The `app_store_ratings_sync` job detected an increase in an app's worldwide rating count between runs — i.e. new ratings have appeared on the App Store. One notification per app per run, fanned out to every team member. First-sync (no prior baseline) is suppressed. | `in_app`, `email`, `mobile_push` | `in_app`, `mobile_push` (email off by default) |
 | `app.review_new` | The `app_store_connect_reviews_sync` job pulled at least one new written review from App Store Connect for one of the team's apps. Fired once per app per run when the app already had reviews on file (no first-sync flood). The body includes the count and a snippet of the newest review. | `in_app`, `email`, `mobile_push` | All three |
@@ -100,5 +101,6 @@ Notifications and devices are **user-scoped, not team-scoped**. The REST routes 
 - [`owlmetry notifications`](/docs/cli/notifications) — CLI reference
 - [Issues](/docs/concepts/issues) — `issue.digest` producer + per-project alert frequency
 - [Feedback](/docs/concepts/feedback) — `feedback.new` producer
+- [Questionnaires](/docs/concepts/questionnaires) — `questionnaire.response_new` producer
 - [Store Ratings & Reviews](/docs/concepts/reviews) — `app.rating_changed` and `app.review_new` producers
 - [Background Jobs](/docs/concepts/background-jobs) — `job.completed` producer when triggered with `--notify`

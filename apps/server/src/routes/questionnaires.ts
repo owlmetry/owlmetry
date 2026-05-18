@@ -1,0 +1,1070 @@
+import type { FastifyInstance } from "fastify";
+import { eq, and, inArray, isNull, or, sql, desc } from "drizzle-orm";
+
+const countAll = sql<number>`COUNT(*)::int`;
+import {
+  questionnaires,
+  questionnaireResponses,
+  questionnaireResponseComments,
+  apps,
+  appUsers,
+} from "@owlmetry/db";
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  QUESTIONNAIRE_RESPONSE_STATUSES,
+  QUESTIONNAIRE_SLUG_REGEX,
+  MAX_QUESTIONNAIRE_SLUG_LENGTH,
+  MAX_QUESTIONNAIRE_NAME_LENGTH,
+  MAX_QUESTIONNAIRE_DESCRIPTION_LENGTH,
+  validateQuestionnaireSchema,
+} from "@owlmetry/shared";
+import type {
+  QuestionnaireResponseStatus,
+  QuestionnaireQueryParams,
+  QuestionnaireResponseQueryParams,
+  CreateQuestionnaireRequest,
+  UpdateQuestionnaireRequest,
+  UpdateQuestionnaireResponseRequest,
+  CreateQuestionnaireResponseCommentRequest,
+  UpdateQuestionnaireResponseCommentRequest,
+  QuestionnaireSchema,
+  QuestionnaireQuestionAnalytics,
+  QuestionnaireAnalyticsResponse,
+  QuestionnaireRatingBucket,
+  QuestionnaireChoiceCount,
+} from "@owlmetry/shared";
+import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
+import { logAuditEvent } from "../utils/audit.js";
+import { resolveProject } from "../utils/project.js";
+import { dataModeToDrizzle } from "../utils/data-mode.js";
+import { normalizeLimit, encodeKeysetCursor, decodeKeysetCursor } from "../utils/pagination.js";
+import { resolveCommentAuthor } from "../utils/comment-author.js";
+
+function serializeQuestionnaire(
+  row: typeof questionnaires.$inferSelect,
+  responseCount?: number,
+  lastResponseAt?: Date | string | null,
+) {
+  const lastIso =
+    lastResponseAt == null
+      ? null
+      : lastResponseAt instanceof Date
+        ? lastResponseAt.toISOString()
+        : new Date(lastResponseAt).toISOString();
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    app_id: row.app_id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    schema: row.schema as QuestionnaireSchema,
+    is_active: row.is_active,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+    ...(responseCount !== undefined ? { response_count: responseCount } : {}),
+    ...(lastResponseAt !== undefined ? { last_response_at: lastIso } : {}),
+  };
+}
+
+function serializeResponse(
+  row: typeof questionnaireResponses.$inferSelect,
+  questionnaireName?: string,
+  questionnaireSlug?: string,
+  appName?: string,
+  userProperties?: Record<string, string> | null,
+) {
+  return {
+    id: row.id,
+    questionnaire_id: row.questionnaire_id,
+    slug: row.slug,
+    app_id: row.app_id,
+    project_id: row.project_id,
+    session_id: row.session_id,
+    user_id: row.user_id,
+    answers: row.answers as Record<string, unknown>,
+    schema_snapshot: row.schema_snapshot as QuestionnaireSchema,
+    status: row.status,
+    is_dev: row.is_dev,
+    environment: row.environment,
+    os_version: row.os_version,
+    app_version: row.app_version,
+    sdk_name: row.sdk_name,
+    sdk_version: row.sdk_version,
+    device_model: row.device_model,
+    country_code: row.country_code,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+    ...(questionnaireName !== undefined ? { questionnaire_name: questionnaireName } : {}),
+    ...(questionnaireSlug !== undefined ? { questionnaire_slug: questionnaireSlug } : {}),
+    ...(appName !== undefined ? { app_name: appName } : {}),
+    ...(userProperties !== undefined ? { user_properties: userProperties } : {}),
+  };
+}
+
+function serializeResponseComment(row: typeof questionnaireResponseComments.$inferSelect) {
+  return {
+    id: row.id,
+    questionnaire_response_id: row.questionnaire_response_id,
+    author_type: row.author_type as "user" | "agent",
+    author_id: row.author_id,
+    author_name: row.author_name,
+    body: row.body,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+  };
+}
+
+/** Batch-load app_users.properties for rows referencing real (non-anon) users. */
+async function loadUserPropertiesForRows(
+  db: FastifyInstance["db"],
+  rows: Array<{ project_id: string; user_id: string | null }>,
+): Promise<Map<string, Record<string, string> | null>> {
+  const byProject = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!row.user_id) continue;
+    let set = byProject.get(row.project_id);
+    if (!set) {
+      set = new Set();
+      byProject.set(row.project_id, set);
+    }
+    set.add(row.user_id);
+  }
+  if (byProject.size === 0) return new Map();
+  const conditions = [...byProject.entries()].map(([projectId, userIds]) =>
+    and(eq(appUsers.project_id, projectId), inArray(appUsers.user_id, [...userIds])),
+  );
+  const found = await db
+    .select({
+      project_id: appUsers.project_id,
+      user_id: appUsers.user_id,
+      properties: appUsers.properties,
+    })
+    .from(appUsers)
+    .where(or(...conditions));
+  const map = new Map<string, Record<string, string> | null>();
+  for (const u of found) {
+    map.set(`${u.project_id}:${u.user_id}`, u.properties ?? null);
+  }
+  return map;
+}
+
+export async function questionnaireRoutes(app: FastifyInstance) {
+  // --- Questionnaire definitions ---
+
+  app.get<{ Params: { projectId: string }; Querystring: QuestionnaireQueryParams }>(
+    "/questionnaires",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request, reply) => {
+      const { projectId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const { app_id, is_active, cursor, limit: limitStr } = request.query;
+      const limit = normalizeLimit(limitStr);
+
+      const conditions = [eq(questionnaires.project_id, projectId), isNull(questionnaires.deleted_at)];
+      if (app_id) conditions.push(eq(questionnaires.app_id, app_id));
+      if (is_active !== undefined) conditions.push(eq(questionnaires.is_active, is_active === "true"));
+
+      if (cursor) {
+        const decoded = decodeKeysetCursor(cursor);
+        if (decoded) {
+          conditions.push(
+            sql`(${questionnaires.created_at} < ${decoded.timestamp}::timestamptz OR (${questionnaires.created_at} = ${decoded.timestamp}::timestamptz AND ${questionnaires.id} < ${decoded.id}))`,
+          );
+        }
+      }
+
+      const rows = await app.db
+        .select()
+        .from(questionnaires)
+        .where(and(...conditions))
+        .orderBy(desc(questionnaires.created_at), desc(questionnaires.id))
+        .limit(limit + 1);
+
+      const hasMore = rows.length > limit;
+      const page = hasMore ? rows.slice(0, limit) : rows;
+
+      // Roll up response_count + last_response_at per questionnaire for the
+      // listing view. Single GROUP-BY query keeps the page render cheap.
+      const ids = page.map((r) => r.id);
+      const countsById = new Map<string, { count: number; last: Date | null }>();
+      if (ids.length > 0) {
+        const counts = await app.db
+          .select({
+            questionnaire_id: questionnaireResponses.questionnaire_id,
+            count: countAll,
+            last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
+          })
+          .from(questionnaireResponses)
+          .where(
+            and(
+              inArray(questionnaireResponses.questionnaire_id, ids),
+              isNull(questionnaireResponses.deleted_at),
+            ),
+          )
+          .groupBy(questionnaireResponses.questionnaire_id);
+        for (const c of counts) {
+          countsById.set(c.questionnaire_id, { count: Number(c.count), last: c.last });
+        }
+      }
+
+      const lastItem = page[page.length - 1];
+      return {
+        questionnaires: page.map((r) => {
+          const counts = countsById.get(r.id);
+          return serializeQuestionnaire(r, counts?.count ?? 0, counts?.last ?? null);
+        }),
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
+        has_more: hasMore,
+      };
+    },
+  );
+
+  app.post<{ Params: { projectId: string }; Body: CreateQuestionnaireRequest }>(
+    "/questionnaires",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      const { projectId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const body = request.body ?? ({} as CreateQuestionnaireRequest);
+
+      const slug = typeof body.slug === "string" ? body.slug.trim() : "";
+      if (!slug || slug.length > MAX_QUESTIONNAIRE_SLUG_LENGTH || !QUESTIONNAIRE_SLUG_REGEX.test(slug)) {
+        return reply.code(400).send({
+          error: `slug must be 1-${MAX_QUESTIONNAIRE_SLUG_LENGTH} lowercase letters/digits/hyphens`,
+        });
+      }
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name || name.length > MAX_QUESTIONNAIRE_NAME_LENGTH) {
+        return reply.code(400).send({ error: `name must be 1-${MAX_QUESTIONNAIRE_NAME_LENGTH} chars` });
+      }
+      const description = trimOptional(body.description, MAX_QUESTIONNAIRE_DESCRIPTION_LENGTH);
+      if (description === undefined) {
+        return reply.code(400).send({ error: `description must be at most ${MAX_QUESTIONNAIRE_DESCRIPTION_LENGTH} chars` });
+      }
+
+      const schemaResult = validateQuestionnaireSchema(body.schema);
+      if (!schemaResult.ok) return reply.code(400).send({ error: schemaResult.error });
+
+      const appId = body.app_id ?? null;
+      if (appId) {
+        const [appRow] = await app.db
+          .select({ id: apps.id, project_id: apps.project_id })
+          .from(apps)
+          .where(and(eq(apps.id, appId), isNull(apps.deleted_at)))
+          .limit(1);
+        if (!appRow || appRow.project_id !== projectId) {
+          return reply.code(400).send({ error: "app_id does not belong to this project" });
+        }
+      }
+
+      // Slug conflict among non-deleted rows → 409. (Slug reuse after
+      // soft-delete is supported at the application layer; not exposed here.)
+      const [existing] = await app.db
+        .select({ id: questionnaires.id })
+        .from(questionnaires)
+        .where(
+          and(
+            eq(questionnaires.project_id, projectId),
+            eq(questionnaires.slug, slug),
+            isNull(questionnaires.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        return reply.code(409).send({ error: `A questionnaire with slug "${slug}" already exists in this project` });
+      }
+
+      const [created] = await app.db
+        .insert(questionnaires)
+        .values({
+          project_id: projectId,
+          app_id: appId,
+          slug,
+          name,
+          description,
+          schema: schemaResult.value,
+          is_active: body.is_active ?? true,
+        })
+        .returning();
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "create",
+        resource_type: "questionnaire",
+        resource_id: created.id,
+      });
+
+      return reply.code(201).send(serializeQuestionnaire(created, 0, null));
+    },
+  );
+
+  app.get<{ Params: { projectId: string; questionnaireId: string } }>(
+    "/questionnaires/:questionnaireId",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request, reply) => {
+      const { projectId, questionnaireId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const [row] = await app.db
+        .select()
+        .from(questionnaires)
+        .where(
+          and(
+            eq(questionnaires.id, questionnaireId),
+            eq(questionnaires.project_id, projectId),
+            isNull(questionnaires.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (!row) return reply.code(404).send({ error: "Questionnaire not found" });
+
+      const [stats] = await app.db
+        .select({
+          count: countAll,
+          last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
+        })
+        .from(questionnaireResponses)
+        .where(
+          and(
+            eq(questionnaireResponses.questionnaire_id, questionnaireId),
+            isNull(questionnaireResponses.deleted_at),
+          ),
+        );
+
+      return serializeQuestionnaire(row, Number(stats?.count ?? 0), stats?.last ?? null);
+    },
+  );
+
+  app.patch<{ Params: { projectId: string; questionnaireId: string }; Body: UpdateQuestionnaireRequest }>(
+    "/questionnaires/:questionnaireId",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      const { projectId, questionnaireId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const body = request.body ?? {};
+      if ("slug" in body) {
+        return reply.code(400).send({ error: "slug is immutable after creation" });
+      }
+
+      const patch: Partial<typeof questionnaires.$inferInsert> = {};
+      const changes: Record<string, { after: unknown }> = {};
+
+      if (body.name !== undefined) {
+        const name = typeof body.name === "string" ? body.name.trim() : "";
+        if (!name || name.length > MAX_QUESTIONNAIRE_NAME_LENGTH) {
+          return reply.code(400).send({ error: `name must be 1-${MAX_QUESTIONNAIRE_NAME_LENGTH} chars` });
+        }
+        patch.name = name;
+        changes.name = { after: name };
+      }
+      if (body.description !== undefined) {
+        const description = trimOptional(body.description, MAX_QUESTIONNAIRE_DESCRIPTION_LENGTH);
+        if (description === undefined) {
+          return reply.code(400).send({ error: `description must be at most ${MAX_QUESTIONNAIRE_DESCRIPTION_LENGTH} chars` });
+        }
+        patch.description = description;
+        changes.description = { after: description };
+      }
+      if (body.schema !== undefined) {
+        const schemaResult = validateQuestionnaireSchema(body.schema);
+        if (!schemaResult.ok) return reply.code(400).send({ error: schemaResult.error });
+        patch.schema = schemaResult.value;
+        changes.schema = { after: "<updated>" };
+      }
+      if (body.is_active !== undefined) {
+        patch.is_active = body.is_active === true;
+        changes.is_active = { after: patch.is_active };
+      }
+      if (body.app_id !== undefined) {
+        const appId = body.app_id ?? null;
+        if (appId) {
+          const [appRow] = await app.db
+            .select({ id: apps.id, project_id: apps.project_id })
+            .from(apps)
+            .where(and(eq(apps.id, appId), isNull(apps.deleted_at)))
+            .limit(1);
+          if (!appRow || appRow.project_id !== projectId) {
+            return reply.code(400).send({ error: "app_id does not belong to this project" });
+          }
+        }
+        patch.app_id = appId;
+        changes.app_id = { after: appId };
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return reply.code(400).send({ error: "no editable fields provided" });
+      }
+
+      const [updated] = await app.db
+        .update(questionnaires)
+        .set(patch)
+        .where(
+          and(
+            eq(questionnaires.id, questionnaireId),
+            eq(questionnaires.project_id, projectId),
+            isNull(questionnaires.deleted_at),
+          ),
+        )
+        .returning();
+      if (!updated) return reply.code(404).send({ error: "Questionnaire not found" });
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "update",
+        resource_type: "questionnaire",
+        resource_id: questionnaireId,
+        changes,
+      });
+
+      return serializeQuestionnaire(updated);
+    },
+  );
+
+  app.delete<{ Params: { projectId: string; questionnaireId: string } }>(
+    "/questionnaires/:questionnaireId",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      if (request.auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can delete questionnaires" });
+      }
+      const { projectId, questionnaireId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const deleted = await app.db
+        .update(questionnaires)
+        .set({ deleted_at: new Date(), is_active: false })
+        .where(
+          and(
+            eq(questionnaires.id, questionnaireId),
+            eq(questionnaires.project_id, projectId),
+            isNull(questionnaires.deleted_at),
+          ),
+        )
+        .returning({ id: questionnaires.id });
+      if (deleted.length === 0) return reply.code(404).send({ error: "Questionnaire not found" });
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "delete",
+        resource_type: "questionnaire",
+        resource_id: questionnaireId,
+      });
+
+      return { deleted: true };
+    },
+  );
+
+  // --- Responses ---
+
+  app.get<{
+    Params: { projectId: string; questionnaireId: string };
+    Querystring: QuestionnaireResponseQueryParams;
+  }>(
+    "/questionnaires/:questionnaireId/responses",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request, reply) => {
+      const { projectId, questionnaireId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      // Verify the parent exists and belongs to this project.
+      const [parent] = await app.db
+        .select({ id: questionnaires.id, name: questionnaires.name, slug: questionnaires.slug })
+        .from(questionnaires)
+        .where(
+          and(
+            eq(questionnaires.id, questionnaireId),
+            eq(questionnaires.project_id, projectId),
+            isNull(questionnaires.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (!parent) return reply.code(404).send({ error: "Questionnaire not found" });
+
+      const { status, app_id, is_dev, data_mode, cursor, limit: limitStr } = request.query;
+      const limit = normalizeLimit(limitStr);
+
+      const conditions = [
+        eq(questionnaireResponses.questionnaire_id, questionnaireId),
+        isNull(questionnaireResponses.deleted_at),
+      ];
+      if (status && QUESTIONNAIRE_RESPONSE_STATUSES.includes(status as QuestionnaireResponseStatus)) {
+        conditions.push(eq(questionnaireResponses.status, status as QuestionnaireResponseStatus));
+      }
+      if (app_id) conditions.push(eq(questionnaireResponses.app_id, app_id));
+      if (is_dev !== undefined) {
+        conditions.push(eq(questionnaireResponses.is_dev, is_dev === "true"));
+      } else {
+        const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as any);
+        if (devCondition) conditions.push(devCondition);
+      }
+      if (cursor) {
+        const decoded = decodeKeysetCursor(cursor);
+        if (decoded) {
+          conditions.push(
+            sql`(${questionnaireResponses.created_at} < ${decoded.timestamp}::timestamptz OR (${questionnaireResponses.created_at} = ${decoded.timestamp}::timestamptz AND ${questionnaireResponses.id} < ${decoded.id}))`,
+          );
+        }
+      }
+
+      const rows = await app.db
+        .select()
+        .from(questionnaireResponses)
+        .where(and(...conditions))
+        .orderBy(desc(questionnaireResponses.created_at), desc(questionnaireResponses.id))
+        .limit(limit + 1);
+
+      const hasMore = rows.length > limit;
+      const page = hasMore ? rows.slice(0, limit) : rows;
+
+      const appIds = [...new Set(page.map((r) => r.app_id))];
+      const [appRows, userPropsMap] = await Promise.all([
+        appIds.length > 0
+          ? app.db.select({ id: apps.id, name: apps.name }).from(apps).where(inArray(apps.id, appIds))
+          : Promise.resolve([] as Array<{ id: string; name: string }>),
+        loadUserPropertiesForRows(app.db, page),
+      ]);
+      const appNameMap = new Map(appRows.map((a) => [a.id, a.name]));
+
+      const lastItem = page[page.length - 1];
+      return {
+        responses: page.map((r) =>
+          serializeResponse(
+            r,
+            parent.name,
+            parent.slug,
+            appNameMap.get(r.app_id),
+            r.user_id ? userPropsMap.get(`${r.project_id}:${r.user_id}`) ?? null : null,
+          ),
+        ),
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
+        has_more: hasMore,
+      };
+    },
+  );
+
+  app.get<{ Params: { projectId: string; questionnaireId: string; responseId: string } }>(
+    "/questionnaires/:questionnaireId/responses/:responseId",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request, reply) => {
+      const { projectId, questionnaireId, responseId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const [row] = await app.db
+        .select()
+        .from(questionnaireResponses)
+        .where(
+          and(
+            eq(questionnaireResponses.id, responseId),
+            eq(questionnaireResponses.questionnaire_id, questionnaireId),
+            eq(questionnaireResponses.project_id, projectId),
+            isNull(questionnaireResponses.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (!row) return reply.code(404).send({ error: "Response not found" });
+
+      const [[parent], [appRow], commentRows, userPropsMap] = await Promise.all([
+        app.db
+          .select({ name: questionnaires.name, slug: questionnaires.slug })
+          .from(questionnaires)
+          .where(eq(questionnaires.id, questionnaireId))
+          .limit(1),
+        app.db.select({ name: apps.name }).from(apps).where(eq(apps.id, row.app_id)).limit(1),
+        app.db
+          .select()
+          .from(questionnaireResponseComments)
+          .where(
+            and(
+              eq(questionnaireResponseComments.questionnaire_response_id, responseId),
+              isNull(questionnaireResponseComments.deleted_at),
+            ),
+          )
+          .orderBy(questionnaireResponseComments.created_at),
+        loadUserPropertiesForRows(app.db, [row]),
+      ]);
+
+      return {
+        ...serializeResponse(
+          row,
+          parent?.name,
+          parent?.slug,
+          appRow?.name,
+          row.user_id ? userPropsMap.get(`${row.project_id}:${row.user_id}`) ?? null : null,
+        ),
+        comments: commentRows.map(serializeResponseComment),
+      };
+    },
+  );
+
+  app.patch<{
+    Params: { projectId: string; questionnaireId: string; responseId: string };
+    Body: UpdateQuestionnaireResponseRequest;
+  }>(
+    "/questionnaires/:questionnaireId/responses/:responseId",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      const { projectId, questionnaireId, responseId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const { status } = request.body ?? {};
+      if (!status) return reply.code(400).send({ error: "status is required" });
+      if (!QUESTIONNAIRE_RESPONSE_STATUSES.includes(status)) {
+        return reply.code(400).send({
+          error: `Invalid status. Must be one of: ${QUESTIONNAIRE_RESPONSE_STATUSES.join(", ")}`,
+        });
+      }
+
+      const [updated] = await app.db
+        .update(questionnaireResponses)
+        .set({ status })
+        .where(
+          and(
+            eq(questionnaireResponses.id, responseId),
+            eq(questionnaireResponses.questionnaire_id, questionnaireId),
+            eq(questionnaireResponses.project_id, projectId),
+            isNull(questionnaireResponses.deleted_at),
+          ),
+        )
+        .returning();
+      if (!updated) return reply.code(404).send({ error: "Response not found" });
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "update",
+        resource_type: "questionnaire_response",
+        resource_id: responseId,
+        changes: { status: { after: status } },
+      });
+
+      return serializeResponse(updated);
+    },
+  );
+
+  app.delete<{ Params: { projectId: string; questionnaireId: string; responseId: string } }>(
+    "/questionnaires/:questionnaireId/responses/:responseId",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      if (request.auth.type !== "user") {
+        return reply.code(403).send({ error: "Only users can delete responses" });
+      }
+      const { projectId, questionnaireId, responseId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const deleted = await app.db
+        .update(questionnaireResponses)
+        .set({ deleted_at: new Date() })
+        .where(
+          and(
+            eq(questionnaireResponses.id, responseId),
+            eq(questionnaireResponses.questionnaire_id, questionnaireId),
+            eq(questionnaireResponses.project_id, projectId),
+            isNull(questionnaireResponses.deleted_at),
+          ),
+        )
+        .returning({ id: questionnaireResponses.id });
+      if (deleted.length === 0) return reply.code(404).send({ error: "Response not found" });
+
+      logAuditEvent(app.db, request.auth, {
+        team_id: project.team_id,
+        action: "delete",
+        resource_type: "questionnaire_response",
+        resource_id: responseId,
+      });
+
+      return { deleted: true };
+    },
+  );
+
+  // --- Comments ---
+
+  app.post<{
+    Params: { projectId: string; questionnaireId: string; responseId: string };
+    Body: CreateQuestionnaireResponseCommentRequest;
+  }>(
+    "/questionnaires/:questionnaireId/responses/:responseId/comments",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      const { projectId, questionnaireId, responseId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const { body } = request.body ?? { body: "" };
+      if (!body || !body.trim()) return reply.code(400).send({ error: "body is required" });
+
+      const [[row], author] = await Promise.all([
+        app.db
+          .select({ id: questionnaireResponses.id })
+          .from(questionnaireResponses)
+          .where(
+            and(
+              eq(questionnaireResponses.id, responseId),
+              eq(questionnaireResponses.questionnaire_id, questionnaireId),
+              eq(questionnaireResponses.project_id, projectId),
+              isNull(questionnaireResponses.deleted_at),
+            ),
+          )
+          .limit(1),
+        resolveCommentAuthor(app.db, request.auth),
+      ]);
+      if (!row) return reply.code(404).send({ error: "Response not found" });
+
+      const [created] = await app.db
+        .insert(questionnaireResponseComments)
+        .values({
+          questionnaire_response_id: responseId,
+          author_type: author.authorType,
+          author_id: author.authorId,
+          author_name: author.authorName,
+          body: body.trim(),
+        })
+        .returning();
+      return reply.code(201).send(serializeResponseComment(created));
+    },
+  );
+
+  app.patch<{
+    Params: { projectId: string; questionnaireId: string; responseId: string; commentId: string };
+    Body: UpdateQuestionnaireResponseCommentRequest;
+  }>(
+    "/questionnaires/:questionnaireId/responses/:responseId/comments/:commentId",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      const { projectId, responseId, commentId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+      const { body } = request.body ?? { body: "" };
+      if (!body || !body.trim()) return reply.code(400).send({ error: "body is required" });
+
+      const [comment] = await app.db
+        .select()
+        .from(questionnaireResponseComments)
+        .where(
+          and(
+            eq(questionnaireResponseComments.id, commentId),
+            eq(questionnaireResponseComments.questionnaire_response_id, responseId),
+            isNull(questionnaireResponseComments.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (!comment) return reply.code(404).send({ error: "Comment not found" });
+
+      const auth = request.auth;
+      const actorId = auth.type === "user" ? auth.user_id : auth.key_id;
+      if (comment.author_id !== actorId) {
+        return reply.code(403).send({ error: "Only the original author can edit this comment" });
+      }
+
+      const [updated] = await app.db
+        .update(questionnaireResponseComments)
+        .set({ body: body.trim() })
+        .where(eq(questionnaireResponseComments.id, commentId))
+        .returning();
+      return serializeResponseComment(updated);
+    },
+  );
+
+  app.delete<{
+    Params: { projectId: string; questionnaireId: string; responseId: string; commentId: string };
+  }>(
+    "/questionnaires/:questionnaireId/responses/:responseId/comments/:commentId",
+    { preHandler: requirePermission("questionnaires:write") },
+    async (request, reply) => {
+      const { projectId, responseId, commentId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+      const [comment] = await app.db
+        .select()
+        .from(questionnaireResponseComments)
+        .where(
+          and(
+            eq(questionnaireResponseComments.id, commentId),
+            eq(questionnaireResponseComments.questionnaire_response_id, responseId),
+            isNull(questionnaireResponseComments.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (!comment) return reply.code(404).send({ error: "Comment not found" });
+
+      const auth = request.auth;
+      const actorId = auth.type === "user" ? auth.user_id : auth.key_id;
+      if (comment.author_id !== actorId) {
+        if (auth.type !== "user") {
+          return reply.code(403).send({ error: "Only the original author or a team admin can delete this comment" });
+        }
+        const membership = auth.team_memberships?.find((t) => t.team_id === project.team_id);
+        if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
+          return reply.code(403).send({ error: "Only the original author or a team admin can delete this comment" });
+        }
+      }
+      await app.db
+        .update(questionnaireResponseComments)
+        .set({ deleted_at: new Date() })
+        .where(eq(questionnaireResponseComments.id, commentId));
+      return { deleted: true };
+    },
+  );
+
+  // --- Analytics ---
+
+  app.get<{
+    Params: { projectId: string; questionnaireId: string };
+    Querystring: { is_dev?: string; data_mode?: string };
+  }>(
+    "/questionnaires/:questionnaireId/analytics",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request, reply) => {
+      const { projectId, questionnaireId } = request.params;
+      const project = await resolveProject(app, projectId, request.auth, reply);
+      if (!project) return;
+
+      const [parent] = await app.db
+        .select()
+        .from(questionnaires)
+        .where(
+          and(
+            eq(questionnaires.id, questionnaireId),
+            eq(questionnaires.project_id, projectId),
+            isNull(questionnaires.deleted_at),
+          ),
+        )
+        .limit(1);
+      if (!parent) return reply.code(404).send({ error: "Questionnaire not found" });
+
+      const { is_dev, data_mode } = request.query;
+      const filters = [
+        eq(questionnaireResponses.questionnaire_id, questionnaireId),
+        isNull(questionnaireResponses.deleted_at),
+      ];
+      if (is_dev !== undefined) {
+        filters.push(eq(questionnaireResponses.is_dev, is_dev === "true"));
+      } else {
+        const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as any);
+        if (devCondition) filters.push(devCondition);
+      }
+
+      const [{ total } = { total: 0 }] = await app.db
+        .select({ total: countAll })
+        .from(questionnaireResponses)
+        .where(and(...filters));
+
+      const schema = parent.schema as QuestionnaireSchema;
+      const analytics: QuestionnaireQuestionAnalytics[] = [];
+      for (const q of schema.questions) {
+        analytics.push(await analyzeQuestion(app, q, filters));
+      }
+
+      const response: QuestionnaireAnalyticsResponse = {
+        questionnaire_id: parent.id,
+        slug: parent.slug,
+        total_responses: Number(total),
+        questions: analytics,
+      };
+      return response;
+    },
+  );
+}
+
+function trimOptional(
+  value: string | null | undefined,
+  max: number,
+): string | null | undefined {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > max) return undefined;
+  return trimmed;
+}
+
+async function analyzeQuestion(
+  app: FastifyInstance,
+  question: QuestionnaireSchema["questions"][number],
+  filters: ReturnType<typeof eq>[],
+): Promise<QuestionnaireQuestionAnalytics> {
+  const path = question.id;
+
+  switch (question.type) {
+    case "text": {
+      const totalRow = await app.db
+        .select({ count: countAll })
+        .from(questionnaireResponses)
+        .where(and(...filters, sql`${questionnaireResponses.answers} ? ${path}`));
+      const total = Number(totalRow[0]?.count ?? 0);
+
+      const recent = await app.db
+        .select({
+          id: questionnaireResponses.id,
+          answer: sql<string>`${questionnaireResponses.answers}->>${path}`,
+          created_at: questionnaireResponses.created_at,
+        })
+        .from(questionnaireResponses)
+        .where(and(...filters, sql`${questionnaireResponses.answers} ? ${path}`))
+        .orderBy(desc(questionnaireResponses.created_at))
+        .limit(10);
+
+      return {
+        id: question.id,
+        type: "text",
+        total_answered: total,
+        recent_answers: recent.map((r) => ({
+          response_id: r.id,
+          answer: r.answer,
+          created_at: r.created_at.toISOString(),
+        })),
+      };
+    }
+    case "single_choice": {
+      // GROUP BY 1 (positional) avoids parameterized-expression mismatch
+      // between SELECT and GROUP BY when path is bound twice.
+      const rows = await app.db.execute<{ choice: string; count: number }>(sql`
+        SELECT ${questionnaireResponses.answers}->>${path} AS choice,
+               COUNT(*)::int AS count
+        FROM ${questionnaireResponses}
+        WHERE ${and(...filters, sql`${questionnaireResponses.answers} ? ${path}`)}
+        GROUP BY 1
+      `);
+      const counts = new Map<string, number>();
+      for (const r of rows) counts.set(r.choice, Number(r.count));
+      const choices: QuestionnaireChoiceCount[] = question.options.map((opt) => ({
+        id: opt.id,
+        label: opt.label,
+        count: counts.get(opt.id) ?? 0,
+      }));
+      return {
+        id: question.id,
+        type: "single_choice",
+        total_answered: choices.reduce((s, c) => s + c.count, 0),
+        choices,
+      };
+    }
+    case "multi_choice": {
+      const rows = await app.db.execute<{ choice: string; count: number }>(sql`
+        SELECT v::text AS choice, COUNT(*)::int AS count
+        FROM ${questionnaireResponses},
+             jsonb_array_elements_text(${questionnaireResponses.answers}->${path}) v
+        WHERE ${and(...filters)}
+        GROUP BY 1
+      `);
+      const map = new Map<string, number>();
+      for (const r of rows) {
+        map.set(r.choice, Number(r.count));
+      }
+      const totalAnsweredRow = await app.db
+        .select({ count: countAll })
+        .from(questionnaireResponses)
+        .where(and(...filters, sql`${questionnaireResponses.answers} ? ${path}`));
+      const choices: QuestionnaireChoiceCount[] = question.options.map((opt) => ({
+        id: opt.id,
+        label: opt.label,
+        count: map.get(opt.id) ?? 0,
+      }));
+      return {
+        id: question.id,
+        type: "multi_choice",
+        total_answered: Number(totalAnsweredRow[0]?.count ?? 0),
+        choices,
+      };
+    }
+    case "rating": {
+      const rows = await app.db.execute<{ value: number; count: number }>(sql`
+        SELECT (${questionnaireResponses.answers}->>${path})::int AS value,
+               COUNT(*)::int AS count
+        FROM ${questionnaireResponses}
+        WHERE ${and(...filters, sql`${questionnaireResponses.answers} ? ${path}`)}
+        GROUP BY 1
+      `);
+      const buckets: QuestionnaireRatingBucket[] = [];
+      for (let v = 1; v <= question.scale; v++) {
+        const row = [...rows].find((r) => Number(r.value) === v);
+        buckets.push({ value: v, count: Number(row?.count ?? 0) });
+      }
+      const totalAnswered = buckets.reduce((s, b) => s + b.count, 0);
+      const sum = buckets.reduce((s, b) => s + b.value * b.count, 0);
+      const average = totalAnswered > 0 ? Math.round((sum / totalAnswered) * 100) / 100 : null;
+      return {
+        id: question.id,
+        type: "rating",
+        total_answered: totalAnswered,
+        average,
+        buckets,
+      };
+    }
+    case "nps": {
+      const rows = await app.db.execute<{ value: number; count: number }>(sql`
+        SELECT (${questionnaireResponses.answers}->>${path})::int AS value,
+               COUNT(*)::int AS count
+        FROM ${questionnaireResponses}
+        WHERE ${and(...filters, sql`${questionnaireResponses.answers} ? ${path}`)}
+        GROUP BY 1
+      `);
+      const buckets: QuestionnaireRatingBucket[] = [];
+      for (let v = 0; v <= 10; v++) {
+        const row = [...rows].find((r) => Number(r.value) === v);
+        buckets.push({ value: v, count: Number(row?.count ?? 0) });
+      }
+      const totalAnswered = buckets.reduce((s, b) => s + b.count, 0);
+      let detractors = 0;
+      let passives = 0;
+      let promoters = 0;
+      for (const b of buckets) {
+        if (b.value <= 6) detractors += b.count;
+        else if (b.value <= 8) passives += b.count;
+        else promoters += b.count;
+      }
+      const score =
+        totalAnswered > 0
+          ? Math.round(((promoters - detractors) / totalAnswered) * 100)
+          : null;
+      return {
+        id: question.id,
+        type: "nps",
+        total_answered: totalAnswered,
+        score,
+        detractors,
+        passives,
+        promoters,
+        buckets,
+      };
+    }
+  }
+}
+
+export async function teamQuestionnaireRoutes(app: FastifyInstance) {
+  // GET /v1/questionnaires/count — total responses across accessible projects
+  // (for dashboard stat cards).
+  app.get(
+    "/questionnaires/count",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request, reply) => {
+      const teamIds = getAuthTeamIds(request.auth);
+      if (teamIds.length === 0) return { count: 0 };
+      const [{ total } = { total: 0 }] = await app.db
+        .select({ total: countAll })
+        .from(questionnaireResponses)
+        .innerJoin(apps, eq(apps.id, questionnaireResponses.app_id))
+        .where(
+          and(
+            isNull(questionnaireResponses.deleted_at),
+            inArray(apps.team_id, teamIds),
+            eq(questionnaireResponses.is_dev, false),
+          ),
+        );
+      return { count: Number(total) };
+    },
+  );
+}

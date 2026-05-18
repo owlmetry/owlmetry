@@ -195,6 +195,19 @@ Free-text user feedback. Two ingest paths: mobile apps via the Swift SDK (\`OwlF
 
 Typical workflow: \`list-feedback\` filtered to \`status: "new"\` → \`get-feedback\` to read the message and linked session → \`investigate-event\` on an event from that session to understand what the user was doing → \`add-feedback-comment\` with root cause or a cross-link to a related issue → \`update-feedback-status\` to \`in_review\` or \`addressed\`.
 
+### Questionnaires
+Structured multi-question surveys, complementary to free-text feedback. Each questionnaire has an immutable \`slug\` and a JSON \`schema\` of up to 30 questions (\`text\`, \`single_choice\`, \`multi_choice\`, \`rating\` 1–5, \`nps\` 0–10). The Swift SDK fetches the spec by slug and renders it via \`OwlQuestionnaireView\` (or auto-triggers via \`.owlQuestionnaire(...)\` view modifier on the Nth launch). Each response stores its own \`schema_snapshot\` so editing the parent definition never retroactively changes how historical answers render.
+
+- **Slug** — immutable after creation. The Swift SDK references it directly; renaming would orphan the in-app integration.
+- **Dismissal** — when a user taps "Don't show again" in any questionnaire sheet, the SDK calls \`POST /v1/questionnaires/dismiss\` and the server writes \`_questionnaires_dismissed_at\` to \`app_users.properties\`. Globally one-and-done across every questionnaire in the project for that user — survives reinstall.
+- **One response per user per slug** — partial unique index drives the race-safe insert; duplicate submission returns 409 \`already_responded\`.
+- **Schema versioning** — none in V1. Edits to a questionnaire's \`schema\` apply going forward; old responses keep their captured \`schema_snapshot\`. If a question id is renamed or removed, analytics for that question drop out of the rolled-up view.
+- **Status lifecycle** — same shape as feedback (\`new\` / \`in_review\` / \`addressed\` / \`dismissed\`), free transitions, used to triage responses.
+- **Comments** — same model as feedback comments. Author-only edit, author-or-admin delete.
+- **Delete** — \`delete-questionnaire\` is user-only (agent keys get 403). Existing responses are preserved.
+
+Typical workflow: \`create-questionnaire\` with a slug + schema → wait for SDK responses → \`get-questionnaire-analytics\` for the rolled-up distribution per question → \`list-questionnaire-responses\` to drill into individual answers → \`add-questionnaire-response-comment\` to flag interesting feedback for teammates.
+
 ### Event Attachments (limited resource)
 SDKs can optionally upload a file alongside an error event (e.g. the input image that failed to convert, a 3D model file that failed to parse). These show up as \`attachments\` on \`get-event\` and \`get-issue\` responses and can be downloaded via \`get-attachment\` which returns a short-lived signed URL.
 
@@ -289,6 +302,18 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 - \`get-feedback\` — Get feedback detail with comments
 - \`update-feedback-status\` — Transition status (\`new\` | \`in_review\` | \`addressed\` | \`dismissed\`)
 - \`add-feedback-comment\` — Attach an investigation note or cross-link
+
+### Questionnaires
+- \`list-questionnaires\` — List questionnaire definitions in a project
+- \`get-questionnaire\` — Get definition + schema + response_count
+- \`create-questionnaire\` — Create with slug (immutable) + schema
+- \`update-questionnaire\` — Patch name, description, schema, app_id, is_active
+- \`delete-questionnaire\` — ⚠️ User-only (agent keys 403); responses preserved
+- \`list-questionnaire-responses\` — List responses with filters + pagination
+- \`get-questionnaire-response\` — Read individual response with comments + schema_snapshot
+- \`update-questionnaire-response-status\` — Triage state
+- \`add-questionnaire-response-comment\` — Annotate a response
+- \`get-questionnaire-analytics\` — Per-question distribution (counts, averages, NPS score)
 
 ### Attachments
 - \`list-attachments\` — filter by event, issue, or project

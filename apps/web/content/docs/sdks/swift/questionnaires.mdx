@@ -1,0 +1,184 @@
+---
+title: Questionnaires
+description: Render in-app surveys with OwlQuestionnaireView and the .owlQuestionnaire view modifier.
+---
+
+import Concept from '../../../_snippets/questionnaires.mdx';
+
+<Concept />
+
+## Prerequisite
+
+Create a questionnaire with a slug first — via the [dashboard](/dashboard/questionnaires), [CLI](/docs/cli/questionnaires) (`owlmetry questionnaires create`), or [MCP](/docs/mcp/questionnaires). The SDK only reads and submits — it doesn't define questionnaires.
+
+## Auto-trigger view modifier
+
+The easiest path is to attach `.owlQuestionnaire(slug:…)` to a long-lived view (often the root of your app or a tab's content):
+
+```swift
+import SwiftUI
+import Owlmetry
+
+struct ContentView: View {
+    var body: some View {
+        TabView { ... }
+            .owlQuestionnaire(
+                slug: "post-onboarding",
+                trigger: .afterLaunches(3)
+            )
+    }
+}
+```
+
+When the trigger fires AND the user is eligible (not already responded, not globally dismissed), the SDK fetches the questionnaire from the server and presents `OwlQuestionnaireView` in a sheet.
+
+### Composable triggers
+
+All conditions are ANDed:
+
+```swift
+.owlQuestionnaire(
+    slug: "weekly-checkin",
+    trigger: .when(
+        .launches(atLeast: 3),
+        .daysSinceFirstLaunch(atLeast: 7)
+    )
+)
+```
+
+Available conditions:
+
+- `.launches(atLeast: Int)` — total `Owl.configure(...)` calls since install (one bump per process)
+- `.foregrounds(atLeast: Int)` — total foreground transitions since install
+- `.daysSinceFirstLaunch(atLeast: Int)`
+- `.hoursSinceFirstLaunch(atLeast: Int)`
+
+Shortcuts:
+
+- `.afterLaunch` — equivalent to `.launches(atLeast: 1)`
+- `.afterLaunches(n)` — equivalent to `.launches(atLeast: n)`
+- `.manual` — never auto-trigger; consumer presents `OwlQuestionnaireView` directly
+
+OR-logic isn't built in. If you need it, use the `isEligible` closure or attach two `.owlQuestionnaire(...)` modifiers with different slugs.
+
+### Gating with `isEligible`
+
+```swift
+.owlQuestionnaire(
+    slug: "free-user-survey",
+    trigger: .afterLaunch,
+    isEligible: { !user.isPaid }
+)
+```
+
+`isEligible` runs synchronously on the main thread before the SDK fetches the spec. Return `false` to suppress this trigger evaluation; the modifier will re-evaluate on the next foreground.
+
+### Tint
+
+The view inherits the SwiftUI environment tint. Override with the `tint:` parameter:
+
+```swift
+.owlQuestionnaire(slug: "...", trigger: .afterLaunch, tint: .orange)
+```
+
+The Submit button, rating stars, single-choice checkmarks, and multi-choice toggles all pick up the tint.
+
+### Callbacks
+
+```swift
+.owlQuestionnaire(
+    slug: "post-onboarding",
+    trigger: .afterLaunches(3),
+    onSubmitted: { receipt in
+        print("Response id: \(receipt.id)")
+    },
+    onDismissed: {
+        print("User opted out of all future questionnaires")
+    }
+)
+```
+
+## Manual presentation
+
+For ad-hoc triggers ("show this survey after the user finishes the import wizard"), call `Owl.fetchQuestionnaire` and present `OwlQuestionnaireView` yourself:
+
+```swift
+@State private var spec: OwlQuestionnaire?
+@State private var showing = false
+
+// ...
+
+Button("Take the post-import survey") {
+    Task {
+        do {
+            if let q = try await Owl.fetchQuestionnaire(slug: "post-import") {
+                spec = q
+                showing = true
+            } else {
+                // already responded, globally dismissed, or inactive
+            }
+        } catch {
+            print("Fetch failed: \(error)")
+        }
+    }
+}
+.sheet(isPresented: $showing) {
+    if let spec {
+        NavigationStack {
+            OwlQuestionnaireView(
+                questionnaire: spec,
+                onSubmitted: { _ in showing = false },
+                onCancel: { showing = false }
+            )
+        }
+    }
+}
+```
+
+## Programmatic dismissal
+
+To opt the user out of all future questionnaires from code (e.g. a settings toggle), call `Owl.dismissQuestionnaires()`:
+
+```swift
+Toggle("Show in-app surveys", isOn: $surveysEnabled)
+    .onChange(of: surveysEnabled) { _, newValue in
+        if !newValue {
+            Task { try? await Owl.dismissQuestionnaires() }
+        }
+    }
+```
+
+## Localization
+
+`OwlQuestionnaireView` and the gate modifier both accept an `OwlQuestionnaireStrings` parameter. Every user-facing string is a `LocalizedStringResource` resolving against the SDK's bundled `Localizable.xcstrings` catalog. Override individual strings with `.default.with(...)`:
+
+```swift
+.owlQuestionnaire(
+    slug: "...",
+    trigger: .afterLaunch,
+    strings: .default.with(
+        submitButton: "Send",
+        doNotShowAgain: "Don't ask me again"
+    )
+)
+```
+
+## Trigger state accessors
+
+`Owl` exposes the persistent counters that drive the trigger evaluator — useful for debugging or building your own gates:
+
+```swift
+let launches = Owl.launchCount       // total Owl.configure(...) calls
+let foregrounds = Owl.foregroundCount // total foreground transitions
+let installedAt = Owl.firstLaunchAt   // Date? — first Owl.configure(...) timestamp
+```
+
+## Errors
+
+`Owl.fetchQuestionnaire` and `Owl.submitQuestionnaireResponse` throw `OwlQuestionnaireError`:
+
+- `.notConfigured` — `Owl.configure(...)` hasn't been called yet
+- `.slugNotFound` — the slug doesn't exist in the project (developer error — check spelling)
+- `.notEligible(reason)` — surfaced as `nil` from `fetchQuestionnaire`; thrown from submit if the server rejects (409)
+- `.invalidAnswers(detail)` — answers don't conform to the questionnaire's schema
+- `.serverError(statusCode:body:)` / `.transportFailure(message:)` — network / 5xx

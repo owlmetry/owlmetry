@@ -41,6 +41,10 @@
       "types": "./dist/preferences.d.ts",
       "import": "./dist/preferences.js"
     },
+    "./questionnaires": {
+      "types": "./dist/questionnaires.d.ts",
+      "import": "./dist/questionnaires.js"
+    },
     "./attribution": {
       "types": "./dist/attribution.d.ts",
       "import": "./dist/attribution.js"
