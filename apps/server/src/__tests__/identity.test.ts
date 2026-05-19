@@ -991,3 +991,106 @@ describe("POST /v1/identity/claim — questionnaire response migration", () => {
     expect(anonB!.deleted_at).not.toBeNull();
   });
 });
+
+describe("POST /v1/identity/claim — non-event end-user table rewrites", () => {
+  it("reassigns issue_occurrences.user_id on claim, scoped to the project", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const appId = await getAppIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_occ-claim";
+    const realId = "real-occ-claim";
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      const [issueRow] = await client`
+        INSERT INTO issues (project_id, app_id, title, first_seen_at, last_seen_at)
+        VALUES (${projectId}, ${appId}, 'TypeError: x is undefined', now(), now())
+        RETURNING id
+      `;
+      const issueId = issueRow!.id as string;
+      await client`
+        INSERT INTO issue_occurrences (issue_id, session_id, user_id, timestamp)
+        VALUES (${issueId}, ${randomUUID()}, ${anonId}, now()),
+               (${issueId}, ${randomUUID()}, ${anonId}, now())
+      `;
+
+      const before = await client`SELECT user_id FROM issue_occurrences WHERE issue_id = ${issueId}`;
+      expect(before.filter((r: any) => r.user_id === anonId)).toHaveLength(2);
+
+      const res = await claim({ anonymous_id: anonId, user_id: realId });
+      expect(res.statusCode).toBe(200);
+
+      const after = await client`SELECT user_id FROM issue_occurrences WHERE issue_id = ${issueId}`;
+      expect(after.filter((r: any) => r.user_id === realId)).toHaveLength(2);
+      expect(after.filter((r: any) => r.user_id === anonId)).toHaveLength(0);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("reassigns feedback.user_id on claim, leaving soft-deleted rows untouched", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const appId = await getAppIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_fb-claim";
+    const realId = "real-fb-claim";
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      await client`
+        INSERT INTO feedback (app_id, project_id, user_id, message)
+        VALUES (${appId}, ${projectId}, ${anonId}, 'live feedback')
+      `;
+      await client`
+        INSERT INTO feedback (app_id, project_id, user_id, message, deleted_at)
+        VALUES (${appId}, ${projectId}, ${anonId}, 'tombstone', now())
+      `;
+
+      const res = await claim({ anonymous_id: anonId, user_id: realId });
+      expect(res.statusCode).toBe(200);
+
+      const after = await client`
+        SELECT user_id, deleted_at FROM feedback WHERE project_id = ${projectId} ORDER BY created_at
+      `;
+      const live = after.find((r: any) => r.deleted_at === null)!;
+      expect(live.user_id).toBe(realId);
+      const tombstone = after.find((r: any) => r.deleted_at !== null)!;
+      expect(tombstone.user_id).toBe(anonId);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("reassigns event_attachments.user_id on claim, leaving soft-deleted rows untouched", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const appId = await getAppIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_att-claim";
+    const realId = "real-att-claim";
+    const sha = createHash("sha256").update("test").digest("hex");
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      await client`
+        INSERT INTO event_attachments (project_id, app_id, user_id, original_filename, content_type, size_bytes, sha256, storage_path)
+        VALUES (${projectId}, ${appId}, ${anonId}, 'a.log', 'text/plain', 4, ${sha}, '/tmp/a'),
+               (${projectId}, ${appId}, ${anonId}, 'b.log', 'text/plain', 4, ${sha}, '/tmp/b')
+      `;
+      await client`
+        INSERT INTO event_attachments (project_id, app_id, user_id, original_filename, content_type, size_bytes, sha256, storage_path, deleted_at)
+        VALUES (${projectId}, ${appId}, ${anonId}, 'gone.log', 'text/plain', 4, ${sha}, '/tmp/gone', now())
+      `;
+
+      const res = await claim({ anonymous_id: anonId, user_id: realId });
+      expect(res.statusCode).toBe(200);
+
+      const after = await client`
+        SELECT user_id, deleted_at FROM event_attachments WHERE project_id = ${projectId}
+      `;
+      const live = after.filter((r: any) => r.deleted_at === null);
+      expect(live).toHaveLength(2);
+      expect(live.every((r: any) => r.user_id === realId)).toBe(true);
+      const tombstone = after.find((r: any) => r.deleted_at !== null)!;
+      expect(tombstone.user_id).toBe(anonId);
+    } finally {
+      await client.end();
+    }
+  });
+});

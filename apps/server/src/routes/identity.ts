@@ -8,6 +8,10 @@ import {
   funnelEvents,
   metricEvents,
   questionnaireResponses,
+  issues,
+  issueOccurrences,
+  feedback,
+  eventAttachments,
 } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
@@ -128,6 +132,49 @@ export async function identityRoutes(app: FastifyInstance) {
               inArray(metricEvents.app_id, projectAppIds),
               eq(metricEvents.user_id, anonymous_id)
             )
+          );
+
+        // Rewrite anonymous user_id on tables that carry the SDK end-user id but
+        // are not partitioned and have no UNIQUE constraint involving user_id.
+        // Without these, opening the real user's profile post-claim would miss
+        // their pre-claim error occurrences, feedback, and attachments.
+        // issue_occurrences has no project_id column — scope via its issue's
+        // project_id. issues.unique_user_count is self-healed by the hourly
+        // issue_scan job so it isn't recomputed here.
+        await tx
+          .update(issueOccurrences)
+          .set({ user_id: user_id })
+          .where(
+            and(
+              eq(issueOccurrences.user_id, anonymous_id),
+              sql`EXISTS (
+                SELECT 1 FROM ${issues}
+                WHERE ${issues.id} = ${issueOccurrences.issue_id}
+                  AND ${issues.project_id} = ${project_id}
+              )`,
+            ),
+          );
+
+        await tx
+          .update(feedback)
+          .set({ user_id: user_id })
+          .where(
+            and(
+              eq(feedback.project_id, project_id),
+              eq(feedback.user_id, anonymous_id),
+              isNull(feedback.deleted_at),
+            ),
+          );
+
+        await tx
+          .update(eventAttachments)
+          .set({ user_id: user_id })
+          .where(
+            and(
+              eq(eventAttachments.project_id, project_id),
+              eq(eventAttachments.user_id, anonymous_id),
+              isNull(eventAttachments.deleted_at),
+            ),
           );
 
         // Migrate questionnaire_responses.user_id from anonymous → real.
