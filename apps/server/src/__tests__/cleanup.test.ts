@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import postgres from "postgres";
 import { cleanupSoftDeletedResources } from "@owlmetry/db";
+import { INTEGRATION_PROVIDER_IDS } from "@owlmetry/shared";
 import {
   buildApp,
   truncateAll,
@@ -189,11 +190,11 @@ describe("cleanupSoftDeletedResources", () => {
     const integrationConfig = JSON.stringify({ webhook_secret: "abc" });
     await client`
       INSERT INTO project_integrations (project_id, provider, config, deleted_at)
-      VALUES (${testData.projectId}, 'revenuecat', ${integrationConfig}::jsonb, ${eightDaysAgo})
+      VALUES (${testData.projectId}, ${INTEGRATION_PROVIDER_IDS.REVENUECAT}, ${integrationConfig}::jsonb, ${eightDaysAgo})
     `;
     await client`
       INSERT INTO project_integrations (project_id, provider, config, deleted_at)
-      VALUES (${testData.projectId}, 'apple_search_ads', ${integrationConfig}::jsonb, ${oneDayAgo})
+      VALUES (${testData.projectId}, ${INTEGRATION_PROVIDER_IDS.APPLE_SEARCH_ADS}, ${integrationConfig}::jsonb, ${oneDayAgo})
     `;
 
     const result = await cleanupSoftDeletedResources(client);
