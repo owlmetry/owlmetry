@@ -100,7 +100,10 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
   // Returns 200 + { eligible: false, reason } for soft states so the SDK can
   // fail closed silently; 404 only when the slug doesn't exist (developer
   // error worth surfacing).
-  app.get<{ Params: { slug: string }; Querystring: { user_id?: string; bundle_id?: string } }>(
+  app.get<{
+    Params: { slug: string };
+    Querystring: { user_id?: string; bundle_id?: string; force?: string };
+  }>(
     "/questionnaires/:slug",
     { preHandler: [requirePermission("events:write"), rateLimit] },
     async (request, reply) => {
@@ -132,6 +135,11 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
       }
 
       const { bundle_id, user_id } = request.query;
+      // ?force=true bypasses the soft-eligibility gates (globally_dismissed,
+      // already_responded) so a developer can preview the questionnaire UI
+      // without resetting state. `inactive` is still enforced — there's no
+      // spec to return for a paused questionnaire.
+      const force = request.query.force === "true";
       if (appRow.bundle_id) {
         if (!bundle_id || bundle_id !== appRow.bundle_id) {
           return reply.code(403).send({ error: "bundle_id does not match the app" });
@@ -171,7 +179,7 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
         const claimedMap = await resolveClaimedUserIds(app.db, appRow.project_id, [resolvedUserId]);
         resolvedUserId = claimedMap.get(resolvedUserId) ?? resolvedUserId;
 
-        if (await isUserGloballyDismissed(app.db, appRow.project_id, resolvedUserId)) {
+        if (!force && (await isUserGloballyDismissed(app.db, appRow.project_id, resolvedUserId))) {
           const body: IngestQuestionnaireFetchResponse = { eligible: false, reason: "globally_dismissed" };
           return reply.send(body);
         }
@@ -197,13 +205,20 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
           .limit(1);
         if (existing) {
           if (existing.submitted_at !== null) {
-            const body: IngestQuestionnaireFetchResponse = { eligible: false, reason: "already_responded" };
-            return reply.send(body);
+            if (!force) {
+              const body: IngestQuestionnaireFetchResponse = { eligible: false, reason: "already_responded" };
+              return reply.send(body);
+            }
+            // force=true: fall through with inProgress null — submitted answers
+            // aren't a draft to resume, and a fresh INSERT will race the
+            // partial unique index harmlessly (the setWhere submitted_at IS
+            // NULL clause refuses to flip a terminal row).
+          } else {
+            inProgress = {
+              response_id: existing.id,
+              answers: (existing.answers as QuestionnaireAnswers) ?? {},
+            };
           }
-          inProgress = {
-            response_id: existing.id,
-            answers: (existing.answers as QuestionnaireAnswers) ?? {},
-          };
         }
       }
 

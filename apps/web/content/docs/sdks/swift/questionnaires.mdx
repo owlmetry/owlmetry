@@ -109,6 +109,29 @@ OR-logic isn't built in. If you need it, use the `isEligible` closure or attach 
 
 `isEligible` runs synchronously on the main thread before the SDK fetches the spec. Return `false` to suppress this trigger evaluation; the modifier will re-evaluate on the next foreground.
 
+### Previewing in debug
+
+Set `forceShow: true` to bypass every local gate (trigger conditions, `isEligible` closure, per-process dedup) and ask the server to also ignore `alreadyResponded` and `globallyDismissed`. Useful for seeing how the sheet renders without rigging up launch counts or resetting state. The server still respects `inactive` — there's no spec to return for a paused questionnaire.
+
+```swift
+#if DEBUG
+@State private var previewQuestionnaire = false
+#endif
+
+var body: some View {
+    SomeRootView()
+        .owlQuestionnaire(
+            slug: "post-onboarding",
+            trigger: .when(.daysSinceFirstLaunch(atLeast: 7)),
+            #if DEBUG
+            forceShow: previewQuestionnaire
+            #endif
+        )
+}
+```
+
+Wire `previewQuestionnaire` to a debug-menu toggle, an env-var check, or a launch argument. Under `forceShow: true` the SDK also skips the per-process "shown" mark, so toggling off-then-on after dismissing the sheet re-presents it without restarting the app. Production users never trip the bypass because the parameter defaults to `false` and the gating is yours to wire.
+
 ### Tint
 
 The view inherits the SwiftUI environment tint. Override with the `tint:` parameter:

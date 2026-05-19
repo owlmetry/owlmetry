@@ -187,6 +187,103 @@ describe("GET /v1/questionnaires/:slug — eligibility", () => {
     });
   });
 
+  it("force=true on a fresh user still returns eligible (no-op for unrestricted callers)", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    const res = await app.inject({
+      method: "GET",
+      url:
+        "/v1/questionnaires/post-onboarding?bundle_id=" +
+        TEST_BUNDLE_ID +
+        "&user_id=user_42&force=true",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.eligible).toBe(true);
+    expect(body.questionnaire.slug).toBe("post-onboarding");
+  });
+
+  it("force=true still respects inactive questionnaires (no spec to return)", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId, { isActive: false });
+
+    const res = await app.inject({
+      method: "GET",
+      url:
+        "/v1/questionnaires/post-onboarding?bundle_id=" +
+        TEST_BUNDLE_ID +
+        "&user_id=user_42&force=true",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ eligible: false, reason: "inactive" });
+  });
+
+  it("force=true bypasses globally_dismissed and preserves the dismiss flag", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+    const dismissedAt = new Date().toISOString();
+    await insertAppUser(projectId, "user_42", {
+      properties: { [QUESTIONNAIRES_DISMISSED_PROPERTY]: dismissedAt },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url:
+        "/v1/questionnaires/post-onboarding?bundle_id=" +
+        TEST_BUNDLE_ID +
+        "&user_id=user_42&force=true",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.eligible).toBe(true);
+    expect(body.questionnaire.slug).toBe("post-onboarding");
+
+    const rows = await dbClient`
+      SELECT properties FROM app_users WHERE project_id=${projectId} AND user_id='user_42'
+    `;
+    expect((rows[0]!.properties as any)[QUESTIONNAIRES_DISMISSED_PROPERTY]).toBe(dismissedAt);
+  });
+
+  it("force=true bypasses already_responded and returns no in_progress (submission is terminal)", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    const submit = await app.inject({
+      method: "POST",
+      url: "/v1/questionnaires/post-onboarding/responses",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        bundle_id: TEST_BUNDLE_ID,
+        user_id: "user_42",
+        is_complete: true,
+        answers: { q_text: "Hi", q_choice: "yes" },
+      },
+    });
+    expect(submit.statusCode).toBe(201);
+
+    const fetch = await app.inject({
+      method: "GET",
+      url:
+        "/v1/questionnaires/post-onboarding?bundle_id=" +
+        TEST_BUNDLE_ID +
+        "&user_id=user_42&force=true",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    expect(fetch.statusCode).toBe(200);
+    const body = fetch.json();
+    expect(body.eligible).toBe(true);
+    expect(body.questionnaire.slug).toBe("post-onboarding");
+    expect(body.in_progress).toBeUndefined();
+  });
+
   it("rejects mismatched bundle_id with 403", async () => {
     const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
     const projectId = projectRow[0]!.id as string;
