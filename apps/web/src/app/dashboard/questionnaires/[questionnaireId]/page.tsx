@@ -74,7 +74,7 @@ export default function QuestionnaireDetailPage() {
   }, [projects, questionnaireId, resolvedProjectId]);
 
   const projectId = resolvedProjectId ?? undefined;
-  const { questionnaire, mutate: mutateQuestionnaire } = useQuestionnaire(projectId, questionnaireId);
+  const { questionnaire, mutate: mutateQuestionnaire } = useQuestionnaire(projectId, questionnaireId, dataMode);
   const { responses } = useQuestionnaireResponses(projectId, questionnaireId, { limit: "50", data_mode: dataMode });
   const { analytics } = useQuestionnaireAnalytics(projectId, questionnaireId, dataMode);
   const [openResponseId, setOpenResponseId] = useState<string | null>(null);

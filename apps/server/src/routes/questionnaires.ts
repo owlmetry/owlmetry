@@ -166,9 +166,16 @@ async function loadUserPropertiesForRows(
 async function loadResponseCountsByQuestionnaire(
   db: FastifyInstance["db"],
   questionnaireIds: string[],
+  dataMode?: DataMode,
 ): Promise<Map<string, { count: number; submitted: number; last: Date | null }>> {
   const map = new Map<string, { count: number; submitted: number; last: Date | null }>();
   if (questionnaireIds.length === 0) return map;
+  const conditions = [
+    inArray(questionnaireResponses.questionnaire_id, questionnaireIds),
+    isNull(questionnaireResponses.deleted_at),
+  ];
+  const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, dataMode);
+  if (devCondition) conditions.push(devCondition);
   const counts = await db
     .select({
       questionnaire_id: questionnaireResponses.questionnaire_id,
@@ -177,12 +184,7 @@ async function loadResponseCountsByQuestionnaire(
       last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
     })
     .from(questionnaireResponses)
-    .where(
-      and(
-        inArray(questionnaireResponses.questionnaire_id, questionnaireIds),
-        isNull(questionnaireResponses.deleted_at),
-      ),
-    )
+    .where(and(...conditions))
     .groupBy(questionnaireResponses.questionnaire_id);
   for (const c of counts) {
     map.set(c.questionnaire_id, {
@@ -205,7 +207,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const { app_id, is_active, cursor, limit: limitStr } = request.query;
+      const { app_id, is_active, data_mode, cursor, limit: limitStr } = request.query;
       const limit = normalizeLimit(limitStr);
 
       const conditions = [eq(questionnaires.project_id, projectId), isNull(questionnaires.deleted_at)];
@@ -234,6 +236,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       const countsById = await loadResponseCountsByQuestionnaire(
         app.db,
         page.map((r) => r.id),
+        data_mode as DataMode | undefined,
       );
 
       const lastItem = page[page.length - 1];
@@ -334,7 +337,10 @@ export async function questionnaireRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get<{ Params: { projectId: string; questionnaireId: string } }>(
+  app.get<{
+    Params: { projectId: string; questionnaireId: string };
+    Querystring: { data_mode?: string };
+  }>(
     "/questionnaires/:questionnaireId",
     { preHandler: requirePermission("questionnaires:read") },
     async (request, reply) => {
@@ -355,6 +361,16 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         .limit(1);
       if (!row) return reply.code(404).send({ error: "Questionnaire not found" });
 
+      const statsConditions = [
+        eq(questionnaireResponses.questionnaire_id, questionnaireId),
+        isNull(questionnaireResponses.deleted_at),
+      ];
+      const statsDevCondition = dataModeToDrizzle(
+        questionnaireResponses.is_dev,
+        request.query.data_mode as DataMode | undefined,
+      );
+      if (statsDevCondition) statsConditions.push(statsDevCondition);
+
       const [stats] = await app.db
         .select({
           count: countAll,
@@ -362,12 +378,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
           last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
         })
         .from(questionnaireResponses)
-        .where(
-          and(
-            eq(questionnaireResponses.questionnaire_id, questionnaireId),
-            isNull(questionnaireResponses.deleted_at),
-          ),
-        );
+        .where(and(...statsConditions));
 
       return serializeQuestionnaire(
         row,
@@ -1138,7 +1149,7 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
     { preHandler: requirePermission("questionnaires:read") },
     async (request) => {
       const allTeamIds = getAuthTeamIds(request.auth);
-      const { team_id, project_id, app_id, is_active, limit: rawLimit } = request.query;
+      const { team_id, project_id, app_id, is_active, data_mode, limit: rawLimit } = request.query;
 
       const teamIds = team_id
         ? allTeamIds.includes(team_id)
@@ -1182,6 +1193,7 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
       const countsById = await loadResponseCountsByQuestionnaire(
         app.db,
         rows.map((r) => r.id),
+        data_mode as DataMode | undefined,
       );
 
       return {

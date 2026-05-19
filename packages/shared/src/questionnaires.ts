@@ -529,6 +529,7 @@ export interface QuestionnaireQueryParams {
   project_id?: string;
   app_id?: string;
   is_active?: string;
+  data_mode?: string;
   cursor?: string;
   limit?: string;
 }

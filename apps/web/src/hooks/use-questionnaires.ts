@@ -38,10 +38,12 @@ export function useQuestionnaires(
 export function useTeamQuestionnaires(
   teamId: string | undefined,
   filters: { is_active?: boolean } = {},
+  dataMode?: string,
 ) {
   const params: Record<string, string> = {};
   if (teamId) params.team_id = teamId;
   if (filters.is_active !== undefined) params.is_active = String(filters.is_active);
+  if (dataMode) params.data_mode = dataMode;
   const qs = buildQueryString(params);
   const key = teamId ? `/v1/questionnaires${qs ? `?${qs}` : ""}` : null;
   const { data, isLoading, error, mutate } = useSWR<TeamQuestionnaireListResponse>(key, {
@@ -58,9 +60,13 @@ export function useTeamQuestionnaires(
 export function useQuestionnaire(
   projectId: string | undefined,
   questionnaireId: string | undefined,
+  dataMode?: string,
 ) {
+  const params: Record<string, string> = {};
+  if (dataMode) params.data_mode = dataMode;
+  const qs = buildQueryString(params);
   const key = projectId && questionnaireId
-    ? `/v1/projects/${projectId}/questionnaires/${questionnaireId}`
+    ? `/v1/projects/${projectId}/questionnaires/${questionnaireId}${qs ? `?${qs}` : ""}`
     : null;
   const { data, isLoading, error, mutate } = useSWR<QuestionnaireDetailResponse>(key, {
     refreshInterval: 30_000,

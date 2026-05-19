@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, QuestionnaireSchema } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import {
   useQuestionnaires,
   useTeamQuestionnaires,
@@ -100,13 +101,15 @@ export default function QuestionnairesPage() {
     router.replace(`/dashboard/questionnaires${qs ? `?${qs}` : ""}`, { scroll: false });
   }
 
+  const { dataMode } = useDataMode();
   const teamData = useTeamQuestionnaires(
     isAllProjects ? teamId : undefined,
     { is_active: hideInactive ? true : undefined },
+    dataMode,
   );
   const projectData = useQuestionnaires(
     isAllProjects ? undefined : projectId,
-    { is_active: hideInactive ? "true" : undefined },
+    { is_active: hideInactive ? "true" : undefined, data_mode: dataMode },
   );
 
   const questionnaires = isAllProjects ? teamData.questionnaires : projectData.questionnaires;
