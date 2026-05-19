@@ -10,6 +10,7 @@ import type {
   QuestionnaireQuestionAnalytics,
 } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import {
   useQuestionnaire,
   useQuestionnaireResponses,
@@ -38,6 +39,7 @@ export default function QuestionnaireDetailPage() {
   const projectIdFromUrl = searchParams?.get("project_id") ?? null;
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
+  const { dataMode } = useDataMode();
 
   // The list page links here with ?project_id=… so the owning project is known
   // up front. As a fallback for direct URL hits, look up the team's project
@@ -73,8 +75,8 @@ export default function QuestionnaireDetailPage() {
 
   const projectId = resolvedProjectId ?? undefined;
   const { questionnaire, mutate: mutateQuestionnaire } = useQuestionnaire(projectId, questionnaireId);
-  const { responses } = useQuestionnaireResponses(projectId, questionnaireId, { limit: "50" });
-  const { analytics } = useQuestionnaireAnalytics(projectId, questionnaireId);
+  const { responses } = useQuestionnaireResponses(projectId, questionnaireId, { limit: "50", data_mode: dataMode });
+  const { analytics } = useQuestionnaireAnalytics(projectId, questionnaireId, dataMode);
   const [openResponseId, setOpenResponseId] = useState<string | null>(null);
   const { response: openResponse } = useQuestionnaireResponseDetail(
     projectId,
