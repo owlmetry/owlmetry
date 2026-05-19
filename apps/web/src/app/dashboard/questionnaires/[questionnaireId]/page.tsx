@@ -18,6 +18,7 @@ import {
   questionnaireActions,
 } from "@/hooks/use-questionnaires";
 import { formatDateTime } from "@/lib/format-date";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -339,15 +340,15 @@ function ResponseStateBadge({
 }) {
   if (isComplete) {
     return (
-      <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full px-2 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+      <Badge variant="outline" tone="green" size="sm">
         Submitted
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full px-2 py-0.5 bg-amber-500/15 text-amber-800 dark:text-amber-300 flex items-center gap-1">
-      Draft <span className="opacity-70 normal-case tracking-normal">· {answered}/{total}</span>
-    </span>
+    <Badge variant="outline" tone="amber" size="sm">
+      Draft <span className="opacity-70">· {answered}/{total}</span>
+    </Badge>
   );
 }
 

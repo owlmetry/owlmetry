@@ -906,34 +906,30 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         filters.push(sql`${questionnaireResponses.submitted_at} IS NOT NULL`);
       }
 
-      const [{ total } = { total: 0 }] = await app.db
-        .select({ total: countAll })
-        .from(questionnaireResponses)
-        .where(and(...filters));
-
-      // Submitted subset is surfaced unconditionally so dashboards can render
-      // "N total · M completed" even when drafts are included. When
-      // submitted_only=true is in effect, this matches total.
-      const [{ submitted_total } = { submitted_total: 0 }] = await app.db
-        .select({ submitted_total: countAll })
-        .from(questionnaireResponses)
-        .where(
-          and(...filters, sql`${questionnaireResponses.submitted_at} IS NOT NULL`),
-        );
-
       const schema = parent.schema as QuestionnaireSchema;
-      // Per-question queries are independent SELECTs against the same table;
-      // run them in parallel. With ≤30 questions and a 10-conn pool this fits
-      // a single pool snapshot.
-      const analytics = await Promise.all(
-        schema.questions.map((q) => analyzeQuestion(app, q, filters)),
-      );
+      // Counts + per-question rollups are independent SELECTs against the
+      // same filter set; fan them out in parallel. The counts query uses a
+      // single `COUNT(*) FILTER` so total + submitted come back in one
+      // round-trip (matches the loadResponseCountsByQuestionnaire pattern).
+      // `submitted` is surfaced unconditionally so dashboards can render
+      // "N total · M completed" even when drafts are included; when
+      // submitted_only=true is in effect, it matches total.
+      const [[counts = { total: 0, submitted: 0 }], analytics] = await Promise.all([
+        app.db
+          .select({
+            total: countAll,
+            submitted: sql<number>`COUNT(*) FILTER (WHERE ${questionnaireResponses.submitted_at} IS NOT NULL)`,
+          })
+          .from(questionnaireResponses)
+          .where(and(...filters)),
+        Promise.all(schema.questions.map((q) => analyzeQuestion(app, q, filters))),
+      ]);
 
       const response: QuestionnaireAnalyticsResponse = {
         questionnaire_id: parent.id,
         slug: parent.slug,
-        total_responses: Number(total),
-        submitted_count: Number(submitted_total),
+        total_responses: Number(counts.total),
+        submitted_count: Number(counts.submitted),
         questions: analytics,
       };
       return response;

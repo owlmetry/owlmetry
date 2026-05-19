@@ -269,17 +269,27 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
         }
       }
 
-      const [qRow] = await app.db
-        .select()
-        .from(questionnaires)
-        .where(
-          and(
-            eq(questionnaires.project_id, appRow.project_id),
-            eq(questionnaires.slug, slug),
-            isNull(questionnaires.deleted_at),
-          ),
-        )
-        .limit(1);
+      // Questionnaire lookup + claim resolution run in parallel — neither
+      // depends on the other. With per-Next-tap saves this is a hot path,
+      // so the round-trip saved compounds across the flow.
+      const rawUserId =
+        typeof body.user_id === "string" && body.user_id.length > 0 ? body.user_id : null;
+      const [[qRow], claimedMap] = await Promise.all([
+        app.db
+          .select()
+          .from(questionnaires)
+          .where(
+            and(
+              eq(questionnaires.project_id, appRow.project_id),
+              eq(questionnaires.slug, slug),
+              isNull(questionnaires.deleted_at),
+            ),
+          )
+          .limit(1),
+        rawUserId
+          ? resolveClaimedUserIds(app.db, appRow.project_id, [rawUserId])
+          : Promise.resolve(new Map<string, string>()),
+      ]);
 
       if (!qRow) {
         return reply.code(404).send({ error: "Questionnaire not found" });
@@ -301,43 +311,45 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
         sessionId = body.session_id;
       }
 
-      let userId: string | null = typeof body.user_id === "string" && body.user_id.length > 0 ? body.user_id : null;
-      if (userId) {
-        const claimedMap = await resolveClaimedUserIds(app.db, appRow.project_id, [userId]);
-        userId = claimedMap.get(userId) ?? userId;
+      const userId: string | null = rawUserId
+        ? claimedMap.get(rawUserId) ?? rawUserId
+        : null;
 
-        // Re-check global dismissal — the user may have dismissed between the
-        // GET eligibility check and this POST.
-        if (await isUserGloballyDismissed(app.db, appRow.project_id, userId)) {
-          return reply.code(409).send({ error: "Questionnaires globally dismissed", reason: "globally_dismissed" });
-        }
-      }
-
-      // Look up the existing row first so we can (a) refuse early if it's
-      // already submitted, (b) merge incoming answers with existing ones for
-      // the final-validation pass, and (c) compute was_submitted by comparing
-      // prev vs new submitted_at. The upsert below uses a WHERE submitted_at
-      // IS NULL guard, so a concurrent submission between this SELECT and
-      // the UPSERT correctly results in 0 rows returned and a 409 — no risk
-      // of double-flipping or double-notifying.
+      // Existing-row lookup + globally-dismissed re-check run in parallel.
+      // The dismissal re-check only matters on the final submit — the GET
+      // eligibility check gates entry to the flow, and a mid-flow user
+      // can't dismiss without abandoning the sheet, so draft saves skip
+      // the SELECT entirely (saving one DB hit per Next tap on the hot
+      // path). The existing-row lookup uses WHERE submitted_at IS NULL on
+      // the UPDATE below, so a concurrent submission between this SELECT
+      // and the upsert still produces a 409 without double-flipping.
       let existing: { id: string; answers: QuestionnaireAnswers; submitted_at: Date | null } | null = null;
       if (userId) {
-        const [row] = await app.db
-          .select({
-            id: questionnaireResponses.id,
-            answers: questionnaireResponses.answers,
-            submitted_at: questionnaireResponses.submitted_at,
-          })
-          .from(questionnaireResponses)
-          .where(
-            and(
-              eq(questionnaireResponses.project_id, appRow.project_id),
-              eq(questionnaireResponses.slug, slug),
-              eq(questionnaireResponses.user_id, userId),
-              isNull(questionnaireResponses.deleted_at),
-            ),
-          )
-          .limit(1);
+        const [existingRows, dismissed] = await Promise.all([
+          app.db
+            .select({
+              id: questionnaireResponses.id,
+              answers: questionnaireResponses.answers,
+              submitted_at: questionnaireResponses.submitted_at,
+            })
+            .from(questionnaireResponses)
+            .where(
+              and(
+                eq(questionnaireResponses.project_id, appRow.project_id),
+                eq(questionnaireResponses.slug, slug),
+                eq(questionnaireResponses.user_id, userId),
+                isNull(questionnaireResponses.deleted_at),
+              ),
+            )
+            .limit(1),
+          isComplete
+            ? isUserGloballyDismissed(app.db, appRow.project_id, userId)
+            : Promise.resolve(false),
+        ]);
+        if (dismissed) {
+          return reply.code(409).send({ error: "Questionnaires globally dismissed", reason: "globally_dismissed" });
+        }
+        const row = existingRows[0];
         if (row) {
           existing = {
             id: row.id,
@@ -495,6 +507,18 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
               submitted_at: sql`CASE WHEN ${questionnaireResponses.submitted_at} IS NULL AND excluded.submitted_at IS NOT NULL THEN excluded.submitted_at ELSE ${questionnaireResponses.submitted_at} END`,
               status: sql`CASE WHEN ${questionnaireResponses.submitted_at} IS NULL AND excluded.submitted_at IS NOT NULL THEN excluded.status ELSE ${questionnaireResponses.status} END`,
               schema_snapshot: sql`CASE WHEN ${questionnaireResponses.submitted_at} IS NULL AND excluded.submitted_at IS NOT NULL THEN excluded.schema_snapshot ELSE ${questionnaireResponses.schema_snapshot} END`,
+              // Refresh denormalized client metadata on conflict — without
+              // this, a row that the racing request created with stale (or
+              // missing) device/version/country values would keep them.
+              // Matches the UPDATE branch above.
+              environment: sql`excluded.environment`,
+              os_version: sql`excluded.os_version`,
+              app_version: sql`excluded.app_version`,
+              sdk_name: sql`excluded.sdk_name`,
+              sdk_version: sql`excluded.sdk_version`,
+              device_model: sql`excluded.device_model`,
+              country_code: sql`excluded.country_code`,
+              session_id: sql`COALESCE(excluded.session_id, ${questionnaireResponses.session_id})`,
               updated_at: now,
             },
             setWhere: sql`${questionnaireResponses.submitted_at} IS NULL`,

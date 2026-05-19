@@ -15,9 +15,10 @@ const DRAFT_RETENTION_DAYS = 90;
  * and analytics so abandonment is visible), but a draft that hasn't been
  * touched in three months is effectively a dead session — the user
  * presumably uninstalled, switched devices, or just moved on. Soft-delete
- * keeps the row recoverable for the existing 7-day hard-delete sweep
- * (soft_delete_cleanup runs daily and drops anything soft-deleted longer
- * than that), so we get a two-stage retention with one cron entry.
+ * keeps the row recoverable for 7 days; the shared `cleanupSoftDeletedResources`
+ * step run by `soft_delete_cleanup` hard-deletes any `questionnaire_responses`
+ * with `deleted_at` older than that. Two-stage retention with one cron entry
+ * here and one shared hard-delete sweep.
  */
 export const questionnaireDraftCleanupHandler: JobHandler = async (ctx) => {
   const cutoff = new Date(Date.now() - DRAFT_RETENTION_DAYS * 24 * 60 * 60 * 1000);

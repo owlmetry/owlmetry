@@ -16,6 +16,7 @@ export interface CleanupResult {
   auditLogs: number;
   teamMembers: number;
   teamInvitations: number;
+  questionnaireResponses: number;
 }
 
 /**
@@ -42,6 +43,7 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
     auditLogs: 0,
     teamMembers: 0,
     teamInvitations: 0,
+    questionnaireResponses: 0,
   };
 
   // Step 1: Ensure cascade consistency — if a team/project is past cutoff
@@ -202,6 +204,18 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
     `;
     result.teams = Number(teamsDeleted.count ?? 0);
   }
+
+  // Step 6: Hard-delete questionnaire responses soft-deleted past the cutoff.
+  // Covers both admin response-deletes from the dashboard and abandoned
+  // drafts swept by questionnaire_draft_cleanup. Row-level cleanup (not
+  // driven by an expired parent), so it's separate from the cascade steps
+  // above. The FK to questionnaires is ON DELETE RESTRICT, so soft-deleted
+  // parent questionnaires keep these rows recoverable until this step.
+  const responsesDeleted = await client`
+    DELETE FROM questionnaire_responses
+    WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+  `;
+  result.questionnaireResponses = Number(responsesDeleted.count ?? 0);
 
   return result;
 }
