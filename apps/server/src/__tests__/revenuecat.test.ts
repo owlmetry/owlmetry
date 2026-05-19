@@ -133,8 +133,16 @@ function buildProjectsResponse(projectId: string = TEST_RC_PROJECT_ID) {
   };
 }
 
+// Builds a /v2/projects/{id}/customers/{id}/active_entitlements response.
+// IMPORTANT: the real RC API returns ONLY `entitlement_id` + `expires_at` per
+// item — `lookup_key` / `display_name` / `product_identifier` are NOT present
+// (verified live 2026-05-19). The `lookup_key` and `product_identifier` args
+// are convenience inputs for test setup; they are intentionally NOT emitted in
+// the response, so this mock matches the real API. Use
+// `buildProjectEntitlementsResponse` for the project-scoped list endpoint
+// that DOES return lookup_keys.
 function buildActiveEntitlementsResponse(
-  items: Array<{ lookup_key: string; product_identifier: string; expires_at?: number | null }> = [
+  items: Array<{ lookup_key: string; product_identifier?: string; expires_at?: number | null }> = [
     { lookup_key: "pro", product_identifier: "premium_monthly", expires_at: Date.now() + 86400000 * 30 },
   ],
 ) {
@@ -143,13 +151,60 @@ function buildActiveEntitlementsResponse(
     items: items.map((i) => ({
       object: "customer.active_entitlement" as const,
       entitlement_id: `ent_${i.lookup_key}`,
-      lookup_key: i.lookup_key,
-      display_name: i.lookup_key,
-      product_identifier: i.product_identifier,
       expires_at: i.expires_at ?? null,
     })),
     next_page: null,
     url: "/v2/projects/.../active_entitlements",
+  };
+}
+
+// Builds a /v2/projects/{id}/entitlements response (project-scoped definitions).
+// This is the endpoint that exposes lookup_keys; the per-customer endpoint above
+// is opaque-ID-only.
+function buildProjectEntitlementsResponse(
+  items: Array<{ lookup_key: string; display_name?: string | null }> = [
+    { lookup_key: "pro", display_name: "Pro" },
+  ],
+) {
+  return {
+    object: "list" as const,
+    items: items.map((i) => ({
+      object: "entitlement" as const,
+      id: `ent_${i.lookup_key}`,
+      project_id: TEST_RC_PROJECT_ID,
+      lookup_key: i.lookup_key,
+      display_name: i.display_name ?? i.lookup_key,
+      state: "active",
+      created_at: Date.now() - 86400000,
+    })),
+    next_page: null,
+    url: "/v2/projects/.../entitlements",
+  };
+}
+
+// Builds a /v2/projects/{id}/products response (project-scoped product
+// definitions). `store_identifier` is the App Store / Play Store SKU — the
+// human-readable form we surface as `rc_product`. The default maps the
+// `prod_test` product_id used by `buildSubscriptionsResponse` to the
+// `premium_monthly` SKU asserted by most baseline tests.
+function buildProjectProductsResponse(
+  items: Array<{ id: string; store_identifier: string }> = [
+    { id: "prod_test", store_identifier: "premium_monthly" },
+  ],
+) {
+  return {
+    object: "list" as const,
+    items: items.map((i) => ({
+      object: "product" as const,
+      id: i.id,
+      store_identifier: i.store_identifier,
+      display_name: i.store_identifier,
+      type: "subscription",
+      state: "active",
+      app_id: "app_test",
+    })),
+    next_page: null,
+    url: "/v2/projects/.../products",
   };
 }
 
@@ -253,6 +308,10 @@ function mockRevenueCatV2(options: {
   nonSubscriptionsStatus?: number;
   attributesResponse?: unknown;
   attributesStatus?: number;
+  projectEntitlementsResponse?: unknown;
+  projectEntitlementsStatus?: number;
+  projectProductsResponse?: unknown;
+  projectProductsStatus?: number;
   captureAuthHeader?: (header: string | null) => void;
   capturedUrl?: (url: string) => void;
 }) {
@@ -260,6 +319,25 @@ function mockRevenueCatV2(options: {
   globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     options.capturedUrl?.(url);
+    // Project-scoped entitlement/product list endpoints. URLs look like
+    // /v2/projects/{id}/entitlements (no `/customers/`); match those before the
+    // generic `/v2/projects` lookup falls through.
+    if (url.includes("api.revenuecat.com/v2/projects") && !url.includes("/customers/") && url.includes("/entitlements")) {
+      const status = options.projectEntitlementsStatus ?? 200;
+      const body = options.projectEntitlementsResponse ?? buildProjectEntitlementsResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("api.revenuecat.com/v2/projects") && !url.includes("/customers/") && url.includes("/products")) {
+      const status = options.projectProductsStatus ?? 200;
+      const body = options.projectProductsResponse ?? buildProjectProductsResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (url.includes("api.revenuecat.com/v2/projects") && !url.includes("/customers/")) {
       // /v2/projects lookup
       return new Response(JSON.stringify(buildProjectsResponse()), {
@@ -920,7 +998,14 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     await createRevenueCatIntegration();
     await ingestEvent("rc_user_123");
 
-    const cleanup = mockRevenueCatV2({});
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      // Active subscription so rc_product can be resolved via the project
+      // products map (prod_test → premium_monthly).
+      subscriptionsResponse: buildSubscriptionsResponse([
+        { status: "active", current_period_starts_at: now, current_period_ends_at: now + 86400000 * 30 },
+      ]),
+    });
     try {
       const res = await app.inject({
         method: "POST",
@@ -1167,7 +1252,7 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     // admin "Grant" feature produces this combination.
     const cleanup = mockRevenueCatV2({
       entitlementsResponse: buildActiveEntitlementsResponse([
-        { lookup_key: "pro", product_identifier: "promo_pro", expires_at: null },
+        { lookup_key: "pro", expires_at: null },
       ]),
       subscriptionsResponse: buildSubscriptionsResponse([]),
       nonSubscriptionsResponse: buildNonSubscriptionsResponse([]),
@@ -1184,6 +1269,100 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       expect(props.rc_subscriber).toBe("true");
       expect(props.rc_billing_period).toBe("lifetime");
       expect(props.rc_period_type).toBe("promotional");
+      // Entitlement lookup_key resolves via project map even without a sub/non-sub.
+      expect(props.rc_entitlements).toBe("pro");
+      // Admin grants have no associated product — rc_product is unset.
+      expect(props.rc_product).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("falls back to raw entitlement_id when the project entitlements map has no match", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("unmapped_user");
+
+    // Active entitlement carrying an entitlement_id the project list doesn't
+    // know about (e.g. recently deleted definition still attached to a
+    // customer). Sync should not silently produce empty rc_entitlements;
+    // surfacing the raw opaque ID is more useful than nothing.
+    const cleanup = mockRevenueCatV2({
+      entitlementsResponse: buildActiveEntitlementsResponse([
+        { lookup_key: "unknown", expires_at: null },
+      ]),
+      projectEntitlementsResponse: buildProjectEntitlementsResponse([
+        { lookup_key: "pro" }, // map only knows about "pro" (id = ent_pro)
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/unmapped_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_entitlements).toBe("ent_unknown");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("falls back to raw product_id when the project products map has no match", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("unmapped_product_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      // Subscription product_id not present in the default products map.
+      subscriptionsResponse: buildSubscriptionsResponse([
+        { id: "sub_unmapped" },
+      ]),
+      // Replace the default products list with an empty one so prod_test
+      // (the buildSubscriptionsResponse default product_id) isn't translated.
+      projectProductsResponse: buildProjectProductsResponse([]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/unmapped_product_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      // Raw RC product_id surfaces rather than empty when there's no SKU map.
+      expect(props.rc_product).toBe("prod_test");
+      void now;
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("degrades gracefully when the project entitlements list endpoint returns 500", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("degraded_user");
+
+    const now = Date.now();
+    // List fetch fails — sync should still complete; rc_entitlements falls
+    // back to raw entitlement_id, sub-derived properties remain correct.
+    const cleanup = mockRevenueCatV2({
+      projectEntitlementsStatus: 500,
+      subscriptionsResponse: buildSubscriptionsResponse([
+        { status: "active", current_period_starts_at: now, current_period_ends_at: now + 86400000 * 30 },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/degraded_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true");
+      expect(props.rc_entitlements).toBe("ent_pro"); // raw fallback when list missing
+      expect(props.rc_product).toBe("premium_monthly"); // products map still served
     } finally {
       cleanup();
     }
@@ -1197,7 +1376,7 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     // active because of a paid one-time IAP, not a promotional grant.
     const cleanup = mockRevenueCatV2({
       entitlementsResponse: buildActiveEntitlementsResponse([
-        { lookup_key: "pro", product_identifier: "pro_lifetime", expires_at: null },
+        { lookup_key: "pro", expires_at: null },
       ]),
       subscriptionsResponse: buildSubscriptionsResponse([]),
       nonSubscriptionsResponse: buildNonSubscriptionsResponse([
@@ -1350,7 +1529,14 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
 
     const cleanup = mockRevenueCatV2({
       entitlementsResponse: buildActiveEntitlementsResponse([
-        { lookup_key: "pro", product_identifier: "lifetime_pro", expires_at: null },
+        { lookup_key: "pro", expires_at: null },
+      ]),
+      // Lifetime entitlement is backed by a paid one-time IAP — non-sub
+      // provides the `product_id` that becomes `rc_product`. The default
+      // products map has no entry for "lifetime_pro" so it falls back to
+      // the raw id, which matches the assertion below.
+      nonSubscriptionsResponse: buildNonSubscriptionsResponse([
+        { product_id: "lifetime_pro" },
       ]),
     });
     try {

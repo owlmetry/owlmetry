@@ -17,6 +17,7 @@ import {
   computeBillingPeriod,
 } from "../utils/revenuecat.js";
 import {
+  fetchRevenueCatLookupMaps,
   syncRevenueCatUserProperties,
   resyncRevenueCatUsersInBackground,
 } from "../utils/revenuecat-user-sync.js";
@@ -359,6 +360,12 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         });
       }
 
+      const lookups = await fetchRevenueCatLookupMaps({
+        apiKey: rcConfig.api_key,
+        rcProjectId: projectIdResult.projectId,
+        log: app.log,
+      });
+
       const result = await syncRevenueCatUserProperties({
         db: app.db,
         log: app.log,
@@ -366,6 +373,7 @@ export async function revenuecatRoutes(app: FastifyInstance) {
         rcProjectId: projectIdResult.projectId,
         config: rcConfig,
         userId,
+        lookups,
       });
 
       if (result.status === "not_found") {

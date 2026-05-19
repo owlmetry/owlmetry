@@ -20,18 +20,64 @@ export interface RevenueCatV2ListProjectsResponse {
   url: string;
 }
 
+// Per-customer active entitlement. RC's V2 `/customers/{id}/active_entitlements`
+// returns ONLY `entitlement_id` + `expires_at` per item — no `lookup_key`,
+// `display_name`, or `product_identifier` (verified against a live response on
+// 2026-05-19). To get human-readable lookup keys, fetch the project-scoped
+// entitlement list via `fetchRevenueCatProjectEntitlements` and cross-reference
+// by `entitlement_id`.
 export interface RevenueCatV2ActiveEntitlement {
   object: "customer.active_entitlement";
   entitlement_id: string;
-  lookup_key: string;
-  display_name: string | null;
-  product_identifier: string;
   expires_at: number | null; // ms epoch, null for lifetime
 }
 
 export interface RevenueCatV2ActiveEntitlementsResponse {
   object: "list";
   items: RevenueCatV2ActiveEntitlement[];
+  next_page: string | null;
+  url: string;
+}
+
+// Project-scoped entitlement definition. `id` matches the `entitlement_id`
+// returned per-customer; `lookup_key` is the human-readable name configured in
+// the RC dashboard (e.g. "pro"). Fetched once per sync and used as a
+// `entitlement_id → lookup_key` map.
+export interface RevenueCatV2Entitlement {
+  object: "entitlement";
+  id: string;
+  project_id: string;
+  lookup_key: string;
+  display_name: string | null;
+  state: string;
+  created_at: number;
+}
+
+export interface RevenueCatV2EntitlementsResponse {
+  object: "list";
+  items: RevenueCatV2Entitlement[];
+  next_page: string | null;
+  url: string;
+}
+
+// Project-scoped product definition. V2 per-customer endpoints
+// (`/subscriptions`, `/purchases`) carry the opaque RC product `id`
+// (e.g. `prod756dd4c17f`) — `store_identifier` is the App Store / Play Store
+// SKU (e.g. `3dk_2999_lt`) that webhook events already populate as
+// `rc_product`. Fetched once per sync to translate opaque IDs to SKUs.
+export interface RevenueCatV2Product {
+  object: "product";
+  id: string;
+  store_identifier: string;
+  display_name: string | null;
+  type: string;
+  state: string;
+  app_id: string;
+}
+
+export interface RevenueCatV2ProductsResponse {
+  object: "list";
+  items: RevenueCatV2Product[];
   next_page: string | null;
   url: string;
 }
@@ -394,6 +440,89 @@ export async function fetchRevenueCatNonSubscriptions(
   }
 }
 
+export type FetchProjectEntitlementsResult =
+  | { status: "found"; items: RevenueCatV2Entitlement[] }
+  | { status: "error"; statusCode?: number; message?: string };
+
+/**
+ * Fetch the project-scoped list of entitlement definitions. Each item carries
+ * an `id` (matches per-customer `entitlement_id`) and a human-readable
+ * `lookup_key`. Callers build a `entitlement_id → lookup_key` map and pass it
+ * to `mapSubscriberToProperties` so `rc_entitlements` shows "pro" rather than
+ * "entl417ac4ef04" (or worse, "" as it was prior to 2026-05-19).
+ *
+ * Pages until RC's `next_page` cursor is exhausted. Most projects have <20
+ * entitlements, so usually one request.
+ */
+export async function fetchRevenueCatProjectEntitlements(
+  apiKey: string,
+  rcProjectId: string,
+): Promise<FetchProjectEntitlementsResult> {
+  const items: RevenueCatV2Entitlement[] = [];
+  let startingAfter: string | null = null;
+  try {
+    while (true) {
+      const params = new URLSearchParams({ limit: "100" });
+      if (startingAfter) params.set("starting_after", startingAfter);
+      const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/entitlements?${params.toString()}`;
+      const res = await fetch(url, {
+        headers: rcHeaders(apiKey),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+      }
+      const data = (await res.json()) as RevenueCatV2EntitlementsResponse;
+      items.push(...(data.items ?? []));
+      startingAfter = parseStartingAfterFromNextPage(data.next_page);
+      if (!startingAfter) break;
+    }
+    return { status: "found", items };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export type FetchProjectProductsResult =
+  | { status: "found"; items: RevenueCatV2Product[] }
+  | { status: "error"; statusCode?: number; message?: string };
+
+/**
+ * Fetch the project-scoped list of products. Each item's `id` matches the
+ * opaque `product_id` field on V2 `/subscriptions` and `/purchases` items;
+ * `store_identifier` is the App Store / Play Store SKU we surface as
+ * `rc_product`. Mirrors the webhook handler's behaviour (webhook events
+ * already use store-side IDs in `event.product_id`).
+ */
+export async function fetchRevenueCatProjectProducts(
+  apiKey: string,
+  rcProjectId: string,
+): Promise<FetchProjectProductsResult> {
+  const items: RevenueCatV2Product[] = [];
+  let startingAfter: string | null = null;
+  try {
+    while (true) {
+      const params = new URLSearchParams({ limit: "100" });
+      if (startingAfter) params.set("starting_after", startingAfter);
+      const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/products?${params.toString()}`;
+      const res = await fetch(url, {
+        headers: rcHeaders(apiKey),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+      }
+      const data = (await res.json()) as RevenueCatV2ProductsResponse;
+      items.push(...(data.items ?? []));
+      startingAfter = parseStartingAfterFromNextPage(data.next_page);
+      if (!startingAfter) break;
+    }
+    return { status: "found", items };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export type FetchCustomerAttributesResult =
   | { status: "found"; attributes: RevenueCatV2Attribute[] }
   | { status: "not_found" }
@@ -508,6 +637,27 @@ function computeWillRenew(sub: RevenueCatV2Subscription): boolean {
 }
 
 /**
+ * Optional lookup maps consulted by `mapSubscriberToProperties` to translate
+ * opaque RC IDs returned by the per-customer V2 endpoints into the
+ * human-readable identifiers the dashboard expects:
+ *
+ * - `entitlementKeyById`: `entitlement_id → lookup_key`. The per-customer
+ *   `/active_entitlements` endpoint returns only `entitlement_id`, so without
+ *   this map `rc_entitlements` falls back to the raw opaque ID.
+ * - `productSkuById`: `product_id → store_identifier`. V2 `/subscriptions` and
+ *   `/purchases` return RC's opaque `product_id` (e.g. `prod756dd4c17f`); we
+ *   surface the store-side SKU (e.g. `3dk_2999_lt`) to match webhook behaviour.
+ *
+ * Both maps are populated by calling `fetchRevenueCatProjectEntitlements` and
+ * `fetchRevenueCatProjectProducts` once per project-sync and passing the maps
+ * through to every per-user invocation.
+ */
+export interface RevenueCatLookupMaps {
+  entitlementKeyById?: Map<string, string>;
+  productSkuById?: Map<string, string>;
+}
+
+/**
  * Map a V2 active-entitlements response (and, optionally, a subscriptions
  * response + non-subscriptions response) to the user-property set we store.
  * Output keys are stable across webhook/sync so downstream consumers
@@ -519,11 +669,18 @@ function computeWillRenew(sub: RevenueCatV2Subscription): boolean {
  * non-subs but an active entitlement, the entitlement was granted by RC
  * dashboard / admin tooling and `rc_period_type` is left unset rather than
  * mislabeled as "promotional" or "lifetime".
+ *
+ * Pass `lookups` to translate opaque RC IDs into human-readable identifiers
+ * (see `RevenueCatLookupMaps`). Without them, `rc_entitlements` and
+ * `rc_product` fall back to raw IDs — better than the pre-2026-05-19
+ * behaviour of emitting empty strings, but the dashboard will show opaque
+ * `entl…` / `prod…` strings until the maps are supplied.
  */
 export function mapSubscriberToProperties(
   response: RevenueCatV2ActiveEntitlementsResponse,
   subscriptions?: RevenueCatV2SubscriptionsResponse,
   nonSubscriptions?: RevenueCatV2NonSubscriptionsResponse,
+  lookups?: RevenueCatLookupMaps,
 ): Record<string, string> {
   const props: Record<string, string> = {};
   const items = response.items ?? [];
@@ -532,16 +689,31 @@ export function mapSubscriberToProperties(
   const hasNonSub = (nonSubscriptions?.items?.length ?? 0) > 0;
 
   if (items.length > 0) {
-    props.rc_entitlements = items.map((e) => e.lookup_key).filter(Boolean).join(",");
-    const firstProduct = items.find((e) => e.product_identifier)?.product_identifier;
-    if (firstProduct) props.rc_product = firstProduct;
+    const entitlementKeyById = lookups?.entitlementKeyById;
+    const labels = items
+      .map((e) => entitlementKeyById?.get(e.entitlement_id) ?? e.entitlement_id)
+      .filter((label): label is string => Boolean(label));
+    if (labels.length > 0) {
+      props.rc_entitlements = labels.join(",");
+    }
   }
 
   let willRenew = true;
   let rcStatus: string = hasActive ? "active" : "expired";
 
+  // Resolve `rc_product` from the primary subscription's product_id (or first
+  // non-sub for lifetime IAPs), translated to a store-side SKU via the lookup
+  // map. Falls back to the raw opaque RC product_id if the map is missing or
+  // doesn't cover this product.
+  const primarySub = subscriptions ? pickPrimarySubscription(subscriptions.items ?? []) : undefined;
+  const rawProductId =
+    primarySub?.product_id ?? (hasNonSub ? nonSubscriptions?.items?.[0]?.product_id : undefined);
+  if (rawProductId) {
+    props.rc_product = lookups?.productSkuById?.get(rawProductId) ?? rawProductId;
+  }
+
   if (subscriptions) {
-    const primary = pickPrimarySubscription(subscriptions.items ?? []);
+    const primary = primarySub;
     if (primary) {
       willRenew = computeWillRenew(primary);
       rcStatus = normalizeSubscriptionStatus(primary.status);

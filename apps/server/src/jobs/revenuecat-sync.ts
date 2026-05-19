@@ -5,7 +5,10 @@ import {
   type RevenueCatConfig,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
-import { syncRevenueCatUserProperties } from "../utils/revenuecat-user-sync.js";
+import {
+  fetchRevenueCatLookupMaps,
+  syncRevenueCatUserProperties,
+} from "../utils/revenuecat-user-sync.js";
 
 const MAX_USER_IDS = 10;
 
@@ -132,6 +135,18 @@ async function syncProject(
   }
   const rcProjectId = projectIdResult.projectId;
 
+  // Fetch project-scoped entitlement + product definitions once, build the
+  // `entitlement_id → lookup_key` and `product_id → store_identifier` maps,
+  // and pass them to every per-user sync. The per-customer `/active_entitlements`
+  // endpoint returns only opaque IDs — without these maps `rc_entitlements`
+  // would be `""` (legacy bug) and `rc_product` would carry an opaque
+  // `prod…` instead of the App Store SKU webhook events use.
+  const lookups = await fetchRevenueCatLookupMaps({
+    apiKey: rcConfig.api_key,
+    rcProjectId,
+    log: ctx.log,
+  });
+
   const total = users.length;
   let synced = 0;
   let notFound = 0;
@@ -204,6 +219,7 @@ async function syncProject(
         config: rcConfig,
         userId: user.user_id,
         currentProps: (user.properties ?? {}) as Record<string, unknown>,
+        lookups,
       });
 
       if (result.status === "synced") {

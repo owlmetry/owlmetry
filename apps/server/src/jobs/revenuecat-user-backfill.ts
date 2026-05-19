@@ -7,7 +7,10 @@ import {
   fetchRevenueCatCustomers,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
-import { syncRevenueCatUserProperties } from "../utils/revenuecat-user-sync.js";
+import {
+  fetchRevenueCatLookupMaps,
+  syncRevenueCatUserProperties,
+} from "../utils/revenuecat-user-sync.js";
 import { findActiveIntegration } from "../utils/integrations.js";
 
 const PER_USER_DELAY_MS = 400;
@@ -71,6 +74,15 @@ export const revenuecatUserBackfillHandler: JobHandler = async (ctx, params) => 
     } satisfies BackfillResult;
   }
   const rcProjectId = projectIdResult.projectId;
+
+  // Build the project's entitlement_id → lookup_key + product_id →
+  // store_identifier maps once so `mapSubscriberToProperties` can translate
+  // the opaque IDs returned by per-customer V2 endpoints.
+  const lookups = await fetchRevenueCatLookupMaps({
+    apiKey: rcConfig.api_key,
+    rcProjectId,
+    log: ctx.log,
+  });
 
   let totalListed = 0;
   let skippedAnonymous = 0;
@@ -242,6 +254,7 @@ export const revenuecatUserBackfillHandler: JobHandler = async (ctx, params) => 
           config: rcConfig,
           userId: customer.id,
           currentProps: (existing?.properties ?? {}) as Record<string, unknown>,
+          lookups,
         });
 
         if (result.status === "error" && result.statusCode === 429) {

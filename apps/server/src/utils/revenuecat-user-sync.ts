@@ -6,12 +6,15 @@ import { mergeUserProperties, selectUnsetProps } from "./user-properties.js";
 import { mapRevenueCatAttributesToAttributionProperties } from "./attribution/revenuecat.js";
 import {
   type RevenueCatConfig,
+  type RevenueCatLookupMaps,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
   fetchRevenueCatSubscriptions,
   fetchRevenueCatNonSubscriptions,
   fetchRevenueCatCustomerAttributes,
   fetchRevenueCatProjectId,
+  fetchRevenueCatProjectEntitlements,
+  fetchRevenueCatProjectProducts,
   sumLifetimeRevenueUsd,
   sumLifetimeRevenueUsdFromNonSubs,
 } from "./revenuecat.js";
@@ -49,8 +52,9 @@ export async function syncRevenueCatUserProperties(args: {
   config: RevenueCatConfig;
   userId: string;
   currentProps?: Record<string, unknown>;
+  lookups?: RevenueCatLookupMaps;
 }): Promise<SyncRevenueCatUserResult> {
-  const { db, log, projectId, rcProjectId, config, userId } = args;
+  const { db, log, projectId, rcProjectId, config, userId, lookups } = args;
 
   const subscriberResult = await fetchRevenueCatSubscriber(config.api_key, rcProjectId, userId);
   if (subscriberResult.status === "not_found") return { status: "not_found" };
@@ -136,7 +140,7 @@ export async function syncRevenueCatUserProperties(args: {
   const revenueUsd =
     subRevenue === null && nonSubRevenue === null ? null : (subRevenue ?? 0) + (nonSubRevenue ?? 0);
   const revenueUsdCents = revenueUsd === null ? null : Math.round(revenueUsd * 100);
-  const subscriberProps = mapSubscriberToProperties(subscriberResult.data, subsData, nonSubsData);
+  const subscriberProps = mapSubscriberToProperties(subscriberResult.data, subsData, nonSubsData, lookups);
   const properties = { ...subscriberProps, ...attributionProps };
   if (revenueUsd !== null) {
     properties.rc_total_revenue_usd = revenueUsd.toFixed(2);
@@ -164,6 +168,51 @@ interface BackgroundResyncLog {
   info(obj: Record<string, unknown>, msg: string): void;
   warn(obj: Record<string, unknown>, msg: string): void;
   error(obj: Record<string, unknown>, msg: string): void;
+}
+
+/**
+ * Fetch the project's entitlement + product definitions in parallel and build
+ * the lookup maps used by `mapSubscriberToProperties`. List-fetch failures
+ * degrade gracefully — the corresponding map is left empty, so the affected
+ * `rc_entitlements` / `rc_product` values fall back to raw RC IDs rather than
+ * aborting the entire sync.
+ */
+export async function fetchRevenueCatLookupMaps(args: {
+  apiKey: string;
+  rcProjectId: string;
+  log: SyncLog;
+}): Promise<RevenueCatLookupMaps> {
+  const { apiKey, rcProjectId, log } = args;
+  const [entitlementsResult, productsResult] = await Promise.all([
+    fetchRevenueCatProjectEntitlements(apiKey, rcProjectId),
+    fetchRevenueCatProjectProducts(apiKey, rcProjectId),
+  ]);
+
+  const entitlementKeyById = new Map<string, string>();
+  if (entitlementsResult.status === "found") {
+    for (const e of entitlementsResult.items) {
+      if (e.lookup_key) entitlementKeyById.set(e.id, e.lookup_key);
+    }
+  } else {
+    log.warn(
+      { rcProjectId, statusCode: entitlementsResult.statusCode, message: entitlementsResult.message },
+      "RC project entitlements fetch failed (continuing with raw entitlement IDs)",
+    );
+  }
+
+  const productSkuById = new Map<string, string>();
+  if (productsResult.status === "found") {
+    for (const p of productsResult.items) {
+      if (p.store_identifier) productSkuById.set(p.id, p.store_identifier);
+    }
+  } else {
+    log.warn(
+      { rcProjectId, statusCode: productsResult.statusCode, message: productsResult.message },
+      "RC project products fetch failed (continuing with raw product IDs)",
+    );
+  }
+
+  return { entitlementKeyById, productSkuById };
 }
 
 /**
@@ -195,6 +244,14 @@ export function resyncRevenueCatUsersInBackground(args: {
         );
         return;
       }
+      // Build the entitlement_id → lookup_key + product_id → store_identifier
+      // maps once before fan-out so each per-user sync gets the same
+      // translation table without re-fetching.
+      const lookups = await fetchRevenueCatLookupMaps({
+        apiKey: config.api_key,
+        rcProjectId: projectIdResult.projectId,
+        log,
+      });
       await Promise.all(
         userIds.map(async (userId) => {
           try {
@@ -205,6 +262,7 @@ export function resyncRevenueCatUsersInBackground(args: {
               rcProjectId: projectIdResult.projectId,
               config,
               userId,
+              lookups,
             });
             if (result.status === "not_found") {
               log.info(
