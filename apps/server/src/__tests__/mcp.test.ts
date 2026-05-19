@@ -22,6 +22,108 @@ const MCP_HEADERS = {
   accept: "application/json, text/event-stream",
 };
 
+/**
+ * Exhaustive list of every MCP tool, grouped by the source file under
+ * `apps/server/src/mcp/tools/` that registers it. Each domain key MUST
+ * match its `register*Tools` function 1:1. Adding/removing/renaming a
+ * tool requires updating this map — the "tool listing" test below uses
+ * sorted set equality, so the test fails until this list catches up.
+ *
+ * This is by design: keeping the list in sync forces every new MCP tool
+ * to surface in code review, which is also the right moment to update
+ * SERVER_INSTRUCTIONS, skill descriptions, and the MCP guide. See
+ * "Wire up agent-discovery surfaces when adding features" in ./CLAUDE.md.
+ */
+const EXPECTED_TOOLS_BY_DOMAIN = {
+  auth: ["whoami", "create-import-key"],
+  projects: ["list-projects", "get-project", "create-project", "update-project"],
+  apps: ["list-apps", "get-app", "create-app", "update-app", "list-app-users"],
+  events: ["query-events", "get-event", "investigate-event"],
+  metrics: [
+    "list-metrics",
+    "get-metric",
+    "create-metric",
+    "update-metric",
+    "delete-metric",
+    "query-metric",
+    "list-metric-events",
+  ],
+  funnels: [
+    "list-funnels",
+    "get-funnel",
+    "create-funnel",
+    "update-funnel",
+    "delete-funnel",
+    "query-funnel",
+  ],
+  integrations: [
+    "list-providers",
+    "list-integrations",
+    "add-integration",
+    "get-revenuecat-webhook-setup",
+    "update-integration",
+    "copy-integration",
+    "remove-integration",
+    "sync-integration",
+  ],
+  jobs: ["list-jobs", "get-job", "trigger-job", "cancel-job"],
+  auditLogs: ["list-audit-logs"],
+  issues: [
+    "list-issues",
+    "get-issue",
+    "resolve-issue",
+    "silence-issue",
+    "snooze-issue",
+    "reopen-issue",
+    "claim-issue",
+    "merge-issues",
+    "list-issue-comments",
+    "add-issue-comment",
+  ],
+  feedback: ["list-feedback", "get-feedback", "update-feedback-status", "add-feedback-comment"],
+  questionnaires: [
+    "list-questionnaires",
+    "get-questionnaire",
+    "create-questionnaire",
+    "update-questionnaire",
+    "delete-questionnaire",
+    "list-questionnaire-responses",
+    "get-questionnaire-response",
+    "update-questionnaire-response-status",
+    "add-questionnaire-response-comment",
+    "get-questionnaire-analytics",
+  ],
+  reviews: ["list-reviews", "get-review", "respond-to-review", "delete-review-response"],
+  ratings: ["list-app-ratings", "list-ratings-by-country", "sync-app-ratings"],
+  ads: ["list-ad-campaigns", "list-ad-groups", "list-ad-leaves", "sync-ads"],
+  attachments: [
+    "list-attachments",
+    "get-attachment",
+    "delete-attachment",
+    "get-project-attachment-usage",
+  ],
+} as const;
+
+const EXPECTED_RESOURCES = ["owlmetry://guide"] as const;
+
+/**
+ * Every feature surface named in `SERVER_INSTRUCTIONS` (apps/server/src/mcp/server.ts).
+ * When you add a domain to that bullet list, add its substring here.
+ * Strings must match verbatim — they're checked with `.toContain(...)`.
+ */
+const EXPECTED_INSTRUCTION_KEYWORDS = [
+  "Projects & apps",
+  "Events & analytics",
+  "Metrics & funnels",
+  "Issues",
+  "Feedback",
+  "Questionnaires",
+  "Reviews & ratings",
+  "Ads insights",
+  "Attachments",
+  "Integrations",
+];
+
 /** Send an MCP JSON-RPC request to /mcp */
 async function mcpRequest(
   agentKey: string,
@@ -124,7 +226,7 @@ describe("MCP endpoint", () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it("accepts agent key and returns valid initialize response", async () => {
+    it("accepts agent key and returns valid initialize response with instructions", async () => {
       const res = await mcpRequest(TEST_AGENT_KEY, "initialize", {
         protocolVersion: "2025-11-25",
         capabilities: {},
@@ -132,6 +234,16 @@ describe("MCP endpoint", () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().result.serverInfo.name).toBe("owlmetry");
+
+      // SERVER_INSTRUCTIONS is surfaced in every MCP client's initialize handshake —
+      // every feature surface in its bullet list must appear here. A missing keyword
+      // means a discoverability regression (Claude Code agents won't see the feature
+      // in the auto-injected banner at the top of every session).
+      const instructions = res.json().result.instructions;
+      expect(instructions, "MCP server is missing SERVER_INSTRUCTIONS").toBeTruthy();
+      for (const keyword of EXPECTED_INSTRUCTION_KEYWORDS) {
+        expect(instructions, `SERVER_INSTRUCTIONS missing "${keyword}"`).toContain(keyword);
+      }
     });
 
     it("returns 405 for GET /mcp without auth (avoids OAuth trigger)", async () => {
@@ -148,26 +260,24 @@ describe("MCP endpoint", () => {
   // ── Tool & Resource listing ───────────────────────────────────────────
 
   describe("tool listing", () => {
-    it("returns all registered tools with schemas", async () => {
-      const res = await callTool(TEST_AGENT_KEY, "whoami"); // any tool call works
-      // Use tools/list to check
+    it("exposes exactly the tools in EXPECTED_TOOLS_BY_DOMAIN (exhaustive — update the map when adding a tool)", async () => {
       const listRes = await mcpRequest(TEST_AGENT_KEY, "tools/list");
       const tools = listRes.json().result.tools;
-      expect(tools.length).toBeGreaterThanOrEqual(37);
 
-      const names = tools.map((t: { name: string }) => t.name);
-      expect(names).toContain("whoami");
-      expect(names).toContain("list-projects");
-      expect(names).toContain("query-events");
-      expect(names).toContain("investigate-event");
-      expect(names).toContain("query-metric");
-      expect(names).toContain("query-funnel");
-      expect(names).toContain("list-audit-logs");
+      const actualNames = (tools as { name: string }[]).map((t) => t.name).sort();
+      const expectedNames = Object.values(EXPECTED_TOOLS_BY_DOMAIN).flat().slice().sort();
 
-      // Each tool has description and inputSchema
+      // Sorted set equality — Vitest's diff on failure lists exactly which
+      // names are missing (forgot to register) or extra (forgot to update
+      // EXPECTED_TOOLS_BY_DOMAIN after removing/renaming).
+      expect(actualNames).toEqual(expectedNames);
+      // Belt-and-braces count check — clearer failure message than a 79-line diff.
+      expect(tools.length).toBe(expectedNames.length);
+
+      // Every tool has a description and inputSchema (no silent stubs).
       for (const tool of tools) {
-        expect(tool.description).toBeTruthy();
-        expect(tool.inputSchema).toBeTruthy();
+        expect(tool.description, `tool ${tool.name} is missing description`).toBeTruthy();
+        expect(tool.inputSchema, `tool ${tool.name} is missing inputSchema`).toBeTruthy();
       }
     });
   });
@@ -177,7 +287,8 @@ describe("MCP endpoint", () => {
       const listRes = await mcpRequest(TEST_AGENT_KEY, "resources/list");
       const resources = listRes.json().result.resources;
       const uris = resources.map((r: { uri: string }) => r.uri).sort();
-      expect(uris).toContain("owlmetry://guide");
+      // Exhaustive — adding a resource means updating EXPECTED_RESOURCES too.
+      expect(uris).toEqual([...EXPECTED_RESOURCES].sort());
 
       const readRes = await mcpRequest(TEST_AGENT_KEY, "resources/read", {
         uri: "owlmetry://guide",
