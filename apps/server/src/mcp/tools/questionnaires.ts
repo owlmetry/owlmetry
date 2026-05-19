@@ -20,12 +20,13 @@ export function registerQuestionnaireTools(
 ): void {
   server.registerTool("list-questionnaires", {
     description:
-      "List structured questionnaire definitions. Questionnaires are multi-question surveys (text, single/multi choice, rating, NPS) shown in-app via the Swift SDK's view modifier — complementary to single-message feedback. Each row carries response_count + last_response_at + project_id. Pass `project_id` for a single project, or `team_id` for every questionnaire across every accessible project in the team (mutually exclusive).",
+      "List structured questionnaire definitions. Questionnaires are multi-question surveys (text, single/multi choice, rating, NPS) shown in-app via the Swift SDK's view modifier — complementary to single-message feedback. Each row carries response_count + last_response_at + project_id. Pass `project_id` for a single project, or `team_id` for every questionnaire across every accessible project in the team (mutually exclusive). `data_mode` filters the response_count + submitted_count + last_response_at rollup by production / development / all.",
     inputSchema: {
       project_id: z.string().uuid().optional().describe("The project ID (mutually exclusive with team_id)"),
       team_id: z.string().uuid().optional().describe("The team ID — lists across all accessible projects (mutually exclusive with project_id)"),
       app_id: z.string().uuid().optional().describe("Filter by app (only with project_id)"),
       is_active: z.boolean().optional().describe("Filter by active flag"),
+      data_mode: z.enum(["production", "development", "all"]).optional().describe("Filter response_count + last_response_at by data mode (default: all)"),
       cursor: z.string().optional().describe("Pagination cursor (only with project_id)"),
       limit: z.number().optional().describe("Max results (default 50 for project; up to 500 for team)"),
     },
@@ -53,15 +54,16 @@ export function registerQuestionnaireTools(
 
   server.registerTool("get-questionnaire", {
     description:
-      "Get a questionnaire definition with its schema (the list of questions) and rolled-up response_count + last_response_at.",
+      "Get a questionnaire definition with its schema (the list of questions) and rolled-up response_count + submitted_count + last_response_at. `data_mode` filters the rollup by production / development / all.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       questionnaire_id: z.string().uuid().describe("The questionnaire ID"),
+      data_mode: z.enum(["production", "development", "all"]).optional().describe("Filter response counts by data mode (default: all)"),
     },
-  }, async ({ project_id, questionnaire_id }) => {
+  }, async ({ project_id, questionnaire_id, ...params }) => {
     return callApi(app, agentKey, {
       method: "GET",
-      url: `/v1/projects/${project_id}/questionnaires/${questionnaire_id}`,
+      url: `/v1/projects/${project_id}/questionnaires/${questionnaire_id}${buildQuery(params)}`,
     });
   });
 
