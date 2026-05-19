@@ -204,6 +204,76 @@ describe("Metric Definitions CRUD", () => {
     expect(listRes.json().metrics).toHaveLength(0);
   });
 
+  it("lists every metric across every accessible project via /v1/metrics?team_id=…", async () => {
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Apple Metric", slug: "apple-metric" },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${androidProjectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Android Metric", slug: "android-metric" },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${backendProjectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Backend Metric", slug: "backend-metric" },
+    });
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metrics?team_id=${teamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const slugs = res.json().metrics.map((m: { slug: string }) => m.slug).sort();
+    expect(slugs).toEqual(["android-metric", "apple-metric", "backend-metric"]);
+  });
+
+  it("rejects /v1/metrics?team_id=… for a team the caller can't see", async () => {
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/metrics?team_id=00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().metrics).toEqual([]);
+  });
+
+  it("returns per-(project, slug) stats from /v1/metric-stats?team_id=…", async () => {
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${projectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Shared Slug", slug: "checkout" },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/projects/${androidProjectId}/metrics`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { name: "Shared Slug", slug: "checkout" },
+    });
+
+    const agentKey = await createAgentKey(app, token, teamId, ["metrics:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/metric-stats?team_id=${teamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const stats = res.json().stats as Array<{ project_id: string; slug: string }>;
+    const projectIds = stats.filter((s) => s.slug === "checkout").map((s) => s.project_id).sort();
+    expect(projectIds).toEqual([projectId, androidProjectId].sort());
+  });
+
   it("resurrects a soft-deleted metric when creating with the same slug", async () => {
     // Create and then delete
     const createRes = await app.inject({

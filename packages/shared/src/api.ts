@@ -595,6 +595,15 @@ export type MetricDefinitionResponse = Omit<MetricDefinition, "created_at" | "up
   updated_at: string;
 };
 
+/**
+ * Team-scoped list response for `GET /v1/metrics?team_id=…`. Re-uses
+ * `MetricDefinitionResponse`; `project_id` is already on every row so the
+ * dashboard can bucket by project without a new wire type.
+ */
+export interface TeamMetricListResponse {
+  metrics: MetricDefinitionResponse[];
+}
+
 export interface MetricQueryParams {
   since?: string;
   until?: string;
@@ -653,6 +662,19 @@ export interface MetricStatsParams {
 
 export interface MetricStatsResponse {
   stats: MetricStatsEntry[];
+}
+
+/**
+ * Team-scoped stats entry — adds `project_id` because slugs are only unique
+ * *within* a project. The dashboard keys its stats map on `${project_id}:${slug}`
+ * in all-projects mode to avoid cross-project slug collisions.
+ */
+export interface TeamMetricStatsEntry extends MetricStatsEntry {
+  project_id: string;
+}
+
+export interface TeamMetricStatsResponse {
+  stats: TeamMetricStatsEntry[];
 }
 
 export type StoredMetricEventResponse = Omit<StoredMetricEvent, "timestamp" | "received_at"> & {

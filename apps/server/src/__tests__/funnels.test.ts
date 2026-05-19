@@ -136,6 +136,42 @@ describe("Funnel Definitions CRUD", () => {
     expect(res.json().funnels).toHaveLength(2);
   });
 
+  it("lists every funnel across every accessible project via /v1/funnels?team_id=…", async () => {
+    await createFunnel({ name: "Apple Funnel", slug: "apple-funnel", steps: ONBOARDING_STEPS });
+    await createFunnel(
+      { name: "Android Funnel", slug: "android-funnel", steps: ONBOARDING_STEPS },
+      token,
+      androidProjectId,
+    );
+    await createFunnel(
+      { name: "Backend Funnel", slug: "backend-funnel", steps: ONBOARDING_STEPS },
+      token,
+      backendProjectId,
+    );
+
+    const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels?team_id=${teamId}`,
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const slugs = res.json().funnels.map((f: { slug: string }) => f.slug).sort();
+    expect(slugs).toEqual(["android-funnel", "apple-funnel", "backend-funnel"]);
+  });
+
+  it("rejects /v1/funnels?team_id=… for a team the caller can't see", async () => {
+    const agentKey = await createAgentKey(app, token, teamId, ["funnels:read"]);
+    const res = await app.inject({
+      method: "GET",
+      url: "/v1/funnels?team_id=00000000-0000-0000-0000-000000000000",
+      headers: { authorization: `Bearer ${agentKey}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().funnels).toEqual([]);
+  });
+
   it("gets a single funnel by slug", async () => {
     await createFunnel({ name: "Test", slug: "test-funnel", steps: ONBOARDING_STEPS });
 

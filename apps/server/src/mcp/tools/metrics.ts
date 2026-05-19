@@ -9,11 +9,25 @@ const METRIC_PHASES = ["start", "complete", "fail", "cancel", "record"] as const
 
 export function registerMetricsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-metrics", {
-    description: "List all metric definitions for a project.",
+    description:
+      "List metric definitions. Pass `project_id` for a single project, or `team_id` for every metric across every accessible project in the team (mutually exclusive). Each row carries `project_id` so you can tell which project owns it.",
     inputSchema: {
-      project_id: z.string().uuid().describe("The project ID"),
+      project_id: z.string().uuid().optional().describe("The project ID (mutually exclusive with team_id)"),
+      team_id: z.string().uuid().optional().describe("The team ID — lists across all accessible projects (mutually exclusive with project_id)"),
     },
-  }, async ({ project_id }) => {
+  }, async ({ project_id, team_id }) => {
+    if (!project_id && !team_id) {
+      return { content: [{ type: "text", text: "Error: one of project_id or team_id is required" }], isError: true };
+    }
+    if (project_id && team_id) {
+      return { content: [{ type: "text", text: "Error: project_id and team_id are mutually exclusive" }], isError: true };
+    }
+    if (team_id) {
+      return callApi(app, agentKey, {
+        method: "GET",
+        url: `/v1/metrics${buildQuery({ team_id })}`,
+      });
+    }
     return callApi(app, agentKey, { method: "GET", url: `/v1/projects/${project_id}/metrics` });
   });
 

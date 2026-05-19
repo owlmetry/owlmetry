@@ -12,11 +12,26 @@ import type {
   MetricStatsParams,
   MetricStatsResponse,
   MetricStatsEntry,
+  TeamMetricListResponse,
+  TeamMetricStatsResponse,
+  TeamMetricStatsEntry,
 } from "@owlmetry/shared";
 
 export function useMetricDefinitions(projectId: string | undefined) {
   const key = projectId ? `/v1/projects/${projectId}/metrics` : null;
   const { data, isLoading, error, mutate } = useSWR<{ metrics: MetricDefinitionResponse[] }>(key);
+
+  return {
+    metrics: data?.metrics ?? [],
+    isLoading,
+    error,
+    mutate,
+  };
+}
+
+export function useTeamMetricDefinitions(teamId: string | undefined) {
+  const key = teamId ? `/v1/metrics?team_id=${teamId}` : null;
+  const { data, isLoading, error, mutate } = useSWR<TeamMetricListResponse>(key);
 
   return {
     metrics: data?.metrics ?? [],
@@ -68,6 +83,39 @@ export function useMetricStats(
   return {
     stats: data?.stats ?? [],
     statsBySlug,
+    isLoading,
+    error,
+  };
+}
+
+export function useTeamMetricStats(
+  teamId: string | undefined,
+  params: Partial<MetricStatsParams> = {},
+) {
+  const teamParams: Record<string, string> = teamId ? { team_id: teamId } : {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) teamParams[k] = String(v);
+  }
+  const qs = teamId ? buildQueryString(teamParams) : null;
+  const key = teamId && qs !== null ? `/v1/metric-stats${qs ? `?${qs}` : ""}` : null;
+
+  const { data, isLoading, error } = useSWR<TeamMetricStatsResponse>(key, {
+    refreshInterval: 30_000,
+  });
+
+  // Slugs are only unique within a project, so the key needs project_id too —
+  // otherwise two projects' metrics with the same slug would collide.
+  const statsByProjectSlug = useMemo(() => {
+    const map = new Map<string, TeamMetricStatsEntry>();
+    for (const entry of data?.stats ?? []) {
+      map.set(`${entry.project_id}:${entry.slug}`, entry);
+    }
+    return map;
+  }, [data]);
+
+  return {
+    stats: data?.stats ?? [],
+    statsByProjectSlug,
     isLoading,
     error,
   };

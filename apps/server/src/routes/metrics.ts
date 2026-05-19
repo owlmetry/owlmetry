@@ -717,3 +717,132 @@ export async function metricByIdRoutes(app: FastifyInstance) {
     },
   );
 }
+
+/** Team-scoped routes — list every metric definition (and per-slug stats)
+ *  across all projects the caller can see. Powers the `/dashboard/metrics`
+ *  "All projects" view; mirrors `teamQuestionnaireRoutes` and `teamFunnelsRoutes`.
+ *  Registered at the bare `/v1` prefix (no `:projectId`). */
+export async function teamMetricsRoutes(app: FastifyInstance) {
+  // GET /v1/metrics?team_id=… — list every metric definition across
+  // accessible projects in the team. No pagination cursor; the definitions
+  // table is low-volume and the project-scoped endpoint handles paging.
+  app.get<{ Querystring: { team_id?: string } }>(
+    "/metrics",
+    { preHandler: requirePermission("metrics:read") },
+    async (request) => {
+      const allTeamIds = getAuthTeamIds(request.auth);
+      const { team_id } = request.query;
+
+      const teamIds = team_id
+        ? allTeamIds.includes(team_id)
+          ? [team_id]
+          : []
+        : allTeamIds;
+
+      if (teamIds.length === 0) return { metrics: [] };
+
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
+      if (accessibleProjects.length === 0) return { metrics: [] };
+
+      const projectIds = accessibleProjects.map((p) => p.id);
+      const rows = await app.db
+        .select()
+        .from(metricDefinitions)
+        .where(
+          and(
+            inArray(metricDefinitions.project_id, projectIds),
+            isNull(metricDefinitions.deleted_at),
+          ),
+        )
+        .orderBy(desc(metricDefinitions.created_at), desc(metricDefinitions.id));
+
+      return { metrics: rows.map(serializeMetricDefinition) };
+    },
+  );
+
+  // GET /v1/metric-stats?team_id=… — per-slug stats across every accessible
+  // app in the team. GROUP BY (project_id, slug) because the same slug can
+  // exist in multiple projects; the frontend maps by `${project_id}:${slug}`.
+  app.get<{ Querystring: MetricStatsParams & { team_id?: string } }>(
+    "/metric-stats",
+    { preHandler: requirePermission("metrics:read") },
+    async (request) => {
+      const allTeamIds = getAuthTeamIds(request.auth);
+      const { team_id, since, until, data_mode } = request.query;
+
+      const teamIds = team_id
+        ? allTeamIds.includes(team_id)
+          ? [team_id]
+          : []
+        : allTeamIds;
+
+      if (teamIds.length === 0) return { stats: [] };
+
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
+      if (accessibleProjects.length === 0) return { stats: [] };
+      const projectIds = accessibleProjects.map((p) => p.id);
+
+      const teamApps = await app.db
+        .select({ id: apps.id })
+        .from(apps)
+        .where(and(inArray(apps.project_id, projectIds), isNull(apps.deleted_at)));
+      const appIds = teamApps.map((a) => a.id);
+
+      const sinceDate = since
+        ? parseTimeParam(since)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const untilDate = until ? parseTimeParam(until) : null;
+      const devCondition = dataModeToDrizzle(metricEvents.is_dev, data_mode);
+
+      const joinConditions = [
+        eq(metricEvents.metric_slug, metricDefinitions.slug),
+        gte(metricEvents.timestamp, sinceDate),
+      ];
+      if (appIds.length > 0) {
+        joinConditions.push(inArray(metricEvents.app_id, appIds));
+      } else {
+        joinConditions.push(sql`false`);
+      }
+      if (untilDate) joinConditions.push(lte(metricEvents.timestamp, untilDate));
+      if (devCondition) joinConditions.push(devCondition);
+
+      const rows = await app.db
+        .select({
+          project_id: metricDefinitions.project_id,
+          slug: metricDefinitions.slug,
+          complete_count: sql<number>`COUNT(${metricEvents.id}) FILTER (WHERE ${metricEvents.phase} = 'complete')::int`,
+          fail_count: sql<number>`COUNT(${metricEvents.id}) FILTER (WHERE ${metricEvents.phase} = 'fail')::int`,
+        })
+        .from(metricDefinitions)
+        .leftJoin(metricEvents, and(...joinConditions))
+        .where(
+          and(
+            inArray(metricDefinitions.project_id, projectIds),
+            isNull(metricDefinitions.deleted_at),
+          ),
+        )
+        .groupBy(metricDefinitions.project_id, metricDefinitions.slug);
+
+      const stats = rows.map((r) => {
+        const denom = r.complete_count + r.fail_count;
+        const successRate =
+          denom > 0 ? Math.round((r.complete_count / denom) * 10000) / 100 : null;
+        return {
+          project_id: r.project_id,
+          slug: r.slug,
+          complete_count: r.complete_count,
+          fail_count: r.fail_count,
+          success_rate: successRate,
+        };
+      });
+
+      return { stats };
+    },
+  );
+}

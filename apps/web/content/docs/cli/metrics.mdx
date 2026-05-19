@@ -11,13 +11,15 @@ import Concept from '../../_snippets/metrics.mdx';
 
 ```bash
 owlmetry metrics list --project-id <id>
+owlmetry metrics list --team-id <id>
 ```
 
-Lists all metric definitions for a project.
+Lists metric definitions for a single project, or every metric across every accessible project in a team. `--project-id` and `--team-id` are mutually exclusive; one is required. The team-scoped variant prepends a `Project` column to the table output so you can tell which project owns each metric.
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--project-id <id>` | Yes | Project UUID |
+| `--project-id <id>` | One of | Project UUID — single-project view |
+| `--team-id <id>` | One of | Team UUID — lists across every accessible project (mutually exclusive with `--project-id`) |
 
 ## View a metric
 

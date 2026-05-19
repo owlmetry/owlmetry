@@ -270,7 +270,7 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 - \`investigate-event\` — **The standard tool for investigating an issue's occurrences.** Given an \`event_id\` (typically from a \`get-issue\` occurrence), pulls the full session (or ±window_minutes if no session_id), then enriches with cross-app events for the same user in the same project. Returns a single chronological \`events\` array with \`target_event_id\`. Run across **multiple** occurrences of the same issue to surface common patterns. Supports \`compact: true\`.
 
 ### Metrics
-- \`list-metrics\` — List definitions for a project
+- \`list-metrics\` — List definitions. \`project_id\` for one project; \`team_id\` lists every metric across all accessible projects (mutually exclusive)
 - \`get-metric\` — Get definition by slug
 - \`create-metric\` — Create definition (needs \`metrics:write\`): \`project_id\`, \`name\`, \`slug\`
 - \`update-metric\` — Update definition (needs \`metrics:write\`)
@@ -279,7 +279,7 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 - \`list-metric-events\` — Raw metric events with phase/tracking_id filters
 
 ### Funnels
-- \`list-funnels\` — List definitions for a project
+- \`list-funnels\` — List definitions. \`project_id\` for one project; \`team_id\` lists every funnel across all accessible projects (mutually exclusive)
 - \`get-funnel\` — Get definition by slug with steps
 - \`create-funnel\` — Create with ordered steps (needs \`funnels:write\`): \`project_id\`, \`name\`, \`slug\`, \`steps\`
 - \`update-funnel\` — Update name, description, or steps (needs \`funnels:write\`)

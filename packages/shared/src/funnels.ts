@@ -55,6 +55,15 @@ export type FunnelDefinitionResponse = Omit<FunnelDefinition, "created_at" | "up
   updated_at: string;
 };
 
+/**
+ * Team-scoped list response for `GET /v1/funnels?team_id=…`. Re-uses
+ * `FunnelDefinitionResponse`; `project_id` is already on every row so the
+ * dashboard can bucket by project without a new wire type.
+ */
+export interface TeamFunnelListResponse {
+  funnels: FunnelDefinitionResponse[];
+}
+
 // ── Step Message Helpers ──────────────────────────────────────────────
 
 export const STEP_MESSAGE_PREFIX = "step:";

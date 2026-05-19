@@ -9,11 +9,12 @@ import Concept from '../../_snippets/metrics.mdx';
 
 ## list-metrics
 
-List all metric definitions for a project.
+List metric definitions. Pass `project_id` for a single project, or `team_id` to list every metric across every accessible project in the team (mutually exclusive). Each row carries `project_id` so you can tell which project owns it.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `project_id` | UUID | Yes | The project ID |
+| `project_id` | UUID | One of | The project ID — single-project view |
+| `team_id` | UUID | One of | The team ID — lists across all accessible projects (mutually exclusive with `project_id`) |
 
 ## get-metric
 

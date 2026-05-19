@@ -6,11 +6,24 @@ import type {
   FunnelDefinitionResponse,
   FunnelQueryResponse,
   FunnelQueryParams,
+  TeamFunnelListResponse,
 } from "@owlmetry/shared";
 
 export function useFunnels(projectId: string | null) {
   const key = projectId ? `/v1/projects/${projectId}/funnels` : null;
   const { data, isLoading, error, mutate } = useSWR<{ funnels: FunnelDefinitionResponse[] }>(key);
+
+  return {
+    funnels: data?.funnels ?? [],
+    isLoading,
+    error,
+    mutate,
+  };
+}
+
+export function useTeamFunnels(teamId: string | undefined) {
+  const key = teamId ? `/v1/funnels?team_id=${teamId}` : null;
+  const { data, isLoading, error, mutate } = useSWR<TeamFunnelListResponse>(key);
 
   return {
     funnels: data?.funnels ?? [],

@@ -569,6 +569,47 @@ export async function funnelByIdRoutes(app: FastifyInstance) {
   );
 }
 
+/** Team-scoped routes — list every funnel definition across all projects the
+ *  caller can see. Powers the `/dashboard/funnels` "All projects" view; mirrors
+ *  `teamMetricsRoutes` and `teamQuestionnaireRoutes`. Registered at `/v1`. */
+export async function teamFunnelsRoutes(app: FastifyInstance) {
+  app.get<{ Querystring: { team_id?: string } }>(
+    "/funnels",
+    { preHandler: requirePermission("funnels:read") },
+    async (request) => {
+      const allTeamIds = getAuthTeamIds(request.auth);
+      const { team_id } = request.query;
+
+      const teamIds = team_id
+        ? allTeamIds.includes(team_id)
+          ? [team_id]
+          : []
+        : allTeamIds;
+
+      if (teamIds.length === 0) return { funnels: [] };
+
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(inArray(projects.team_id, teamIds), isNull(projects.deleted_at)));
+      if (accessibleProjects.length === 0) return { funnels: [] };
+
+      const projectIds = accessibleProjects.map((p) => p.id);
+      const rows = await app.db
+        .select()
+        .from(funnelDefinitions)
+        .where(
+          and(
+            inArray(funnelDefinitions.project_id, projectIds),
+            isNull(funnelDefinitions.deleted_at),
+          ),
+        );
+
+      return { funnels: rows.map(serializeFunnelDefinition) };
+    },
+  );
+}
+
 interface FunnelQueryResult {
   totalUsers: number;
   steps: FunnelStepAnalytics[];
