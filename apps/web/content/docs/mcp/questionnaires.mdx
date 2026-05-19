@@ -13,8 +13,8 @@ The questionnaire tool surface mirrors the CLI — agents can create + edit + tr
 
 | Tool | Description |
 | --- | --- |
-| `list-questionnaires` | List questionnaire definitions — pass `project_id` for one project, or `team_id` for every questionnaire across the team's projects (mutually exclusive) |
-| `get-questionnaire` | Fetch a single definition with response_count + last_response_at |
+| `list-questionnaires` | List questionnaire definitions — pass `project_id` for one project, or `team_id` for every questionnaire across the team's projects (mutually exclusive). Optional `data_mode` (`production`, `development`, `all`) filters the rolled-up `response_count` / `submitted_count` / `last_response_at` on each row; default is all modes mixed |
+| `get-questionnaire` | Fetch a single definition with response_count + last_response_at. Optional `data_mode` (`production`, `development`, `all`) filters those rollups; default is all modes mixed |
 | `create-questionnaire` | Create a new questionnaire with slug + schema |
 | `update-questionnaire` | Update name, description, schema, is_active, app_id pin |
 | `delete-questionnaire` | ⚠️ User-only — agent calls receive 403 |

@@ -77,6 +77,7 @@ owlmetry questionnaires list --team-id <id>
 | `--app-id <id>` | Filter to a specific app (only with `--project-id`) |
 | `--active` | Show only active questionnaires |
 | `--inactive` | Show only paused questionnaires |
+| `--data-mode <m>` | `production`, `development`, `all` — filters the rolled-up `response_count` / `submitted_count` / `last_response_at` on each row. Default: all modes. |
 | `--limit <n>` | Max entries |
 | `--cursor <cursor>` | Pagination cursor (only with `--project-id`; team mode is LIMIT-capped) |
 
@@ -86,7 +87,7 @@ owlmetry questionnaires list --team-id <id>
 owlmetry questionnaires view <questionnaireId> --project-id <id>
 ```
 
-Prints the schema, response count, last-response timestamp.
+Prints the schema, response count, last-response timestamp. Pass `--data-mode <production|development|all>` to filter the rolled-up `response_count` / `submitted_count` / `last_response_at` (default: all modes mixed).
 
 ## Update
 
