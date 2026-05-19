@@ -10,7 +10,7 @@ import {
   useTeamQuestionnaires,
   questionnaireActions,
 } from "@/hooks/use-questionnaires";
-import { useProjectInfoMap } from "@/hooks/use-project-colors";
+import { useProjectColorMap, useProjectInfoMap } from "@/hooks/use-project-colors";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -82,11 +82,7 @@ export default function QuestionnairesPage() {
   );
   const projects = projectsData?.projects ?? [];
   const projectInfoMap = useProjectInfoMap(teamId);
-  const projectColors = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const [id, info] of projectInfoMap) m.set(id, info.color);
-    return m;
-  }, [projectInfoMap]);
+  const projectColors = useProjectColorMap(teamId);
 
   const [projectId, setProjectIdState] = useState<string>(
     searchParams.get("project_id") ?? ALL_PROJECTS,
