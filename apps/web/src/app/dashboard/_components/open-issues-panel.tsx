@@ -13,7 +13,7 @@ import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
 
-const UNRESOLVED: IssueStatus[] = ["new", "in_progress", "regressed"];
+const PANEL_LIMIT = 5;
 
 const STATUS_EMOJI: Record<IssueStatus, string> = {
   new: "🆕",
@@ -29,17 +29,20 @@ export function OpenIssuesPanel() {
   const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
 
-  const { issues, isLoading } = useIssues({
-    team_id: teamId,
-    data_mode: dataMode,
-    limit: "50",
-  });
+  // One fetch per unresolved status — a single unfiltered limit would let
+  // recently-touched resolved/silenced/snoozed issues fill the result before
+  // the client-side filter ran, hiding older unresolved ones.
+  const baseFilters = { team_id: teamId, data_mode: dataMode, limit: String(PANEL_LIMIT) };
+  const newIssues = useIssues({ ...baseFilters, status: "new" });
+  const inProgressIssues = useIssues({ ...baseFilters, status: "in_progress" });
+  const regressedIssues = useIssues({ ...baseFilters, status: "regressed" });
 
   const projectColorMap = useProjectColorMap(teamId);
 
-  const unresolved = issues
-    .filter((i) => UNRESOLVED.includes(i.status))
-    .slice(0, 5);
+  const isLoading = newIssues.isLoading || inProgressIssues.isLoading || regressedIssues.isLoading;
+  const unresolved = [...newIssues.issues, ...inProgressIssues.issues, ...regressedIssues.issues]
+    .sort((a, b) => new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime())
+    .slice(0, PANEL_LIMIT);
 
   return (
     <DashboardSection eyebrow="Triage" title="Open Issues" viewAllHref="/dashboard/issues">
