@@ -7,7 +7,7 @@ Identity management: link anonymous events to a known user ID after authenticati
 
 ## POST /v1/identity/claim
 
-Reassign all events, metric events, and funnel events from an anonymous user to a known user ID. Also merges the corresponding user records.
+Reassign every row keyed on an anonymous user — events, metric events, funnel events, issue occurrences, feedback, event attachments, and questionnaire responses — to a known user ID, and merge the corresponding user records.
 
 **Auth required:** Yes (client API key with `events:write` permission)
 
@@ -34,8 +34,9 @@ Reassign all events, metric events, and funnel events from an anonymous user to 
 ### Behavior
 
 1. All `events` rows where `user_id` matches `anonymous_id` across all apps in the project are updated to the new `user_id`.
-2. All `funnel_events` and `metric_events` rows with the same anonymous user_id are also reassigned across all project apps.
-3. The `app_users` mapping is recorded:
+2. The same reassignment runs on every other table that carries the SDK end-user id: `funnel_events`, `metric_events`, `issue_occurrences`, `feedback`, `event_attachments`. Soft-deleted `feedback` and `event_attachments` rows are left untouched.
+3. `questionnaire_responses` rows for the anonymous user migrate to the real `user_id` per slug, but only when the real user has no existing response for that slug — any conflicting anon draft is soft-deleted so the submitted real response wins (enforced by the `(project_id, slug, user_id) WHERE deleted_at IS NULL AND user_id IS NOT NULL` partial unique index).
+4. The `app_users` mapping is recorded:
    - If both an anonymous user record and the identified user record exist, the anonymous record is merged into the identified one (`claimed_from` appends the anonymous ID, `first_seen_at` takes the earlier of the two, junction rows merge) and the anonymous record is deleted.
    - If only the anonymous record exists, it is renamed in place to `user_id`, `is_anonymous` flips to `false`, and `claimed_from` is set to `[anonymous_id]`.
    - If only the identified record exists, `claimed_from` appends the anonymous ID.
