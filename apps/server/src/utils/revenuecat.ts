@@ -440,6 +440,42 @@ export async function fetchRevenueCatNonSubscriptions(
   }
 }
 
+// Page through an RC V2 list endpoint until `next_page` is exhausted.
+// Distinct from `fetchRevenueCatCustomers` which exposes per-page cursors so
+// the backfill job can drive its own loop with cancellation + page-size
+// probing — this helper is for callers that want every item in one go.
+async function fetchAllPaged<TItem>(
+  apiKey: string,
+  buildUrl: (startingAfter: string | null) => string,
+): Promise<{ status: "found"; items: TItem[] } | { status: "error"; statusCode?: number; message?: string }> {
+  const items: TItem[] = [];
+  let startingAfter: string | null = null;
+  try {
+    while (true) {
+      const res = await fetch(buildUrl(startingAfter), {
+        headers: rcHeaders(apiKey),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if (!res.ok) {
+        return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+      }
+      const data = (await res.json()) as { items?: TItem[]; next_page?: string | null };
+      items.push(...(data.items ?? []));
+      startingAfter = parseStartingAfterFromNextPage(data.next_page ?? null);
+      if (!startingAfter) break;
+    }
+    return { status: "found", items };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function buildPagedUrl(rcProjectId: string, path: string, startingAfter: string | null): string {
+  const params = new URLSearchParams({ limit: "100" });
+  if (startingAfter) params.set("starting_after", startingAfter);
+  return `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/${path}?${params.toString()}`;
+}
+
 export type FetchProjectEntitlementsResult =
   | { status: "found"; items: RevenueCatV2Entitlement[] }
   | { status: "error"; statusCode?: number; message?: string };
@@ -454,33 +490,13 @@ export type FetchProjectEntitlementsResult =
  * Pages until RC's `next_page` cursor is exhausted. Most projects have <20
  * entitlements, so usually one request.
  */
-export async function fetchRevenueCatProjectEntitlements(
+export function fetchRevenueCatProjectEntitlements(
   apiKey: string,
   rcProjectId: string,
 ): Promise<FetchProjectEntitlementsResult> {
-  const items: RevenueCatV2Entitlement[] = [];
-  let startingAfter: string | null = null;
-  try {
-    while (true) {
-      const params = new URLSearchParams({ limit: "100" });
-      if (startingAfter) params.set("starting_after", startingAfter);
-      const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/entitlements?${params.toString()}`;
-      const res = await fetch(url, {
-        headers: rcHeaders(apiKey),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
-      }
-      const data = (await res.json()) as RevenueCatV2EntitlementsResponse;
-      items.push(...(data.items ?? []));
-      startingAfter = parseStartingAfterFromNextPage(data.next_page);
-      if (!startingAfter) break;
-    }
-    return { status: "found", items };
-  } catch (err) {
-    return { status: "error", message: err instanceof Error ? err.message : String(err) };
-  }
+  return fetchAllPaged<RevenueCatV2Entitlement>(apiKey, (sa) =>
+    buildPagedUrl(rcProjectId, "entitlements", sa),
+  );
 }
 
 export type FetchProjectProductsResult =
@@ -494,33 +510,13 @@ export type FetchProjectProductsResult =
  * `rc_product`. Mirrors the webhook handler's behaviour (webhook events
  * already use store-side IDs in `event.product_id`).
  */
-export async function fetchRevenueCatProjectProducts(
+export function fetchRevenueCatProjectProducts(
   apiKey: string,
   rcProjectId: string,
 ): Promise<FetchProjectProductsResult> {
-  const items: RevenueCatV2Product[] = [];
-  let startingAfter: string | null = null;
-  try {
-    while (true) {
-      const params = new URLSearchParams({ limit: "100" });
-      if (startingAfter) params.set("starting_after", startingAfter);
-      const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/products?${params.toString()}`;
-      const res = await fetch(url, {
-        headers: rcHeaders(apiKey),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
-      }
-      const data = (await res.json()) as RevenueCatV2ProductsResponse;
-      items.push(...(data.items ?? []));
-      startingAfter = parseStartingAfterFromNextPage(data.next_page);
-      if (!startingAfter) break;
-    }
-    return { status: "found", items };
-  } catch (err) {
-    return { status: "error", message: err instanceof Error ? err.message : String(err) };
-  }
+  return fetchAllPaged<RevenueCatV2Product>(apiKey, (sa) =>
+    buildPagedUrl(rcProjectId, "products", sa),
+  );
 }
 
 export type FetchCustomerAttributesResult =
@@ -713,15 +709,14 @@ export function mapSubscriberToProperties(
   }
 
   if (subscriptions) {
-    const primary = primarySub;
-    if (primary) {
-      willRenew = computeWillRenew(primary);
-      rcStatus = normalizeSubscriptionStatus(primary.status);
-      const periodType = derivePeriodType(primary);
+    if (primarySub) {
+      willRenew = computeWillRenew(primarySub);
+      rcStatus = normalizeSubscriptionStatus(primarySub.status);
+      const periodType = derivePeriodType(primarySub);
       if (periodType) props.rc_period_type = periodType;
       const billingPeriod = computeBillingPeriod(
-        primary.current_period_starts_at,
-        primary.current_period_ends_at,
+        primarySub.current_period_starts_at,
+        primarySub.current_period_ends_at,
       );
       if (billingPeriod) props.rc_billing_period = billingPeriod;
     } else if (hasNonSub) {

@@ -12,6 +12,7 @@ import {
   TEST_DB_URL,
   getTokenAndTeamId,
 } from "./setup.js";
+import { clearRevenueCatLookupMapsCache } from "../utils/revenuecat-user-sync.js";
 
 let app: FastifyInstance;
 let projectId: string;
@@ -28,6 +29,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await truncateAll();
+  clearRevenueCatLookupMapsCache();
   const seed = await seedTestData();
   projectId = seed.projectId;
   appId = seed.appId;
@@ -136,14 +138,13 @@ function buildProjectsResponse(projectId: string = TEST_RC_PROJECT_ID) {
 // Builds a /v2/projects/{id}/customers/{id}/active_entitlements response.
 // IMPORTANT: the real RC API returns ONLY `entitlement_id` + `expires_at` per
 // item — `lookup_key` / `display_name` / `product_identifier` are NOT present
-// (verified live 2026-05-19). The `lookup_key` and `product_identifier` args
-// are convenience inputs for test setup; they are intentionally NOT emitted in
-// the response, so this mock matches the real API. Use
-// `buildProjectEntitlementsResponse` for the project-scoped list endpoint
-// that DOES return lookup_keys.
+// (verified live 2026-05-19). `lookup_key` here is a test-setup convenience
+// only, used to derive `entitlement_id` (`ent_${lookup_key}`) so a sibling
+// `buildProjectEntitlementsResponse([{ lookup_key }])` produces matching IDs
+// for the cross-reference map. Not emitted in the response.
 function buildActiveEntitlementsResponse(
-  items: Array<{ lookup_key: string; product_identifier?: string; expires_at?: number | null }> = [
-    { lookup_key: "pro", product_identifier: "premium_monthly", expires_at: Date.now() + 86400000 * 30 },
+  items: Array<{ lookup_key: string; expires_at?: number | null }> = [
+    { lookup_key: "pro", expires_at: Date.now() + 86400000 * 30 },
   ],
 ) {
   return {
@@ -1313,7 +1314,6 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     await createRevenueCatIntegration();
     await ingestEvent("unmapped_product_user");
 
-    const now = Date.now();
     const cleanup = mockRevenueCatV2({
       // Subscription product_id not present in the default products map.
       subscriptionsResponse: buildSubscriptionsResponse([
@@ -1333,7 +1333,6 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       const props = res.json().properties;
       // Raw RC product_id surfaces rather than empty when there's no SKU map.
       expect(props.rc_product).toBe("prod_test");
-      void now;
     } finally {
       cleanup();
     }

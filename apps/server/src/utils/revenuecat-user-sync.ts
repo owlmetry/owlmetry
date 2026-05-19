@@ -170,12 +170,29 @@ interface BackgroundResyncLog {
   error(obj: Record<string, unknown>, msg: string): void;
 }
 
+// Entitlement + product definitions change a few times a year, so caching
+// the lookup maps in-process saves two RC round-trips per webhook resync and
+// per manual single-user sync. 5-minute TTL bounds drift after a lookup_key
+// rename. Mirrors the JWT cache pattern in apns/jwt.ts.
+const LOOKUP_MAPS_CACHE_TTL_MS = 5 * 60 * 1000;
+const lookupMapsCache = new Map<string, { maps: RevenueCatLookupMaps; expiresAt: number }>();
+
+// Exported for tests — between tests, fetch-mock targets change but the
+// cache key (`rcProjectId`) is constant, so without clearing the cache a
+// later test would see an earlier test's lookup maps.
+export function clearRevenueCatLookupMapsCache(): void {
+  lookupMapsCache.clear();
+}
+
 /**
  * Fetch the project's entitlement + product definitions in parallel and build
  * the lookup maps used by `mapSubscriberToProperties`. List-fetch failures
  * degrade gracefully — the corresponding map is left empty, so the affected
  * `rc_entitlements` / `rc_product` values fall back to raw RC IDs rather than
  * aborting the entire sync.
+ *
+ * Cached per `rcProjectId` for 5 minutes. Failures are NOT cached so a
+ * transient outage doesn't poison subsequent syncs for the full TTL.
  */
 export async function fetchRevenueCatLookupMaps(args: {
   apiKey: string;
@@ -183,6 +200,10 @@ export async function fetchRevenueCatLookupMaps(args: {
   log: SyncLog;
 }): Promise<RevenueCatLookupMaps> {
   const { apiKey, rcProjectId, log } = args;
+  const now = Date.now();
+  const cached = lookupMapsCache.get(rcProjectId);
+  if (cached && cached.expiresAt > now) return cached.maps;
+
   const [entitlementsResult, productsResult] = await Promise.all([
     fetchRevenueCatProjectEntitlements(apiKey, rcProjectId),
     fetchRevenueCatProjectProducts(apiKey, rcProjectId),
@@ -212,7 +233,11 @@ export async function fetchRevenueCatLookupMaps(args: {
     );
   }
 
-  return { entitlementKeyById, productSkuById };
+  const maps = { entitlementKeyById, productSkuById };
+  if (entitlementsResult.status === "found" && productsResult.status === "found") {
+    lookupMapsCache.set(rcProjectId, { maps, expiresAt: now + LOOKUP_MAPS_CACHE_TTL_MS });
+  }
+  return maps;
 }
 
 /**
