@@ -361,30 +361,18 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         .limit(1);
       if (!row) return reply.code(404).send({ error: "Questionnaire not found" });
 
-      const statsConditions = [
-        eq(questionnaireResponses.questionnaire_id, questionnaireId),
-        isNull(questionnaireResponses.deleted_at),
-      ];
-      const statsDevCondition = dataModeToDrizzle(
-        questionnaireResponses.is_dev,
+      const countsById = await loadResponseCountsByQuestionnaire(
+        app.db,
+        [questionnaireId],
         request.query.data_mode as DataMode | undefined,
       );
-      if (statsDevCondition) statsConditions.push(statsDevCondition);
-
-      const [stats] = await app.db
-        .select({
-          count: countAll,
-          submitted: sql<number>`COUNT(*) FILTER (WHERE ${questionnaireResponses.submitted_at} IS NOT NULL)`,
-          last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
-        })
-        .from(questionnaireResponses)
-        .where(and(...statsConditions));
+      const stats = countsById.get(questionnaireId);
 
       return serializeQuestionnaire(
         row,
-        Number(stats?.count ?? 0),
+        stats?.count ?? 0,
         stats?.last ?? null,
-        Number(stats?.submitted ?? 0),
+        stats?.submitted ?? 0,
       );
     },
   );
