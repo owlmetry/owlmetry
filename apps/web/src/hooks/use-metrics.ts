@@ -31,7 +31,9 @@ export function useMetricDefinitions(projectId: string | undefined) {
 
 export function useTeamMetricDefinitions(teamId: string | undefined) {
   const key = teamId ? `/v1/metrics?team_id=${teamId}` : null;
-  const { data, isLoading, error, mutate } = useSWR<TeamMetricListResponse>(key);
+  const { data, isLoading, error, mutate } = useSWR<TeamMetricListResponse>(key, {
+    refreshInterval: 30_000,
+  });
 
   return {
     metrics: data?.metrics ?? [],

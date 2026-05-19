@@ -23,7 +23,9 @@ export function useFunnels(projectId: string | null) {
 
 export function useTeamFunnels(teamId: string | undefined) {
   const key = teamId ? `/v1/funnels?team_id=${teamId}` : null;
-  const { data, isLoading, error, mutate } = useSWR<TeamFunnelListResponse>(key);
+  const { data, isLoading, error, mutate } = useSWR<TeamFunnelListResponse>(key, {
+    refreshInterval: 30_000,
+  });
 
   return {
     funnels: data?.funnels ?? [],

@@ -127,13 +127,11 @@ export default function MetricsPage() {
     <AnimatedPage className="space-y-4">
       <StaggerItem index={0}>
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <MetricsFilterBar
-              projects={projects}
-              projectId={projectId}
-              onProjectChange={setProjectId}
-            />
-          </div>
+          <MetricsFilterBar
+            projects={projects}
+            projectId={projectId}
+            onProjectChange={setProjectId}
+          />
           <CreateMetricDialog
             preselectedProjectId={isAllProjects ? undefined : projectId}
             projects={projects}

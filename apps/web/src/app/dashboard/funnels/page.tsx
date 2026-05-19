@@ -97,13 +97,11 @@ export default function FunnelsPage() {
     <AnimatedPage className="space-y-4">
       <StaggerItem index={0}>
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <FunnelsFilterBar
-              projects={projects}
-              projectId={projectId}
-              onProjectChange={setProjectId}
-            />
-          </div>
+          <FunnelsFilterBar
+            projects={projects}
+            projectId={projectId}
+            onProjectChange={setProjectId}
+          />
           <CreateFunnelDialog
             preselectedProjectId={isAllProjects ? undefined : projectId}
             projects={projects}
