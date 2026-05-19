@@ -9,9 +9,11 @@ import {
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
   fetchRevenueCatSubscriptions,
+  fetchRevenueCatNonSubscriptions,
   fetchRevenueCatCustomerAttributes,
   fetchRevenueCatProjectId,
   sumLifetimeRevenueUsd,
+  sumLifetimeRevenueUsdFromNonSubs,
 } from "./revenuecat.js";
 
 interface SyncLog {
@@ -60,8 +62,9 @@ export async function syncRevenueCatUserProperties(args: {
     };
   }
 
-  const [subsResult, attrsResult] = await Promise.all([
+  const [subsResult, nonSubsResult, attrsResult] = await Promise.all([
     fetchRevenueCatSubscriptions(config.api_key, rcProjectId, userId),
+    fetchRevenueCatNonSubscriptions(config.api_key, rcProjectId, userId),
     fetchRevenueCatCustomerAttributes(config.api_key, rcProjectId, userId),
   ]);
 
@@ -70,6 +73,20 @@ export async function syncRevenueCatUserProperties(args: {
     log.warn(
       { userId, statusCode: subsResult.statusCode, message: subsResult.message },
       "RC subscriptions fetch failed (continuing with entitlements-only props)",
+    );
+  }
+
+  const nonSubsData = nonSubsResult.status === "found" ? nonSubsResult.data : undefined;
+  if (nonSubsResult.status === "error") {
+    log.warn(
+      { userId, statusCode: nonSubsResult.statusCode, message: nonSubsResult.message },
+      "RC non-subscriptions fetch failed (continuing without one-time IAP revenue)",
+    );
+  } else if (nonSubsResult.status === "unavailable") {
+    // Endpoint not enabled for this RC plan — log once at info, not warn.
+    log.info?.(
+      { userId, statusCode: nonSubsResult.statusCode },
+      "RC non-subscriptions endpoint unavailable (skipping one-time IAP revenue)",
     );
   }
 
@@ -109,13 +126,17 @@ export async function syncRevenueCatUserProperties(args: {
     );
   }
 
-  // RC pre-computes per-subscription `total_revenue_in_usd` (refunds netted),
-  // so summing is authoritative. When the subs fetch failed we leave the
-  // existing column untouched — overwriting with 0 here would silently zero
-  // out a paying user during a transient RC outage.
-  const revenueUsd = subsResult.status === "found" ? sumLifetimeRevenueUsd(subsData) : null;
+  // RC pre-computes per-line-item `total_revenue_in_usd` (refunds netted), so
+  // summing is authoritative. Subs + non-subs cover both renewing and one-time
+  // paid IAPs; if either fetch failed we contribute nothing from that source
+  // (overwriting with 0 would silently zero out a paying user during a
+  // transient RC outage). Both failing leaves the column untouched.
+  const subRevenue = subsResult.status === "found" ? sumLifetimeRevenueUsd(subsData) : null;
+  const nonSubRevenue = nonSubsResult.status === "found" ? sumLifetimeRevenueUsdFromNonSubs(nonSubsData) : null;
+  const revenueUsd =
+    subRevenue === null && nonSubRevenue === null ? null : (subRevenue ?? 0) + (nonSubRevenue ?? 0);
   const revenueUsdCents = revenueUsd === null ? null : Math.round(revenueUsd * 100);
-  const subscriberProps = mapSubscriberToProperties(subscriberResult.data, subsData);
+  const subscriberProps = mapSubscriberToProperties(subscriberResult.data, subsData, nonSubsData);
   const properties = { ...subscriberProps, ...attributionProps };
   if (revenueUsd !== null) {
     properties.rc_total_revenue_usd = revenueUsd.toFixed(2);

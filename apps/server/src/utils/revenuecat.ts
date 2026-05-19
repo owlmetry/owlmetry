@@ -107,6 +107,33 @@ export interface RevenueCatV2SubscriptionsResponse {
   url: string;
 }
 
+// V2 non-subscription purchase object (one-time IAPs: lifetime / consumable / non-consumable).
+// RC's `/customers/{id}/purchases` lists these — they don't appear in `/subscriptions`.
+// `total_revenue_in_usd` mirrors the subscription shape; if RC changes the field
+// name we fall back to 0 contribution rather than throwing.
+export interface RevenueCatV2NonSubscription {
+  object: "non_subscription" | "purchase" | string;
+  id: string;
+  customer_id?: string;
+  product_id?: string;
+  purchased_at?: number;
+  store?: string;
+  total_revenue_in_usd?: {
+    gross?: number;
+    proceeds?: number;
+    commission?: number;
+    tax?: number;
+    currency?: string;
+  };
+}
+
+export interface RevenueCatV2NonSubscriptionsResponse {
+  object: "list";
+  items: RevenueCatV2NonSubscription[];
+  next_page: string | null;
+  url: string;
+}
+
 const RC_V2_BASE = "https://api.revenuecat.com/v2";
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -323,6 +350,48 @@ export async function fetchRevenueCatSubscriptions(
   }
 }
 
+export type FetchNonSubscriptionsResult =
+  | { status: "found"; data: RevenueCatV2NonSubscriptionsResponse }
+  | { status: "not_found" }
+  | { status: "unavailable"; statusCode: number }
+  | { status: "error"; statusCode?: number; message?: string };
+
+/**
+ * Fetch a customer's non-subscription purchases (one-time IAPs) from the V2
+ * API. Most users with an active entitlement but an empty `/subscriptions`
+ * response are actually on a paid lifetime IAP — not a promotional grant.
+ * Without this call we'd misreport `rc_period_type=promotional` and zero
+ * revenue for those users.
+ *
+ * The non-subscriptions endpoint is newer than `/subscriptions`; older
+ * RevenueCat plans may return 405/501/410. `unavailable` distinguishes that
+ * from a transient error so callers can degrade silently instead of warning
+ * on every sync.
+ */
+export async function fetchRevenueCatNonSubscriptions(
+  apiKey: string,
+  rcProjectId: string,
+  userId: string,
+): Promise<FetchNonSubscriptionsResult> {
+  try {
+    const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/customers/${encodeURIComponent(userId)}/purchases`;
+    const res = await fetch(url, {
+      headers: rcHeaders(apiKey),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      return { status: "found", data: (await res.json()) as RevenueCatV2NonSubscriptionsResponse };
+    }
+    if (res.status === 404) return { status: "not_found" };
+    if (res.status === 405 || res.status === 410 || res.status === 501) {
+      return { status: "unavailable", statusCode: res.status };
+    }
+    return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export type FetchCustomerAttributesResult =
   | { status: "found"; attributes: RevenueCatV2Attribute[] }
   | { status: "not_found" }
@@ -438,18 +507,27 @@ function computeWillRenew(sub: RevenueCatV2Subscription): boolean {
 
 /**
  * Map a V2 active-entitlements response (and, optionally, a subscriptions
- * response) to the user-property set we store. Output keys are stable across
- * webhook/sync so downstream consumers (dashboards, segment filters) keep
- * working.
+ * response + non-subscriptions response) to the user-property set we store.
+ * Output keys are stable across webhook/sync so downstream consumers
+ * (dashboards, segment filters) keep working.
+ *
+ * When `subscriptions` returns an empty list, the user is almost always on a
+ * paid non-subscription IAP (lifetime / consumable) — pass `nonSubscriptions`
+ * to distinguish that from a true promotional grant. With no subs AND no
+ * non-subs but an active entitlement, the entitlement was granted by RC
+ * dashboard / admin tooling and `rc_period_type` is left unset rather than
+ * mislabeled as "promotional" or "lifetime".
  */
 export function mapSubscriberToProperties(
   response: RevenueCatV2ActiveEntitlementsResponse,
   subscriptions?: RevenueCatV2SubscriptionsResponse,
+  nonSubscriptions?: RevenueCatV2NonSubscriptionsResponse,
 ): Record<string, string> {
   const props: Record<string, string> = {};
   const items = response.items ?? [];
 
   const hasActive = items.length > 0;
+  const hasNonSub = (nonSubscriptions?.items?.length ?? 0) > 0;
 
   if (items.length > 0) {
     props.rc_entitlements = items.map((e) => e.lookup_key).filter(Boolean).join(",");
@@ -472,17 +550,34 @@ export function mapSubscriberToProperties(
         primary.current_period_ends_at,
       );
       if (billingPeriod) props.rc_billing_period = billingPeriod;
+    } else if (hasNonSub) {
+      // Active entitlement backed by a paid one-time IAP (lifetime / non-renewing).
+      // The user IS a paying customer but won't renew (no subscription cycle).
+      props.rc_billing_period = "lifetime";
+      props.rc_period_type = "lifetime";
+      willRenew = false;
     } else if (hasActive) {
-      // Entitlement active but no subscription → lifetime grant or promotional entitlement.
+      // Active entitlement with no sub AND no non-sub purchase — admin-granted
+      // promotional entitlement (RC dashboard "Grant" feature).
       props.rc_billing_period = "lifetime";
       props.rc_period_type = "promotional";
     }
+  } else if (hasNonSub && hasActive) {
+    // Subs endpoint failed but non-sub purchases exist — still distinguish from
+    // a promo grant. willRenew stays at the default true since we have no
+    // signal otherwise; rc_subscriber gates the Paid badge anyway.
+    props.rc_billing_period = "lifetime";
+    props.rc_period_type = "lifetime";
+    willRenew = false;
   }
 
-  // `rc_subscriber` means "user has a live, renewing subscription". A cancelled
-  // trial still has live entitlements but will not renew, so it must report
-  // false here — otherwise the dashboard shows them as "💰 Paid".
-  props.rc_subscriber = hasActive && willRenew ? "true" : "false";
+  // `rc_subscriber` means "user has a live, paying entitlement". For renewing
+  // subscriptions this requires `willRenew=true` (a cancelled trial flips this
+  // false so it doesn't render as "💰 Paid"). For one-time paid IAPs
+  // (`rc_period_type=lifetime`), the purchase is paid and active regardless of
+  // willRenew — they bought it once, they own it.
+  const isLifetimePaid = props.rc_period_type === "lifetime";
+  props.rc_subscriber = hasActive && (willRenew || isLifetimePaid) ? "true" : "false";
   props.rc_status = rcStatus;
   props.rc_will_renew = willRenew ? "true" : "false";
 
@@ -504,6 +599,29 @@ export function sumLifetimeRevenueUsd(
   let total = 0;
   for (const sub of items) {
     const gross = sub.total_revenue_in_usd?.gross;
+    if (typeof gross === "number" && Number.isFinite(gross)) {
+      total += gross;
+    }
+  }
+  return total < 0 ? 0 : total;
+}
+
+/**
+ * Sum lifetime USD revenue across a customer's non-subscription purchases.
+ * Mirrors `sumLifetimeRevenueUsd` semantics — same `total_revenue_in_usd.gross`
+ * shape, missing-fields contribute 0, null when response is absent so callers
+ * can distinguish "endpoint unavailable" (don't touch the column) from "user
+ * has no non-sub purchases" (contributes 0).
+ */
+export function sumLifetimeRevenueUsdFromNonSubs(
+  nonSubscriptions: RevenueCatV2NonSubscriptionsResponse | undefined,
+): number | null {
+  if (!nonSubscriptions) return null;
+  const items = nonSubscriptions.items ?? [];
+  if (items.length === 0) return 0;
+  let total = 0;
+  for (const purchase of items) {
+    const gross = purchase.total_revenue_in_usd?.gross;
     if (typeof gross === "number" && Number.isFinite(gross)) {
       total += gross;
     }

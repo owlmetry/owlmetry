@@ -75,6 +75,15 @@ const SUBSCRIPTION_EVENT_TYPES = new Set([
   "EXPIRATION",
 ]);
 
+// Event types that change a user's lifetime revenue — both subscription
+// lifecycle (revenue comes from subs) and one-time paid IAPs (non-subs).
+// Used to gate the background V2 resync that refreshes the typed
+// `total_revenue_usd_cents` column after each event.
+const REVENUE_AFFECTING_EVENT_TYPES = new Set([
+  ...SUBSCRIPTION_EVENT_TYPES,
+  "NON_RENEWING_PURCHASE",
+]);
+
 function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<string, string> {
   const props: Record<string, string> = {};
   const isSubscriptionEvent = SUBSCRIPTION_EVENT_TYPES.has(event.type);
@@ -105,6 +114,16 @@ function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<stri
       props.rc_status = "expired";
       props.rc_will_renew = "false";
       break;
+    case "NON_RENEWING_PURCHASE":
+      // One-time paid IAP (lifetime / consumable / non-consumable). The user
+      // is a paying customer (rc_subscriber=true drives the "💰 Paid" badge)
+      // but won't renew — they own it, no billing cycle to cancel.
+      props.rc_subscriber = "true";
+      props.rc_status = "active";
+      props.rc_will_renew = "false";
+      props.rc_period_type = "lifetime";
+      props.rc_billing_period = "lifetime";
+      break;
   }
 
   if (event.product_id) {
@@ -117,8 +136,9 @@ function mapWebhookEventToProperties(event: RevenueCatWebhookEvent): Record<stri
     props.rc_entitlements = event.entitlement_ids.join(",");
   }
 
-  // Period type and billing period only come from real subscription events.
-  // TEST / other unknown event types shouldn't overwrite a user's prior state.
+  // Period type and billing period only come from real subscription events
+  // (NON_RENEWING_PURCHASE sets its own above). TEST / other unknown event
+  // types shouldn't overwrite a user's prior state.
   if (isSubscriptionEvent) {
     if (event.period_type) {
       const periodType = event.period_type.toLowerCase();
@@ -234,18 +254,22 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       await mergeUserProperties(app.db, projectId, userId, combinedProps);
 
-      // Subscription events change lifetime revenue (`total_revenue_in_usd`),
-      // which the webhook payload doesn't carry — kick off a per-user resync
+      // Subscription and one-time-purchase events change lifetime revenue
+      // (`total_revenue_in_usd` per line item) — kick off a per-user resync
       // against RC's V2 API so the typed `total_revenue_usd_cents` column
-      // stays fresh within seconds of the event.
-      if (SUBSCRIPTION_EVENT_TYPES.has(event.type)) {
+      // stays fresh within seconds of the event. The resync pulls both
+      // subs and non-subs, so a `NON_RENEWING_PURCHASE` event updates revenue
+      // even though the webhook itself carries only `price` not lifetime totals.
+      if (REVENUE_AFFECTING_EVENT_TYPES.has(event.type)) {
         resyncRevenueCatUsersInBackground({
           db: app.db,
           log: request.log,
           projectId,
           config,
           userIds: [userId],
-          context: "subscription_event",
+          context: event.type === "NON_RENEWING_PURCHASE"
+            ? "non_renewing_purchase_event"
+            : "subscription_event",
           eventId: event.id,
         });
       }

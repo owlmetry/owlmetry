@@ -186,6 +186,31 @@ function buildSubscriptionsResponse(
   };
 }
 
+function buildNonSubscriptionsResponse(
+  items: Array<{
+    id?: string;
+    product_id?: string;
+    purchased_at?: number;
+    store?: string;
+    total_revenue_in_usd?: { gross?: number; currency?: string };
+  }> = [],
+) {
+  return {
+    object: "list" as const,
+    items: items.map((i, idx) => ({
+      object: "non_subscription" as const,
+      id: i.id ?? `purchase_test_${idx}`,
+      customer_id: "test",
+      product_id: i.product_id ?? "prod_test",
+      purchased_at: i.purchased_at ?? Date.now(),
+      store: i.store ?? "app_store",
+      total_revenue_in_usd: i.total_revenue_in_usd,
+    })),
+    next_page: null,
+    url: "/v2/projects/.../purchases",
+  };
+}
+
 function buildCustomerAttributesResponse(
   items: Array<{ name: string; value: string; updated_at?: number }> = [],
 ) {
@@ -224,6 +249,8 @@ function mockRevenueCatV2(options: {
   entitlementsStatus?: number;
   subscriptionsResponse?: unknown;
   subscriptionsStatus?: number;
+  nonSubscriptionsResponse?: unknown;
+  nonSubscriptionsStatus?: number;
   attributesResponse?: unknown;
   attributesStatus?: number;
   captureAuthHeader?: (header: string | null) => void;
@@ -257,6 +284,14 @@ function mockRevenueCatV2(options: {
     if (url.includes("api.revenuecat.com/v2/projects") && url.includes("/subscriptions")) {
       const status = options.subscriptionsStatus ?? 200;
       const body = options.subscriptionsResponse ?? buildSubscriptionsResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (url.includes("api.revenuecat.com/v2/projects") && url.includes("/purchases")) {
+      const status = options.nonSubscriptionsStatus ?? 200;
+      const body = options.nonSubscriptionsResponse ?? buildNonSubscriptionsResponse();
       return new Response(JSON.stringify(body), {
         status,
         headers: { "Content-Type": "application/json" },
@@ -450,6 +485,36 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
     expect(props?.rc_subscriber).toBe("true");
     expect(props?.rc_status).toBe("active");
     expect(props?.rc_will_renew).toBe("true");
+  });
+
+  it("processes NON_RENEWING_PURCHASE event as paid lifetime IAP", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_lifetime_user");
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/revenuecat/${projectId}`,
+      headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+      payload: buildWebhookPayload("NON_RENEWING_PURCHASE", {
+        app_user_id: "rc_lifetime_user",
+        original_app_user_id: "rc_lifetime_user",
+        aliases: ["rc_lifetime_user"],
+        product_id: "pro_lifetime",
+        period_type: "NORMAL",
+        expiration_at_ms: null,
+        price: 5.27,
+        price_in_purchased_currency: 5.27,
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    const props = await getUserProperties("rc_lifetime_user");
+    expect(props?.rc_subscriber).toBe("true"); // drives "Paid" badge
+    expect(props?.rc_status).toBe("active");
+    expect(props?.rc_will_renew).toBe("false");
+    expect(props?.rc_period_type).toBe("lifetime");
+    expect(props?.rc_billing_period).toBe("lifetime");
+    expect(props?.rc_product).toBe("pro_lifetime");
   });
 
   it("processes PRODUCT_CHANGE event", async () => {
@@ -1094,22 +1159,23 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
     expect(props?.rc_period_type).toBe("trial");
   });
 
-  it("marks lifetime entitlement (no subscription) as rc_billing_period=lifetime", async () => {
+  it("marks admin-granted entitlement (no subs, no non-subs) as rc_period_type=promotional", async () => {
     await createRevenueCatIntegration();
-    await ingestEvent("lifetime_user");
+    await ingestEvent("promo_user");
 
-    // Active entitlement with null expires_at (lifetime) + empty subscriptions list
-    // → promotional/lifetime grant.
+    // Active entitlement, no subscription, no non-sub purchases — only RC's
+    // admin "Grant" feature produces this combination.
     const cleanup = mockRevenueCatV2({
       entitlementsResponse: buildActiveEntitlementsResponse([
-        { lookup_key: "pro", product_identifier: "lifetime_pro", expires_at: null },
+        { lookup_key: "pro", product_identifier: "promo_pro", expires_at: null },
       ]),
       subscriptionsResponse: buildSubscriptionsResponse([]),
+      nonSubscriptionsResponse: buildNonSubscriptionsResponse([]),
     });
     try {
       const res = await app.inject({
         method: "POST",
-        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/lifetime_user`,
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/promo_user`,
         headers: { authorization: `Bearer ${token}` },
       });
 
@@ -1118,6 +1184,118 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       expect(props.rc_subscriber).toBe("true");
       expect(props.rc_billing_period).toBe("lifetime");
       expect(props.rc_period_type).toBe("promotional");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("marks paid lifetime IAP (no subs, has non-sub) as rc_period_type=lifetime with revenue", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("lifetime_iap_user");
+
+    // The "Pro Lifetime $5.27" scenario from the 3DKit bug — entitlement is
+    // active because of a paid one-time IAP, not a promotional grant.
+    const cleanup = mockRevenueCatV2({
+      entitlementsResponse: buildActiveEntitlementsResponse([
+        { lookup_key: "pro", product_identifier: "pro_lifetime", expires_at: null },
+      ]),
+      subscriptionsResponse: buildSubscriptionsResponse([]),
+      nonSubscriptionsResponse: buildNonSubscriptionsResponse([
+        { product_id: "pro_lifetime", total_revenue_in_usd: { gross: 5.27 } },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/lifetime_iap_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true");
+      expect(props.rc_billing_period).toBe("lifetime");
+      expect(props.rc_period_type).toBe("lifetime");
+      expect(props.rc_will_renew).toBe("false");
+      expect(props.rc_total_revenue_usd).toBe("5.27");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("sums sub + non-sub revenue when a user has both", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("mixed_revenue_user");
+
+    const now = Date.now();
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: {
+        object: "list" as const,
+        items: [
+          {
+            object: "subscription" as const,
+            id: "sub_1",
+            customer_id: "mixed_revenue_user",
+            product_id: "monthly",
+            starts_at: now - 86400000 * 30,
+            current_period_starts_at: now - 86400000 * 5,
+            current_period_ends_at: now + 86400000 * 25,
+            ends_at: now + 86400000 * 25,
+            status: "active",
+            gives_access: true,
+            store: "app_store",
+            ownership: "purchased",
+            total_revenue_in_usd: { gross: 9.99, currency: "USD" },
+          },
+        ],
+        next_page: null,
+        url: "",
+      },
+      nonSubscriptionsResponse: buildNonSubscriptionsResponse([
+        { product_id: "consumable_pack", total_revenue_in_usd: { gross: 2.5 } },
+      ]),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/mixed_revenue_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_total_revenue_usd).toBe("12.49"); // 9.99 + 2.50
+      // Subscription wins for period/billing labelling.
+      expect(props.rc_period_type).toBe("normal");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("gracefully skips non-sub revenue when V2 endpoint returns 405 (unavailable)", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("legacy_plan_user");
+
+    // Older RC plans may not have the /purchases endpoint enabled — should
+    // not warn-log on every sync nor zero out revenue.
+    const cleanup = mockRevenueCatV2({
+      subscriptionsResponse: buildSubscriptionsResponse([
+        { status: "active", current_period_starts_at: Date.now(), current_period_ends_at: Date.now() + 86400000 * 30 },
+      ]),
+      nonSubscriptionsStatus: 405,
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/legacy_plan_user`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = res.json().properties;
+      expect(props.rc_subscriber).toBe("true"); // sync still works
+      // Subs revenue still applied even though non-subs endpoint was unavailable.
+      // (sumLifetimeRevenueUsd returns 0 for empty total_revenue_in_usd here.)
     } finally {
       cleanup();
     }
