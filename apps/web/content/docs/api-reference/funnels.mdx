@@ -44,6 +44,20 @@ List all funnel definitions for a project.
 }
 ```
 
+## GET /v1/funnels
+
+List funnel definitions across every accessible project in a team. Powers the dashboard's "All projects" view. Each row carries `project_id` so callers can group by project.
+
+**Auth required:** Yes (`funnels:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Required. Restricts the listing to the given team. The caller must have access; otherwise the response is `{ "funnels": [] }`. |
+
+Response shape is identical to the project-scoped list endpoint above.
+
 ## GET /v1/projects/:projectId/funnels/:slug
 
 Get a single funnel definition by slug.
