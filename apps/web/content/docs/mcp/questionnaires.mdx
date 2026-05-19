@@ -18,11 +18,11 @@ The questionnaire tool surface mirrors the CLI — agents can create + edit + tr
 | `create-questionnaire` | Create a new questionnaire with slug + schema |
 | `update-questionnaire` | Update name, description, schema, is_active, app_id pin |
 | `delete-questionnaire` | ⚠️ User-only — agent calls receive 403 |
-| `list-questionnaire-responses` | List responses with filters + pagination |
-| `get-questionnaire-response` | Fetch a single response with comments + schema_snapshot |
-| `update-questionnaire-response-status` | Triage state transition |
+| `list-questionnaire-responses` | List responses with filters + pagination. Drafts (`status: "draft"`, `submitted_at: null`) are included by default — pass `submitted_only: true` to hide them, or `status: "draft"` to scope to drafts only |
+| `get-questionnaire-response` | Fetch a single response with comments + schema_snapshot (snapshot is null on drafts) |
+| `update-questionnaire-response-status` | Triage state transition. Statuses: `draft`, `new`, `in_review`, `addressed`, `dismissed` |
 | `add-questionnaire-response-comment` | Annotate a response |
-| `get-questionnaire-analytics` | Pre-aggregated per-question distribution |
+| `get-questionnaire-analytics` | Pre-aggregated per-question distribution. Drafts contribute to the rollups by default — a Q1-only draft adds to Q1's count and naturally drops out of Q2+, so abandonment shows up as a drop-off curve. Pass `submitted_only: true` to scope rollups to fully-submitted responses |
 
 ## Schema shape
 
@@ -62,9 +62,9 @@ Constraints:
 ## Typical workflow
 
 1. **Create a survey definition** — `create-questionnaire` with a slug + schema (agent-friendly: agents can build short market-research surveys autonomously).
-2. **Wait for responses** — the iOS app's `.owlQuestionnaire(slug:trigger:…)` modifier fetches and presents the survey on the configured trigger.
-3. **Aggregate analytics** — `get-questionnaire-analytics` returns counts/averages/NPS score per question; the agent can summarize trends without paging through individual responses.
-4. **Drill into interesting answers** — `list-questionnaire-responses` then `get-questionnaire-response` for context. `session_id` on the response links to the user's event timeline — pass it to `investigate-event` to see what they were doing.
+2. **Wait for responses** — the iOS app's `.owlQuestionnaire(slug:trigger:…)` modifier fetches and presents the survey on the configured trigger, saving a draft after every Next tap.
+3. **Aggregate analytics** — `get-questionnaire-analytics` returns counts/averages/NPS score per question; the agent can summarize trends without paging through individual responses. Use `submitted_only: true` if you want completion-rate-style headline numbers without draft contributions; leave it off to see where users drop out.
+4. **Drill into interesting answers** — `list-questionnaire-responses` then `get-questionnaire-response` for context. `session_id` on the response links to the user's event timeline — pass it to `investigate-event` to see what they were doing. Filter to drafts (`status: "draft"`) to study abandonment, or pass `submitted_only: true` for completed submissions only.
 5. **Annotate or triage** — `add-questionnaire-response-comment` and `update-questionnaire-response-status` cooperate with human teammates on the dashboard.
 
 ## Eligibility model (read-only)

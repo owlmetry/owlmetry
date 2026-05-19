@@ -9,7 +9,7 @@ import Concept from '../../../_snippets/questionnaires.mdx';
 
 ## Prerequisite
 
-Create a questionnaire with a slug first — via the [dashboard](/dashboard/questionnaires), [CLI](/docs/cli/questionnaires) (`owlmetry questionnaires create`), or [MCP](/docs/mcp/questionnaires). The SDK only reads and submits — it doesn't define questionnaires.
+Create a questionnaire with a slug first — via the [dashboard](/dashboard/questionnaires), [CLI](/docs/cli/questionnaires) (`owlmetry questionnaires create`), or [MCP](/docs/mcp/questionnaires). The SDK only reads and saves — it doesn't define questionnaires.
 
 ## How the sheet behaves
 
@@ -19,7 +19,11 @@ When the trigger fires AND the user is eligible (not already responded, not glob
 - **Maybe later** → closes the sheet, no server write; the trigger re-evaluates on the next foreground
 - **Don't ask again** → confirmation dialog, then writes the global-dismiss flag (`Owl.dismissQuestionnaires()`); never asked again
 
-Once accepted, questions render **one per page** with a top progress bar and Back / Next / Submit buttons at the bottom. The sheet is **non-swipe-dismissible** — users exit by tapping Cancel (toolbar), finishing the flow, or choosing a consent option. On successful submit, an in-sheet success page (checkmark + "Thanks!" + Done) replaces the questions.
+Once accepted, questions render **one per page** with a top progress bar and Back / Next / Submit buttons at the bottom. **Every Next tap saves the current answer set as a draft** (`is_complete: false`); the final Submit sends `is_complete: true` and flips the server-side `submitted_at`. The sheet is **non-swipe-dismissible** — users exit by tapping Cancel (toolbar), finishing the flow, or choosing a consent option. On successful submit, an in-sheet success page (checkmark + "Thanks!" + Done) replaces the questions.
+
+### Resuming an unsubmitted draft
+
+`Owl.fetchQuestionnaire(slug:)` returns an `OwlQuestionnaireFetchResult` that bundles the spec with an optional `inProgress: OwlQuestionnaireDraft` — populated when the current user already has a draft response on the server (`submitted_at` still null). The auto-trigger modifier and the manual `OwlQuestionnaireView` both accept the draft and resume the flow at the first unanswered question with the prior answers pre-filled; the consent detent is skipped on resume because the user already opted in earlier. Abandoned drafts are soft-deleted after 90 days of inactivity by the `questionnaire_draft_cleanup` background job.
 
 ### Short vs long text answers
 
@@ -133,14 +137,14 @@ The Submit button, rating stars, single-choice checkmarks, and multi-choice togg
 )
 ```
 
-`onCancel` fires when the user taps Cancel mid-flow or "Maybe later" on the consent prompt — no server write happens. `onDismissed` fires when the user taps "Don't ask again" → confirm, after the server-side global-dismiss flag is written.
+`onCancel` fires when the user taps Cancel mid-flow or "Maybe later" on the consent prompt — answers entered up to that point persist as a draft on the server, but no `onSubmitted` fires. `onDismissed` fires when the user taps "Don't ask again" → confirm, after the server-side global-dismiss flag is written. `onSubmitted` fires only on the final Submit; the `OwlQuestionnaireReceipt` carries `wasSubmitted: Bool` which is `true` for that one call (it flipped server-side `submitted_at` from null to non-null) and `false` for the per-question draft saves leading up to it.
 
 ## Manual presentation
 
-For ad-hoc triggers ("show this survey after the user finishes the import wizard"), call `Owl.fetchQuestionnaire` and present `OwlQuestionnaireView` yourself. The public init defaults `showsConsent: false` — the consumer is already deciding to show it, so the step flow opens directly. Pass `showsConsent: true` if you want the small-detent prompt in front:
+For ad-hoc triggers ("show this survey after the user finishes the import wizard"), call `Owl.fetchQuestionnaire` and present `OwlQuestionnaireView` yourself. `fetchQuestionnaire` returns an `OwlQuestionnaireFetchResult` whose `.questionnaire` is nil when the user is ineligible (`.ineligibleReason` carries `alreadyResponded`, `globallyDismissed`, or `inactive`) and whose `.inProgress` carries any unsubmitted draft to resume. The public init defaults `showsConsent: false` — the consumer is already deciding to show it, so the step flow opens directly. Pass `showsConsent: true` if you want the small-detent prompt in front:
 
 ```swift
-@State private var spec: OwlQuestionnaire?
+@State private var presentation: (OwlQuestionnaire, OwlQuestionnaireDraft?)?
 @State private var showing = false
 
 // ...
@@ -148,8 +152,9 @@ For ad-hoc triggers ("show this survey after the user finishes the import wizard
 Button("Take the post-import survey") {
     Task {
         do {
-            if let q = try await Owl.fetchQuestionnaire(slug: "post-import") {
-                spec = q
+            let result = try await Owl.fetchQuestionnaire(slug: "post-import")
+            if let q = result.questionnaire {
+                presentation = (q, result.inProgress)
                 showing = true
             } else {
                 // already responded, globally dismissed, or inactive
@@ -160,10 +165,11 @@ Button("Take the post-import survey") {
     }
 }
 .sheet(isPresented: $showing) {
-    if let spec {
+    if let (spec, draft) = presentation {
         NavigationStack {
             OwlQuestionnaireView(
                 questionnaire: spec,
+                inProgress: draft,
                 onSubmitted: { _ in showing = false },
                 onCancel: { showing = false }
             )
@@ -171,6 +177,8 @@ Button("Take the post-import survey") {
     }
 }
 ```
+
+Pass the draft through `inProgress:` so the flow container pre-fills the prior answers and resumes at the first unanswered question.
 
 ## Programmatic dismissal
 
@@ -218,12 +226,36 @@ let foregrounds = Owl.foregroundCount // total foreground transitions
 let installedAt = Owl.firstLaunchAt   // Date? — first Owl.configure(...) timestamp
 ```
 
+## Saving and submitting from custom UI
+
+If you're rendering your own survey UI instead of `OwlQuestionnaireView`, call `Owl.saveQuestionnaireResponse(slug:answers:isComplete:)` to persist progress. Pass `isComplete: false` after each answer the user provides to save a draft (idempotent — the server upserts by `(project, slug, user_id)`, so the SDK doesn't track a response id across calls); pass `isComplete: true` on the final submit to flip `submitted_at` and fire the team notification:
+
+```swift
+// Save a draft after the user answers Q2
+_ = try await Owl.saveQuestionnaireResponse(
+    slug: "post-import",
+    answers: ["q1": .rating(5), "q2": .text("Nice!")],
+    isComplete: false
+)
+
+// Final submit — accumulate everything and flip submitted_at
+let receipt = try await Owl.saveQuestionnaireResponse(
+    slug: "post-import",
+    answers: allAnswers,
+    isComplete: true
+)
+assert(receipt.wasSubmitted)
+```
+
+Every save sends the full accumulated answer set; the server merges, so going Back and re-answering an earlier question just overwrites that key in the saved row. `OwlQuestionnaireReceipt.wasSubmitted` is true exactly once per response — on the call that flipped `submitted_at` — making it safe to gate success-state UI on without separate bookkeeping.
+
 ## Errors
 
-`Owl.fetchQuestionnaire` and `Owl.submitQuestionnaireResponse` throw `OwlQuestionnaireError`:
+`Owl.fetchQuestionnaire` and `Owl.saveQuestionnaireResponse` throw `OwlQuestionnaireError`:
 
 - `.notConfigured` — `Owl.configure(...)` hasn't been called yet
 - `.slugNotFound` — the slug doesn't exist in the project (developer error — check spelling)
-- `.notEligible(reason)` — surfaced as `nil` from `fetchQuestionnaire`; thrown from submit if the server rejects (409)
 - `.invalidAnswers(detail)` — answers don't conform to the questionnaire's schema
 - `.serverError(statusCode:body:)` / `.transportFailure(message:)` — network / 5xx
+
+`fetchQuestionnaire` doesn't throw for ineligible users — it returns an `OwlQuestionnaireFetchResult` whose `.questionnaire` is nil and whose `.ineligibleReason` (`alreadyResponded` / `globallyDismissed` / `inactive`) explains why.

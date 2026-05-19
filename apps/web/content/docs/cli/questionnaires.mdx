@@ -117,9 +117,12 @@ owlmetry questionnaires delete <id> --project-id <pid>
 owlmetry questionnaires responses <questionnaireId> --project-id <id>
 ```
 
+Drafts and submitted responses are both listed by default — drafts carry `status: "draft"` and `submitted_at: null`. Pass `--submitted-only` to scope to completed submissions, or `--status draft` to scope to in-progress drafts only.
+
 | Flag | Description |
 | --- | --- |
-| `--status <status>` | Filter: `new`, `in_review`, `addressed`, `dismissed` |
+| `--status <status>` | Filter: `draft`, `new`, `in_review`, `addressed`, `dismissed` |
+| `--submitted-only` | Hide drafts; show only fully-submitted responses |
 | `--app-id <id>` | Filter to a specific app |
 | `--dev` | Dev responses only |
 | `--data-mode <m>` | `production` (default), `development`, `all` |
@@ -140,6 +143,8 @@ Renders each question (from the response's frozen `schema_snapshot`) alongside t
 owlmetry questionnaires status <responseId> \
   --project-id <pid> --questionnaire <qid> --to in_review
 ```
+
+Target status accepts `draft`, `new`, `in_review`, `addressed`, or `dismissed`. A draft normally transitions to `new` automatically when the user taps Submit in the SDK; you'd typically only set `--to draft` to undo a triage transition while the row is still unsubmitted.
 
 ## Add a comment
 
@@ -162,7 +167,10 @@ Pre-aggregated distribution per question:
 - rating → 1–5 buckets + average
 - nps → 0–10 buckets + score + detractor/passive/promoter split
 
+Drafts contribute to the rollups by default — a Q1-only draft adds to Q1's count and naturally drops out of Q2+, so abandonment shows up as a drop-off curve across the question list. Pass `--submitted-only` to compute rollups against fully-submitted responses only. The summary line always surfaces `submitted_count` of `total_responses` so the "M of N completed" headline renders either way.
+
 | Flag | Description |
 | --- | --- |
+| `--submitted-only` | Compute rollups against fully-submitted responses only |
 | `--dev` | Dev responses only |
 | `--data-mode <m>` | `production`, `development`, `all` |
