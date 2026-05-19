@@ -102,6 +102,8 @@ You can edit a questionnaire's schema after responses exist — rename question 
 
 Slugs are immutable to keep the SDK call site stable. To replace a slug, create a new questionnaire with a new slug.
 
+A soft-deleted questionnaire is hard-deleted by the daily `soft_delete_cleanup` job 7 days after `deleted_at`, but only once all of its responses have also been removed — the FK from `questionnaire_responses` is `ON DELETE RESTRICT`, so a retired questionnaire with surviving response history sticks around until the responses are cleaned up too.
+
 ## Analytics
 
 `GET /v1/projects/:projectId/questionnaires/:id/analytics` returns pre-aggregated distributions per question:

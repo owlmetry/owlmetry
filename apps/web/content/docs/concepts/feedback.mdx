@@ -50,7 +50,7 @@ Each feedback item supports lightweight threaded comments so you can document tr
 ## Delete vs Dismiss
 
 - **Dismiss** — keep the feedback for audit history; used for "not actionable" rather than "unwanted".
-- **Delete** — soft-delete (sets `deleted_at`). Only users can delete; agent keys receive 403 by design, to prevent an agent from silently removing real user feedback.
+- **Delete** — soft-delete (sets `deleted_at`). Only users can delete; agent keys receive 403 by design, to prevent an agent from silently removing real user feedback. The daily `soft_delete_cleanup` job hard-deletes deleted feedback (and its comments) 7 days after `deleted_at`.
 
 ## Theming the SDK View
 
