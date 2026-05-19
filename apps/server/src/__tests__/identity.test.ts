@@ -859,3 +859,135 @@ describe("POST /v1/identity/claim — robustness against zero-event races", () =
     expect(underAnon.json().events.length).toBe(0);
   });
 });
+
+describe("POST /v1/identity/claim — questionnaire response migration", () => {
+  // Seed a questionnaire directly via SQL so the test doesn't depend on the
+  // dashboard route. Each test runs against a freshly truncated DB.
+  async function seedQuestionnaire(projectId: string, slug: string) {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      const schema = {
+        version: 1,
+        questions: [
+          { id: "q1", type: "text", title: "Q1", required: true },
+          { id: "q2", type: "text", title: "Q2", required: false },
+        ],
+      };
+      const [row] = await client`
+        INSERT INTO questionnaires (project_id, slug, name, schema, is_active)
+        VALUES (${projectId}, ${slug}, 'Test Q', ${JSON.stringify(schema)}::jsonb, true)
+        RETURNING id
+      `;
+      return row.id as string;
+    } finally {
+      await client.end();
+    }
+  }
+
+  function saveResponse(
+    slug: string,
+    userId: string,
+    isComplete: boolean,
+    answers: Record<string, unknown>,
+  ) {
+    return app.inject({
+      method: "POST",
+      url: `/v1/questionnaires/${slug}/responses`,
+      headers: { authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { bundle_id: TEST_BUNDLE_ID, user_id: userId, is_complete: isComplete, answers },
+    });
+  }
+
+  async function getResponses(projectId: string, slug: string) {
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      return await client`
+        SELECT id, user_id, submitted_at, deleted_at FROM questionnaire_responses
+        WHERE project_id = ${projectId} AND slug = ${slug}
+        ORDER BY created_at
+      `;
+    } finally {
+      await client.end();
+    }
+  }
+
+  it("migrates an anon draft's user_id to the real id when no real-user row exists for the slug", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    await seedQuestionnaire(projectId, "onboarding-survey");
+
+    const anonId = "owl_anon_qclaim-1";
+    const realId = "real-qclaim-1";
+
+    const draft = await saveResponse("onboarding-survey", anonId, false, { q1: "in progress" });
+    expect(draft.statusCode).toBe(201);
+
+    const before = await getResponses(projectId, "onboarding-survey");
+    expect(before).toHaveLength(1);
+    expect(before[0]!.user_id).toBe(anonId);
+
+    const res = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(res.statusCode).toBe(200);
+
+    const after = await getResponses(projectId, "onboarding-survey");
+    expect(after).toHaveLength(1);
+    expect(after[0]!.user_id).toBe(realId);
+    expect(after[0]!.deleted_at).toBeNull();
+    expect(after[0]!.submitted_at).toBeNull(); // still a draft, now under the real id
+  });
+
+  it("soft-deletes the anon draft when the real user already has a submitted response for the same slug", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    await seedQuestionnaire(projectId, "onboarding-survey");
+
+    const anonId = "owl_anon_qclaim-2";
+    const realId = "real-qclaim-2";
+
+    expect(
+      (await saveResponse("onboarding-survey", realId, true, { q1: "real submitted", q2: "x" })).statusCode,
+    ).toBe(201);
+    expect(
+      (await saveResponse("onboarding-survey", anonId, false, { q1: "anon draft" })).statusCode,
+    ).toBe(201);
+
+    const res = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(res.statusCode).toBe(200);
+
+    const after = await getResponses(projectId, "onboarding-survey");
+    expect(after).toHaveLength(2);
+    const realRow = after.find((r: any) => r.user_id === realId && r.deleted_at === null);
+    expect(realRow).toBeDefined();
+    expect(realRow!.submitted_at).not.toBeNull();
+    const anonRow = after.find((r: any) => r.user_id === anonId);
+    expect(anonRow).toBeDefined();
+    expect(anonRow!.deleted_at).not.toBeNull();
+  });
+
+  it("handles mixed slugs: migrates non-conflicting + soft-deletes conflicting in one claim", async () => {
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    await seedQuestionnaire(projectId, "slug-a");
+    await seedQuestionnaire(projectId, "slug-b");
+
+    const anonId = "owl_anon_qclaim-3";
+    const realId = "real-qclaim-3";
+
+    expect((await saveResponse("slug-a", anonId, false, { q1: "anon-a" })).statusCode).toBe(201);
+    expect((await saveResponse("slug-b", anonId, false, { q1: "anon-b" })).statusCode).toBe(201);
+    expect((await saveResponse("slug-b", realId, true, { q1: "real-b" })).statusCode).toBe(201);
+
+    const res = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(res.statusCode).toBe(200);
+
+    const aRows = await getResponses(projectId, "slug-a");
+    expect(aRows).toHaveLength(1);
+    expect(aRows[0]!.user_id).toBe(realId);
+    expect(aRows[0]!.deleted_at).toBeNull();
+
+    const bRows = await getResponses(projectId, "slug-b");
+    expect(bRows).toHaveLength(2);
+    const realB = bRows.find((r: any) => r.user_id === realId && r.deleted_at === null);
+    expect(realB).toBeDefined();
+    expect(realB!.submitted_at).not.toBeNull();
+    const anonB = bRows.find((r: any) => r.user_id === anonId);
+    expect(anonB!.deleted_at).not.toBeNull();
+  });
+});

@@ -14,6 +14,7 @@ export const JOB_TYPES = [
   "app_store_connect_reviews_sync",
   "notification_deliver",
   "notification_cleanup",
+  "questionnaire_draft_cleanup",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -200,6 +201,14 @@ export const JOB_TYPE_META: Record<
       "Soft-deletes read notifications older than 30 days; hard-deletes soft-deleted notifications older than 90 days.",
     scope: "system",
     default_schedule: "0 6 * * *",
+    params: [],
+  },
+  questionnaire_draft_cleanup: {
+    label: "Questionnaire Draft Cleanup",
+    description:
+      "Soft-deletes abandoned questionnaire drafts (submitted_at IS NULL, untouched > 90 days). 90d is long enough to let a user resume across a long gap, short enough to bound the orphan set when sessions never finish.",
+    scope: "system",
+    default_schedule: "30 6 * * *",
     params: [],
   },
 };

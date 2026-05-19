@@ -133,7 +133,17 @@ export default function QuestionnaireDetailPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Total responses" value={String(questionnaire.response_count ?? 0)} />
+          <StatCard
+            label="Total responses"
+            value={String(questionnaire.response_count ?? 0)}
+            sublabel={
+              (questionnaire.response_count ?? 0) > 0
+                ? `${questionnaire.submitted_count ?? 0} completed · ${
+                    (questionnaire.response_count ?? 0) - (questionnaire.submitted_count ?? 0)
+                  } in progress`
+                : undefined
+            }
+          />
           <StatCard
             label="Last response"
             value={
@@ -151,7 +161,7 @@ export default function QuestionnaireDetailPage() {
               <CardTitle className="flex items-center gap-2">
                 Analytics
                 <span className="text-xs font-normal text-muted-foreground">
-                  ({analytics.total_responses} responses)
+                  ({analytics.total_responses} total · {analytics.submitted_count} completed)
                 </span>
               </CardTitle>
             </CardHeader>
@@ -185,6 +195,8 @@ export default function QuestionnaireDetailPage() {
                     : Array.isArray(firstAnswer)
                       ? firstAnswer.join(", ")
                       : String(firstAnswer);
+                  const answered = Object.keys(r.answers).length;
+                  const total = questionnaire.schema.questions.length;
                   return (
                     <button
                       key={r.id}
@@ -193,8 +205,11 @@ export default function QuestionnaireDetailPage() {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm truncate flex-1">{sample}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDateTime(r.created_at)}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <ResponseStateBadge isComplete={r.is_complete} answered={answered} total={total} />
+                          <div className="text-xs text-muted-foreground">
+                            {formatDateTime(r.created_at)}
+                          </div>
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
@@ -220,6 +235,18 @@ export default function QuestionnaireDetailPage() {
             </DialogHeader>
             {openResponse ? (
               <div className="space-y-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <ResponseStateBadge
+                    isComplete={openResponse.is_complete}
+                    answered={Object.keys(openResponse.answers).length}
+                    total={questionnaire.schema.questions.length}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {openResponse.is_complete
+                      ? `Submitted ${formatDateTime(openResponse.submitted_at ?? openResponse.created_at)}`
+                      : `In progress — last saved ${formatDateTime(openResponse.updated_at)}`}
+                  </span>
+                </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                   <div>User: <span className="text-foreground">{openResponse.user_id ?? "anonymous"}</span></div>
                   <div>Created: <span className="text-foreground">{formatDateTime(openResponse.created_at)}</span></div>
@@ -227,7 +254,9 @@ export default function QuestionnaireDetailPage() {
                   <div>Environment: <span className="text-foreground">{openResponse.environment ?? "—"}</span></div>
                 </div>
                 <div className="space-y-3">
-                  {openResponse.schema_snapshot.questions.map((q) => {
+                  {/* Drafts have no snapshot — render against the live schema
+                      so freshly-added questions appear as "(no answer)". */}
+                  {(openResponse.schema_snapshot ?? questionnaire.schema).questions.map((q) => {
                     const answer = (openResponse.answers as Record<string, unknown>)[q.id];
                     let display: React.ReactNode;
                     if (answer === undefined) {
@@ -277,14 +306,48 @@ export default function QuestionnaireDetailPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({
+  label,
+  value,
+  sublabel,
+}: {
+  label: string;
+  value: string;
+  sublabel?: string;
+}) {
   return (
     <Card>
       <CardContent className="py-4">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="text-xl font-semibold mt-1">{value}</div>
+        {sublabel ? (
+          <div className="text-xs text-muted-foreground mt-1">{sublabel}</div>
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ResponseStateBadge({
+  isComplete,
+  answered,
+  total,
+}: {
+  isComplete: boolean;
+  answered: number;
+  total: number;
+}) {
+  if (isComplete) {
+    return (
+      <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full px-2 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+        Submitted
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] uppercase tracking-wide font-semibold rounded-full px-2 py-0.5 bg-amber-500/15 text-amber-800 dark:text-amber-300 flex items-center gap-1">
+      Draft <span className="opacity-70 normal-case tracking-normal">· {answered}/{total}</span>
+    </span>
   );
 }
 

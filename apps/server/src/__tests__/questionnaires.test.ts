@@ -93,7 +93,9 @@ async function ingestResponse(
     method: "POST",
     url: `/v1/questionnaires/${slug}/responses`,
     headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
-    payload: { bundle_id: TEST_BUNDLE_ID, user_id: userId, answers },
+    // Dashboard-management tests want a fully-submitted row so analytics
+    // and detail surfaces have schema_snapshot + submitted_at populated.
+    payload: { bundle_id: TEST_BUNDLE_ID, user_id: userId, is_complete: true, answers },
   });
   if (res.statusCode !== 201) throw new Error(`ingest failed: ${res.statusCode} ${res.body}`);
   return res.json().id as string;
@@ -213,6 +215,33 @@ describe("DELETE /v1/projects/:projectId/questionnaires/:id", () => {
     expect(rows[0]!.deleted_at).toBeTruthy();
     expect(rows[0]!.is_active).toBe(false);
   });
+
+  it("detail surfaces response_count (incl. drafts) and submitted_count separately", async () => {
+    const q = await createQuestionnaire();
+    // One submitted, two drafts.
+    await ingestResponse("survey", "submit-u", { q_text: "Hi", q_choice: "yes" });
+    await app.inject({
+      method: "POST",
+      url: `/v1/questionnaires/survey/responses`,
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { bundle_id: TEST_BUNDLE_ID, user_id: "draft-u1", answers: { q_text: "wip" } },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/questionnaires/survey/responses`,
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { bundle_id: TEST_BUNDLE_ID, user_id: "draft-u2", answers: { q_choice: "no" } },
+    });
+
+    const detail = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires/${q.id}`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().response_count).toBe(3);
+    expect(detail.json().submitted_count).toBe(1);
+  });
 });
 
 describe("Responses + comments", () => {
@@ -257,6 +286,94 @@ describe("Responses + comments", () => {
     expect(detail.json().comments).toHaveLength(1);
     expect(detail.json().comments[0].body).toBe("Cool insight");
     expect(detail.json().schema_snapshot.questions).toHaveLength(5);
+    expect(detail.json().is_complete).toBe(true);
+    expect(detail.json().submitted_at).toBeTruthy();
+  });
+
+  it("response list includes drafts by default, can be filtered to submitted_only", async () => {
+    await createQuestionnaire();
+    // Submitted user.
+    await ingestResponse("survey", "u-submit", { q_text: "Hi", q_choice: "yes" });
+    // Draft user.
+    await app.inject({
+      method: "POST",
+      url: `/v1/questionnaires/survey/responses`,
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { bundle_id: TEST_BUNDLE_ID, user_id: "u-draft", answers: { q_text: "wip" } },
+    });
+
+    const q = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const qid = q.json().questionnaires[0].id;
+
+    const listAll = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires/${qid}/responses`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(listAll.json().responses).toHaveLength(2);
+    const draftRow = listAll.json().responses.find((r: any) => r.user_id === "u-draft");
+    expect(draftRow.is_complete).toBe(false);
+    expect(draftRow.submitted_at).toBeNull();
+    expect(draftRow.status).toBe("draft");
+    expect(draftRow.schema_snapshot).toBeNull();
+
+    const listSubmittedOnly = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires/${qid}/responses?submitted_only=true`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(listSubmittedOnly.json().responses).toHaveLength(1);
+    expect(listSubmittedOnly.json().responses[0].user_id).toBe("u-submit");
+  });
+
+  it("analytics counts drafts in per-question rollups by default", async () => {
+    await createQuestionnaire();
+    // Submitted user fills everything.
+    await ingestResponse("survey", "u-submit", {
+      q_text: "Hi",
+      q_choice: "yes",
+      q_rating: 4,
+    });
+    // Draft user fills only q_text.
+    await app.inject({
+      method: "POST",
+      url: `/v1/questionnaires/survey/responses`,
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { bundle_id: TEST_BUNDLE_ID, user_id: "u-draft", answers: { q_text: "wip" } },
+    });
+
+    const q = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const qid = q.json().questionnaires[0].id;
+
+    const all = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires/${qid}/analytics`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(all.json().total_responses).toBe(2);
+    expect(all.json().submitted_count).toBe(1);
+    const textQ = all.json().questions.find((q: any) => q.id === "q_text");
+    expect(textQ.total_answered).toBe(2); // both submitted + draft answered
+    const choiceQ = all.json().questions.find((q: any) => q.id === "q_choice");
+    expect(choiceQ.total_answered).toBe(1); // only the submitted
+
+    const submittedOnly = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${projectId}/questionnaires/${qid}/analytics?submitted_only=true`,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(submittedOnly.json().total_responses).toBe(1);
+    expect(submittedOnly.json().submitted_count).toBe(1);
+    const textQOnly = submittedOnly.json().questions.find((q: any) => q.id === "q_text");
+    expect(textQOnly.total_answered).toBe(1);
   });
 
   it("updates response status", async () => {

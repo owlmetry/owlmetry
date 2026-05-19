@@ -127,7 +127,7 @@ describe("GET /v1/questionnaires/:slug — eligibility", () => {
     expect(res.json()).toEqual({ eligible: false, reason: "globally_dismissed" });
   });
 
-  it("returns eligible:false reason=already_responded after a response exists", async () => {
+  it("returns eligible:false reason=already_responded after a final submit", async () => {
     const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
     const projectId = projectRow[0]!.id as string;
     await seedQuestionnaire(projectId);
@@ -140,6 +140,7 @@ describe("GET /v1/questionnaires/:slug — eligibility", () => {
         bundle_id: TEST_BUNDLE_ID,
         user_id: "user_42",
         session_id: TEST_SESSION_ID,
+        is_complete: true,
         answers: { q_text: "Hi", q_choice: "yes", q_rating: 4, q_nps: 9 },
       },
     });
@@ -151,6 +152,39 @@ describe("GET /v1/questionnaires/:slug — eligibility", () => {
       headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
     });
     expect(fetch.json()).toEqual({ eligible: false, reason: "already_responded" });
+  });
+
+  it("returns eligible:true with in_progress when the user has an unsubmitted draft", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    const draft = await app.inject({
+      method: "POST",
+      url: "/v1/questionnaires/post-onboarding/responses",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: {
+        bundle_id: TEST_BUNDLE_ID,
+        user_id: "user_42",
+        // is_complete omitted → draft save
+        answers: { q_text: "in progress" },
+      },
+    });
+    expect(draft.statusCode).toBe(201);
+    const draftId = draft.json().id as string;
+    expect(draft.json().was_submitted).toBe(false);
+
+    const fetch = await app.inject({
+      method: "GET",
+      url: "/v1/questionnaires/post-onboarding?bundle_id=" + TEST_BUNDLE_ID + "&user_id=user_42",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+    });
+    const body = fetch.json();
+    expect(body.eligible).toBe(true);
+    expect(body.in_progress).toEqual({
+      response_id: draftId,
+      answers: { q_text: "in progress" },
+    });
   });
 
   it("rejects mismatched bundle_id with 403", async () => {
@@ -181,7 +215,7 @@ describe("GET /v1/questionnaires/:slug — eligibility", () => {
 });
 
 describe("POST /v1/questionnaires/:slug/responses", () => {
-  it("persists a complete response with snapshot and answers", async () => {
+  it("persists a complete response with snapshot and answers (is_complete: true)", async () => {
     const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
     const projectId = projectRow[0]!.id as string;
     const qid = await seedQuestionnaire(projectId);
@@ -194,12 +228,14 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
         bundle_id: TEST_BUNDLE_ID,
         user_id: "user_42",
         session_id: TEST_SESSION_ID,
+        is_complete: true,
         answers: { q_text: "Loving it", q_choice: "yes", q_rating: 5, q_nps: 10 },
         app_version: "1.4.2",
         environment: "ios",
       },
     });
     expect(res.statusCode).toBe(201);
+    expect(res.json().was_submitted).toBe(true);
 
     const rows = await dbClient`
       SELECT * FROM questionnaire_responses WHERE questionnaire_id = ${qid}
@@ -210,11 +246,12 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
     expect(row.app_version).toBe("1.4.2");
     expect(row.environment).toBe("ios");
     expect(row.status).toBe("new");
+    expect(row.submitted_at).not.toBeNull();
     expect((row.answers as any).q_text).toBe("Loving it");
     expect((row.schema_snapshot as any).questions).toHaveLength(4);
   });
 
-  it("rejects invalid answers (missing required)", async () => {
+  it("rejects invalid answers (missing required) on final submit", async () => {
     const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
     const projectId = projectRow[0]!.id as string;
     await seedQuestionnaire(projectId);
@@ -226,6 +263,7 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
       payload: {
         bundle_id: TEST_BUNDLE_ID,
         user_id: "user_42",
+        is_complete: true,
         answers: { q_text: "Loving it" }, // missing required q_choice
       },
     });
@@ -233,7 +271,7 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
     expect(res.json().error).toMatch(/q_choice/);
   });
 
-  it("returns 409 already_responded on duplicate submit by same user", async () => {
+  it("returns 409 already_responded on duplicate final submit by same user", async () => {
     const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
     const projectId = projectRow[0]!.id as string;
     await seedQuestionnaire(projectId);
@@ -246,6 +284,7 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
         payload: {
           bundle_id: TEST_BUNDLE_ID,
           user_id: "user_42",
+          is_complete: true,
           answers: { q_text: "Hi", q_choice: "yes" },
         },
       });
@@ -271,6 +310,7 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
       payload: {
         bundle_id: TEST_BUNDLE_ID,
         user_id: "user_42",
+        is_complete: true,
         answers: { q_text: "Hi", q_choice: "yes" },
       },
     });
@@ -290,6 +330,7 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
         headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
         payload: {
           bundle_id: TEST_BUNDLE_ID,
+          is_complete: true,
           answers: { q_text: "Anon", q_choice: "no" },
         },
       });
@@ -298,6 +339,174 @@ describe("POST /v1/questionnaires/:slug/responses", () => {
 
     const rows = await dbClient`SELECT id FROM questionnaire_responses WHERE user_id IS NULL`;
     expect(rows.length).toBe(2);
+  });
+});
+
+describe("POST /v1/questionnaires/:slug/responses — draft lifecycle", () => {
+  // Helper that submits a save and returns the parsed body.
+  async function save(
+    payload: Record<string, unknown>,
+  ): Promise<{ statusCode: number; body: any }> {
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/questionnaires/post-onboarding/responses",
+      headers: { Authorization: `Bearer ${TEST_CLIENT_KEY}` },
+      payload: { bundle_id: TEST_BUNDLE_ID, ...payload },
+    });
+    return { statusCode: res.statusCode, body: res.json() };
+  }
+
+  it("saves a partial answer as a draft (submitted_at null, status=draft, no snapshot)", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    const qid = await seedQuestionnaire(projectId);
+
+    const r = await save({ user_id: "user_42", answers: { q_text: "draft start" } });
+    expect(r.statusCode).toBe(201);
+    expect(r.body.was_submitted).toBe(false);
+
+    const [row] = await dbClient`SELECT * FROM questionnaire_responses WHERE questionnaire_id = ${qid}`;
+    expect(row).toBeDefined();
+    expect(row!.submitted_at).toBeNull();
+    expect(row!.status).toBe("draft");
+    expect(row!.schema_snapshot).toBeNull();
+    expect((row!.answers as any).q_text).toBe("draft start");
+  });
+
+  it("merges incoming answers on each save (key-level)", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    const qid = await seedQuestionnaire(projectId);
+
+    expect((await save({ user_id: "u", answers: { q_text: "first" } })).statusCode).toBe(201);
+    expect((await save({ user_id: "u", answers: { q_choice: "yes" } })).statusCode).toBe(200);
+    expect((await save({ user_id: "u", answers: { q_rating: 4 } })).statusCode).toBe(200);
+
+    const rows = await dbClient`SELECT id, answers FROM questionnaire_responses WHERE questionnaire_id = ${qid}`;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.answers).toEqual({ q_text: "first", q_choice: "yes", q_rating: 4 });
+  });
+
+  it("overwrites an existing key when re-saved with a new value", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    expect((await save({ user_id: "u", answers: { q_text: "first attempt" } })).statusCode).toBe(201);
+    expect(
+      (await save({ user_id: "u", answers: { q_text: "second attempt" } })).statusCode,
+    ).toBe(200);
+
+    const rows = await dbClient`SELECT answers FROM questionnaire_responses WHERE user_id = 'u'`;
+    expect((rows[0]!.answers as any).q_text).toBe("second attempt");
+  });
+
+  it("flips submitted_at on is_complete=true and only fires the notification once", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    // Three partial saves followed by a completion save.
+    expect((await save({ user_id: "u", answers: { q_text: "hi" } })).body.was_submitted).toBe(false);
+    expect((await save({ user_id: "u", answers: { q_choice: "yes" } })).body.was_submitted).toBe(false);
+    expect((await save({ user_id: "u", answers: { q_rating: 4 } })).body.was_submitted).toBe(false);
+
+    const final = await save({
+      user_id: "u",
+      is_complete: true,
+      answers: { q_nps: 9 },
+    });
+    expect(final.statusCode).toBe(200);
+    expect(final.body.was_submitted).toBe(true);
+
+    const rows = await dbClient`SELECT status, submitted_at, schema_snapshot, answers FROM questionnaire_responses WHERE user_id = 'u'`;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe("new");
+    expect(rows[0]!.submitted_at).not.toBeNull();
+    expect((rows[0]!.schema_snapshot as any).questions).toHaveLength(4);
+    // Accumulated answers from every partial save plus the final completion.
+    expect(rows[0]!.answers).toEqual({
+      q_text: "hi",
+      q_choice: "yes",
+      q_rating: 4,
+      q_nps: 9,
+    });
+
+    // A subsequent save call against the submitted row must be refused.
+    const after = await save({ user_id: "u", answers: { q_text: "edit" } });
+    expect(after.statusCode).toBe(409);
+    expect(after.body.reason).toBe("already_responded");
+  });
+
+  it("rejects a completion save when required answers are still missing", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    expect((await save({ user_id: "u", answers: { q_text: "hi" } })).statusCode).toBe(201);
+    // q_choice is required but never saved.
+    const r = await save({
+      user_id: "u",
+      is_complete: true,
+      answers: { q_nps: 5 },
+    });
+    expect(r.statusCode).toBe(400);
+    expect(r.body.error).toMatch(/q_choice/);
+
+    // Row is still a draft after the failed completion.
+    const rows = await dbClient`SELECT submitted_at FROM questionnaire_responses WHERE user_id = 'u'`;
+    expect(rows[0]!.submitted_at).toBeNull();
+  });
+
+  it("prunes unknown keys at completion when the schema removed a question mid-draft", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    const qid = await seedQuestionnaire(projectId);
+
+    // User saves all four questions as a draft.
+    expect(
+      (
+        await save({
+          user_id: "u",
+          answers: { q_text: "hi", q_choice: "yes", q_rating: 4, q_nps: 9 },
+        })
+      ).statusCode,
+    ).toBe(201);
+
+    // Editor removes the rating question before the user completes.
+    const trimmedSchema: QuestionnaireSchema = {
+      version: 1,
+      questions: SAMPLE_SCHEMA.questions.filter((q) => q.id !== "q_rating"),
+    };
+    await dbClient`UPDATE questionnaires SET schema = ${JSON.stringify(trimmedSchema)}::jsonb WHERE id = ${qid}`;
+
+    // Completion succeeds — the stale q_rating answer is pruned.
+    const r = await save({
+      user_id: "u",
+      is_complete: true,
+      answers: {},
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.body.was_submitted).toBe(true);
+
+    const rows = await dbClient`SELECT answers, schema_snapshot FROM questionnaire_responses WHERE user_id = 'u'`;
+    const stored = rows[0]!.answers as Record<string, unknown>;
+    expect(stored).toEqual({ q_text: "hi", q_choice: "yes", q_nps: 9 });
+    // Snapshot reflects the live schema at completion time.
+    expect(((rows[0]!.schema_snapshot as any).questions as Array<{ id: string }>).map((q) => q.id)).toEqual([
+      "q_text",
+      "q_choice",
+      "q_nps",
+    ]);
+  });
+
+  it("still validates type/range on partial saves (out-of-range NPS is rejected even mid-draft)", async () => {
+    const projectRow = await dbClient`SELECT id FROM projects WHERE slug='test-project'`;
+    const projectId = projectRow[0]!.id as string;
+    await seedQuestionnaire(projectId);
+
+    const r = await save({ user_id: "u", answers: { q_nps: 42 } });
+    expect(r.statusCode).toBe(400);
   });
 });
 

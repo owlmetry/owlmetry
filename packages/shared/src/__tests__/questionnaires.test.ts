@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateQuestionnaireSchema,
   validateAnswers,
+  pruneUnknownAnswerKeys,
   MAX_QUESTIONNAIRE_QUESTIONS,
   MAX_QUESTIONNAIRE_OPTIONS_PER_QUESTION,
   MAX_QUESTIONNAIRE_TEXT_ANSWER_LENGTH,
@@ -277,5 +278,68 @@ describe("validateAnswers", () => {
       q_multi: [],
     });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("validateAnswers — partial mode", () => {
+  it("accepts a subset of questions when allowPartial=true", () => {
+    const r = validateAnswers(baseSchema(), { q_text: "Hello" }, { allowPartial: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toEqual({ q_text: "Hello" });
+  });
+
+  it("accepts an empty answer set when allowPartial=true", () => {
+    const r = validateAnswers(baseSchema(), {}, { allowPartial: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toEqual({});
+  });
+
+  it("still type-checks present answers when allowPartial=true", () => {
+    const r = validateAnswers(
+      baseSchema(),
+      { q_single: "not_an_option" },
+      { allowPartial: true }
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("still rejects out-of-range rating when allowPartial=true", () => {
+    const r = validateAnswers(baseSchema(), { q_rate: 9 }, { allowPartial: true });
+    expect(r.ok).toBe(false);
+  });
+
+  it("still rejects unknown question ids when allowPartial=true", () => {
+    const r = validateAnswers(baseSchema(), { stray: "x" }, { allowPartial: true });
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("pruneUnknownAnswerKeys", () => {
+  it("removes keys whose question id is no longer in the schema", () => {
+    const schema: QuestionnaireSchema = {
+      version: 1,
+      questions: [{ id: "q_kept", type: "text", title: "T", required: false }],
+    };
+    const out = pruneUnknownAnswerKeys(schema, { q_kept: "yes", q_removed: "gone", other: 5 });
+    expect(out).toEqual({ q_kept: "yes" });
+  });
+
+  it("returns an empty object when nothing matches the schema", () => {
+    const schema: QuestionnaireSchema = {
+      version: 1,
+      questions: [{ id: "q_a", type: "text", title: "T", required: false }],
+    };
+    const out = pruneUnknownAnswerKeys(schema, { q_b: "x", q_c: 1 });
+    expect(out).toEqual({});
+  });
+
+  it("does not mutate the input", () => {
+    const schema: QuestionnaireSchema = {
+      version: 1,
+      questions: [{ id: "q_a", type: "text", title: "T", required: false }],
+    };
+    const input = { q_a: "keep", q_b: "drop" };
+    pruneUnknownAnswerKeys(schema, input);
+    expect(input).toEqual({ q_a: "keep", q_b: "drop" });
   });
 });

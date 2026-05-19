@@ -9,9 +9,21 @@ Questionnaires are short, structured surveys you build once on the server and pr
 
 1. Create a questionnaire via the dashboard, CLI (`owlmetry questionnaires create`), or MCP. Pick an immutable slug like `post-onboarding`. The schema is JSON: up to 30 questions, mix of `text`, `single_choice`, `multi_choice`, `rating` (1–5), `nps` (0–10).
 2. In your iOS app, add a SwiftUI view modifier referencing the slug — e.g. `.owlQuestionnaire(slug: "post-onboarding", trigger: .afterLaunches(3))`.
-3. When the trigger fires, the SDK calls `GET /v1/questionnaires/:slug` to fetch the latest schema and check eligibility for the current user (not already responded, not globally dismissed).
-4. If eligible, the SDK presents `OwlQuestionnaireView` in a sheet with the fetched questions. The user submits answers, or skips, or taps "Don't show again" to globally opt out of every questionnaire forever.
-5. The submitted response lands at `POST /v1/questionnaires/:slug/responses` and shows up under `/dashboard/questionnaires/<id>` with per-question analytics.
+3. When the trigger fires, the SDK calls `GET /v1/questionnaires/:slug` to fetch the latest schema and check eligibility for the current user (not already responded, not globally dismissed). If the user has an unsubmitted draft from an earlier session, the response also includes `in_progress: { response_id, answers }` so the SDK can resume.
+4. If eligible, the SDK presents `OwlQuestionnaireView` in a sheet. **Each Next tap saves the current answer set as a draft** (`POST /v1/questionnaires/:slug/responses` with `is_complete: false`). When the user taps Submit on the last question, the final call goes out with `is_complete: true`, which flips `submitted_at` to non-null and fires the team notification exactly once.
+5. The response (draft or submitted) shows up under `/dashboard/questionnaires/<id>` — drafts carry a **Draft** badge with an `N/M answered` indicator; submitted rows carry **Submitted**. Per-question analytics include drafts by default so abandonment shows up as a natural drop-off curve.
+
+## Progressive responses
+
+The SDK persists answers on every Next tap, not just on Submit. This means:
+
+- A user who answers Q1, Q2, and quits has their two answers saved as a draft with `submitted_at = null`. Analytics for Q1 and Q2 reflect those answers immediately; Q3+ does not.
+- The same user's next eligible launch resumes them on Q3 with Q1 and Q2 pre-filled (consent is skipped on resume — they've already opted in).
+- Going Back and changing an earlier answer overwrites the saved value; subsequent Next saves the new value into the same row.
+- The team notification (`questionnaire.response_new`) fires only on the final Submit, never on partial draft saves.
+- Abandoned drafts (`submitted_at IS NULL` and untouched > 90 days) are soft-deleted by the daily `questionnaire_draft_cleanup` job — long enough to let a user resume across a long gap, short enough to bound the orphan set.
+
+**Tip:** put your most important questions first. Users who quit halfway still leave you with their high-signal answers.
 
 ## Question types
 

@@ -7,6 +7,7 @@ import {
   appUserApps,
   funnelEvents,
   metricEvents,
+  questionnaireResponses,
 } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
@@ -127,6 +128,48 @@ export async function identityRoutes(app: FastifyInstance) {
               inArray(metricEvents.app_id, projectAppIds),
               eq(metricEvents.user_id, anonymous_id)
             )
+          );
+
+        // Migrate questionnaire_responses.user_id from anonymous → real.
+        // The partial unique index `(project_id, slug, user_id) WHERE
+        // deleted_at IS NULL AND user_id IS NOT NULL` enforces one row per
+        // (project, slug, user); a direct UPDATE could violate it if the
+        // real id already has a row for the same questionnaire. We resolve
+        // by precedence:
+        //   1. Only update the anon row when no real-user row exists for
+        //      the same (project, slug). The NOT EXISTS guard side-steps
+        //      the index conflict and preserves the (presumably submitted)
+        //      real row's history.
+        //   2. Any anon rows left after that — i.e., those that conflicted
+        //      with a sibling-device real row — get soft-deleted. A
+        //      half-completed anon draft is acceptable to lose; submitted
+        //      real responses win.
+        await tx
+          .update(questionnaireResponses)
+          .set({ user_id: user_id })
+          .where(
+            and(
+              eq(questionnaireResponses.project_id, project_id),
+              eq(questionnaireResponses.user_id, anonymous_id),
+              isNull(questionnaireResponses.deleted_at),
+              sql`NOT EXISTS (
+                SELECT 1 FROM ${questionnaireResponses} r2
+                WHERE r2.project_id = ${project_id}
+                  AND r2.slug = ${questionnaireResponses.slug}
+                  AND r2.user_id = ${user_id}
+                  AND r2.deleted_at IS NULL
+              )`,
+            ),
+          );
+        await tx
+          .update(questionnaireResponses)
+          .set({ deleted_at: new Date() })
+          .where(
+            and(
+              eq(questionnaireResponses.project_id, project_id),
+              eq(questionnaireResponses.user_id, anonymous_id),
+              isNull(questionnaireResponses.deleted_at),
+            ),
           );
 
         // Re-fetch realUserRow + anonRow inside the transaction. Under

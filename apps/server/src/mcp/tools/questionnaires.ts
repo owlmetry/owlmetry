@@ -121,7 +121,7 @@ export function registerQuestionnaireTools(
 
   server.registerTool("list-questionnaire-responses", {
     description:
-      "List responses for a questionnaire. Each response carries the answer map plus the schema_snapshot it was submitted against. Filter by status, app, dev/prod, cursor.",
+      "List responses for a questionnaire. Includes both completed submissions and unsubmitted drafts (drafts are first-class responses — saved progressively as the user taps Next in the SDK). Each row has `submitted_at` (null for drafts) and `is_complete`. Drafts have `schema_snapshot = null` and `status = 'draft'`; on completion they flip to `status = 'new'` and snapshot the schema. Filter to completed-only with `submitted_only: true`; filter to drafts-only with `status: 'draft'`.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       questionnaire_id: z.string().uuid().describe("The questionnaire ID"),
@@ -129,6 +129,7 @@ export function registerQuestionnaireTools(
       app_id: z.string().uuid().optional(),
       is_dev: z.boolean().optional(),
       data_mode: z.enum(["production", "development", "all"]).optional(),
+      submitted_only: z.boolean().optional().describe("Exclude drafts. Default false — drafts are included so dashboards can see drop-off."),
       cursor: z.string().optional(),
       limit: z.number().optional(),
     },
@@ -141,7 +142,7 @@ export function registerQuestionnaireTools(
 
   server.registerTool("get-questionnaire-response", {
     description:
-      "Get a single response with comments. session_id links to the full user session — pass to query-events for context.",
+      "Get a single response with comments. session_id links to the full user session — pass to query-events for context. Drafts (unsubmitted) have `submitted_at = null`, `is_complete = false`, and `schema_snapshot = null` (they render against the live questionnaire schema until completion).",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       questionnaire_id: z.string().uuid().describe("The questionnaire ID"),
@@ -189,12 +190,13 @@ export function registerQuestionnaireTools(
 
   server.registerTool("get-questionnaire-analytics", {
     description:
-      "Pre-aggregated per-question distribution. For each question: text → 10 most recent answers; single/multi_choice → counts per option; rating → 1–5 bucket counts + average; nps → 0–10 bucket counts + detractor/passive/promoter split + score.",
+      "Pre-aggregated per-question distribution. Includes drafts by default — a Q1-only draft contributes to Q1's count and naturally drops out of Q2+ (the rollup queries use JSONB `?` for key presence, so abandonment shows up as a drop-off curve). For each question: text → 10 most recent answers; single/multi_choice → counts per option; rating → 1–5 bucket counts + average; nps → 0–10 bucket counts + detractor/passive/promoter split + score. `total_responses` counts everything; `submitted_count` is the subset of submitted responses (always surfaced for the 'M of N completed' headline). Pass `submitted_only: true` to compute the rollups against submitted responses only.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       questionnaire_id: z.string().uuid().describe("The questionnaire ID"),
       is_dev: z.boolean().optional(),
       data_mode: z.enum(["production", "development", "all"]).optional(),
+      submitted_only: z.boolean().optional().describe("Compute rollups against submitted responses only. Default false."),
     },
   }, async ({ project_id, questionnaire_id, ...params }) => {
     return callApi(app, agentKey, {

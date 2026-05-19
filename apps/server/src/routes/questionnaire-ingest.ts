@@ -1,15 +1,18 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { apps, questionnaires, questionnaireResponses, appUsers } from "@owlmetry/db";
 import {
   ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
   QUESTIONNAIRES_DISMISSED_PROPERTY,
+  pruneUnknownAnswerKeys,
   validateAnswers,
 } from "@owlmetry/shared";
 import type {
   IngestQuestionnaireFetchResponse,
   IngestQuestionnaireSubmitRequest,
+  IngestQuestionnaireSubmitResponse,
   IngestQuestionnaireDismissRequest,
+  QuestionnaireAnswers,
   QuestionnaireSchema,
 } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
@@ -163,6 +166,7 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
       }
 
       let resolvedUserId: string | null = typeof user_id === "string" && user_id.length > 0 ? user_id : null;
+      let inProgress: { response_id: string; answers: QuestionnaireAnswers } | null = null;
       if (resolvedUserId) {
         const claimedMap = await resolveClaimedUserIds(app.db, appRow.project_id, [resolvedUserId]);
         resolvedUserId = claimedMap.get(resolvedUserId) ?? resolvedUserId;
@@ -172,8 +176,15 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
           return reply.send(body);
         }
 
+        // submitted_at non-null = the user already finished this questionnaire,
+        // submission is terminal. null = there's a draft in progress and the
+        // SDK should resume from where they left off.
         const [existing] = await app.db
-          .select({ id: questionnaireResponses.id })
+          .select({
+            id: questionnaireResponses.id,
+            answers: questionnaireResponses.answers,
+            submitted_at: questionnaireResponses.submitted_at,
+          })
           .from(questionnaireResponses)
           .where(
             and(
@@ -185,8 +196,14 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
           )
           .limit(1);
         if (existing) {
-          const body: IngestQuestionnaireFetchResponse = { eligible: false, reason: "already_responded" };
-          return reply.send(body);
+          if (existing.submitted_at !== null) {
+            const body: IngestQuestionnaireFetchResponse = { eligible: false, reason: "already_responded" };
+            return reply.send(body);
+          }
+          inProgress = {
+            response_id: existing.id,
+            answers: (existing.answers as QuestionnaireAnswers) ?? {},
+          };
         }
       }
 
@@ -199,14 +216,20 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
           description: qRow.description,
           schema: qRow.schema as QuestionnaireSchema,
         },
+        ...(inProgress ? { in_progress: inProgress } : {}),
       };
       return reply.send(body);
     },
   );
 
-  // POST /v1/questionnaires/:slug/responses — submit a completed response.
-  // Validates answers against the current schema; snapshots the schema into
-  // the response row; race-safe via the partial unique index.
+  // POST /v1/questionnaires/:slug/responses — upsert a draft or submit a
+  // completed response. Drafts and submissions share one row per (project,
+  // slug, user); `submitted_at` distinguishes them. Each Next tap in the SDK
+  // calls this endpoint with the full accumulated answer set and is_complete
+  // = false; the final Submit tap calls with is_complete = true. Answers
+  // merge per key (incoming overwrites existing for the same question id);
+  // submitted_at flips null → non-null exactly once, and the team
+  // notification fires only on that flip.
   app.post<{ Params: { slug: string }; Body: IngestQuestionnaireSubmitRequest }>(
     "/questionnaires/:slug/responses",
     { preHandler: [requirePermission("events:write"), rateLimit] },
@@ -221,6 +244,7 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
 
       const { slug } = request.params;
       const body = request.body ?? ({} as IngestQuestionnaireSubmitRequest);
+      const isComplete = body.is_complete === true;
 
       const [appRow] = await app.db
         .select({
@@ -268,10 +292,6 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
       }
 
       const schema = qRow.schema as QuestionnaireSchema;
-      const result = validateAnswers(schema, body.answers);
-      if (!result.ok) {
-        return reply.code(400).send({ error: result.error });
-      }
 
       let sessionId: string | null = null;
       if (body.session_id != null) {
@@ -293,6 +313,78 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
         }
       }
 
+      // Look up the existing row first so we can (a) refuse early if it's
+      // already submitted, (b) merge incoming answers with existing ones for
+      // the final-validation pass, and (c) compute was_submitted by comparing
+      // prev vs new submitted_at. The upsert below uses a WHERE submitted_at
+      // IS NULL guard, so a concurrent submission between this SELECT and
+      // the UPSERT correctly results in 0 rows returned and a 409 — no risk
+      // of double-flipping or double-notifying.
+      let existing: { id: string; answers: QuestionnaireAnswers; submitted_at: Date | null } | null = null;
+      if (userId) {
+        const [row] = await app.db
+          .select({
+            id: questionnaireResponses.id,
+            answers: questionnaireResponses.answers,
+            submitted_at: questionnaireResponses.submitted_at,
+          })
+          .from(questionnaireResponses)
+          .where(
+            and(
+              eq(questionnaireResponses.project_id, appRow.project_id),
+              eq(questionnaireResponses.slug, slug),
+              eq(questionnaireResponses.user_id, userId),
+              isNull(questionnaireResponses.deleted_at),
+            ),
+          )
+          .limit(1);
+        if (row) {
+          existing = {
+            id: row.id,
+            answers: (row.answers as QuestionnaireAnswers) ?? {},
+            submitted_at: row.submitted_at,
+          };
+        }
+      }
+
+      if (existing?.submitted_at != null) {
+        return reply.code(409).send({ error: "Already responded", reason: "already_responded" });
+      }
+
+      // Validate the *incoming* answer set with allowPartial: true regardless
+      // of is_complete — the required-answered check belongs against the
+      // merged set, not the incoming subset. A completion call might send
+      // only the last page's answer because every earlier question was
+      // already saved via prior drafts. allowPartial: true still type-checks
+      // every present key, so an out-of-range NPS or invalid option in the
+      // incoming payload still 400s.
+      const incomingResult = validateAnswers(schema, body.answers, { allowPartial: true });
+      if (!incomingResult.ok) {
+        return reply.code(400).send({ error: incomingResult.error });
+      }
+
+      // Merge incoming on top of existing (per-key replace) so a re-save of
+      // Q1 with a new value overwrites, and a save of Q3 preserves Q1+Q2.
+      const mergedAnswers: QuestionnaireAnswers = existing
+        ? { ...existing.answers, ...incomingResult.value }
+        : incomingResult.value;
+
+      // Completion-only: prune answers whose question id is no longer in
+      // the current schema (an editor may have removed a question between
+      // draft-save and submit), then re-validate the *merged* set against
+      // the live schema with allowPartial: false to enforce required
+      // questions. The pruned-and-validated value is what we persist along
+      // with the snapshot.
+      let answersToPersist: QuestionnaireAnswers = mergedAnswers;
+      if (isComplete) {
+        const pruned = pruneUnknownAnswerKeys(schema, mergedAnswers);
+        const finalResult = validateAnswers(schema, pruned, { allowPartial: false });
+        if (!finalResult.ok) {
+          return reply.code(400).send({ error: finalResult.error });
+        }
+        answersToPersist = finalResult.value;
+      }
+
       const environment = typeof body.environment === "string" ? body.environment : null;
       if (environment) {
         const allowed =
@@ -308,43 +400,126 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
 
       const countryCode = resolveIngestCountryCode(request.headers["cf-ipcountry"], appRow.platform);
       const isDev = body.is_dev === true;
-      // Snapshot the schema by value so future edits don't retroactively change
-      // how this response renders.
-      const schemaSnapshot = structuredClone(schema);
+      const now = new Date();
+      // Snapshot the schema by value at completion time so future edits don't
+      // retroactively change how this response renders. Drafts have no
+      // snapshot — they render against the live schema until they submit.
+      const schemaSnapshot = isComplete ? structuredClone(schema) : null;
+      const prevSubmittedAt = existing?.submitted_at ?? null;
 
-      // Race-safe insert: partial unique index on (project_id, slug, user_id)
-      // WHERE deleted_at IS NULL AND user_id IS NOT NULL drives the conflict.
-      const inserted = await app.db
-        .insert(questionnaireResponses)
-        .values({
-          questionnaire_id: qRow.id,
-          slug: qRow.slug,
-          app_id: appRow.id,
-          project_id: appRow.project_id,
-          session_id: sessionId,
-          user_id: userId,
-          answers: result.value,
-          schema_snapshot: schemaSnapshot,
-          status: "new",
-          is_dev: isDev,
-          environment: environment as any,
-          os_version: trimOrNull(body.os_version, 50),
-          app_version: trimOrNull(body.app_version, 50),
-          sdk_name: trimOrNull(body.sdk_name, 50),
-          sdk_version: trimOrNull(body.sdk_version, 50),
-          device_model: trimOrNull(body.device_model, 100),
-          country_code: countryCode,
-        })
-        .onConflictDoNothing()
-        .returning({ id: questionnaireResponses.id, created_at: questionnaireResponses.created_at });
+      let responseRow: { id: string; created_at: Date; submitted_at: Date | null } | null = null;
 
-      if (inserted.length === 0) {
-        return reply.code(409).send({ error: "Already responded", reason: "already_responded" });
+      if (existing) {
+        // Update the existing draft. WHERE submitted_at IS NULL refuses the
+        // update if another request flipped first — RETURNING yields zero
+        // rows and we respond 409.
+        const [updated] = await app.db
+          .update(questionnaireResponses)
+          .set({
+            answers: answersToPersist,
+            ...(isComplete
+              ? {
+                  submitted_at: now,
+                  status: "new" as const,
+                  schema_snapshot: schemaSnapshot,
+                }
+              : {}),
+            updated_at: now,
+            // Refresh denormalized client metadata on each save so we don't
+            // freeze stale values from the first draft-save. Trimming
+            // matches the original INSERT behavior.
+            environment: environment as any,
+            os_version: trimOrNull(body.os_version, 50),
+            app_version: trimOrNull(body.app_version, 50),
+            sdk_name: trimOrNull(body.sdk_name, 50),
+            sdk_version: trimOrNull(body.sdk_version, 50),
+            device_model: trimOrNull(body.device_model, 100),
+            country_code: countryCode,
+            ...(sessionId ? { session_id: sessionId } : {}),
+          })
+          .where(
+            and(
+              eq(questionnaireResponses.id, existing.id),
+              isNull(questionnaireResponses.submitted_at),
+            ),
+          )
+          .returning({
+            id: questionnaireResponses.id,
+            created_at: questionnaireResponses.created_at,
+            submitted_at: questionnaireResponses.submitted_at,
+          });
+        if (!updated) {
+          // The row was flipped to submitted by a concurrent request between
+          // our SELECT and our UPDATE. Treat as already_responded.
+          return reply.code(409).send({ error: "Already responded", reason: "already_responded" });
+        }
+        responseRow = updated;
+      } else {
+        // No existing row. INSERT — with ON CONFLICT DO UPDATE for the
+        // (rare) race where another request inserted between our SELECT and
+        // ours. The conflict path mirrors the update branch above: merge
+        // answers, conditionally flip submitted_at, refuse if already
+        // submitted via setWhere.
+        const valueAnswers = answersToPersist;
+        const inserted = await app.db
+          .insert(questionnaireResponses)
+          .values({
+            questionnaire_id: qRow.id,
+            slug: qRow.slug,
+            app_id: appRow.id,
+            project_id: appRow.project_id,
+            session_id: sessionId,
+            user_id: userId,
+            answers: valueAnswers,
+            schema_snapshot: schemaSnapshot,
+            submitted_at: isComplete ? now : null,
+            status: isComplete ? "new" : "draft",
+            is_dev: isDev,
+            environment: environment as any,
+            os_version: trimOrNull(body.os_version, 50),
+            app_version: trimOrNull(body.app_version, 50),
+            sdk_name: trimOrNull(body.sdk_name, 50),
+            sdk_version: trimOrNull(body.sdk_version, 50),
+            device_model: trimOrNull(body.device_model, 100),
+            country_code: countryCode,
+          })
+          .onConflictDoUpdate({
+            target: [
+              questionnaireResponses.project_id,
+              questionnaireResponses.slug,
+              questionnaireResponses.user_id,
+            ],
+            targetWhere: sql`${questionnaireResponses.deleted_at} IS NULL AND ${questionnaireResponses.user_id} IS NOT NULL`,
+            set: {
+              answers: sql`${questionnaireResponses.answers} || excluded.answers`,
+              submitted_at: sql`CASE WHEN ${questionnaireResponses.submitted_at} IS NULL AND excluded.submitted_at IS NOT NULL THEN excluded.submitted_at ELSE ${questionnaireResponses.submitted_at} END`,
+              status: sql`CASE WHEN ${questionnaireResponses.submitted_at} IS NULL AND excluded.submitted_at IS NOT NULL THEN excluded.status ELSE ${questionnaireResponses.status} END`,
+              schema_snapshot: sql`CASE WHEN ${questionnaireResponses.submitted_at} IS NULL AND excluded.submitted_at IS NOT NULL THEN excluded.schema_snapshot ELSE ${questionnaireResponses.schema_snapshot} END`,
+              updated_at: now,
+            },
+            setWhere: sql`${questionnaireResponses.submitted_at} IS NULL`,
+          })
+          .returning({
+            id: questionnaireResponses.id,
+            created_at: questionnaireResponses.created_at,
+            submitted_at: questionnaireResponses.submitted_at,
+          });
+        if (inserted.length === 0) {
+          // Race: another request already submitted. setWhere blocked the
+          // update; row exists but it's terminal.
+          return reply.code(409).send({ error: "Already responded", reason: "already_responded" });
+        }
+        responseRow = inserted[0]!;
       }
-      const created = inserted[0]!;
 
-      if (!isDev) {
-        const summary = summarizeAnswers(schema, result.value);
+      // We flipped submitted_at to non-null in this request iff the prior
+      // state was null AND the post-write state is non-null. Anything else
+      // (e.g., a draft save that left submitted_at alone) does NOT trigger
+      // the notification.
+      const wasSubmitted = prevSubmittedAt === null && responseRow.submitted_at !== null;
+
+      if (wasSubmitted && !isDev) {
+        const summary = summarizeAnswers(schema, answersToPersist);
         resolveTeamMemberUserIds(app.db, appRow.team_id)
           .then((userIds) => {
             if (userIds.length === 0) return;
@@ -359,7 +534,7 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
                 data: {
                   questionnaire_id: qRow.id,
                   questionnaire_slug: qRow.slug,
-                  response_id: created.id,
+                  response_id: responseRow!.id,
                   app_id: appRow.id,
                   app_name: appRow.name,
                   project_id: appRow.project_id,
@@ -370,10 +545,15 @@ export async function questionnaireIngestRoutes(app: FastifyInstance) {
           .catch((err) => app.log.error(err, "Failed to enqueue questionnaire.response_new notification"));
       }
 
-      return reply.code(201).send({
-        id: created.id,
-        created_at: created.created_at.toISOString(),
-      });
+      const responseBody: IngestQuestionnaireSubmitResponse = {
+        id: responseRow.id,
+        created_at: responseRow.created_at.toISOString(),
+        was_submitted: wasSubmitted,
+      };
+      // 201 on first insert (no prior row); 200 on subsequent draft saves
+      // and on the final submit-on-existing-draft path. Keeps the create
+      // semantics clear for clients that care about it.
+      return reply.code(existing ? 200 : 201).send(responseBody);
     },
   );
 

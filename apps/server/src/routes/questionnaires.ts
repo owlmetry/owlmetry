@@ -45,6 +45,7 @@ function serializeQuestionnaire(
   row: typeof questionnaires.$inferSelect,
   responseCount?: number,
   lastResponseAt?: Date | string | null,
+  submittedCount?: number,
 ) {
   const lastIso =
     lastResponseAt == null
@@ -64,6 +65,7 @@ function serializeQuestionnaire(
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
     ...(responseCount !== undefined ? { response_count: responseCount } : {}),
+    ...(submittedCount !== undefined ? { submitted_count: submittedCount } : {}),
     ...(lastResponseAt !== undefined ? { last_response_at: lastIso } : {}),
   };
 }
@@ -84,7 +86,12 @@ function serializeResponse(
     session_id: row.session_id,
     user_id: row.user_id,
     answers: row.answers as Record<string, unknown>,
-    schema_snapshot: row.schema_snapshot as QuestionnaireSchema,
+    // schema_snapshot is null on draft rows — they render against the live
+    // questionnaires.schema. Consumers can detect a draft by either this
+    // field being null or the dedicated is_complete flag below.
+    schema_snapshot: (row.schema_snapshot as QuestionnaireSchema | null) ?? null,
+    submitted_at: row.submitted_at ? row.submitted_at.toISOString() : null,
+    is_complete: row.submitted_at !== null,
     status: row.status,
     is_dev: row.is_dev,
     environment: row.environment,
@@ -151,19 +158,22 @@ async function loadUserPropertiesForRows(
 }
 
 /**
- * Roll up response_count + last_response_at per questionnaire in a single
- * GROUP BY query. Empty input returns an empty map.
+ * Roll up response_count + submitted_count + last_response_at per
+ * questionnaire in a single GROUP BY query. `count` includes drafts and
+ * submitted (drafts are responses); `submitted` is the subset with
+ * submitted_at IS NOT NULL. Empty input returns an empty map.
  */
 async function loadResponseCountsByQuestionnaire(
   db: FastifyInstance["db"],
   questionnaireIds: string[],
-): Promise<Map<string, { count: number; last: Date | null }>> {
-  const map = new Map<string, { count: number; last: Date | null }>();
+): Promise<Map<string, { count: number; submitted: number; last: Date | null }>> {
+  const map = new Map<string, { count: number; submitted: number; last: Date | null }>();
   if (questionnaireIds.length === 0) return map;
   const counts = await db
     .select({
       questionnaire_id: questionnaireResponses.questionnaire_id,
       count: countAll,
+      submitted: sql<number>`COUNT(*) FILTER (WHERE ${questionnaireResponses.submitted_at} IS NOT NULL)`,
       last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
     })
     .from(questionnaireResponses)
@@ -175,7 +185,11 @@ async function loadResponseCountsByQuestionnaire(
     )
     .groupBy(questionnaireResponses.questionnaire_id);
   for (const c of counts) {
-    map.set(c.questionnaire_id, { count: Number(c.count), last: c.last });
+    map.set(c.questionnaire_id, {
+      count: Number(c.count),
+      submitted: Number(c.submitted),
+      last: c.last,
+    });
   }
   return map;
 }
@@ -226,7 +240,12 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       return {
         questionnaires: page.map((r) => {
           const counts = countsById.get(r.id);
-          return serializeQuestionnaire(r, counts?.count ?? 0, counts?.last ?? null);
+          return serializeQuestionnaire(
+            r,
+            counts?.count ?? 0,
+            counts?.last ?? null,
+            counts?.submitted ?? 0,
+          );
         }),
         cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.created_at, lastItem.id) : null,
         has_more: hasMore,
@@ -339,6 +358,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       const [stats] = await app.db
         .select({
           count: countAll,
+          submitted: sql<number>`COUNT(*) FILTER (WHERE ${questionnaireResponses.submitted_at} IS NOT NULL)`,
           last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
         })
         .from(questionnaireResponses)
@@ -349,7 +369,12 @@ export async function questionnaireRoutes(app: FastifyInstance) {
           ),
         );
 
-      return serializeQuestionnaire(row, Number(stats?.count ?? 0), stats?.last ?? null);
+      return serializeQuestionnaire(
+        row,
+        Number(stats?.count ?? 0),
+        stats?.last ?? null,
+        Number(stats?.submitted ?? 0),
+      );
     },
   );
 
@@ -502,7 +527,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         .limit(1);
       if (!parent) return reply.code(404).send({ error: "Questionnaire not found" });
 
-      const { status, app_id, is_dev, data_mode, cursor, limit: limitStr } = request.query;
+      const { status, app_id, is_dev, data_mode, submitted_only, cursor, limit: limitStr } = request.query;
       const limit = normalizeLimit(limitStr);
 
       const conditions = [
@@ -518,6 +543,13 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       } else {
         const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as DataMode);
         if (devCondition) conditions.push(devCondition);
+      }
+      // Drafts (submitted_at IS NULL) are included by default so dashboards can
+      // see drop-off; consumers who explicitly want completed-only pass
+      // submitted_only=true. The submitted_at IS NULL `?status=draft` filter
+      // remains available for the inverse case.
+      if (submitted_only === "true") {
+        conditions.push(sql`${questionnaireResponses.submitted_at} IS NOT NULL`);
       }
       if (cursor) {
         const decoded = decodeKeysetCursor(cursor);
@@ -833,7 +865,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
 
   app.get<{
     Params: { projectId: string; questionnaireId: string };
-    Querystring: { is_dev?: string; data_mode?: string };
+    Querystring: { is_dev?: string; data_mode?: string; submitted_only?: string };
   }>(
     "/questionnaires/:questionnaireId/analytics",
     { preHandler: requirePermission("questionnaires:read") },
@@ -855,7 +887,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         .limit(1);
       if (!parent) return reply.code(404).send({ error: "Questionnaire not found" });
 
-      const { is_dev, data_mode } = request.query;
+      const { is_dev, data_mode, submitted_only } = request.query;
       const filters = [
         eq(questionnaireResponses.questionnaire_id, questionnaireId),
         isNull(questionnaireResponses.deleted_at),
@@ -866,11 +898,28 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         const devCondition = dataModeToDrizzle(questionnaireResponses.is_dev, data_mode as DataMode);
         if (devCondition) filters.push(devCondition);
       }
+      // Drafts contribute to the per-question rollups by default (the JSONB ?
+      // operator naturally lands a Q1-only answer in Q1's count and skips
+      // Q2+). submitted_only=true filters them out for callers who want
+      // completed-only stats.
+      if (submitted_only === "true") {
+        filters.push(sql`${questionnaireResponses.submitted_at} IS NOT NULL`);
+      }
 
       const [{ total } = { total: 0 }] = await app.db
         .select({ total: countAll })
         .from(questionnaireResponses)
         .where(and(...filters));
+
+      // Submitted subset is surfaced unconditionally so dashboards can render
+      // "N total · M completed" even when drafts are included. When
+      // submitted_only=true is in effect, this matches total.
+      const [{ submitted_total } = { submitted_total: 0 }] = await app.db
+        .select({ submitted_total: countAll })
+        .from(questionnaireResponses)
+        .where(
+          and(...filters, sql`${questionnaireResponses.submitted_at} IS NOT NULL`),
+        );
 
       const schema = parent.schema as QuestionnaireSchema;
       // Per-question queries are independent SELECTs against the same table;
@@ -884,6 +933,7 @@ export async function questionnaireRoutes(app: FastifyInstance) {
         questionnaire_id: parent.id,
         slug: parent.slug,
         total_responses: Number(total),
+        submitted_count: Number(submitted_total),
         questions: analytics,
       };
       return response;
@@ -1141,7 +1191,12 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
       return {
         questionnaires: rows.map((r) => {
           const counts = countsById.get(r.id);
-          return serializeQuestionnaire(r, counts?.count ?? 0, counts?.last ?? null);
+          return serializeQuestionnaire(
+            r,
+            counts?.count ?? 0,
+            counts?.last ?? null,
+            counts?.submitted ?? 0,
+          );
         }),
       };
     },

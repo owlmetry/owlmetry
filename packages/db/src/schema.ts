@@ -34,7 +34,7 @@ export const jobStatusEnum = pgEnum("job_status", ["pending", "running", "comple
 export const issueStatusEnum = pgEnum("issue_status", ["new", "in_progress", "resolved", "silenced", "regressed", "snoozed"]);
 export const issueAlertFrequencyEnum = pgEnum("issue_alert_frequency", ["none", "hourly", "6_hourly", "daily", "weekly"]);
 export const feedbackStatusEnum = pgEnum("feedback_status", ["new", "in_review", "addressed", "dismissed"]);
-export const questionnaireResponseStatusEnum = pgEnum("questionnaire_response_status", ["new", "in_review", "addressed", "dismissed"]);
+export const questionnaireResponseStatusEnum = pgEnum("questionnaire_response_status", ["draft", "new", "in_review", "addressed", "dismissed"]);
 
 // Users
 export const users = pgTable("users", {
@@ -852,7 +852,20 @@ export const questionnaireResponses = pgTable(
     session_id: uuid("session_id"),
     user_id: varchar("user_id", { length: 255 }),
     answers: jsonb("answers").notNull(),
-    schema_snapshot: jsonb("schema_snapshot").notNull(),
+    // Captured at completion (submitted_at flips null → non-null). Drafts have
+    // no snapshot — they render against the live questionnaires.schema so that
+    // mid-draft schema edits flow through transparently.
+    schema_snapshot: jsonb("schema_snapshot"),
+    // null while the user is mid-flow; set to now() the first time the SDK
+    // calls with is_complete=true. Drives the team notification (one ping per
+    // submission, computed via SQL RETURNING) and gates analytics/filters that
+    // explicitly want "completed only".
+    submitted_at: timestamp("submitted_at", { withTimezone: true }),
+    // Default stays "new" (matches every pre-refactor row) — the route handler
+    // sets status explicitly on every INSERT/UPDATE (`draft` for partial saves,
+    // `new` on the submission flip), so the default is just a fallback for
+    // direct SQL inserts. Changing the default would also force a same-tx use
+    // of the new enum value in the migration, which Postgres refuses.
     status: questionnaireResponseStatusEnum("status").notNull().default("new"),
     is_dev: boolean("is_dev").notNull().default(false),
     environment: environmentEnum("environment"),

@@ -72,6 +72,7 @@ export interface QuestionnaireSchema {
 // ---------- Response statuses ----------
 
 export const QUESTIONNAIRE_RESPONSE_STATUSES = [
+  "draft",
   "new",
   "in_review",
   "addressed",
@@ -282,13 +283,20 @@ function validateOptions(
 /**
  * Validates a set of answers against a schema. Returns the normalized answer
  * map on success — pruned of unknown keys and with string answers trimmed.
+ *
+ * `allowPartial: true` skips the required-field check (used for draft saves
+ * where the user hasn't finished yet) but keeps per-answer type validation
+ * (option membership, length cap, numeric range). The final submit pass uses
+ * `allowPartial: false` to enforce that every required question is answered.
  */
 export function validateAnswers(
   schema: QuestionnaireSchema,
-  rawAnswers: unknown
+  rawAnswers: unknown,
+  options: { allowPartial?: boolean } = {}
 ): ValidationResult<QuestionnaireAnswers> {
   if (!isPlainObject(rawAnswers)) return { ok: false, error: "answers must be an object" };
 
+  const allowPartial = options.allowPartial === true;
   const questionIds = new Set(schema.questions.map((q) => q.id));
   for (const key of Object.keys(rawAnswers)) {
     if (!questionIds.has(key)) {
@@ -306,7 +314,7 @@ export function validateAnswers(
       (Array.isArray(raw) && raw.length === 0);
 
     if (isEmpty) {
-      if (question.required) {
+      if (question.required && !allowPartial) {
         return { ok: false, error: `"${question.id}" is required` };
       }
       continue;
@@ -370,6 +378,24 @@ export function validateAnswers(
   return { ok: true, value: out };
 }
 
+/**
+ * Drops keys whose question id is no longer in the schema. Used at completion
+ * time so an answer for a question that was removed between draft-save and
+ * final submit doesn't trip the validator's unknown-key check. Returns a new
+ * object; input is not mutated.
+ */
+export function pruneUnknownAnswerKeys(
+  schema: QuestionnaireSchema,
+  answers: QuestionnaireAnswers
+): QuestionnaireAnswers {
+  const known = new Set(schema.questions.map((q) => q.id));
+  const out: QuestionnaireAnswers = {};
+  for (const [key, value] of Object.entries(answers)) {
+    if (known.has(key)) out[key] = value;
+  }
+  return out;
+}
+
 // ---------- SDK ingest (synchronous) ----------
 
 export type QuestionnaireIneligibleReason =
@@ -378,7 +404,14 @@ export type QuestionnaireIneligibleReason =
   | "inactive";
 
 export type IngestQuestionnaireFetchResponse =
-  | { eligible: true; questionnaire: IngestQuestionnaireSpec }
+  | {
+      eligible: true;
+      questionnaire: IngestQuestionnaireSpec;
+      // Set when the caller has an unsubmitted draft for this (project, slug,
+      // user). The SDK pre-fills its answer store from `answers` and lands the
+      // user at the first unanswered question; consent is skipped on resume.
+      in_progress?: IngestQuestionnaireInProgress;
+    }
   | { eligible: false; reason: QuestionnaireIneligibleReason };
 
 export interface IngestQuestionnaireSpec {
@@ -389,11 +422,21 @@ export interface IngestQuestionnaireSpec {
   schema: QuestionnaireSchema;
 }
 
+export interface IngestQuestionnaireInProgress {
+  response_id: string;
+  answers: QuestionnaireAnswers;
+}
+
 export interface IngestQuestionnaireSubmitRequest {
   bundle_id: string;
   session_id?: string | null;
   user_id?: string | null;
   answers: QuestionnaireAnswers;
+  // false / omitted = save partial answers as a draft (validateAnswers runs
+  // with allowPartial); true = final submit, validateAnswers enforces all
+  // required questions and `submitted_at` flips to now() if it was null. The
+  // notification fires only on the null → non-null flip.
+  is_complete?: boolean;
   app_version?: string;
   sdk_name?: string;
   sdk_version?: string;
@@ -406,6 +449,10 @@ export interface IngestQuestionnaireSubmitRequest {
 export interface IngestQuestionnaireSubmitResponse {
   id: string;
   created_at: string;
+  // True iff this call flipped `submitted_at` from null to non-null. The SDK
+  // transitions to the success phase only when this is true — a draft-save
+  // response (was_submitted=false) keeps the user in the flow.
+  was_submitted: boolean;
 }
 
 export interface IngestQuestionnaireDismissRequest {
@@ -430,7 +477,12 @@ export interface QuestionnaireSpec {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Counts both drafts and submitted responses — drafts are responses.
   response_count?: number;
+  // Subset of response_count: rows with submitted_at IS NOT NULL. Surface
+  // alongside response_count so dashboards can render "37 responses (12 in
+  // progress, 25 completed)" without a second query.
+  submitted_count?: number;
   last_response_at?: string | null;
 }
 
@@ -451,6 +503,7 @@ export interface TeamQuestionnaireListResponse {
 
 export interface QuestionnaireDetailResponse extends QuestionnaireSpec {
   response_count: number;
+  submitted_count: number;
   last_response_at: string | null;
 }
 
@@ -504,7 +557,15 @@ export interface QuestionnaireResponseRecord {
   session_id: string | null;
   user_id: string | null;
   answers: QuestionnaireAnswers;
-  schema_snapshot: QuestionnaireSchema;
+  // null on drafts (response renders against live questionnaires.schema until
+  // completion); set at the moment `submitted_at` flips to non-null.
+  schema_snapshot: QuestionnaireSchema | null;
+  // null while the user is mid-flow; ISO timestamp once they tap Submit on the
+  // last page (or any save call with is_complete=true).
+  submitted_at: string | null;
+  // Derived: `submitted_at !== null`. Convenience field for dashboards / CLI
+  // that want a boolean without re-deriving on every row.
+  is_complete: boolean;
   status: QuestionnaireResponseStatus;
   is_dev: boolean;
   environment: string | null;
@@ -538,6 +599,10 @@ export interface QuestionnaireResponseQueryParams {
   app_id?: string;
   is_dev?: string;
   data_mode?: string;
+  // "true" to exclude drafts from the list (return only submitted responses).
+  // Omitted / any other value = include both. Drafts are first-class responses
+  // by default; this flag is for consumers who explicitly want completed-only.
+  submitted_only?: string;
   cursor?: string;
   limit?: string;
 }
@@ -601,6 +666,22 @@ export type QuestionnaireQuestionAnalytics =
 export interface QuestionnaireAnalyticsResponse {
   questionnaire_id: string;
   slug: string;
+  // Counts both drafts and submitted responses (drafts are responses). When
+  // `submitted_only=true` is set on the query, this counts only submitted.
   total_responses: number;
+  // Subset of total_responses with submitted_at IS NOT NULL — surfaced
+  // unconditionally so dashboards can show "M of N completed" alongside the
+  // chart without filtering the dataset.
+  submitted_count: number;
   questions: QuestionnaireQuestionAnalytics[];
+}
+
+export interface QuestionnaireAnalyticsQueryParams {
+  is_dev?: string;
+  data_mode?: string;
+  // "true" to compute the rollups against submitted responses only. Default
+  // (omitted / any other value) includes drafts — a Q1-only draft naturally
+  // lands in Q1's count via the existing JSONB `?` operator and is absent
+  // from later questions, which gives the right drop-off picture by default.
+  submitted_only?: string;
 }

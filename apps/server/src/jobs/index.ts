@@ -15,6 +15,7 @@ import { appStoreRatingsSyncHandler } from "./app-store-ratings-sync.js";
 import { appStoreConnectReviewsSyncHandler } from "./app-store-connect-reviews-sync.js";
 import { notificationDeliverHandler } from "./notification-deliver.js";
 import { notificationCleanupHandler } from "./notification-cleanup.js";
+import { questionnaireDraftCleanupHandler } from "./questionnaire-draft-cleanup.js";
 
 export function registerAllJobs(
   runner: JobRunner,
@@ -35,4 +36,5 @@ export function registerAllJobs(
   runner.register("app_store_connect_reviews_sync", appStoreConnectReviewsSyncHandler(dispatcher));
   runner.register("notification_deliver", notificationDeliverHandler(dispatcher));
   runner.register("notification_cleanup", notificationCleanupHandler);
+  runner.register("questionnaire_draft_cleanup", questionnaireDraftCleanupHandler);
 }
