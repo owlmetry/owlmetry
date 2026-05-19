@@ -192,19 +192,19 @@ function buildNonSubscriptionsResponse(
     product_id?: string;
     purchased_at?: number;
     store?: string;
-    total_revenue_in_usd?: { gross?: number; currency?: string };
+    revenue_in_usd?: { gross?: number; currency?: string };
   }> = [],
 ) {
   return {
     object: "list" as const,
     items: items.map((i, idx) => ({
-      object: "non_subscription" as const,
+      object: "purchase" as const,
       id: i.id ?? `purchase_test_${idx}`,
       customer_id: "test",
       product_id: i.product_id ?? "prod_test",
       purchased_at: i.purchased_at ?? Date.now(),
       store: i.store ?? "app_store",
-      total_revenue_in_usd: i.total_revenue_in_usd,
+      revenue_in_usd: i.revenue_in_usd,
     })),
     next_page: null,
     url: "/v2/projects/.../purchases",
@@ -1201,7 +1201,7 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
       ]),
       subscriptionsResponse: buildSubscriptionsResponse([]),
       nonSubscriptionsResponse: buildNonSubscriptionsResponse([
-        { product_id: "pro_lifetime", total_revenue_in_usd: { gross: 5.27 } },
+        { product_id: "pro_lifetime", revenue_in_usd: { gross: 5.27 } },
       ]),
     });
     try {
@@ -1252,7 +1252,7 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
         url: "",
       },
       nonSubscriptionsResponse: buildNonSubscriptionsResponse([
-        { product_id: "consumable_pack", total_revenue_in_usd: { gross: 2.5 } },
+        { product_id: "consumable_pack", revenue_in_usd: { gross: 2.5 } },
       ]),
     });
     try {

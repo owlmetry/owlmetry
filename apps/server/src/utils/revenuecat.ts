@@ -109,8 +109,10 @@ export interface RevenueCatV2SubscriptionsResponse {
 
 // V2 non-subscription purchase object (one-time IAPs: lifetime / consumable / non-consumable).
 // RC's `/customers/{id}/purchases` lists these — they don't appear in `/subscriptions`.
-// `total_revenue_in_usd` mirrors the subscription shape; if RC changes the field
-// name we fall back to 0 contribution rather than throwing.
+// Note: the revenue breakdown is `revenue_in_usd` here, NOT `total_revenue_in_usd`
+// as on subscriptions — confirmed against a live response on 2026-05-19. Same
+// inner shape (gross / proceeds / commission / tax / currency), just a different
+// outer key. RC's V2 naming is inconsistent across line-item types.
 export interface RevenueCatV2NonSubscription {
   object: "non_subscription" | "purchase" | string;
   id: string;
@@ -118,7 +120,7 @@ export interface RevenueCatV2NonSubscription {
   product_id?: string;
   purchased_at?: number;
   store?: string;
-  total_revenue_in_usd?: {
+  revenue_in_usd?: {
     gross?: number;
     proceeds?: number;
     commission?: number;
@@ -621,7 +623,7 @@ export function sumLifetimeRevenueUsdFromNonSubs(
   if (items.length === 0) return 0;
   let total = 0;
   for (const purchase of items) {
-    const gross = purchase.total_revenue_in_usd?.gross;
+    const gross = purchase.revenue_in_usd?.gross;
     if (typeof gross === "number" && Number.isFinite(gross)) {
       total += gross;
     }
