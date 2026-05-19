@@ -274,6 +274,9 @@ function CreateQuestionnaireDialog({
               value={schemaText}
               onChange={(e) => setSchemaText(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Set <code>&quot;multiline&quot;: true</code> on a <code>text</code> question to render a tall multi-line text box. Default is single-line.
+            </p>
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
         </div>

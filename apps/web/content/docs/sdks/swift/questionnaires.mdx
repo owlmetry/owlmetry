@@ -21,6 +21,28 @@ When the trigger fires AND the user is eligible (not already responded, not glob
 
 Once accepted, questions render **one per page** with a top progress bar and Back / Next / Submit buttons at the bottom. The sheet is **non-swipe-dismissible** — users exit by tapping Cancel (toolbar), finishing the flow, or choosing a consent option. On successful submit, an in-sheet success page (checkmark + "Thanks!" + Done) replaces the questions.
 
+### Short vs long text answers
+
+`text` questions render a single-line `TextField` by default. Add `"multiline": true` in the question schema to render a tall, rounded `TextEditor` (roughly five lines, grows as the user types) — use it when you expect a paragraph-style answer rather than a quick one-liner:
+
+```json
+{
+  "id": "q_takeaway",
+  "type": "text",
+  "title": "One-line takeaway?",
+  "placeholder": "Optional"
+}
+{
+  "id": "q_details",
+  "type": "text",
+  "title": "Anything else you'd like to share?",
+  "multiline": true,
+  "placeholder": "Optional — tell us as much as you'd like"
+}
+```
+
+The flag is set at authoring time on the server (dashboard / CLI / MCP); the SDK simply honours whatever the schema says.
+
 ## Auto-trigger view modifier
 
 The easiest path is to attach `.owlQuestionnaire(slug:…)` to a long-lived view (often the root of your app or a tab's content):

@@ -27,6 +27,30 @@ V1 supports five question types, all configured in the JSON schema:
 
 Each question can be marked `required: true` (Submit stays disabled until answered) or optional.
 
+### Short vs long text
+
+`text` questions default to a single-line `TextField`. Set `multiline: true` to render a tall `TextEditor` (roughly five lines, grows as the user types) — pair it with a longer placeholder when you want a paragraph-style answer:
+
+```json
+{
+  "id": "q_takeaway",
+  "type": "text",
+  "title": "One-line takeaway?",
+  "required": false,
+  "placeholder": "Optional"
+}
+{
+  "id": "q_details",
+  "type": "text",
+  "title": "Anything else you'd like to share?",
+  "required": false,
+  "multiline": true,
+  "placeholder": "Optional — tell us as much as you'd like"
+}
+```
+
+Both variants share the same 4000-character cap on the server.
+
 ## Triggers
 
 The `.owlQuestionnaire(trigger:)` modifier accepts a composable trigger. Conditions are ANDed — all must be true for the sheet to present.

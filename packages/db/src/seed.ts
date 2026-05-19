@@ -1,5 +1,5 @@
 import { createDatabaseConnection } from "./index.js";
-import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, appUserApps, metricDefinitions, funnelDefinitions } from "./schema.js";
+import { users, teams, teamMembers, projects, apps, apiKeys, events, appUsers, appUserApps, metricDefinitions, funnelDefinitions, questionnaires } from "./schema.js";
 import { eq, and } from "drizzle-orm";
 import crypto from "node:crypto";
 import "dotenv/config";
@@ -185,6 +185,52 @@ async function main() {
       ],
     },
   ]).onConflictDoNothing();
+
+  // --- Demo questionnaire ---
+  // Exercises every question type, including both short-form (single-line)
+  // and long-form (multiline TextEditor) text. Pointing the Swift demo at
+  // this slug means `pnpm dev:seed` is enough to get a working in-app survey
+  // without hand-authoring one via dashboard/MCP/CLI.
+  const demoSurvey = await findOrCreate<typeof questionnaires.$inferSelect>(
+    db, questionnaires,
+    {
+      project_id: project.id,
+      slug: "dev-demo-survey",
+      name: "Demo Survey",
+      description: "We'd love a few minutes of your feedback to help us improve.",
+      is_active: true,
+      schema: {
+        version: 1,
+        questions: [
+          { id: "q_rating", type: "rating", title: "How would you rate the app overall?", required: true, scale: 5 },
+          {
+            id: "q_single", type: "single_choice", title: "What do you use the app for most?", required: true,
+            options: [
+              { id: "o_work", label: "Work" },
+              { id: "o_personal", label: "Personal" },
+              { id: "o_both", label: "Both" },
+            ],
+          },
+          {
+            id: "q_multi", type: "multi_choice", title: "Which features matter most?", required: false,
+            options: [
+              { id: "o_speed", label: "Speed" },
+              { id: "o_ux", label: "Polish" },
+              { id: "o_privacy", label: "Privacy" },
+            ],
+          },
+          { id: "q_nps", type: "nps", title: "How likely are you to recommend us to a friend?", required: false },
+          { id: "q_short", type: "text", title: "One-line takeaway?", required: false, placeholder: "Optional" },
+          {
+            id: "q_long", type: "text", title: "Anything else you'd like to share?", required: false,
+            multiline: true, placeholder: "Optional — tell us as much as you'd like",
+          },
+        ],
+      },
+    },
+    and(eq(questionnaires.project_id, project.id), eq(questionnaires.slug, "dev-demo-survey")),
+  );
+  console.log(`  Survey:  ${demoSurvey.slug} (${demoSurvey.id})`);
 
   // --- App users (project-scoped) + junction entries ---
   const seedUserRows = [

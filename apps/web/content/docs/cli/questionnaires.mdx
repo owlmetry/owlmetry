@@ -58,6 +58,8 @@ A minimal schema file:
 
 Slug must be lowercase letters/digits/hyphens (max 64 chars) and is immutable after creation.
 
+`text` questions default to a single-line field. Set `"multiline": true` (as on `q_feedback` above) to render a tall text editor in the SDK — use it for paragraph-style answers. Both variants share the same 4000-character cap.
+
 ## List questionnaires
 
 ```bash

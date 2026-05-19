@@ -57,6 +57,7 @@ Constraints:
 - `single_choice` and `multi_choice` require 2–20 options
 - `rating.scale` is fixed at `5` in V1
 - `nps` is implicit 0–10
+- `text` defaults to a single-line input. Add `"multiline": true` (as on `q_text` above) for paragraph-style answers — the SDK renders a tall, growing text editor. Same 4000-character cap either way.
 
 ## Typical workflow
 
