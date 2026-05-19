@@ -17,6 +17,12 @@ export interface CleanupResult {
   teamMembers: number;
   teamInvitations: number;
   questionnaireResponses: number;
+  feedback: number;
+  feedbackComments: number;
+  issueComments: number;
+  projectIntegrations: number;
+  questionnaires: number;
+  questionnaireResponseComments: number;
 }
 
 /**
@@ -44,6 +50,12 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
     teamMembers: 0,
     teamInvitations: 0,
     questionnaireResponses: 0,
+    feedback: 0,
+    feedbackComments: 0,
+    issueComments: 0,
+    projectIntegrations: 0,
+    questionnaires: 0,
+    questionnaireResponseComments: 0,
   };
 
   // Step 1: Ensure cascade consistency — if a team/project is past cutoff
@@ -216,6 +228,57 @@ export async function cleanupSoftDeletedResources(client: postgres.Sql): Promise
     WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
   `;
   result.questionnaireResponses = Number(responsesDeleted.count ?? 0);
+
+  // Step 7: Row-level cleanup for the remaining soft-deletable leaves.
+  // These tables are independently soft-deleted via REST routes and don't
+  // get reached by the team/project/app cascades above. Children before
+  // parents so partial-progress runs never trip an FK.
+
+  const feedbackCommentsDeleted = await client`
+    DELETE FROM feedback_comments
+    WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+  `;
+  result.feedbackComments = Number(feedbackCommentsDeleted.count ?? 0);
+
+  const feedbackDeleted = await client`
+    DELETE FROM feedback
+    WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+  `;
+  result.feedback = Number(feedbackDeleted.count ?? 0);
+
+  const questionnaireResponseCommentsDeleted = await client`
+    DELETE FROM questionnaire_response_comments
+    WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+  `;
+  result.questionnaireResponseComments = Number(questionnaireResponseCommentsDeleted.count ?? 0);
+
+  // FK questionnaire_responses → questionnaires is ON DELETE RESTRICT.
+  // Drop the parent only when no responses (live or soft-deleted-not-yet-
+  // past-cutoff) reference it; surviving responses keep their parent row
+  // alive for schema lookup, and the parent gets swept on a later run once
+  // its last response is cleaned by Step 6.
+  const questionnairesDeleted = await client`
+    DELETE FROM questionnaires q
+    WHERE q.deleted_at IS NOT NULL
+      AND q.deleted_at < ${cutoff}
+      AND NOT EXISTS (
+        SELECT 1 FROM questionnaire_responses r
+        WHERE r.questionnaire_id = q.id
+      )
+  `;
+  result.questionnaires = Number(questionnairesDeleted.count ?? 0);
+
+  const issueCommentsDeleted = await client`
+    DELETE FROM issue_comments
+    WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+  `;
+  result.issueComments = Number(issueCommentsDeleted.count ?? 0);
+
+  const projectIntegrationsDeleted = await client`
+    DELETE FROM project_integrations
+    WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+  `;
+  result.projectIntegrations = Number(projectIntegrationsDeleted.count ?? 0);
 
   return result;
 }
