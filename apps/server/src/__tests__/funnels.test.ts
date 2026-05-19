@@ -894,3 +894,67 @@ describe("Backwards compatibility: legacy track: prefix", () => {
     expect(steps[1].unique_users).toBe(2);
   });
 });
+
+describe("GET /funnels/completions/count", () => {
+  it("counts unique users with open-mode backfill so completed never exceeds started", async () => {
+    await createFunnel({ name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
+
+    const now = Date.now();
+    // 3 users hit the first step
+    await ingest([
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-b", timestamp: new Date(now - 50000).toISOString() },
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-c", timestamp: new Date(now - 40000).toISOString() },
+    ]);
+    // user-a fires the last step 5 times (simulates the bug: re-entering thank-you screen)
+    await ingest([
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 30000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 29000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 28000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 27000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 26000).toISOString() },
+    ]);
+    // user-d only fires the last step (never appeared at first step) — open-mode backfill counts them as started too
+    await ingest([
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-d", timestamp: new Date(now - 20000).toISOString() },
+    ]);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/completions/count?team_id=${teamId}&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // completed = unique users who hit the last step (user-a, user-d) = 2
+    expect(body.count).toBe(2);
+    // started = unique users who hit first OR last step (a, b, c, d) = 4
+    expect(body.started).toBe(4);
+    // Crucially: completed must never exceed started
+    expect(body.count).toBeLessThanOrEqual(body.started);
+  });
+
+  it("ignores events with null user_id", async () => {
+    await createFunnel({ name: "Onboarding", slug: "onboarding", steps: ONBOARDING_STEPS });
+
+    const now = Date.now();
+    await ingest([
+      { level: "info", message: "step:welcome", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 60000).toISOString() },
+      { level: "info", message: "step:complete-profile", session_id: TEST_SESSION_ID, user_id: "user-a", timestamp: new Date(now - 50000).toISOString() },
+    ]);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/funnels/completions/count?team_id=${teamId}&data_mode=all`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.count).toBe(1);
+    expect(body.started).toBe(1);
+  });
+});

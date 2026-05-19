@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, isNotNull, sql, gte, lte, type SQL } from "drizzle-orm";
+import { eq, and, or, inArray, isNull, isNotNull, sql, gte, lte, type SQL } from "drizzle-orm";
 import { funnelDefinitions, funnelEvents, projects, apps } from "@owlmetry/db";
 import { parseTimeParam } from "@owlmetry/shared";
 import type {
@@ -422,9 +422,13 @@ export async function funnelsRoutes(app: FastifyInstance) {
 
 /** Standalone endpoints registered at /v1 prefix */
 export async function funnelByIdRoutes(app: FastifyInstance) {
-  // Aggregate count of funnel completion events across all team funnels.
-  // A "completion" is a funnel_event matching the last step's event_filter of
-  // any active funnel definition. Used by the all-projects dashboard stat HUD.
+  // Aggregate count of funnel starts and completions across all team funnels,
+  // counted as unique users (open-mode semantics matching the per-funnel
+  // /funnels/:slug/query endpoint). For each funnel, "completed" is the
+  // distinct user_ids that hit the last step; "started" is the distinct
+  // user_ids that hit the first step OR the last step (open-mode backfill
+  // — reaching a later step implies passing through the first). This
+  // guarantees completed ≤ started. Used by the all-projects dashboard stat HUD.
   app.get<{ Querystring: CompletionsCountQueryParams }>(
     "/funnels/completions/count",
     { preHandler: requirePermission("funnels:read") },
@@ -498,20 +502,27 @@ export async function funnelByIdRoutes(app: FastifyInstance) {
         const projectAppIds = appsByProject.get(funnel.project_id) ?? [];
         if (projectAppIds.length === 0) return { completed: 0, started: 0 };
 
-        const baseConditions: SQL[] = [inArray(funnelEvents.app_id, projectAppIds)];
+        const baseConditions: SQL[] = [
+          inArray(funnelEvents.app_id, projectAppIds),
+          isNotNull(funnelEvents.user_id),
+        ];
         if (sinceDate) baseConditions.push(gte(funnelEvents.timestamp, sinceDate));
         if (untilDate) baseConditions.push(lte(funnelEvents.timestamp, untilDate));
         if (devCondition) baseConditions.push(devCondition);
 
+        const firstFilter = buildStepFilterSql(firstStep.event_filter);
+        const lastFilter = buildStepFilterSql(lastStep.event_filter);
+        const startedFilter = firstStep === lastStep ? lastFilter : or(firstFilter, lastFilter)!;
+
         const [completedRow, startedRow] = await Promise.all([
           app.db
-            .select({ count: sql<number>`count(*)::int` })
+            .select({ count: sql<number>`count(DISTINCT ${funnelEvents.user_id})::int` })
             .from(funnelEvents)
-            .where(and(...baseConditions, buildStepFilterSql(lastStep.event_filter))),
+            .where(and(...baseConditions, lastFilter)),
           app.db
-            .select({ count: sql<number>`count(*)::int` })
+            .select({ count: sql<number>`count(DISTINCT ${funnelEvents.user_id})::int` })
             .from(funnelEvents)
-            .where(and(...baseConditions, buildStepFilterSql(firstStep.event_filter))),
+            .where(and(...baseConditions, startedFilter)),
         ]);
 
         return {

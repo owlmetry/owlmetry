@@ -279,7 +279,7 @@ The `breakdown` array is only present when `group_by` is specified. Each entry c
 
 ## GET /v1/funnels/completions/count
 
-Aggregate counts of funnel starts and completions across all active funnels the caller can access. A "completion" is a funnel event matching the last step of any active funnel definition; a "start" matches the first step. Used by the all-projects dashboard stat HUD.
+Aggregate counts of funnel starts and completions across all active funnels the caller can access, counted as unique users (open-mode semantics matching `/v1/projects/:id/funnels/:slug/query`). Per funnel: `count` is the distinct users who hit the last step; `started` is the distinct users who hit the first step or the last step (open-mode backfill — reaching a later step implies passing through the first). Guarantees `count ≤ started`. Per-funnel results are summed across all funnels the caller can access. Used by the all-projects dashboard stat HUD.
 
 **Auth required:** Yes (`funnels:read` permission or JWT)
 
@@ -305,5 +305,5 @@ Aggregate counts of funnel starts and completions across all active funnels the 
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `count` | number | Number of funnel completion events (last-step matches). |
-| `started` | number | Number of funnel start events (first-step matches). |
+| `count` | number | Distinct users who completed the funnel (last-step matches), summed across funnels. |
+| `started` | number | Distinct users who started or completed the funnel (first-step or last-step matches, open-mode backfill), summed across funnels. |
