@@ -63,16 +63,22 @@ Slug must be lowercase letters/digits/hyphens (max 64 chars) and is immutable af
 ## List questionnaires
 
 ```bash
+# Single project
 owlmetry questionnaires list --project-id <id>
+
+# Every questionnaire across every accessible project in a team
+owlmetry questionnaires list --team-id <id>
 ```
 
 | Flag | Description |
 | --- | --- |
-| `--app-id <id>` | Filter to a specific app |
+| `--project-id <id>` | Project ID (mutually exclusive with `--team-id`) |
+| `--team-id <id>` | Team ID — lists across every accessible project (mutually exclusive with `--project-id`). Adds a Project column to the table output. |
+| `--app-id <id>` | Filter to a specific app (only with `--project-id`) |
 | `--active` | Show only active questionnaires |
 | `--inactive` | Show only paused questionnaires |
 | `--limit <n>` | Max entries |
-| `--cursor <cursor>` | Pagination cursor |
+| `--cursor <cursor>` | Pagination cursor (only with `--project-id`; team mode is LIMIT-capped) |
 
 ## View definition
 

@@ -13,6 +13,7 @@ import type {
   QuestionnaireAnalyticsResponse,
   QuestionnaireResponseStatus,
   QuestionnaireSchema,
+  TeamQuestionnaireListResponse,
 } from "@owlmetry/shared";
 
 export function useQuestionnaires(
@@ -28,6 +29,26 @@ export function useQuestionnaires(
     questionnaires: data?.questionnaires ?? [],
     cursor: data?.cursor ?? null,
     hasMore: data?.has_more ?? false,
+    isLoading,
+    error,
+    mutate,
+  };
+}
+
+export function useTeamQuestionnaires(
+  teamId: string | undefined,
+  filters: { is_active?: boolean } = {},
+) {
+  const params: Record<string, string> = {};
+  if (teamId) params.team_id = teamId;
+  if (filters.is_active !== undefined) params.is_active = String(filters.is_active);
+  const qs = buildQueryString(params);
+  const key = teamId ? `/v1/questionnaires${qs ? `?${qs}` : ""}` : null;
+  const { data, isLoading, error, mutate } = useSWR<TeamQuestionnaireListResponse>(key, {
+    refreshInterval: 30_000,
+  });
+  return {
+    questionnaires: data?.questionnaires ?? [],
     isLoading,
     error,
     mutate,

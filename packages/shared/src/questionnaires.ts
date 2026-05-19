@@ -440,6 +440,15 @@ export interface QuestionnaireListResponse {
   has_more: boolean;
 }
 
+/**
+ * Team-scoped list response. Each row already carries `project_id` on
+ * `QuestionnaireSpec`, so no new row type is needed; the team route just
+ * doesn't paginate (LIMIT-capped — questionnaires is low volume).
+ */
+export interface TeamQuestionnaireListResponse {
+  questionnaires: QuestionnaireSpec[];
+}
+
 export interface QuestionnaireDetailResponse extends QuestionnaireSpec {
   response_count: number;
   last_response_at: string | null;

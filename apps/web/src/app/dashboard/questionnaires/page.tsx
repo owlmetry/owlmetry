@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import type { ProjectResponse, QuestionnaireSchema } from "@owlmetry/shared";
 import { useTeam } from "@/contexts/team-context";
-import { useQuestionnaires, questionnaireActions } from "@/hooks/use-questionnaires";
-import { useProjectColorMap } from "@/hooks/use-project-colors";
-import { formatDateTime } from "@/lib/format-date";
+import {
+  useQuestionnaires,
+  useTeamQuestionnaires,
+  questionnaireActions,
+} from "@/hooks/use-questionnaires";
+import { useProjectInfoMap } from "@/hooks/use-project-colors";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,7 +33,16 @@ import {
 } from "@/components/ui/dialog";
 import { ListChecks, Plus } from "lucide-react";
 import { ProjectDot } from "@/lib/project-color";
-import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
+import { AnimatedPage } from "@/components/ui/animated-page";
+import {
+  QuestionnairesFilterBar,
+  ALL_PROJECTS,
+} from "./_components/questionnaires-filter-bar";
+import { QuestionnaireCardGrid } from "./_components/questionnaire-card-grid";
+import {
+  ProjectQuestionnairesSection,
+  bucketByProject,
+} from "./_components/project-questionnaires-section";
 
 const SAMPLE_SCHEMA: QuestionnaireSchema = {
   version: 1,
@@ -60,19 +72,60 @@ const SAMPLE_SCHEMA: QuestionnaireSchema = {
 };
 
 export default function QuestionnairesPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
 
-  const { data: projects } = useSWR<{ projects: ProjectResponse[] }>(
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
     teamId ? `/v1/projects?team_id=${teamId}` : null,
   );
-  const projectColors = useProjectColorMap(teamId);
+  const projects = projectsData?.projects ?? [];
+  const projectInfoMap = useProjectInfoMap(teamId);
+  const projectColors = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const [id, info] of projectInfoMap) m.set(id, info.color);
+    return m;
+  }, [projectInfoMap]);
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const projectsList = projects?.projects ?? [];
-  const activeProjectId = selectedProjectId || projectsList[0]?.id;
+  const [projectId, setProjectIdState] = useState<string>(
+    searchParams.get("project_id") ?? ALL_PROJECTS,
+  );
+  const [hideInactive, setHideInactive] = useState(false);
 
-  const { questionnaires, isLoading, mutate } = useQuestionnaires(activeProjectId);
+  const isAllProjects = projectId === ALL_PROJECTS;
+
+  function setProjectId(v: string) {
+    setProjectIdState(v);
+    const params = new URLSearchParams(searchParams.toString());
+    if (v === ALL_PROJECTS) params.delete("project_id");
+    else params.set("project_id", v);
+    const qs = params.toString();
+    router.replace(`/dashboard/questionnaires${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  const teamData = useTeamQuestionnaires(
+    isAllProjects ? teamId : undefined,
+    { is_active: hideInactive ? true : undefined },
+  );
+  const projectData = useQuestionnaires(
+    isAllProjects ? undefined : projectId,
+    { is_active: hideInactive ? "true" : undefined },
+  );
+
+  const questionnaires = isAllProjects ? teamData.questionnaires : projectData.questionnaires;
+  const isLoading = isAllProjects ? teamData.isLoading : projectData.isLoading;
+  const mutate = isAllProjects ? teamData.mutate : projectData.mutate;
+
+  const buckets = useMemo(
+    () =>
+      bucketByProject(questionnaires, (id) => projectInfoMap.get(id)?.name ?? id),
+    [questionnaires, projectInfoMap],
+  );
+
+  // Card animation indices need to keep climbing across stacked buckets so the
+  // stagger doesn't restart at 0 inside each section.
+  let runningIndex = 0;
 
   return (
     <AnimatedPage>
@@ -88,31 +141,19 @@ export default function QuestionnairesPage() {
             </p>
           </div>
           <CreateQuestionnaireDialog
-            projectId={activeProjectId}
+            preselectedProjectId={isAllProjects ? undefined : projectId}
+            projects={projects}
             onCreated={() => mutate()}
           />
         </div>
 
-        {projectsList.length > 1 && (
-          <div className="flex items-center gap-2">
-            <Label className="text-sm">Project:</Label>
-            <Select
-              value={activeProjectId ?? ""}
-              onValueChange={setSelectedProjectId}
-            >
-              <SelectTrigger className="w-72">
-                <SelectValue placeholder="Select a project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projectsList.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <QuestionnairesFilterBar
+          projects={projects}
+          projectId={projectId}
+          hideInactive={hideInactive}
+          onProjectChange={setProjectId}
+          onHideInactiveChange={setHideInactive}
+        />
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
@@ -121,53 +162,38 @@ export default function QuestionnairesPage() {
             <CardContent className="py-12 text-center space-y-3">
               <ListChecks className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="text-muted-foreground">
-                No questionnaires yet. Create one above and reference it from your SDK code with{" "}
-                <code className="text-foreground">.owlQuestionnaire(slug:&hellip;)</code>.
+                {hideInactive
+                  ? "No active questionnaires. Toggle \"Hide inactive\" off to see paused ones."
+                  : <>
+                      No questionnaires yet. Create one above and reference it from your SDK code with{" "}
+                      <code className="text-foreground">.owlQuestionnaire(slug:&hellip;)</code>.
+                    </>}
               </p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {questionnaires.map((q, idx) => (
-              <StaggerItem key={q.id} index={idx}>
-                <Link href={`/dashboard/questionnaires/${q.id}?project_id=${q.project_id}`}>
-                  <Card className="hover:border-primary/30 transition-colors h-full">
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between gap-2 text-base">
-                        <span className="flex items-center gap-2 min-w-0">
-                          <ProjectDot color={projectColors.get(q.project_id) ?? "#6366f1"} />
-                          <span className="truncate">{q.name}</span>
-                        </span>
-                        <span
-                          className={
-                            q.is_active
-                              ? "text-xs font-normal text-emerald-600 dark:text-emerald-400"
-                              : "text-xs font-normal text-muted-foreground"
-                          }
-                        >
-                          {q.is_active ? "active" : "paused"}
-                        </span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-1 text-sm text-muted-foreground">
-                      <div>
-                        <code className="text-foreground">{q.slug}</code>
-                      </div>
-                      <div>
-                        <span className="text-foreground">{q.response_count ?? 0}</span>{" "}
-                        response{q.response_count === 1 ? "" : "s"}
-                      </div>
-                      {q.last_response_at && (
-                        <div className="text-xs">
-                          Last: {formatDateTime(q.last_response_at)}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Link>
-              </StaggerItem>
-            ))}
+        ) : isAllProjects ? (
+          <div className="space-y-6">
+            {buckets.map((bucket) => {
+              const info = projectInfoMap.get(bucket.projectId);
+              const sectionStart = runningIndex;
+              runningIndex += bucket.items.length;
+              return (
+                <ProjectQuestionnairesSection
+                  key={bucket.projectId}
+                  projectName={info?.name ?? bucket.projectId}
+                  projectColor={info?.color}
+                  bucket={bucket}
+                  projectColors={projectColors}
+                  startIndex={sectionStart}
+                />
+              );
+            })}
           </div>
+        ) : (
+          <QuestionnaireCardGrid
+            questionnaires={questionnaires}
+            projectColors={projectColors}
+          />
         )}
       </div>
     </AnimatedPage>
@@ -175,13 +201,16 @@ export default function QuestionnairesPage() {
 }
 
 function CreateQuestionnaireDialog({
-  projectId,
+  preselectedProjectId,
+  projects,
   onCreated,
 }: {
-  projectId: string | undefined;
+  preselectedProjectId: string | undefined;
+  projects: ProjectResponse[];
   onCreated: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dialogProjectId, setDialogProjectId] = useState<string>("");
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -189,8 +218,14 @@ function CreateQuestionnaireDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const effectiveProjectId = preselectedProjectId ?? dialogProjectId;
+  const needsProjectPicker = !preselectedProjectId;
+
   const handleSubmit = async () => {
-    if (!projectId) return;
+    if (!effectiveProjectId) {
+      setError("Pick a project first.");
+      return;
+    }
     setError(null);
     let parsed: QuestionnaireSchema;
     try {
@@ -201,7 +236,7 @@ function CreateQuestionnaireDialog({
     }
     setSubmitting(true);
     try {
-      await questionnaireActions.create(projectId, {
+      await questionnaireActions.create(effectiveProjectId, {
         slug,
         name,
         description: description.trim() === "" ? null : description,
@@ -212,6 +247,7 @@ function CreateQuestionnaireDialog({
       setName("");
       setDescription("");
       setSchemaText(JSON.stringify(SAMPLE_SCHEMA, null, 2));
+      setDialogProjectId("");
       onCreated();
     } catch (e: any) {
       setError(e?.message ?? "Failed to create");
@@ -237,6 +273,26 @@ function CreateQuestionnaireDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {needsProjectPicker && (
+            <div>
+              <Label htmlFor="qs-project">Project</Label>
+              <Select value={dialogProjectId} onValueChange={setDialogProjectId}>
+                <SelectTrigger id="qs-project" className="w-full mt-1">
+                  <SelectValue placeholder="Pick a project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="flex items-center gap-2">
+                        <ProjectDot color={p.color} />
+                        {p.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="qs-slug">Slug</Label>
@@ -284,7 +340,10 @@ function CreateQuestionnaireDialog({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting || !slug || !name}>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || !slug || !name || !effectiveProjectId}
+          >
             {submitting ? "Creating…" : "Create"}
           </Button>
         </DialogFooter>

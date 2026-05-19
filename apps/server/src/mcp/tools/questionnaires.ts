@@ -20,15 +20,31 @@ export function registerQuestionnaireTools(
 ): void {
   server.registerTool("list-questionnaires", {
     description:
-      "List structured questionnaire definitions in a project. Questionnaires are multi-question surveys (text, single/multi choice, rating, NPS) shown in-app via the Swift SDK's view modifier — complementary to single-message feedback. Each row carries response_count + last_response_at.",
+      "List structured questionnaire definitions. Questionnaires are multi-question surveys (text, single/multi choice, rating, NPS) shown in-app via the Swift SDK's view modifier — complementary to single-message feedback. Each row carries response_count + last_response_at + project_id. Pass `project_id` for a single project, or `team_id` for every questionnaire across every accessible project in the team (mutually exclusive).",
     inputSchema: {
-      project_id: z.string().uuid().describe("The project ID"),
-      app_id: z.string().uuid().optional().describe("Filter by app"),
+      project_id: z.string().uuid().optional().describe("The project ID (mutually exclusive with team_id)"),
+      team_id: z.string().uuid().optional().describe("The team ID — lists across all accessible projects (mutually exclusive with project_id)"),
+      app_id: z.string().uuid().optional().describe("Filter by app (only with project_id)"),
       is_active: z.boolean().optional().describe("Filter by active flag"),
-      cursor: z.string().optional().describe("Pagination cursor"),
-      limit: z.number().optional().describe("Max results (default 50)"),
+      cursor: z.string().optional().describe("Pagination cursor (only with project_id)"),
+      limit: z.number().optional().describe("Max results (default 50 for project; up to 500 for team)"),
     },
-  }, async ({ project_id, ...params }) => {
+  }, async ({ project_id, team_id, ...params }) => {
+    if (!project_id && !team_id) {
+      return { content: [{ type: "text", text: "Error: one of project_id or team_id is required" }], isError: true };
+    }
+    if (project_id && team_id) {
+      return { content: [{ type: "text", text: "Error: project_id and team_id are mutually exclusive" }], isError: true };
+    }
+    if (team_id) {
+      const { app_id: _ignoredAppId, cursor: _ignoredCursor, ...teamParams } = params;
+      void _ignoredAppId;
+      void _ignoredCursor;
+      return callApi(app, agentKey, {
+        method: "GET",
+        url: `/v1/questionnaires${buildQuery({ team_id, ...teamParams })}`,
+      });
+    }
     return callApi(app, agentKey, {
       method: "GET",
       url: `/v1/projects/${project_id}/questionnaires${buildQuery(params)}`,

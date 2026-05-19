@@ -8,6 +8,7 @@ import {
   questionnaireResponseComments,
   apps,
   appUsers,
+  projects,
 } from "@owlmetry/db";
 import {
   QUESTIONNAIRE_RESPONSE_STATUSES,
@@ -149,6 +150,36 @@ async function loadUserPropertiesForRows(
   return map;
 }
 
+/**
+ * Roll up response_count + last_response_at per questionnaire in a single
+ * GROUP BY query. Empty input returns an empty map.
+ */
+async function loadResponseCountsByQuestionnaire(
+  db: FastifyInstance["db"],
+  questionnaireIds: string[],
+): Promise<Map<string, { count: number; last: Date | null }>> {
+  const map = new Map<string, { count: number; last: Date | null }>();
+  if (questionnaireIds.length === 0) return map;
+  const counts = await db
+    .select({
+      questionnaire_id: questionnaireResponses.questionnaire_id,
+      count: countAll,
+      last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
+    })
+    .from(questionnaireResponses)
+    .where(
+      and(
+        inArray(questionnaireResponses.questionnaire_id, questionnaireIds),
+        isNull(questionnaireResponses.deleted_at),
+      ),
+    )
+    .groupBy(questionnaireResponses.questionnaire_id);
+  for (const c of counts) {
+    map.set(c.questionnaire_id, { count: Number(c.count), last: c.last });
+  }
+  return map;
+}
+
 export async function questionnaireRoutes(app: FastifyInstance) {
   // --- Questionnaire definitions ---
 
@@ -186,29 +217,10 @@ export async function questionnaireRoutes(app: FastifyInstance) {
       const hasMore = rows.length > limit;
       const page = hasMore ? rows.slice(0, limit) : rows;
 
-      // Roll up response_count + last_response_at per questionnaire for the
-      // listing view. Single GROUP-BY query keeps the page render cheap.
-      const ids = page.map((r) => r.id);
-      const countsById = new Map<string, { count: number; last: Date | null }>();
-      if (ids.length > 0) {
-        const counts = await app.db
-          .select({
-            questionnaire_id: questionnaireResponses.questionnaire_id,
-            count: countAll,
-            last: sql<Date | null>`MAX(${questionnaireResponses.created_at})`,
-          })
-          .from(questionnaireResponses)
-          .where(
-            and(
-              inArray(questionnaireResponses.questionnaire_id, ids),
-              isNull(questionnaireResponses.deleted_at),
-            ),
-          )
-          .groupBy(questionnaireResponses.questionnaire_id);
-        for (const c of counts) {
-          countsById.set(c.questionnaire_id, { count: Number(c.count), last: c.last });
-        }
-      }
+      const countsById = await loadResponseCountsByQuestionnaire(
+        app.db,
+        page.map((r) => r.id),
+      );
 
       const lastItem = page[page.length - 1];
       return {
@@ -1068,6 +1080,70 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
           ),
         );
       return { count: Number(total) };
+    },
+  );
+
+  // GET /v1/questionnaires?team_id=… — list every questionnaire across
+  // accessible projects in the team. Powers the dashboard's "all projects"
+  // view (mirrors the team-scoped /v1/feedback and /v1/ads/campaigns routes).
+  // No pagination cursor — questionnaires is low volume; capped by LIMIT.
+  app.get<{ Querystring: QuestionnaireQueryParams }>(
+    "/questionnaires",
+    { preHandler: requirePermission("questionnaires:read") },
+    async (request) => {
+      const allTeamIds = getAuthTeamIds(request.auth);
+      const { team_id, project_id, app_id, is_active, limit: rawLimit } = request.query;
+
+      const teamIds = team_id
+        ? allTeamIds.includes(team_id)
+          ? [team_id]
+          : []
+        : allTeamIds;
+
+      if (teamIds.length === 0) {
+        return { questionnaires: [] };
+      }
+
+      const projectConditions = [inArray(projects.team_id, teamIds), isNull(projects.deleted_at)];
+      if (project_id) projectConditions.push(eq(projects.id, project_id));
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(...projectConditions));
+
+      if (accessibleProjects.length === 0) {
+        return { questionnaires: [] };
+      }
+
+      const projectIds = accessibleProjects.map((p) => p.id);
+      const conditions = [
+        inArray(questionnaires.project_id, projectIds),
+        isNull(questionnaires.deleted_at),
+      ];
+      if (app_id) conditions.push(eq(questionnaires.app_id, app_id));
+      if (is_active !== undefined) {
+        conditions.push(eq(questionnaires.is_active, is_active === "true"));
+      }
+
+      const limit = Math.min(Math.max(Number(rawLimit) || 500, 1), 500);
+      const rows = await app.db
+        .select()
+        .from(questionnaires)
+        .where(and(...conditions))
+        .orderBy(desc(questionnaires.created_at), desc(questionnaires.id))
+        .limit(limit);
+
+      const countsById = await loadResponseCountsByQuestionnaire(
+        app.db,
+        rows.map((r) => r.id),
+      );
+
+      return {
+        questionnaires: rows.map((r) => {
+          const counts = countsById.get(r.id);
+          return serializeQuestionnaire(r, counts?.count ?? 0, counts?.last ?? null);
+        }),
+      };
     },
   );
 }
