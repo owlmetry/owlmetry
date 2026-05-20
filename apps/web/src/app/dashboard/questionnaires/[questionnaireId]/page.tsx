@@ -192,12 +192,6 @@ export default function QuestionnaireDetailPage() {
             ) : (
               <div className="space-y-2">
                 {responses.map((r) => {
-                  const firstAnswer = Object.values(r.answers)[0];
-                  const sample = firstAnswer === undefined
-                    ? "—"
-                    : Array.isArray(firstAnswer)
-                      ? firstAnswer.join(", ")
-                      : String(firstAnswer);
                   const answered = Object.keys(r.answers).length;
                   const total = questionnaire.schema.questions.length;
                   return (
@@ -207,18 +201,17 @@ export default function QuestionnaireDetailPage() {
                       className="w-full text-left rounded-md border border-border px-3 py-2 hover:border-primary/30 transition-colors"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm truncate flex-1">{sample}</div>
+                        <div className="text-sm truncate flex-1">
+                          {r.user_id ?? "anonymous"}
+                          {r.app_version ? ` · ${r.app_version}` : ""}
+                          {r.environment ? ` · ${r.environment}` : ""}
+                        </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <ResponseStateBadge isComplete={r.is_complete} answered={answered} total={total} />
                           <div className="text-xs text-muted-foreground">
                             {formatDateTime(r.created_at)}
                           </div>
                         </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {r.user_id ?? "anonymous"}
-                        {r.app_version ? ` · ${r.app_version}` : ""}
-                        {r.environment ? ` · ${r.environment}` : ""}
                       </div>
                     </button>
                   );
@@ -343,7 +336,7 @@ function ResponseStateBadge({
   if (isComplete) {
     return (
       <Badge variant="outline" tone="green" size="sm">
-        Submitted
+        Submitted <span className="opacity-70">· {answered}/{total}</span>
       </Badge>
     );
   }
