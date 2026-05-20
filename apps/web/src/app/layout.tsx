@@ -13,19 +13,19 @@ export const metadata: Metadata = {
     template: "%s | Owlmetry",
   },
   description:
-    "Self-hosted observability for mobile and backend apps. Structured events, performance metrics, and conversion funnels — purpose-built for AI coding agents.",
+    "Self-hosted observability for mobile and backend apps. Events, metrics, funnels, in-app questionnaires, error tracking, and App Store reviews — purpose-built for AI coding agents.",
   openGraph: {
     type: "website",
     siteName: "Owlmetry",
     title: "Owlmetry — Agent-First Observability for Mobile Apps",
     description:
-      "Self-hosted observability for mobile and backend apps. Structured events, performance metrics, and conversion funnels.",
+      "Self-hosted observability for mobile and backend apps. Events, metrics, funnels, questionnaires, error tracking, and App Store reviews.",
   },
   twitter: {
     card: "summary_large_image",
     title: "Owlmetry — Agent-First Observability for Mobile Apps",
     description:
-      "Self-hosted observability for mobile and backend apps. Events, metrics, funnels — driven by your coding agent.",
+      "Self-hosted observability for mobile and backend apps. Events, metrics, funnels, questionnaires, and reviews — driven by your coding agent.",
   },
 };
 

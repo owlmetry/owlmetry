@@ -11,6 +11,12 @@ import {
   Megaphone,
   Bug,
   MessageSquare,
+  ClipboardList,
+  Star,
+  Bell,
+  Users,
+  History,
+  Database,
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
@@ -56,6 +62,16 @@ const features = [
     description: "Collect free-text feedback from your apps or your own frontend. Kanban board with status lifecycle, comments, and session-linked event replay for every submission.",
   },
   {
+    icon: ClipboardList,
+    title: "In-App Questionnaires",
+    description: "Ask your users questions in-app — text, choice, 1–5 rating, 0–10 NPS. Drafts save on every step so users can resume across launches, and per-question analytics show exactly where they drop off.",
+  },
+  {
+    icon: Star,
+    title: "App Store Reviews",
+    description: "Daily snapshots of your per-country App Store ratings and every individual review, plus reply, edit, and delete from any surface. Connect once with an App Store Connect key — no scraping.",
+  },
+  {
     icon: Smartphone,
     title: "Multi-Platform SDKs",
     description: "Drop in a Swift or Node.js SDK and start collecting data in minutes. Batching, compression, and retry happen automatically.",
@@ -64,6 +80,29 @@ const features = [
     icon: Shield,
     title: "Open Source",
     description: "The entire codebase is open. Use our hosted service or run it on your own infrastructure — same product, your choice.",
+  },
+];
+
+const operatorFeatures = [
+  {
+    icon: Bell,
+    title: "Notifications",
+    description: "Multi-channel alerts — in-app inbox, email, and APNs push. Issue alerts, feedback, App Store rating bumps, new reviews, and job completion. Per-user preferences per type.",
+  },
+  {
+    icon: Users,
+    title: "Team Management",
+    description: "Invite teammates by email with 7-day token expiry. Role-based access (owner > admin > member) with per-resource permission checks.",
+  },
+  {
+    icon: History,
+    title: "Audit Trail",
+    description: "Auto-logged create, update, and delete across every resource. Queryable via dashboard, CLI, and API.",
+  },
+  {
+    icon: Database,
+    title: "Per-Project Retention",
+    description: "Configure event, metric, and funnel retention windows per project. Daily cleanup job plus a database auto-pruning safety net.",
   },
 ];
 
@@ -342,6 +381,37 @@ export default function LandingPage() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-20 border-t border-white/5 pt-16">
+            <div className="text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-4" style={{ color: "oklch(0.555 0.163 48.998)" }}>
+                Built for operators
+              </p>
+              <h3 className="text-2xl font-bold tracking-tight text-white/95 md:text-3xl">
+                The boring things, done right
+              </h3>
+              <p className="mt-4 text-white/50 max-w-2xl mx-auto">
+                Everything you need to run Owlmetry in a real team — without paying for a separate ops tool for each one.
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {operatorFeatures.map((feature) => (
+                <div
+                  key={feature.title}
+                  className="rounded-xl border border-white/10 bg-white/[0.02] p-5"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06]" style={{ color: "oklch(0.555 0.163 48.998)" }}>
+                    <feature.icon className="h-4 w-4" />
+                  </div>
+                  <h4 className="mt-4 text-sm font-semibold text-white/90">{feature.title}</h4>
+                  <p className="mt-2 text-xs text-white/45 leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -642,7 +712,7 @@ export default function LandingPage() {
               applicationCategory: "DeveloperApplication",
               operatingSystem: "iOS, iPadOS, macOS, Node.js",
               description:
-                "Agent-first observability platform. Structured events, performance metrics, and conversion funnels for mobile and backend apps.",
+                "Agent-first observability platform. Events, metrics, funnels, in-app questionnaires, error tracking, and App Store reviews — for mobile and backend apps.",
               url: "https://owlmetry.com",
               image: "https://owlmetry.com/owl-logo.png",
               author: {
@@ -686,6 +756,12 @@ export default function LandingPage() {
                 "Error issue tracker with semver-aware regression detection",
                 "Apple Search Ads acquisition attribution",
                 "User feedback with kanban workflow",
+                "In-app questionnaires with NPS, rating, and resumable drafts",
+                "App Store ratings and individual reviews with reply support",
+                "Multi-channel notifications (in-app, email, APNs push)",
+                "Team management with role-based access",
+                "Audit trail across every resource",
+                "Per-project event, metric, and funnel retention",
                 "Swift SDK for iOS/iPadOS/macOS",
                 "Node.js SDK for backends",
                 "CLI for agents and humans",
