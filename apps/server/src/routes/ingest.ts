@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
-import { apps, events, eventAttachments } from "@owlmetry/db";
+import { apps, events, eventAttachments, funnelEvents, metricEvents } from "@owlmetry/db";
 import {
   MAX_BATCH_SIZE,
   ALLOWED_ENVIRONMENTS_FOR_PLATFORM,
@@ -146,6 +146,45 @@ export async function ingestRoutes(app: FastifyInstance) {
         await app.db.insert(events).values(valid);
         await dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
         await upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+
+        // Sweep straggler events for any anon_id whose claimed_from mapping
+        // we just resolved. Claim's UPDATE events catches only rows committed
+        // before its statement ran — an ingest that INSERTed during the claim
+        // transaction (or just after its first UPDATE) leaves rows under the
+        // anon_id. The SDK's next ingest with the same anon_id (its in-flight
+        // log Tasks straggling past the setUser barrier) hits this code path,
+        // and the rewrite above already handles the incoming batch — this
+        // sweep handles the orphaned siblings.
+        if (claimedMap.size > 0) {
+          const projectApps = await app.db
+            .select({ id: apps.id })
+            .from(apps)
+            .where(and(eq(apps.project_id, appRow.project_id), isNull(apps.deleted_at)));
+          const projectAppIds = projectApps.map((a) => a.id);
+          for (const [anonId, realId] of claimedMap.entries()) {
+            await app.db
+              .update(events)
+              .set({ user_id: realId })
+              .where(and(
+                inArray(events.app_id, projectAppIds),
+                eq(events.user_id, anonId),
+              ));
+            await app.db
+              .update(funnelEvents)
+              .set({ user_id: realId })
+              .where(and(
+                inArray(funnelEvents.app_id, projectAppIds),
+                eq(funnelEvents.user_id, anonId),
+              ));
+            await app.db
+              .update(metricEvents)
+              .set({ user_id: realId })
+              .where(and(
+                inArray(metricEvents.app_id, projectAppIds),
+                eq(metricEvents.user_id, anonId),
+              ));
+          }
+        }
 
         const insertedClientIds = valid
           .map((v) => v.client_event_id)
