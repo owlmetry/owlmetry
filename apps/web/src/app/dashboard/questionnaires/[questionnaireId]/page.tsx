@@ -244,7 +244,21 @@ export default function QuestionnaireDetailPage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                  <div>User: <span className="text-foreground">{openResponse.user_id ?? "anonymous"}</span></div>
+                  <div>
+                    User:{" "}
+                    {openResponse.user_id ? (
+                      <a
+                        href={`/dashboard/users?app_user_id=${openResponse.user_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        {openResponse.user_id}
+                      </a>
+                    ) : (
+                      <span className="text-foreground">anonymous</span>
+                    )}
+                  </div>
                   <div>Created: <span className="text-foreground">{formatDateTime(openResponse.created_at)}</span></div>
                   <div>Version: <span className="text-foreground">{openResponse.app_version ?? "—"}</span></div>
                   <div>Environment: <span className="text-foreground">{openResponse.environment ?? "—"}</span></div>
