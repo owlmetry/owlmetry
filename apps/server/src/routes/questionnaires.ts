@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, inArray, isNull, or, sql, desc } from "drizzle-orm";
+import { eq, and, inArray, isNull, or, sql, desc, gte } from "drizzle-orm";
 
 const countAll = sql<number>`COUNT(*)::int`;
 import {
@@ -17,6 +17,7 @@ import {
   MAX_QUESTIONNAIRE_NAME_LENGTH,
   MAX_QUESTIONNAIRE_DESCRIPTION_LENGTH,
   validateQuestionnaireSchema,
+  parseTimeParam,
 } from "@owlmetry/shared";
 import type {
   DataMode,
@@ -1105,14 +1106,32 @@ async function analyzeQuestion(
 }
 
 export async function teamQuestionnaireRoutes(app: FastifyInstance) {
-  // GET /v1/questionnaires/count — total responses across accessible projects
-  // (for dashboard stat cards).
-  app.get(
+  // GET /v1/questionnaires/count — responses across accessible projects
+  // (for dashboard stat cards). Counts both drafts and submitted rows.
+  // Query params:
+  //   since      — ISO timestamp or relative shorthand (e.g. "24h"); filters
+  //                by created_at.
+  //   data_mode  — "production" | "development" | "all". Defaults to "all" to
+  //                match the rest of the questionnaire surface.
+  app.get<{ Querystring: { since?: string; data_mode?: DataMode } }>(
     "/questionnaires/count",
     { preHandler: requirePermission("questionnaires:read") },
     async (request, reply) => {
       const teamIds = getAuthTeamIds(request.auth);
       if (teamIds.length === 0) return { count: 0 };
+      const { since, data_mode } = request.query;
+      const dataModeCondition = dataModeToDrizzle(
+        questionnaireResponses.is_dev,
+        data_mode ?? "all",
+      );
+      let sinceDate: Date | undefined;
+      if (since) {
+        try {
+          sinceDate = parseTimeParam(since);
+        } catch {
+          return reply.code(400).send({ error: "Invalid `since` parameter" });
+        }
+      }
       const [{ total } = { total: 0 }] = await app.db
         .select({ total: countAll })
         .from(questionnaireResponses)
@@ -1121,7 +1140,10 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
           and(
             isNull(questionnaireResponses.deleted_at),
             inArray(apps.team_id, teamIds),
-            eq(questionnaireResponses.is_dev, false),
+            ...(dataModeCondition ? [dataModeCondition] : []),
+            ...(sinceDate
+              ? [gte(questionnaireResponses.created_at, sinceDate)]
+              : []),
           ),
         );
       return { count: Number(total) };

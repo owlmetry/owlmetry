@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { Bug, CheckCircle2, Filter, FolderOpen, ScrollText, UserSearch, Waypoints, MessageSquare, Star } from "lucide-react";
+import { Bug, CheckCircle2, ClipboardList, Filter, FolderOpen, ScrollText, UserSearch, Waypoints, MessageSquare, Star } from "lucide-react";
 import type {
   AppResponse,
   CompletionsCountResponse,
@@ -78,6 +78,14 @@ export default function DashboardPage() {
     useSWR<{ count: number }>(
       teamId
         ? `/v1/feedback/count?team_id=${teamId}&status=new&data_mode=${dataMode}`
+        : null,
+      { refreshInterval: 60_000 }
+    );
+
+  const { data: questionnaireCountData, isLoading: questionnaireCountLoading } =
+    useSWR<{ count: number }>(
+      teamId
+        ? `/v1/questionnaires/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
         : null,
       { refreshInterval: 60_000 }
     );
@@ -219,6 +227,13 @@ export default function DashboardPage() {
           value={feedbackCountData?.count ?? 0}
           isLoading={feedbackCountLoading}
           href="/dashboard/feedback"
+        />
+        <StatCard
+          label="Responses · 24h"
+          icon={ClipboardList}
+          value={questionnaireCountData?.count ?? 0}
+          isLoading={questionnaireCountLoading}
+          href="/dashboard/questionnaires"
         />
         <StatCard
           label="Reviews"
