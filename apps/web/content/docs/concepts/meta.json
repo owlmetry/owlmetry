@@ -19,6 +19,7 @@
     "notifications",
     "attachments",
     "background-jobs",
+    "aggregations",
     "latest-version-detection"
   ]
 }

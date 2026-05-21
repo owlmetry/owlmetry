@@ -125,12 +125,25 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
   },
 };
 
+/** Sparkline windows the dashboard offers on `/dashboard/profile`. */
+export const SPARKLINE_WINDOW_DAYS = [7, 14, 30, 60, 90] as const;
+export type SparklineWindowDays = (typeof SPARKLINE_WINDOW_DAYS)[number];
+export const DEFAULT_SPARKLINE_WINDOW_DAYS: SparklineWindowDays = 30;
+
 export interface UserPreferences {
   version?: 1;
   ui?: {
     columns?: {
       events?: ColumnConfig;
       users?: ColumnConfig;
+    };
+    dashboard?: {
+      /**
+       * Trailing-window length (days) for the subtle sparklines on dashboard
+       * stat cards. Excludes the current UTC day so partial data never renders
+       * as a dip. One of SPARKLINE_WINDOW_DAYS; absent => DEFAULT_SPARKLINE_WINDOW_DAYS.
+       */
+      sparklineWindowDays?: SparklineWindowDays;
     };
   };
   notifications?: {
@@ -162,6 +175,9 @@ export function mergeUserPreferences(
     if (patch.ui.columns !== undefined) {
       merged.ui.columns = { ...base.ui?.columns, ...patch.ui.columns };
     }
+    if (patch.ui.dashboard !== undefined) {
+      merged.ui.dashboard = { ...base.ui?.dashboard, ...patch.ui.dashboard };
+    }
   }
   if (patch.notifications !== undefined) {
     merged.notifications = { ...base.notifications };
@@ -178,6 +194,23 @@ export function mergeUserPreferences(
     }
   }
   return merged;
+}
+
+/**
+ * Resolve the effective sparkline window from a user's preferences, falling
+ * back to the default. Returns one of `SPARKLINE_WINDOW_DAYS`; an invalid
+ * stored value (e.g. set by an earlier release) is silently coerced to the
+ * default rather than thrown — preferences are read on every dashboard render
+ * so a stricter contract isn't worth it.
+ */
+export function resolveSparklineWindowDays(
+  prefs: UserPreferences | null | undefined,
+): SparklineWindowDays {
+  const stored = prefs?.ui?.dashboard?.sparklineWindowDays;
+  if (stored !== undefined && (SPARKLINE_WINDOW_DAYS as readonly number[]).includes(stored)) {
+    return stored;
+  }
+  return DEFAULT_SPARKLINE_WINDOW_DAYS;
 }
 
 /** True iff `order` is element-by-element identical to `defaultOrder`. */

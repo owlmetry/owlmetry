@@ -227,6 +227,19 @@ SDKs can optionally upload a file alongside an error event (e.g. the input image
 
 Attachments linked to an event are automatically linked to its issue by the issue-scan job. They survive event retention pruning as long as the issue is still open, and are hard-deleted 7 days after the issue (or the attachment itself) is soft-deleted. Use \`delete-attachment\` once an issue is confirmed resolved and the file is no longer useful.
 
+### Time-Series Rollups
+Daily and hourly pre-aggregated counts for **events** (with derived \`users\` and \`sessions\` columns), **metric_completions**, **funnel_completions**, and **questionnaire_responses**. Two tables per kind — \`*_daily\` keyed on a \`day\` (UTC date) column, \`*_hourly\` keyed on an \`hour\` (UTC \`timestamptz\`) column. Backs the subtle sparkline charts on the main dashboard cards today and arbitrary time-range trend pages going forward.
+
+Two rows are written for each (project, is_dev, bucket, kind-specific dimensions):
+- A **per-app row** (\`app_id\` not null).
+- A **project-rollup row** (\`app_id\` is null) summing across every app in the project. Distinct user / session counts in the rollup are **project-level distincts** (a user active on two apps counts once), not the sum of per-app distincts.
+
+Read with \`query-stats-bucketed\`. The endpoint reads the per-app row when an \`app_id\` is supplied, otherwise the rollup row — single-row reads, no SUM at query time. \`excluding_current=true\` (default) drops the in-progress bucket so a partial day or hour can't show as a misleading dip.
+
+Aggregation runs every hour at \`:05\` UTC (re-aggregates the trailing 3 hours) and every day at \`00:30\` UTC (re-aggregates the trailing 3 days). Late-arriving events past those windows need a manual backfill — trigger \`stats_aggregate_daily\` or \`stats_aggregate_hourly\` with \`start\` / \`end\` (and optional \`project_id\`) via \`trigger-job\`.
+
+**Retention**: these tables are **not** subject to retention pruning or soft-delete cleanup. The counts are anonymous (no user / session IDs, only COUNT DISTINCT values) and kept indefinitely so historical sparklines and year-views survive even after raw events have aged out.
+
 ### Background Jobs
 Asynchronous server-side tasks with progress tracking and optional email notifications. Used for long-running operations like bulk syncs. Only one instance of each job type (per project) can run at a time — duplicates return an error.
 
@@ -322,6 +335,9 @@ Every app response includes \`latest_app_version\`, \`latest_app_version_updated
 - \`get-attachment\` — metadata + 60-second signed download URL
 - \`delete-attachment\` — soft-delete once no longer useful (frees quota)
 - \`get-project-attachment-usage\` — check quota headroom before recommending re-runs
+
+### Time-Series Rollups
+- \`query-stats-bucketed\` — bucketed counts (daily or hourly) for \`events | users | sessions | metric_completions | funnel_completions | questionnaire_responses\`. Pass \`project_id\` or \`team_id\` (mutually exclusive); optional \`app_id\` to narrow; \`days\` / \`hours\` for trailing windows, or \`from\` / \`to\` for explicit ranges. \`slug\` filters to one metric / funnel / questionnaire. Returns a zero-padded chronological series of \`{bucket, value}\` pairs. Use this for sparklines, trend pages, or any "how has X changed over time" question — cheaper and more honest than re-aggregating raw events.
 
 ### Advertising Insights
 - \`list-ad-campaigns\` — campaigns ranked by lifetime USD revenue (per attribution_source; defaults to apple_search_ads)

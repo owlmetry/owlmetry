@@ -34,6 +34,7 @@ import { questionnaireRoutes, teamQuestionnaireRoutes } from "./routes/questionn
 import { reviewsRoutes, teamReviewsRoutes } from "./routes/reviews.js";
 import { ratingsRoutes, teamRatingsRoutes } from "./routes/ratings.js";
 import { adsRoutes, teamAdsRoutes } from "./routes/ads.js";
+import { statsRoutes, teamStatsRoutes } from "./routes/stats.js";
 import { notificationsRoutes } from "./routes/notifications.js";
 import { devicesRoutes } from "./routes/devices.js";
 import { mcpRoute } from "./mcp/index.js";
@@ -188,6 +189,24 @@ jobRunner.schedule({
   enabled: () => true,
   params: () => ({}),
 });
+jobRunner.schedule({
+  jobType: "stats_aggregate_daily",
+  // Daily 00:30 UTC in prod — 30 min past midnight so the previous UTC day
+  // has settled past most SDK late-arrivals. Dev runs every 10 min so the
+  // sparklines update quickly when seeding new data. The default no-param run
+  // re-aggregates the trailing 3 days to absorb any late events.
+  cron: isDev ? "*/10 * * * *" : "30 0 * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
+jobRunner.schedule({
+  jobType: "stats_aggregate_hourly",
+  // Hourly at :05 UTC — 5 min past the hour for the same reason. Dev runs
+  // every 5 min. The default no-param run re-aggregates the trailing 3 hours.
+  cron: isDev ? "*/5 * * * *" : "5 * * * *",
+  enabled: () => true,
+  params: () => ({}),
+});
 
 // Decorators
 app.decorate("db", db);
@@ -251,6 +270,8 @@ await app.register(ratingsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamRatingsRoutes, { prefix: "/v1" });
 await app.register(adsRoutes, { prefix: "/v1/projects/:projectId" });
 await app.register(teamAdsRoutes, { prefix: "/v1" });
+await app.register(statsRoutes, { prefix: "/v1/projects/:projectId" });
+await app.register(teamStatsRoutes, { prefix: "/v1" });
 await app.register(notificationsRoutes, { prefix: "/v1" });
 await app.register(devicesRoutes, { prefix: "/v1" });
 await app.register(mcpRoute);

@@ -1262,3 +1262,330 @@ export const adAdGroupLifetime = pgTable(
     ),
   ]
 );
+
+// ─── Time-series aggregation rollups ──────────────────────────────────────────
+//
+// Daily + hourly count rollups for events / metric_events / funnel_events /
+// questionnaire_responses. Drive subtle sparkline charts on dashboard cards
+// today; designed to also power future arbitrary-range analytics pages
+// ("events for the past year per project / app").
+//
+// Conventions shared across all 8 tables:
+//
+//   - `team_id` denormalized for fast team-scoped reads (same pattern as
+//     `app_store_ratings`).
+//   - `app_id` nullable: a row with `app_id IS NULL` is a project-level rollup
+//     summing every app's contribution for that (project, is_dev, bucket, dim).
+//     Both per-app rows AND the rollup row are written by the aggregation job
+//     so reads hit a single row, never a SUM. The unique index uses
+//     `nullsNotDistinct()` so PG treats two NULL app_ids as equal for the
+//     conflict target — one rollup row per (project, is_dev, bucket, dim).
+//   - `is_dev` split by row, never aggregated together. `data_mode=all` sums
+//     `is_dev = true` + `is_dev = false` at query time.
+//   - Anonymous count data, **no PII**: only counts and distincts, no user IDs.
+//     Explicitly excluded from retention pruning and soft-delete cleanup —
+//     these rollups outlive the raw events they were computed from so
+//     sparklines and year-views don't go blank when raw retention kicks in.
+//   - Non-additive distincts: `unique_users` / `unique_sessions` are per-bucket
+//     COUNT(DISTINCT …) and not summable across buckets (e.g. summing 7 daily
+//     uniques does not yield true weekly uniques). The dashboard cards plot
+//     `event_count` for the line; multi-bucket distinct queries must fall back
+//     to raw event tables.
+//
+// Populated by the `stats_aggregate_daily` (00:30 UTC) and
+// `stats_aggregate_hourly` (every hour at :05) jobs, each re-aggregating the
+// trailing 3 buckets to absorb late-arriving SDK events. Backfill mode accepts
+// an arbitrary `start`/`end` range.
+
+export const eventsDaily = pgTable(
+  "events_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    event_count: integer("event_count").notNull().default(0),
+    unique_users: integer("unique_users").notNull().default(0),
+    unique_sessions: integer("unique_sessions").notNull().default(0),
+    error_count: integer("error_count").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("events_daily_project_dev_day_rollup_idx")
+      .on(table.project_id, table.is_dev, table.day)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("events_daily_project_app_dev_day_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.day)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("events_daily_team_day_idx").on(table.team_id, table.day),
+    index("events_daily_project_day_idx").on(table.project_id, table.day),
+  ]
+);
+
+export const eventsHourly = pgTable(
+  "events_hourly",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull(),
+    hour: timestamp("hour", { withTimezone: true }).notNull(),
+    event_count: integer("event_count").notNull().default(0),
+    unique_users: integer("unique_users").notNull().default(0),
+    unique_sessions: integer("unique_sessions").notNull().default(0),
+    error_count: integer("error_count").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("events_hourly_project_dev_hour_rollup_idx")
+      .on(table.project_id, table.is_dev, table.hour)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("events_hourly_project_app_dev_hour_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.hour)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("events_hourly_team_hour_idx").on(table.team_id, table.hour),
+    index("events_hourly_project_hour_idx").on(table.project_id, table.hour),
+  ]
+);
+
+export const metricEventsDaily = pgTable(
+  "metric_events_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    metric_slug: varchar("metric_slug", { length: 255 }).notNull(),
+    phase: metricPhaseEnum("phase").notNull(),
+    count: integer("count").notNull().default(0),
+    // SUM(duration_ms) only populated for `complete` phase rows (others have no
+    // duration). NULL when no row in the bucket had a duration.
+    sum_duration_ms: bigint("sum_duration_ms", { mode: "number" }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("metric_events_daily_project_dev_day_slug_phase_rollup_idx")
+      .on(table.project_id, table.is_dev, table.day, table.metric_slug, table.phase)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("metric_events_daily_project_app_dev_day_slug_phase_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.day, table.metric_slug, table.phase)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("metric_events_daily_team_day_idx").on(table.team_id, table.day),
+    index("metric_events_daily_project_slug_day_idx").on(table.project_id, table.metric_slug, table.day),
+  ]
+);
+
+export const metricEventsHourly = pgTable(
+  "metric_events_hourly",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull(),
+    hour: timestamp("hour", { withTimezone: true }).notNull(),
+    metric_slug: varchar("metric_slug", { length: 255 }).notNull(),
+    phase: metricPhaseEnum("phase").notNull(),
+    count: integer("count").notNull().default(0),
+    sum_duration_ms: bigint("sum_duration_ms", { mode: "number" }),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("metric_events_hourly_project_dev_hour_slug_phase_rollup_idx")
+      .on(table.project_id, table.is_dev, table.hour, table.metric_slug, table.phase)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("metric_events_hourly_project_app_dev_hour_slug_phase_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.hour, table.metric_slug, table.phase)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("metric_events_hourly_team_hour_idx").on(table.team_id, table.hour),
+    index("metric_events_hourly_project_slug_hour_idx").on(table.project_id, table.metric_slug, table.hour),
+  ]
+);
+
+export const funnelEventsDaily = pgTable(
+  "funnel_events_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    step_name: varchar("step_name", { length: 255 }).notNull(),
+    count: integer("count").notNull().default(0),
+    unique_users: integer("unique_users").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("funnel_events_daily_project_dev_day_step_rollup_idx")
+      .on(table.project_id, table.is_dev, table.day, table.step_name)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("funnel_events_daily_project_app_dev_day_step_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.day, table.step_name)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("funnel_events_daily_team_day_idx").on(table.team_id, table.day),
+    index("funnel_events_daily_project_step_day_idx").on(table.project_id, table.step_name, table.day),
+  ]
+);
+
+export const funnelEventsHourly = pgTable(
+  "funnel_events_hourly",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    is_dev: boolean("is_dev").notNull(),
+    hour: timestamp("hour", { withTimezone: true }).notNull(),
+    step_name: varchar("step_name", { length: 255 }).notNull(),
+    count: integer("count").notNull().default(0),
+    unique_users: integer("unique_users").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("funnel_events_hourly_project_dev_hour_step_rollup_idx")
+      .on(table.project_id, table.is_dev, table.hour, table.step_name)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("funnel_events_hourly_project_app_dev_hour_step_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.hour, table.step_name)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("funnel_events_hourly_team_hour_idx").on(table.team_id, table.hour),
+    index("funnel_events_hourly_project_step_hour_idx").on(table.project_id, table.step_name, table.hour),
+  ]
+);
+
+// One row per (project, app, is_dev, bucket, questionnaire). `submitted_count`
+// flips for the bucket the response was completed in (uses submitted_at, not
+// created_at — drafts that complete days later count on the day they were
+// submitted). `draft_count` counts responses created in the bucket that are
+// still in draft state, so the same response can't double-count between draft
+// and submitted columns within a bucket. Card sparkline sums across all
+// questionnaire_ids; per-questionnaire pages filter to one.
+export const questionnaireResponsesDaily = pgTable(
+  "questionnaire_responses_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    questionnaire_id: uuid("questionnaire_id").notNull(),
+    is_dev: boolean("is_dev").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    submitted_count: integer("submitted_count").notNull().default(0),
+    draft_count: integer("draft_count").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("questionnaire_responses_daily_project_dev_day_q_rollup_idx")
+      .on(table.project_id, table.is_dev, table.day, table.questionnaire_id)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("questionnaire_responses_daily_project_app_dev_day_q_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.day, table.questionnaire_id)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("questionnaire_responses_daily_team_day_idx").on(table.team_id, table.day),
+    index("questionnaire_responses_daily_project_q_day_idx").on(
+      table.project_id,
+      table.questionnaire_id,
+      table.day,
+    ),
+  ]
+);
+
+export const questionnaireResponsesHourly = pgTable(
+  "questionnaire_responses_hourly",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    team_id: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    project_id: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    app_id: uuid("app_id").references(() => apps.id, { onDelete: "cascade" }),
+    questionnaire_id: uuid("questionnaire_id").notNull(),
+    is_dev: boolean("is_dev").notNull(),
+    hour: timestamp("hour", { withTimezone: true }).notNull(),
+    submitted_count: integer("submitted_count").notNull().default(0),
+    draft_count: integer("draft_count").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("questionnaire_responses_hourly_project_dev_hour_q_rollup_idx")
+      .on(table.project_id, table.is_dev, table.hour, table.questionnaire_id)
+      .where(sql`${table.app_id} IS NULL`),
+    uniqueIndex("questionnaire_responses_hourly_project_app_dev_hour_q_idx")
+      .on(table.project_id, table.app_id, table.is_dev, table.hour, table.questionnaire_id)
+      .where(sql`${table.app_id} IS NOT NULL`),
+    index("questionnaire_responses_hourly_team_hour_idx").on(table.team_id, table.hour),
+    index("questionnaire_responses_hourly_project_q_hour_idx").on(
+      table.project_id,
+      table.questionnaire_id,
+      table.hour,
+    ),
+  ]
+);

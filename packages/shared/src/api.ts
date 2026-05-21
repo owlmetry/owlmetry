@@ -738,6 +738,68 @@ export interface MarkAllReadRequest {
   type?: string;
 }
 
+// ─── Stats aggregations (daily/hourly rollups) ────────────────────────────────
+//
+// Powers the subtle sparkline charts on dashboard cards today and arbitrary
+// time-range analytics queries tomorrow. Backed by 8 pre-aggregated tables:
+// {events,metric_events,funnel_events,questionnaire_responses}_{daily,hourly}.
+// See apps/web/content/docs/concepts/aggregations.mdx.
+
+export const STATS_KINDS = [
+  "events",
+  "users",
+  "sessions",
+  "metric_completions",
+  "funnel_completions",
+  "questionnaire_responses",
+] as const;
+export type StatsKind = (typeof STATS_KINDS)[number];
+
+export const STATS_GRAINS = ["daily", "hourly"] as const;
+export type StatsGrain = (typeof STATS_GRAINS)[number];
+
+export interface StatsBucketedQueryParams {
+  team_id?: string;
+  project_id?: string;
+  app_id?: string;
+  /** For grain=daily: trailing window in UTC days. Ignored if from/to set. */
+  days?: number;
+  /** For grain=hourly: trailing window in UTC hours. Ignored if from/to set. */
+  hours?: number;
+  /**
+   * Explicit start ISO 8601 (timestamp for hourly, YYYY-MM-DD for daily). Both
+   * `from` and `to` must be set together; otherwise the trailing window applies.
+   */
+  from?: string;
+  /** Explicit end. Inclusive at the bucket level. */
+  to?: string;
+  /**
+   * When true (default), drops the in-progress UTC bucket so a partial day or
+   * hour doesn't render as a misleading dip. Set explicitly to "false" to
+   * include the current bucket.
+   */
+  excluding_current?: boolean;
+  data_mode?: DataMode;
+  /** For metric_completions / questionnaire_responses kinds — narrow to one. */
+  slug?: string;
+}
+
+export interface StatsBucketedPoint {
+  /** YYYY-MM-DD for daily, ISO 8601 hour for hourly. */
+  bucket: string;
+  value: number;
+}
+
+export interface StatsBucketedResponse {
+  kind: StatsKind;
+  grain: StatsGrain;
+  /** ISO start of first bucket (inclusive). */
+  from: string;
+  /** ISO start of last bucket (inclusive). */
+  to: string;
+  data: StatsBucketedPoint[];
+}
+
 export interface MarkAllReadResponse {
   marked: number;
 }

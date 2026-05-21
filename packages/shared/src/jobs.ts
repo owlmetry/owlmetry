@@ -15,6 +15,8 @@ export const JOB_TYPES = [
   "notification_deliver",
   "notification_cleanup",
   "questionnaire_draft_cleanup",
+  "stats_aggregate_daily",
+  "stats_aggregate_hourly",
 ] as const;
 
 export type JobType = (typeof JOB_TYPES)[number];
@@ -210,6 +212,61 @@ export const JOB_TYPE_META: Record<
     scope: "system",
     default_schedule: "30 6 * * *",
     params: [],
+  },
+  stats_aggregate_daily: {
+    label: "Daily Stats Aggregation",
+    description:
+      "Aggregates counts (events / metric_events / funnel_events / questionnaire_responses) into the *_daily rollup tables for one or more UTC days. With no params, re-aggregates the trailing 3 days for every project (catches late-arriving SDK events). With `start`/`end` (YYYY-MM-DD), iterates that date range — used for one-time backfills. Optional `project_id` narrows to a single project. Writes per-app rows AND a project-level rollup row (app_id NULL) so card reads hit a single row, never a SUM. Anonymous counts; tables are explicitly excluded from retention pruning.",
+    scope: "system",
+    default_schedule: "30 0 * * *",
+    params: [
+      {
+        name: "start",
+        description: "Backfill start day (YYYY-MM-DD, UTC). Required together with `end`.",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "end",
+        description: "Backfill end day inclusive (YYYY-MM-DD, UTC). Required together with `start`.",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "project_id",
+        description: "Aggregate only the given project instead of fanning out across all projects.",
+        type: "string",
+        required: false,
+      },
+    ],
+  },
+  stats_aggregate_hourly: {
+    label: "Hourly Stats Aggregation",
+    description:
+      "Hourly analog of stats_aggregate_daily — writes into the *_hourly rollup tables. With no params, re-aggregates the trailing 3 hours for every project. With `start`/`end` (ISO hour like 2026-05-20T00:00), iterates that hour range. Optional `project_id` narrows scope.",
+    scope: "system",
+    default_schedule: "5 * * * *",
+    params: [
+      {
+        name: "start",
+        description:
+          "Backfill start hour (ISO 8601, UTC; e.g. 2026-05-20T00:00:00Z). Required together with `end`.",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "end",
+        description: "Backfill end hour inclusive. Required together with `start`.",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "project_id",
+        description: "Aggregate only the given project instead of fanning out across all projects.",
+        type: "string",
+        required: false,
+      },
+    ],
   },
 };
 

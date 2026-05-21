@@ -4,6 +4,9 @@ import {
   isDefaultColumnOrder,
   isChannelEnabled,
   NOTIFICATION_TYPE_META,
+  resolveSparklineWindowDays,
+  DEFAULT_SPARKLINE_WINDOW_DAYS,
+  SPARKLINE_WINDOW_DAYS,
 } from "../preferences.js";
 
 describe("mergeUserPreferences", () => {
@@ -186,6 +189,56 @@ describe("mergeUserPreferences with notifications", () => {
     });
     expect(result.ui?.columns?.events?.order).toEqual(["t", "l"]);
     expect(result.notifications?.types?.["issue.digest"]?.email).toBe(false);
+  });
+});
+
+describe("ui.dashboard.sparklineWindowDays", () => {
+  it("mergeUserPreferences preserves dashboard sub-object when patching columns", () => {
+    const existing = {
+      ui: {
+        columns: { events: { order: ["t", "l"] } },
+        dashboard: { sparklineWindowDays: 60 as const },
+      },
+    };
+    const result = mergeUserPreferences(existing, {
+      ui: { columns: { users: { order: ["u"] } } },
+    });
+    expect(result.ui?.dashboard?.sparklineWindowDays).toBe(60);
+    expect(result.ui?.columns?.users?.order).toEqual(["u"]);
+  });
+
+  it("mergeUserPreferences overwrites dashboard.sparklineWindowDays without wiping columns", () => {
+    const existing = {
+      ui: {
+        columns: { events: { order: ["t"] } },
+        dashboard: { sparklineWindowDays: 30 as const },
+      },
+    };
+    const result = mergeUserPreferences(existing, {
+      ui: { dashboard: { sparklineWindowDays: 7 } },
+    });
+    expect(result.ui?.dashboard?.sparklineWindowDays).toBe(7);
+    expect(result.ui?.columns?.events?.order).toEqual(["t"]);
+  });
+
+  it("resolveSparklineWindowDays returns the default when prefs is null/undefined/empty", () => {
+    expect(resolveSparklineWindowDays(null)).toBe(DEFAULT_SPARKLINE_WINDOW_DAYS);
+    expect(resolveSparklineWindowDays(undefined)).toBe(DEFAULT_SPARKLINE_WINDOW_DAYS);
+    expect(resolveSparklineWindowDays({})).toBe(DEFAULT_SPARKLINE_WINDOW_DAYS);
+  });
+
+  it("resolveSparklineWindowDays returns the stored value when valid", () => {
+    for (const window of SPARKLINE_WINDOW_DAYS) {
+      const result = resolveSparklineWindowDays({ ui: { dashboard: { sparklineWindowDays: window } } });
+      expect(result).toBe(window);
+    }
+  });
+
+  it("resolveSparklineWindowDays coerces an unknown stored value to the default", () => {
+    const prefs = {
+      ui: { dashboard: { sparklineWindowDays: 999 as unknown as 7 } },
+    };
+    expect(resolveSparklineWindowDays(prefs)).toBe(DEFAULT_SPARKLINE_WINDOW_DAYS);
   });
 });
 

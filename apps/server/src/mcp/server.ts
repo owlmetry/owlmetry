@@ -17,6 +17,7 @@ import { registerReviewsTools } from "./tools/reviews.js";
 import { registerRatingsTools } from "./tools/ratings.js";
 import { registerAdsTools } from "./tools/ads.js";
 import { registerAttachmentsTools } from "./tools/attachments.js";
+import { registerStatsTools } from "./tools/stats.js";
 
 // Surfaced to MCP clients during the initialize handshake — Claude Code
 // displays this verbatim at the top of every session that has the server
@@ -34,6 +35,7 @@ Capabilities:
 - Questionnaires — structured in-app surveys (text / single & multi choice / 1–5 rating / 0–10 NPS) with per-question analytics
 - Reviews & ratings — App Store reviews + per-country rating snapshots; reply to reviews
 - Ads insights — campaign / ad-group / leaf rankings by revenue + spend + ROAS (Apple Search Ads today)
+- Time-series rollups — daily + hourly aggregates for events / users / sessions / metric completions / funnel completions / questionnaire responses; retained indefinitely, powers sparklines and arbitrary-range trend pages (query-stats-bucketed)
 - Attachments — binary files attached to events; signed downloads
 - Integrations — RevenueCat, App Store Connect, Apple Search Ads: add, sync, copy across projects
 - Audit logs, background jobs (trigger/cancel), user listings, attribution data
@@ -80,6 +82,7 @@ export function createMcpServer(app: FastifyInstance, agentKey: string): McpServ
   registerRatingsTools(server, app, agentKey);
   registerAdsTools(server, app, agentKey);
   registerAttachmentsTools(server, app, agentKey);
+  registerStatsTools(server, app, agentKey);
 
   return server;
 }

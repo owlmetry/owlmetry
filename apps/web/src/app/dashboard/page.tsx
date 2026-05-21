@@ -11,10 +11,13 @@ import type {
   ProjectResponse,
 } from "@owlmetry/shared";
 import { useUser } from "@/hooks/use-user";
+import { useUserPreferences } from "@/hooks/use-user-preferences";
+import { useDailyStats } from "@/hooks/use-daily-stats";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
 import { computeRatingSummary } from "@/lib/rating-summary";
+import { resolveSparklineWindowDays } from "@owlmetry/shared/preferences";
 import { StatCard, StatRow } from "./_components/stat-card";
 import { OpenIssuesPanel } from "./_components/open-issues-panel";
 import { RecentEventsPanel } from "./_components/recent-events-panel";
@@ -27,10 +30,12 @@ const UNRESOLVED_STATUSES = new Set(["new", "in_progress", "regressed"]);
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const prefs = useUserPreferences();
   const { currentTeam, currentRole } = useTeam();
   const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
   const isAdmin = currentRole === "owner" || currentRole === "admin";
+  const sparklineDays = resolveSparklineWindowDays(prefs);
 
   const { data: projectsData, isLoading: projectsLoading } = useSWR<{
     projects: ProjectResponse[];
@@ -100,6 +105,54 @@ export default function DashboardPage() {
     teamId ? `/v1/reviews/count?team_id=${teamId}&since=${eventsSince}` : null,
     { refreshInterval: 60_000 }
   );
+
+  // Sparkline series for the 6 trendable cards. All requests share the same
+  // window + data mode so the lines move in lockstep with the magnitude
+  // numbers above them. `excluding_current` defaults true server-side, so the
+  // current UTC day is dropped automatically and a partial in-progress day
+  // can't render as a dip.
+  const eventsSpark = useDailyStats({
+    kind: "events",
+    teamId,
+    days: sparklineDays,
+    dataMode,
+    skip: !teamId,
+  });
+  const usersSpark = useDailyStats({
+    kind: "users",
+    teamId,
+    days: sparklineDays,
+    dataMode,
+    skip: !teamId,
+  });
+  const sessionsSpark = useDailyStats({
+    kind: "sessions",
+    teamId,
+    days: sparklineDays,
+    dataMode,
+    skip: !teamId,
+  });
+  const metricsSpark = useDailyStats({
+    kind: "metric_completions",
+    teamId,
+    days: sparklineDays,
+    dataMode,
+    skip: !teamId,
+  });
+  const funnelsSpark = useDailyStats({
+    kind: "funnel_completions",
+    teamId,
+    days: sparklineDays,
+    dataMode,
+    skip: !teamId,
+  });
+  const responsesSpark = useDailyStats({
+    kind: "questionnaire_responses",
+    teamId,
+    days: sparklineDays,
+    dataMode,
+    skip: !teamId,
+  });
 
   const projectCount = projectsData?.projects.length;
   const appCount = appsData?.apps.length;
@@ -190,6 +243,7 @@ export default function DashboardPage() {
           value={eventCount}
           isLoading={eventsCountLoading}
           href="/dashboard/events"
+          sparkline={{ values: eventsSpark.values, isLoading: eventsSpark.isLoading }}
         />
         <StatCard
           label="Users · 24h"
@@ -197,6 +251,7 @@ export default function DashboardPage() {
           value={uniqueUsers}
           isLoading={eventsCountLoading}
           href="/dashboard/users"
+          sparkline={{ values: usersSpark.values, isLoading: usersSpark.isLoading }}
         />
         <StatCard
           label="Sessions · 24h"
@@ -204,6 +259,7 @@ export default function DashboardPage() {
           value={uniqueSessions}
           isLoading={eventsCountLoading}
           href="/dashboard/events"
+          sparkline={{ values: sessionsSpark.values, isLoading: sessionsSpark.isLoading }}
         />
         <StatCard
           label="Metrics · 24h"
@@ -212,6 +268,7 @@ export default function DashboardPage() {
           secondary={metricsPercent}
           isLoading={metricsCompletedLoading}
           href="/dashboard/metrics"
+          sparkline={{ values: metricsSpark.values, isLoading: metricsSpark.isLoading }}
         />
         <StatCard
           label="Funnels · 24h"
@@ -220,6 +277,7 @@ export default function DashboardPage() {
           secondary={funnelsPercent}
           isLoading={funnelsCompletedLoading}
           href="/dashboard/funnels"
+          sparkline={{ values: funnelsSpark.values, isLoading: funnelsSpark.isLoading }}
         />
         <StatCard
           label="New Feedback"
@@ -234,6 +292,7 @@ export default function DashboardPage() {
           value={questionnaireCountData?.count ?? 0}
           isLoading={questionnaireCountLoading}
           href="/dashboard/questionnaires"
+          sparkline={{ values: responsesSpark.values, isLoading: responsesSpark.isLoading }}
         />
         <StatCard
           label="Reviews"

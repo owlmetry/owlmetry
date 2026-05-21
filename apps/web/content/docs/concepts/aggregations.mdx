@@ -1,0 +1,107 @@
+---
+title: Time-Series Rollups
+description: Pre-aggregated daily and hourly count tables that power dashboard sparklines and arbitrary trend queries.
+---
+
+Owlmetry maintains pre-computed daily and hourly rollup tables for the four event-shaped data sources (`events`, `metric_events`, `funnel_events`, `questionnaire_responses`). These power the subtle sparkline charts on dashboard cards today and any time-range trend query going forward.
+
+## Why pre-aggregate?
+
+Raw event tables grow to many millions of rows. Re-scanning them every time the dashboard renders a sparkline would be wasteful and slow. The rollup tables store one row per `(project, app, is_dev, bucket, kind-specific dimensions)`, so a 30-day sparkline is at most ~30 rows — a single index seek per project.
+
+The same tables also support arbitrary date-range analytics. "Events per day for the past year across this one app" hits a daily rollup with `WHERE day BETWEEN ... AND ... AND app_id = ...`. No raw event scan, no time-range limits.
+
+## The eight tables
+
+| Table | Bucket column | Dimension columns | Value columns |
+|---|---|---|---|
+| `events_daily` | `day date` | — | `event_count`, `unique_users`, `unique_sessions`, `error_count` |
+| `events_hourly` | `hour timestamptz` | — | (same) |
+| `metric_events_daily` | `day date` | `metric_slug`, `phase` | `count`, `sum_duration_ms` |
+| `metric_events_hourly` | `hour timestamptz` | `metric_slug`, `phase` | (same) |
+| `funnel_events_daily` | `day date` | `step_name` | `count`, `unique_users` |
+| `funnel_events_hourly` | `hour timestamptz` | `step_name` | (same) |
+| `questionnaire_responses_daily` | `day date` | `questionnaire_id` | `submitted_count`, `draft_count` |
+| `questionnaire_responses_hourly` | `hour timestamptz` | `questionnaire_id` | (same) |
+
+Every table also carries `team_id`, `project_id`, `app_id` (nullable), and `is_dev`.
+
+## Project rollup vs per-app rows
+
+For each bucket, the aggregator writes two rows:
+
+- A **per-app row** with `app_id` set — used when a query is filtered to one app.
+- A **project-rollup row** with `app_id IS NULL` — used when a query spans every app in a project.
+
+The rollup row's `unique_users` and `unique_sessions` are **project-level distincts**: a user active on two apps within the same project counts once in the rollup but twice across the per-app rows. Reads always hit a single row, never a SUM at query time.
+
+## Day boundaries are UTC
+
+`day` is a UTC calendar date; `hour` is the UTC start of the hour. No user-timezone setting is applied. This keeps aggregations cheap and consistent across deployments — there's nothing to recompute when the user changes locale.
+
+## Current bucket exclusion
+
+The read API defaults to `excluding_current=true`, dropping the in-progress UTC day or hour. A partial bucket has fewer events than a complete one and would render as a misleading dip on the sparkline. Pass `excluding_current=false` if you specifically want the in-flight bucket included.
+
+## Non-additive distincts
+
+`unique_users` and `unique_sessions` are per-bucket `COUNT(DISTINCT ...)` values. They **cannot** be summed across buckets: adding seven daily distinct-user counts does not give true weekly distinct users (a single user active every day counts seven times, not one).
+
+The dashboard cards plot the additive `event_count` column for the trend line. Multi-bucket distinct queries that need exact answers should fall back to scanning raw events.
+
+## Aggregation schedule
+
+Two background jobs maintain the tables:
+
+- `stats_aggregate_hourly` runs every hour at `:05` UTC. Default behavior: re-aggregates the trailing 3 hours.
+- `stats_aggregate_daily` runs every day at `00:30` UTC. Default behavior: re-aggregates the trailing 3 days.
+
+The 3-bucket re-aggregation window absorbs late-arriving events from offline mobile SDKs. Events arriving later than that need a manual backfill (see below).
+
+## Backfill
+
+Trigger an arbitrary date range with the CLI:
+
+```
+owlmetry stats backfill --team-id <team> --grain daily \
+  --start 2025-05-21 --end 2026-05-20
+owlmetry stats backfill --team-id <team> --grain hourly \
+  --start 2025-05-21T00:00 --end 2026-05-20T23:00
+```
+
+Or via MCP / REST as a `trigger-job` call against `stats_aggregate_daily` / `stats_aggregate_hourly` with `start` / `end` params.
+
+Backfills are idempotent. Each per-kind aggregator runs one `INSERT … SELECT … GROUP BY` per kind per direction (per-app, project-rollup) and uses `ON CONFLICT … DO UPDATE` against the table's partial unique indexes. Re-running the same backfill produces the same row count.
+
+## Retention
+
+**The rollup tables are not pruned.** They're explicitly excluded from `retention_cleanup` and `soft_delete_cleanup`. The counts are anonymous (no user IDs, no session IDs — just `COUNT` and `COUNT DISTINCT` integer outputs), so there's no PII to age out, and long-lived sparklines / year-views need this history to survive raw-event retention.
+
+Raw event partitions still age out per the project's `retention_days_events`, `retention_days_metrics`, and `retention_days_funnels` settings — that just doesn't cascade-delete from the rollups.
+
+## Reading aggregates
+
+Two endpoint variants, one route handler:
+
+- Project-scoped: `GET /v1/projects/:projectId/stats/:kind/:grain`
+- Team-scoped: `GET /v1/stats/:kind/:grain?team_id=...`
+
+Valid `:kind`s: `events`, `users`, `sessions`, `metric_completions`, `funnel_completions`, `questionnaire_responses`. Valid `:grain`s: `daily`, `hourly`.
+
+Response shape:
+
+```json
+{
+  "kind": "events",
+  "grain": "daily",
+  "from": "2026-04-20",
+  "to": "2026-05-19",
+  "data": [
+    { "bucket": "2026-04-20", "value": 1240 },
+    { "bucket": "2026-04-21", "value": 1310 },
+    ...
+  ]
+}
+```
+
+Missing buckets are zero-padded so consumers can render a continuous line without gap-filling logic.

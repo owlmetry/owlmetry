@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeltaIndicator } from "@/components/delta-indicator";
+import { Sparkline } from "@/components/charts/sparkline";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -16,6 +17,16 @@ interface StatCardProps {
   // Optional trailing "+N" / "-N" indicator (muted; colored deltas live on
   // dedicated rating surfaces, not on dashboard stat tiles).
   delta?: number | null;
+  /**
+   * Optional trend chart shown at the bottom of the card. `values` are
+   * chronological; `isLoading` keeps the slot reserved while data is in
+   * flight so the card doesn't pop in height on load. When undefined the
+   * card renders unchanged (no slot reserved).
+   */
+  sparkline?: {
+    values: number[];
+    isLoading?: boolean;
+  };
 }
 
 export function StatCard({
@@ -26,9 +37,10 @@ export function StatCard({
   href,
   isLoading,
   delta,
+  sparkline,
 }: StatCardProps) {
   const body = (
-    <div className="group relative block min-w-0 px-5 py-5 transition-colors hover:bg-muted/40 h-full">
+    <div className="group relative block min-w-0 px-5 py-5 transition-colors hover:bg-muted/40 h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {label}
@@ -57,6 +69,15 @@ export function StatCard({
           )}
           <DeltaIndicator delta={delta} tone="muted" className="text-sm font-medium" />
         </p>
+      )}
+      {sparkline && (
+        <div className="mt-auto pt-4 h-6 w-full">
+          {sparkline.isLoading ? (
+            <Skeleton className="h-full w-full" />
+          ) : (
+            <Sparkline values={sparkline.values} className="text-foreground/35" />
+          )}
+        </div>
       )}
     </div>
   );

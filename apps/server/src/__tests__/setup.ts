@@ -45,6 +45,7 @@ import { questionnaireRoutes, teamQuestionnaireRoutes } from "../routes/question
 import { reviewsRoutes, teamReviewsRoutes } from "../routes/reviews.js";
 import { ratingsRoutes, teamRatingsRoutes } from "../routes/ratings.js";
 import { adsRoutes, teamAdsRoutes } from "../routes/ads.js";
+import { statsRoutes, teamStatsRoutes } from "../routes/stats.js";
 import { notificationsRoutes } from "../routes/notifications.js";
 import { devicesRoutes } from "../routes/devices.js";
 import { mcpRoute } from "../mcp/index.js";
@@ -487,6 +488,8 @@ export async function buildApp() {
   await app.register(teamRatingsRoutes, { prefix: "/v1" });
   await app.register(adsRoutes, { prefix: "/v1/projects/:projectId" });
   await app.register(teamAdsRoutes, { prefix: "/v1" });
+  await app.register(statsRoutes, { prefix: "/v1/projects/:projectId" });
+  await app.register(teamStatsRoutes, { prefix: "/v1" });
   await app.register(notificationsRoutes, { prefix: "/v1" });
   await app.register(devicesRoutes, { prefix: "/v1" });
   await app.register(mcpRoute);
@@ -514,6 +517,14 @@ export async function truncateAll() {
   await client`DELETE FROM audit_logs`;
   await client`DELETE FROM app_user_apps`;
   await client`DELETE FROM app_users`;
+  await client`DELETE FROM events_daily`.catch(() => {});
+  await client`DELETE FROM events_hourly`.catch(() => {});
+  await client`DELETE FROM metric_events_daily`.catch(() => {});
+  await client`DELETE FROM metric_events_hourly`.catch(() => {});
+  await client`DELETE FROM funnel_events_daily`.catch(() => {});
+  await client`DELETE FROM funnel_events_hourly`.catch(() => {});
+  await client`DELETE FROM questionnaire_responses_daily`.catch(() => {});
+  await client`DELETE FROM questionnaire_responses_hourly`.catch(() => {});
   await client`DELETE FROM funnel_events`;
   await client`DELETE FROM funnel_definitions`;
   await client`DELETE FROM metric_events`;

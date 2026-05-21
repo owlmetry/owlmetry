@@ -16,6 +16,7 @@ import { appStoreConnectReviewsSyncHandler } from "./app-store-connect-reviews-s
 import { notificationDeliverHandler } from "./notification-deliver.js";
 import { notificationCleanupHandler } from "./notification-cleanup.js";
 import { questionnaireDraftCleanupHandler } from "./questionnaire-draft-cleanup.js";
+import { statsAggregateDailyHandler, statsAggregateHourlyHandler } from "./stats-aggregate.js";
 
 export function registerAllJobs(
   runner: JobRunner,
@@ -37,4 +38,6 @@ export function registerAllJobs(
   runner.register("notification_deliver", notificationDeliverHandler(dispatcher));
   runner.register("notification_cleanup", notificationCleanupHandler);
   runner.register("questionnaire_draft_cleanup", questionnaireDraftCleanupHandler);
+  runner.register("stats_aggregate_daily", statsAggregateDailyHandler);
+  runner.register("stats_aggregate_hourly", statsAggregateHourlyHandler);
 }

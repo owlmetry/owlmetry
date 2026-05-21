@@ -102,6 +102,7 @@ const EXPECTED_TOOLS_BY_DOMAIN = {
     "delete-attachment",
     "get-project-attachment-usage",
   ],
+  stats: ["query-stats-bucketed"],
 } as const;
 
 const EXPECTED_RESOURCES = ["owlmetry://guide"] as const;
@@ -120,6 +121,7 @@ const EXPECTED_INSTRUCTION_KEYWORDS = [
   "Questionnaires",
   "Reviews & ratings",
   "Ads insights",
+  "Time-series rollups",
   "Attachments",
   "Integrations",
 ];
