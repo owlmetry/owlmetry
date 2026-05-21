@@ -1,0 +1,53 @@
+---
+title: Stats
+description: Query daily and hourly time-series rollups and trigger backfills from the terminal.
+---
+
+import Concept from '../../_snippets/stats.mdx';
+
+<Concept />
+
+## Query a series
+
+```bash
+owlmetry stats <kind> <grain> (--project-id <id> | --team-id <id>) \
+  [--app-id <id>] [--days <n> | --hours <n>] [--from <iso> --to <iso>] \
+  [--data-mode <mode>] [--slug <slug>] [--include-current]
+```
+
+`<kind>` is one of `events`, `users`, `sessions`, `metric_completions`, `funnel_completions`, `questionnaire_responses`. `<grain>` is `daily` or `hourly`. The default rendering is a bar-graph table showing each bucket's value alongside a trend bar; pass `--format json` for the structured `StatsBucketedResponse`.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | One of | Project UUID. Mutually exclusive with `--team-id` |
+| `--team-id <id>` | One of | Team UUID — aggregates across every project in the team |
+| `--app-id <id>` | No | Narrow to one app within the chosen scope |
+| `--days <n>` | No | Trailing UTC days for `grain=daily` (default 30, max 365). Ignored when `--from`/`--to` are set |
+| `--hours <n>` | No | Trailing UTC hours for `grain=hourly` (default 24, max 2160). Ignored when `--from`/`--to` are set |
+| `--from <iso>` | No | Explicit start (`YYYY-MM-DD` for daily, ISO 8601 for hourly). Pair with `--to` |
+| `--to <iso>` | No | Explicit end (inclusive at the bucket level) |
+| `--data-mode <mode>` | No | `production` / `development` / `all`. Defaults to `production` |
+| `--slug <slug>` | No | Narrow `metric_completions` / `funnel_completions` to one definition |
+| `--include-current` | No | Include the in-progress bucket (defaults to excluding it) |
+
+`events`, `users`, and `sessions` all read the same `events_{daily,hourly}` tables — the kind selects which column the value series follows. `metric_completions` filters to `phase='complete'`. `funnel_completions` filters to each funnel's terminal step (resolved from `funnel_definitions` at the route layer).
+
+## Backfill a date range
+
+```bash
+owlmetry stats backfill --grain <grain> --team-id <id> \
+  --start <iso> --end <iso> [--project-id <id>] [--notify]
+```
+
+Thin wrapper around `jobs trigger stats_aggregate_daily` / `stats_aggregate_hourly` with the team-scoped manual-trigger flow. Use this for the first-time rollout (`--start` 365 days ago) or to repair gaps if the cron skipped runs.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--grain <grain>` | No | `daily` (default) or `hourly` |
+| `--team-id <id>` | Yes | Team UUID — manual job triggers are team-scoped |
+| `--start <iso>` | Yes | `YYYY-MM-DD` for daily, ISO 8601 hour for hourly |
+| `--end <iso>` | Yes | Inclusive end |
+| `--project-id <id>` | No | Backfill one project only (default: all projects with activity) |
+| `--notify` | No | Send a notification to the triggering user when the job completes |
+
+Each backfill is idempotent — the aggregator deletes the target bucket range and re-inserts in a single transaction, so re-running over the same range produces the same row count. Aggregation tables are explicitly excluded from retention pruning, so historical buckets stay queryable indefinitely.

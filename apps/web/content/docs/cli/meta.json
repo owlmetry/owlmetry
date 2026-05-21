@@ -20,6 +20,7 @@
     "notifications",
     "ads",
     "ratings",
-    "reviews"
+    "reviews",
+    "stats"
   ]
 }

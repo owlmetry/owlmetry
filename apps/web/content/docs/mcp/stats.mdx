@@ -1,0 +1,49 @@
+---
+title: Stats
+description: Query daily and hourly time-series rollups for trend analysis via MCP.
+---
+
+import Concept from '../../_snippets/stats.mdx';
+
+<Concept />
+
+## query-stats-bucketed
+
+Returns one zero-padded point per bucket in the requested window. Use it to power sparklines, trend dashboards, or year-over-year comparisons — every kind of dashboard card on `/dashboard` is backed by this endpoint.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `kind` | enum | Yes | `events` / `users` / `sessions` / `metric_completions` / `funnel_completions` / `questionnaire_responses` |
+| `grain` | enum | Yes | `daily` or `hourly` |
+| `project_id` | UUID | One of | Project ID. Mutually exclusive with `team_id` |
+| `team_id` | UUID | One of | Team ID — aggregates across every accessible project in the team |
+| `app_id` | UUID | No | Narrow to one app within the chosen scope |
+| `days` | number | No | Trailing UTC days for `grain=daily` (1–365, default 30). Ignored when `from`/`to` are set |
+| `hours` | number | No | Trailing UTC hours for `grain=hourly` (1–2160, default 24). Ignored when `from`/`to` are set |
+| `from` | string | No | Explicit start (`YYYY-MM-DD` for daily, ISO 8601 for hourly). Pair with `to` |
+| `to` | string | No | Explicit end (inclusive at the bucket level) |
+| `excluding_current` | boolean | No | Drop the in-progress bucket. Defaults to `true`; set `false` to include it |
+| `data_mode` | enum | No | `production` / `development` / `all`. Defaults to `production` |
+| `slug` | string | No | Narrow `metric_completions` / `funnel_completions` to one definition |
+
+Response shape (`StatsBucketedResponse`):
+
+```json
+{
+  "kind": "events",
+  "grain": "daily",
+  "from": "2026-04-20",
+  "to": "2026-05-19",
+  "data": [
+    { "bucket": "2026-04-20", "value": 1240 },
+    { "bucket": "2026-04-21", "value": 1310 },
+    ...
+  ]
+}
+```
+
+`events`, `users`, and `sessions` all read the same `events_{daily,hourly}` rollup; the kind selects which column maps to `value` (`event_count` / `unique_users` / `unique_sessions`). `metric_completions` filters to `phase='complete'`. `funnel_completions` filters to each funnel's terminal step (resolved from `funnel_definitions`). `questionnaire_responses` returns `submitted_count`.
+
+### Backfill an older range
+
+Aggregation backfills run via [`trigger-job`](/docs/mcp/jobs#trigger-job) — pass `job_type: "stats_aggregate_daily"` or `"stats_aggregate_hourly"` with `start` / `end` (and optional `project_id`) params. The job DELETEs the target bucket range and re-inserts in a single transaction, so re-running is safe. Use [`get-job`](/docs/mcp/jobs#get-job) on the returned `job_run_id` to monitor progress. Aggregation tables are explicitly excluded from retention pruning, so historical buckets stay queryable indefinitely.

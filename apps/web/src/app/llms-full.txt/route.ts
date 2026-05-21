@@ -26,6 +26,7 @@ export function GET() {
     "- **Attachments**: Upload files alongside error events for reproducible debugging",
     "- **Metrics**: Time any operation end-to-end — track p50, p95, failure rates",
     "- **Funnels**: Multi-step conversion funnels with drop-off analysis",
+    "- **Time-series rollups**: Pre-aggregated daily and hourly counts of events, users, sessions, metric completions, funnel completions, and questionnaire responses — powering dashboard sparklines and trend queries that survive raw-event retention",
     "- **Attribution**: Auto-captured Apple Search Ads acquisition data per user",
     "- **Advertising insights**: Rank ad campaigns by lifetime revenue, spend, and ROAS from attributed users, drilled down through campaign → ad group → keyword/ad",
     "- **Store reviews & ratings**: Per-country App Store ratings with daily snapshots (free, no setup) plus individual reviews via App Store Connect integration, filterable by rating/country/version and repliable from every surface",

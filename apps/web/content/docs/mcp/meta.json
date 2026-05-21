@@ -18,6 +18,7 @@
     "audit-logs",
     "ads",
     "ratings",
-    "reviews"
+    "reviews",
+    "stats"
   ]
 }
