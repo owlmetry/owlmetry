@@ -2,13 +2,12 @@
 
 import { useMemo } from "react";
 import useSWR from "swr";
-import { Bug, CheckCircle2, ClipboardList, Filter, FolderOpen, ScrollText, UserSearch, Waypoints, MessageSquare, Star } from "lucide-react";
+import { Bug, CheckCircle2, ClipboardList, Filter, ScrollText, UserSearch, Waypoints, MessageSquare, Star } from "lucide-react";
 import type {
   AppResponse,
   CompletionsCountResponse,
   EventsCountResponse,
   IssuesResponse,
-  ProjectResponse,
 } from "@owlmetry/shared";
 import { useUser } from "@/hooks/use-user";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
@@ -36,10 +35,6 @@ export default function DashboardPage() {
   const teamId = currentTeam?.id;
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   const sparklineDays = resolveSparklineWindowDays(prefs);
-
-  const { data: projectsData, isLoading: projectsLoading } = useSWR<{
-    projects: ProjectResponse[];
-  }>(teamId ? `/v1/projects?team_id=${teamId}` : null);
 
   const { data: appsData, isLoading: appsLoading } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null
@@ -154,8 +149,6 @@ export default function DashboardPage() {
     skip: !teamId,
   });
 
-  const projectCount = projectsData?.projects.length;
-  const appCount = appsData?.apps.length;
   const openIssueCount = issuesData?.issues.filter((i) =>
     UNRESOLVED_STATUSES.has(i.status)
   ).length;
@@ -188,12 +181,6 @@ export default function DashboardPage() {
     funnelsStarted === 0
       ? undefined
       : `${Math.round((funnelsCompleted / funnelsStarted) * 100)}%`;
-
-  const projectsAppsLoading = projectsLoading || appsLoading;
-  const projectsAppsValue =
-    projectCount === undefined || appCount === undefined
-      ? undefined
-      : `${projectCount} · ${appCount}`;
 
   // Aggregate rating across every Apple app in the team. Worldwide cache on
   // each app is itself a weighted aggregate across storefronts (recomputed
@@ -310,13 +297,6 @@ export default function DashboardPage() {
           delta={ratingSummary?.delta}
           isLoading={appsLoading}
           href="/dashboard/reviews"
-        />
-        <StatCard
-          label="Projects · Apps"
-          icon={FolderOpen}
-          value={projectsAppsValue}
-          isLoading={projectsAppsLoading}
-          href="/dashboard/projects"
         />
       </StatRow>
 
