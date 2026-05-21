@@ -40,7 +40,15 @@ export function StatCard({
   sparkline,
 }: StatCardProps) {
   const body = (
-    <div className="group relative block min-w-0 px-5 py-5 transition-colors hover:bg-muted/40 h-full flex flex-col">
+    <div
+      className={cn(
+        "group relative block min-w-0 px-5 pt-5 transition-colors hover:bg-muted/40 h-full flex flex-col",
+        // When a sparkline is rendered, drop the bottom padding so the chart
+        // can extend to the card's bottom edge (its floor). Without-sparkline
+        // cards keep symmetrical py-5.
+        sparkline ? "pb-0" : "pb-5"
+      )}
+    >
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {label}
@@ -71,7 +79,7 @@ export function StatCard({
         </p>
       )}
       {sparkline && (
-        <div className="mt-auto pt-4 h-6 w-full">
+        <div className="mt-auto pt-px h-11 w-full">
           {sparkline.isLoading ? (
             <Skeleton className="h-full w-full" />
           ) : (
