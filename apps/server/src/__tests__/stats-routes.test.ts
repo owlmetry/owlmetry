@@ -215,6 +215,52 @@ describe("GET /v1/projects/:id/stats/:kind/:grain", () => {
     expect(body.data.find((p: { bucket: string }) => p.bucket === day).value).toBe(42);
   });
 
+  it("kind=funnel_completions filters by event_filter.step_name, not the human-readable step label", async () => {
+    // A funnel defined with a friendly terminal label ("Onboarding Done")
+    // backed by a slug step_name ("onboarding-done") used to silently zero
+    // out: the reader filtered by `name` but the rollup stores the slug,
+    // so the dashboard funnel sparkline flat-lined for every project.
+    const day = utcDayOffset(1);
+    await dbClient`
+      INSERT INTO funnel_definitions (id, project_id, name, slug, steps)
+      VALUES (
+        gen_random_uuid(),
+        ${testData.projectId},
+        'Test Funnel',
+        'test-funnel',
+        ${dbClient.json([
+          { name: "Start", event_filter: { step_name: "start" } },
+          {
+            name: "Onboarding Done",
+            event_filter: { step_name: "onboarding-done" },
+          },
+        ])}::jsonb
+      )
+    `;
+    await dbClient`
+      INSERT INTO funnel_events_daily (team_id, project_id, app_id, is_dev, day, step_name, count, unique_users)
+      VALUES (
+        ${testData.teamId},
+        ${testData.projectId},
+        NULL,
+        false,
+        ${day},
+        'onboarding-done',
+        42,
+        7
+      )
+    `;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/v1/projects/${testData.projectId}/stats/funnel_completions/daily?days=2`,
+      headers: { authorization: `Bearer ${TEST_AGENT_KEY}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.find((p: { bucket: string }) => p.bucket === day).value).toBe(42);
+  });
+
   it("rejects invalid kind / grain with 400", async () => {
     const res = await app.inject({
       method: "GET",

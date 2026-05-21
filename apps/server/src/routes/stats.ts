@@ -23,6 +23,7 @@ import {
   type StatsBucketedQueryParams,
   type StatsBucketedResponse,
   type StatsBucketedPoint,
+  type FunnelStep,
 } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
@@ -287,9 +288,14 @@ async function resolveFunnelTerminalSteps(
 
   const out = new Map<string, string[]>();
   for (const r of rows) {
-    const steps = (r.steps as Array<{ name: string }> | null) ?? [];
+    const steps = (r.steps as FunnelStep[] | null) ?? [];
     if (steps.length === 0) continue;
-    const terminal = steps[steps.length - 1].name;
+    // The rollup table stores `funnel_events.step_name`, which is the
+    // event slug from `event_filter.step_name`, not the human-readable
+    // `name` shown in the dashboard. Filtering by `name` would never
+    // match anything and the sparkline would flat-line at zero.
+    const terminal = steps[steps.length - 1].event_filter?.step_name;
+    if (!terminal) continue;
     const arr = out.get(r.project_id) ?? [];
     arr.push(terminal);
     out.set(r.project_id, arr);
