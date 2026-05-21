@@ -426,6 +426,8 @@ export async function buildApp() {
   });
   jobRunner.register("revenuecat_sync", testJobHandler);
   jobRunner.register("apple_ads_sync", testJobHandler);
+  jobRunner.register("stats_aggregate_daily", testJobHandler);
+  jobRunner.register("stats_aggregate_hourly", testJobHandler);
   jobRunner.register("test_job", testJobHandler);
 
   const notificationDispatcher = new NotificationDispatcher({
