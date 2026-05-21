@@ -7,6 +7,7 @@ import type {
   StatsGrain,
   StatsKind,
 } from "@owlmetry/shared";
+import { buildQueryString } from "@/lib/query";
 
 interface UseDailyStatsOpts {
   kind: StatsKind;
@@ -50,18 +51,18 @@ export function useDailyStats({
   slug,
   skip,
 }: UseDailyStatsOpts) {
-  const params = new URLSearchParams();
-  if (teamId && !projectId) params.set("team_id", teamId);
-  if (appId) params.set("app_id", appId);
-  if (days !== undefined && grain === "daily") params.set("days", String(days));
-  if (hours !== undefined && grain === "hourly") params.set("hours", String(hours));
-  params.set("data_mode", dataMode);
-  if (slug) params.set("slug", slug);
-
+  const qs = buildQueryString({
+    team_id: projectId ? undefined : teamId,
+    app_id: appId,
+    days: grain === "daily" ? days : undefined,
+    hours: grain === "hourly" ? hours : undefined,
+    data_mode: dataMode,
+    slug,
+  });
   const basePath = projectId
     ? `/v1/projects/${projectId}/stats/${kind}/${grain}`
     : `/v1/stats/${kind}/${grain}`;
-  const path = `${basePath}?${params.toString()}`;
+  const path = qs ? `${basePath}?${qs}` : basePath;
 
   const shouldFetch = !skip && (Boolean(teamId) || Boolean(projectId));
 

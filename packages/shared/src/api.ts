@@ -758,6 +758,10 @@ export type StatsKind = (typeof STATS_KINDS)[number];
 export const STATS_GRAINS = ["daily", "hourly"] as const;
 export type StatsGrain = (typeof STATS_GRAINS)[number];
 
+/** Caps on the trailing-window size for stats queries — keeps response payloads small. */
+export const STATS_MAX_WINDOW_DAYS = 365;
+export const STATS_MAX_WINDOW_HOURS = 24 * 90;
+
 export interface StatsBucketedQueryParams {
   team_id?: string;
   project_id?: string;

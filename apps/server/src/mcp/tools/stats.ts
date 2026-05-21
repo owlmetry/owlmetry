@@ -1,7 +1,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { STATS_KINDS, STATS_GRAINS } from "@owlmetry/shared";
+import {
+  STATS_KINDS,
+  STATS_GRAINS,
+  STATS_MAX_WINDOW_DAYS,
+  STATS_MAX_WINDOW_HOURS,
+} from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
 const DATA_MODES = ["production", "development", "all"] as const;
@@ -32,16 +37,20 @@ export function registerStatsTools(server: McpServer, app: FastifyInstance, agen
           .number()
           .int()
           .min(1)
-          .max(365)
+          .max(STATS_MAX_WINDOW_DAYS)
           .optional()
-          .describe("Trailing UTC days (grain=daily; default 30, max 365). Ignored if from/to set."),
+          .describe(
+            `Trailing UTC days (grain=daily; default 30, max ${STATS_MAX_WINDOW_DAYS}). Ignored if from/to set.`,
+          ),
         hours: z
           .number()
           .int()
           .min(1)
-          .max(24 * 90)
+          .max(STATS_MAX_WINDOW_HOURS)
           .optional()
-          .describe("Trailing UTC hours (grain=hourly; default 24, max 2160). Ignored if from/to set."),
+          .describe(
+            `Trailing UTC hours (grain=hourly; default 24, max ${STATS_MAX_WINDOW_HOURS}). Ignored if from/to set.`,
+          ),
         from: z.string().optional().describe("Explicit start (YYYY-MM-DD for daily, ISO 8601 for hourly). Pair with to."),
         to: z.string().optional().describe("Explicit end (inclusive)."),
         excluding_current: z

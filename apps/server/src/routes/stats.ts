@@ -16,6 +16,8 @@ import {
 import {
   STATS_KINDS,
   STATS_GRAINS,
+  STATS_MAX_WINDOW_DAYS,
+  STATS_MAX_WINDOW_HOURS,
   type StatsKind,
   type StatsGrain,
   type StatsBucketedQueryParams,
@@ -25,9 +27,6 @@ import {
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { dataModeToDrizzle } from "../utils/data-mode.js";
 import { resolveProject } from "../utils/project.js";
-
-const MAX_WINDOW_DAYS = 365;
-const MAX_WINDOW_HOURS = 24 * 90; // 90 days of hourly = 2160 points
 
 interface ResolvedWindow {
   start: Date;
@@ -40,7 +39,7 @@ interface ResolvedWindow {
  * - `from` + `to`: ISO 8601 dates (for daily) or timestamps (for hourly).
  *   Both must be set; otherwise trailing window applies.
  * - `days` or `hours`: trailing window length (defaults 30 / 24). Capped at
- *   MAX_WINDOW_DAYS / MAX_WINDOW_HOURS to keep response payloads small.
+ *   STATS_MAX_WINDOW_DAYS / STATS_MAX_WINDOW_HOURS to keep response payloads small.
  * - `excluding_current` (default true): the in-progress bucket is dropped, so
  *   the trailing window ends at "yesterday" (daily) or "the start of the
  *   previous fully-completed hour" (hourly). The card sparkline always passes
@@ -66,8 +65,8 @@ function resolveWindow(
   const endInclusive = excludeCurrent ? addBuckets(grain, currentBucket, -1) : currentBucket;
   const rawCount =
     grain === "daily"
-      ? Math.max(1, Math.min(MAX_WINDOW_DAYS, query.days ?? 30))
-      : Math.max(1, Math.min(MAX_WINDOW_HOURS, query.hours ?? 24));
+      ? Math.max(1, Math.min(STATS_MAX_WINDOW_DAYS, query.days ?? 30))
+      : Math.max(1, Math.min(STATS_MAX_WINDOW_HOURS, query.hours ?? 24));
   const start = addBuckets(grain, endInclusive, -(rawCount - 1));
   return { start, endInclusive };
 }
@@ -187,7 +186,7 @@ async function fetchBucketedSeries(
   ];
 
   if (scope.teamIds.length === 0) {
-    return zeroPad(grain, window, bucketCol);
+    return zeroPad(grain, window);
   }
   conditions.push(inArray(table.team_id, scope.teamIds));
   if (scope.projectId) conditions.push(eq(table.project_id, scope.projectId));
@@ -206,25 +205,16 @@ async function fetchBucketedSeries(
     conditions.push(eq(table.phase, "complete"));
     if (slug) conditions.push(eq(table.metric_slug, slug));
   } else if (kind === "funnel_completions") {
+    // Terminal steps are already narrowed by slug at the route layer in
+    // resolveFunnelTerminalSteps — we just filter to whatever the route gave us.
     const terminalByProject = scope.funnelTerminalSteps ?? new Map<string, string[]>();
     const allTerminal = new Set<string>();
     for (const steps of terminalByProject.values()) for (const s of steps) allTerminal.add(s);
     if (allTerminal.size === 0) {
       // No funnel definitions in scope ⇒ no completions to plot.
-      return zeroPad(grain, window, bucketCol);
+      return zeroPad(grain, window);
     }
     conditions.push(inArray(table.step_name, Array.from(allTerminal)));
-    if (slug) {
-      // Filter to a specific funnel's terminal step only.
-      const oneFunnel = Array.from(allTerminal); // narrowed at the route layer
-      if (oneFunnel.length > 0) conditions.push(inArray(table.step_name, oneFunnel));
-    }
-  } else if (kind === "questionnaire_responses") {
-    if (slug) {
-      // `slug` is the questionnaire slug; we need to translate it to an
-      // questionnaire_id at the route layer before calling this. For now, the
-      // route layer passes it pre-resolved as an app_id filter or doesn't pass.
-    }
   }
 
   const rows = (await app.db
@@ -253,11 +243,7 @@ async function fetchBucketedSeries(
   return out;
 }
 
-function zeroPad(
-  grain: StatsGrain,
-  window: ResolvedWindow,
-  _bucketCol: "day" | "hour",
-): StatsBucketedPoint[] {
+function zeroPad(grain: StatsGrain, window: ResolvedWindow): StatsBucketedPoint[] {
   const out: StatsBucketedPoint[] = [];
   for (const d of bucketRange(grain, window.start, window.endInclusive)) {
     out.push({ bucket: formatBucket(grain, d), value: 0 });

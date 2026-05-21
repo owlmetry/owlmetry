@@ -71,7 +71,7 @@ owlmetry stats backfill --team-id <team> --grain hourly \
 
 Or via MCP / REST as a `trigger-job` call against `stats_aggregate_daily` / `stats_aggregate_hourly` with `start` / `end` params.
 
-Backfills are idempotent. Each per-kind aggregator runs one `INSERT … SELECT … GROUP BY` per kind per direction (per-app, project-rollup) and uses `ON CONFLICT … DO UPDATE` against the table's partial unique indexes. Re-running the same backfill produces the same row count.
+Backfills are idempotent. Each per-kind aggregator runs `DELETE` + two `INSERT … SELECT … GROUP BY` passes (per-app + project-rollup) inside a single transaction per bucket range. Re-running clears the slate first so a row that disappeared at source (e.g. an event later deleted) doesn't survive in the rollup.
 
 ## Retention
 

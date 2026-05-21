@@ -87,10 +87,7 @@ export function Sparkline({
 
   const points: string[] = [];
   for (let i = 0; i < values.length; i++) {
-    const x =
-      values.length === 1
-        ? width / 2
-        : xLeft + (i / (values.length - 1)) * (xRight - xLeft);
+    const x = xLeft + (i / (values.length - 1)) * (xRight - xLeft);
     // Flat line at the vertical center when all values are equal — including
     // the all-zeros case. Avoids divide-by-zero and avoids drawing along the
     // bottom edge, which reads as "trending down to zero" visually.
