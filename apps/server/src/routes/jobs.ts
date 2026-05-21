@@ -101,22 +101,7 @@ export async function jobsRoutes(app: FastifyInstance) {
 
       const meta = JOB_TYPE_META[job_type as JobType];
       if (meta.scope === "system") {
-        // System jobs are normally fired only by their cron. A manual API trigger
-        // is permitted when the job declares a `start`+`end` backfill window in
-        // its params metadata AND the caller supplies both — that's the explicit
-        // "I want to backfill a date range" contract. The cron path passes no
-        // params, so it can't collide with this trigger surface.
-        const supportsBackfill =
-          meta.params.some((p) => p.name === "start") &&
-          meta.params.some((p) => p.name === "end");
-        const providesBackfill =
-          params != null &&
-          typeof params === "object" &&
-          typeof (params as Record<string, unknown>).start === "string" &&
-          typeof (params as Record<string, unknown>).end === "string";
-        if (!supportsBackfill || !providesBackfill) {
-          return reply.code(400).send({ error: `Cannot trigger system job "${job_type}" via API` });
-        }
+        return reply.code(400).send({ error: `Cannot trigger system job "${job_type}" via API` });
       }
 
       if (meta.scope === "project" && !project_id) {

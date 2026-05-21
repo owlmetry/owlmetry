@@ -236,7 +236,7 @@ Two rows are written for each (project, is_dev, bucket, kind-specific dimensions
 
 Read with \`query-stats-bucketed\`. The endpoint reads the per-app row when an \`app_id\` is supplied, otherwise the rollup row — single-row reads, no SUM at query time. \`excluding_current=true\` (default) drops the in-progress bucket so a partial day or hour can't show as a misleading dip.
 
-Aggregation runs every hour at \`:05\` UTC (re-aggregates the trailing 3 hours) and every day at \`00:30\` UTC (re-aggregates the trailing 3 days). Late-arriving events past those windows need a manual backfill — trigger \`stats_aggregate_daily\` or \`stats_aggregate_hourly\` with \`start\` / \`end\` (and optional \`project_id\`) via \`trigger-job\`.
+Aggregation runs every hour at \`:05\` UTC (re-aggregates the trailing 3 hours) and every day at \`00:30\` UTC (re-aggregates the trailing 3 days). Historical backfills are an operator action with no MCP / API surface — the trigger-job route blocks \`stats_aggregate_*\` jobs by design. Owners run \`pnpm backfill\` on the production VPS to refresh the trailing 365 days when needed.
 
 **Retention**: these tables are **not** subject to retention pruning or soft-delete cleanup. The counts are anonymous (no user / session IDs, only COUNT DISTINCT values) and kept indefinitely so historical sparklines and year-views survive even after raw events have aged out.
 

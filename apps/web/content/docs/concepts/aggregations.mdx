@@ -60,18 +60,15 @@ The 3-bucket re-aggregation window absorbs late-arriving events from offline mob
 
 ## Backfill
 
-Trigger an arbitrary date range with the CLI:
+Backfilling the rollup tables is an **operator action** with no public API, CLI, or MCP surface — by design. The trigger-job route rejects `stats_aggregate_*` system jobs to keep a team-scoped agent key from kicking off system-wide work.
+
+To run a backfill, SSH into the production VPS and invoke the npm script directly against the database:
 
 ```
-owlmetry stats backfill --team-id <team> --grain daily \
-  --start 2025-05-21 --end 2026-05-20
-owlmetry stats backfill --team-id <team> --grain hourly \
-  --start 2025-05-21T00:00 --end 2026-05-20T23:00
+pnpm backfill
 ```
 
-Or via MCP / REST as a `trigger-job` call against `stats_aggregate_daily` / `stats_aggregate_hourly` with `start` / `end` params.
-
-Backfills are idempotent. Each per-kind aggregator runs `DELETE` + two `INSERT … SELECT … GROUP BY` passes (per-app + project-rollup) inside a single transaction per bucket range. Re-running clears the slate first so a row that disappeared at source (e.g. an event later deleted) doesn't survive in the rollup.
+That re-aggregates the trailing 365 days (both daily and hourly grains) in one pass. Idempotent: each per-kind aggregator runs `DELETE` + two `INSERT … SELECT … GROUP BY` passes (per-app + project-rollup) inside a single transaction per bucket range, so re-running over the same window replaces the rollup rows in place. Stale rows from deleted source events don't survive a re-run.
 
 ## Retention
 

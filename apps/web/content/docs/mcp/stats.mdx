@@ -46,4 +46,4 @@ Response shape (`StatsBucketedResponse`):
 
 ### Backfill an older range
 
-Aggregation backfills run via [`trigger-job`](/docs/mcp/jobs#trigger-job) — pass `job_type: "stats_aggregate_daily"` or `"stats_aggregate_hourly"` with `start` / `end` (and optional `project_id`) params. The job DELETEs the target bucket range and re-inserts in a single transaction, so re-running is safe. Use [`get-job`](/docs/mcp/jobs#get-job) on the returned `job_run_id` to monitor progress. Aggregation tables are explicitly excluded from retention pruning, so historical buckets stay queryable indefinitely.
+Backfilling the rollup tables is an operator action and is not exposed via MCP or REST. Run `pnpm backfill` in the monorepo on the production VPS — it re-aggregates the trailing 365 days against the database directly. Idempotent across re-runs. Aggregation tables are explicitly excluded from retention pruning, so historical buckets stay queryable indefinitely.

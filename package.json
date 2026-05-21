@@ -16,7 +16,8 @@
     "db:cleanup-stranded-anons": "pnpm --filter @owlmetry/db cleanup-stranded-anons",
     "test": "pnpm -r test",
     "test:coverage": "pnpm --filter @owlmetry/server exec vitest run --coverage",
-    "prod:jobs": "bash scripts/prod-jobs.sh"
+    "prod:jobs": "bash scripts/prod-jobs.sh",
+    "backfill": "tsx scripts/backfill-stats.mts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@types/node": "^25.4.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "tsx": "^4.21.0",
     "vitest": "^4.0.18"
   }
 }

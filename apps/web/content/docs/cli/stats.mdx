@@ -34,20 +34,10 @@ owlmetry stats <kind> <grain> (--project-id <id> | --team-id <id>) \
 
 ## Backfill a date range
 
+Backfilling the rollup tables is an operator action with no public CLI/API surface — it runs server-side as a one-shot script directly against the database. From the monorepo on the production VPS:
+
 ```bash
-owlmetry stats backfill --grain <grain> --team-id <id> \
-  --start <iso> --end <iso> [--project-id <id>] [--notify]
+pnpm backfill
 ```
 
-Thin wrapper around `jobs trigger stats_aggregate_daily` / `stats_aggregate_hourly` with the team-scoped manual-trigger flow. Use this for the first-time rollout (`--start` 365 days ago) or to repair gaps if the cron skipped runs.
-
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--grain <grain>` | No | `daily` (default) or `hourly` |
-| `--team-id <id>` | Yes | Team UUID — manual job triggers are team-scoped |
-| `--start <iso>` | Yes | `YYYY-MM-DD` for daily, ISO 8601 hour for hourly |
-| `--end <iso>` | Yes | Inclusive end |
-| `--project-id <id>` | No | Backfill one project only (default: all projects with activity) |
-| `--notify` | No | Send a notification to the triggering user when the job completes |
-
-Each backfill is idempotent — the aggregator deletes the target bucket range and re-inserts in a single transaction, so re-running over the same range produces the same row count. Aggregation tables are explicitly excluded from retention pruning, so historical buckets stay queryable indefinitely.
+Re-aggregates the trailing 365 days for every project in a single pass. Idempotent: re-running over the same window replaces existing rollup rows with freshly computed values, so it's safe to invoke as often as needed. Aggregation tables are explicitly excluded from retention pruning, so historical buckets stay queryable indefinitely.

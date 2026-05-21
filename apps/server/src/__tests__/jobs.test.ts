@@ -130,7 +130,7 @@ describe("Job Routes", () => {
       expect(["pending", "running", "completed"]).toContain(body.job_run.status);
     });
 
-    it("rejects system job types without backfill params", async () => {
+    it("rejects system job types", async () => {
       const res = await app.inject({
         method: "POST",
         url: `/v1/teams/${teamId}/jobs/trigger`,
@@ -144,24 +144,10 @@ describe("Job Routes", () => {
       expect(res.json().error).toContain("system job");
     });
 
-    it("rejects backfill params on a system job that doesn't declare them", async () => {
-      // db_pruning doesn't declare start/end — the caller can't promote it
-      // to a manual trigger by passing those keys.
-      const res = await app.inject({
-        method: "POST",
-        url: `/v1/teams/${teamId}/jobs/trigger`,
-        headers: { authorization: `Bearer ${token}` },
-        payload: {
-          job_type: "db_pruning",
-          params: { start: "2025-05-21", end: "2026-05-20" },
-        },
-      });
-
-      expect(res.statusCode).toBe(400);
-      expect(res.json().error).toContain("system job");
-    });
-
-    it("allows triggering a system job that declares start+end when both are provided", async () => {
+    it("rejects stats_aggregate_* via the trigger API regardless of params", async () => {
+      // The stats rollup backfill is done via the operator-only `pnpm backfill`
+      // script that calls the aggregator directly. Triggering through this
+      // public route would expose system-wide work to any team-scoped agent key.
       const res = await app.inject({
         method: "POST",
         url: `/v1/teams/${teamId}/jobs/trigger`,
@@ -169,22 +155,6 @@ describe("Job Routes", () => {
         payload: {
           job_type: "stats_aggregate_daily",
           params: { start: "2026-05-18", end: "2026-05-19" },
-        },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const body = res.json();
-      expect(body.job_run.job_type).toBe("stats_aggregate_daily");
-      expect(body.job_run.team_id).toBe(teamId);
-    });
-
-    it("rejects a backfill-capable system job when start/end are missing", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: `/v1/teams/${teamId}/jobs/trigger`,
-        headers: { authorization: `Bearer ${token}` },
-        payload: {
-          job_type: "stats_aggregate_daily",
         },
       });
 
