@@ -51,7 +51,11 @@ export function Sparkline({
   className,
   nonScalingStroke = true,
 }: SparklineProps) {
+  // A flat line — including the "all zeros" / "no entries" case — communicates
+  // nothing the empty space below the number wouldn't already. Render nothing
+  // and let the card's bottom area sit clean.
   if (values.length === 0) return null;
+  if (values.every((v) => v === 0)) return null;
 
   // Single-point case: a centered dot. We still emit an SVG so the slot in the
   // card layout is stable as data arrives.
