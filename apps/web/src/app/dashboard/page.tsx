@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Bug, CheckCircle2, ClipboardList, Filter, ScrollText, UserSearch, Waypoints, MessageSquare, Star } from "lucide-react";
 import type {
@@ -8,6 +9,7 @@ import type {
   CompletionsCountResponse,
   EventsCountResponse,
   IssuesResponse,
+  ProjectResponse,
 } from "@owlmetry/shared";
 import { useUser } from "@/hooks/use-user";
 import { useUserPreferences } from "@/hooks/use-user-preferences";
@@ -17,6 +19,14 @@ import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
 import { computeRatingSummary } from "@/lib/rating-summary";
 import { resolveSparklineWindowDays } from "@owlmetry/shared/preferences";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ProjectDot } from "@/lib/project-color";
 import { StatCard, StatRow } from "./_components/stat-card";
 import { OpenIssuesPanel } from "./_components/open-issues-panel";
 import { RecentEventsPanel } from "./_components/recent-events-panel";
@@ -26,6 +36,7 @@ import { RecentUsersPanel } from "./_components/recent-users-panel";
 import { QuickLinks } from "./_components/quick-links";
 
 const UNRESOLVED_STATUSES = new Set(["new", "in_progress", "regressed"]);
+const ALL_PROJECTS = "__all__";
 
 export default function DashboardPage() {
   const { user } = useUser();
@@ -36,12 +47,36 @@ export default function DashboardPage() {
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   const sparklineDays = resolveSparklineWindowDays(prefs);
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [projectId, setProjectIdState] = useState(
+    searchParams.get("project_id") ?? ALL_PROJECTS,
+  );
+  const selectedProjectId = projectId !== ALL_PROJECTS ? projectId : "";
+  const projectQs = selectedProjectId ? `&project_id=${selectedProjectId}` : "";
+
+  function setProjectId(id: string) {
+    setProjectIdState(id);
+    const params = new URLSearchParams();
+    if (id !== ALL_PROJECTS) params.set("project_id", id);
+    const qs = params.toString();
+    router.replace(`/dashboard${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
+    teamId ? `/v1/projects?team_id=${teamId}` : null,
+  );
+  const projects = projectsData?.projects ?? [];
+  const selectedProject = selectedProjectId
+    ? projects.find((p) => p.id === selectedProjectId)
+    : null;
+
   const { data: appsData, isLoading: appsLoading } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null
   );
 
   const { data: issuesData, isLoading: issuesLoading } = useSWR<IssuesResponse>(
-    teamId ? `/v1/issues?team_id=${teamId}&data_mode=${dataMode}&limit=100` : null
+    teamId ? `/v1/issues?team_id=${teamId}&data_mode=${dataMode}&limit=100${projectQs}` : null
   );
 
   const hourBucket = Math.floor(Date.now() / 3_600_000);
@@ -53,7 +88,7 @@ export default function DashboardPage() {
   const { data: eventsCountData, isLoading: eventsCountLoading } =
     useSWR<EventsCountResponse>(
       teamId
-        ? `/v1/events/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        ? `/v1/events/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}${projectQs}`
         : null,
       { refreshInterval: 30_000 }
     );
@@ -61,7 +96,7 @@ export default function DashboardPage() {
   const { data: metricsCompletedData, isLoading: metricsCompletedLoading } =
     useSWR<CompletionsCountResponse>(
       teamId
-        ? `/v1/metrics/completions/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        ? `/v1/metrics/completions/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}${projectQs}`
         : null,
       { refreshInterval: 30_000 }
     );
@@ -69,7 +104,7 @@ export default function DashboardPage() {
   const { data: funnelsCompletedData, isLoading: funnelsCompletedLoading } =
     useSWR<CompletionsCountResponse>(
       teamId
-        ? `/v1/funnels/completions/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        ? `/v1/funnels/completions/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}${projectQs}`
         : null,
       { refreshInterval: 30_000 }
     );
@@ -77,7 +112,7 @@ export default function DashboardPage() {
   const { data: feedbackCountData, isLoading: feedbackCountLoading } =
     useSWR<{ count: number }>(
       teamId
-        ? `/v1/feedback/count?team_id=${teamId}&status=new&data_mode=${dataMode}`
+        ? `/v1/feedback/count?team_id=${teamId}&status=new&data_mode=${dataMode}${projectQs}`
         : null,
       { refreshInterval: 60_000 }
     );
@@ -85,19 +120,21 @@ export default function DashboardPage() {
   const { data: questionnaireCountData, isLoading: questionnaireCountLoading } =
     useSWR<{ count: number }>(
       teamId
-        ? `/v1/questionnaires/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}`
+        ? `/v1/questionnaires/count?team_id=${teamId}&data_mode=${dataMode}&since=${eventsSince}${projectQs}`
         : null,
       { refreshInterval: 60_000 }
     );
 
   const { data: reviewsCountData, isLoading: reviewsCountLoading } =
     useSWR<{ count: number }>(
-      teamId ? `/v1/reviews/count?team_id=${teamId}` : null,
+      teamId ? `/v1/reviews/count?team_id=${teamId}${projectQs}` : null,
       { refreshInterval: 60_000 }
     );
 
   const { data: reviewsDeltaData } = useSWR<{ count: number }>(
-    teamId ? `/v1/reviews/count?team_id=${teamId}&since=${eventsSince}` : null,
+    teamId
+      ? `/v1/reviews/count?team_id=${teamId}&since=${eventsSince}${projectQs}`
+      : null,
     { refreshInterval: 60_000 }
   );
 
@@ -106,9 +143,11 @@ export default function DashboardPage() {
   // numbers above them. `excluding_current` defaults true server-side, so the
   // current UTC day is dropped automatically and a partial in-progress day
   // can't render as a dip.
+  const sparkProjectId = selectedProjectId || undefined;
   const eventsSpark = useDailyStats({
     kind: "events",
     teamId,
+    projectId: sparkProjectId,
     days: sparklineDays,
     dataMode,
     skip: !teamId,
@@ -116,6 +155,7 @@ export default function DashboardPage() {
   const usersSpark = useDailyStats({
     kind: "users",
     teamId,
+    projectId: sparkProjectId,
     days: sparklineDays,
     dataMode,
     skip: !teamId,
@@ -123,6 +163,7 @@ export default function DashboardPage() {
   const sessionsSpark = useDailyStats({
     kind: "sessions",
     teamId,
+    projectId: sparkProjectId,
     days: sparklineDays,
     dataMode,
     skip: !teamId,
@@ -130,6 +171,7 @@ export default function DashboardPage() {
   const metricsSpark = useDailyStats({
     kind: "metric_completions",
     teamId,
+    projectId: sparkProjectId,
     days: sparklineDays,
     dataMode,
     skip: !teamId,
@@ -137,6 +179,7 @@ export default function DashboardPage() {
   const funnelsSpark = useDailyStats({
     kind: "funnel_completions",
     teamId,
+    projectId: sparkProjectId,
     days: sparklineDays,
     dataMode,
     skip: !teamId,
@@ -144,6 +187,7 @@ export default function DashboardPage() {
   const responsesSpark = useDailyStats({
     kind: "questionnaire_responses",
     teamId,
+    projectId: sparkProjectId,
     days: sparklineDays,
     dataMode,
     skip: !teamId,
@@ -182,15 +226,19 @@ export default function DashboardPage() {
       ? undefined
       : `${Math.round((funnelsCompleted / funnelsStarted) * 100)}%`;
 
-  // Aggregate rating across every Apple app in the team. Worldwide cache on
-  // each app is itself a weighted aggregate across storefronts (recomputed
-  // daily by app_store_ratings_sync). Weight again here by per-app rating
-  // count so a 5-star app with 1 rating doesn't outweigh a 4-star app with
-  // 50,000. Apps without a synced rating yet are skipped.
-  const ratingSummary = useMemo(
-    () => computeRatingSummary(appsData?.apps ?? []),
-    [appsData],
-  );
+  // Aggregate rating across every Apple app in the team (or just the selected
+  // project's apps when the picker narrows). Worldwide cache on each app is
+  // itself a weighted aggregate across storefronts (recomputed daily by
+  // app_store_ratings_sync). Weight again here by per-app rating count so a
+  // 5-star app with 1 rating doesn't outweigh a 4-star app with 50,000.
+  // Apps without a synced rating yet are skipped.
+  const ratingSummary = useMemo(() => {
+    const apps = appsData?.apps ?? [];
+    const scoped = selectedProjectId
+      ? apps.filter((a) => a.project_id === selectedProjectId)
+      : apps;
+    return computeRatingSummary(scoped);
+  }, [appsData, selectedProjectId]);
   const ratingValue = ratingSummary ? `★ ${ratingSummary.avg.toFixed(2)}` : "—";
   const ratingSecondary = ratingSummary ? ratingSummary.total.toLocaleString() : undefined;
 
@@ -208,12 +256,39 @@ export default function DashboardPage() {
             Welcome back{firstName ? `, ${firstName}` : ""}
           </h1>
         </div>
-        {currentTeam && (
-          <p className="text-xs text-muted-foreground">
-            <span className="text-muted-foreground/60">Team ·</span>{" "}
-            <span className="font-medium text-foreground">{currentTeam.name}</span>
-          </p>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          {currentTeam && (
+            <p className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground/60">Team ·</span>{" "}
+              <span className="font-medium text-foreground">{currentTeam.name}</span>
+              {selectedProject && (
+                <>
+                  <span className="text-muted-foreground/60"> · Project ·</span>{" "}
+                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                    <ProjectDot color={selectedProject.color} />
+                    {selectedProject.name}
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger className="w-[220px] h-8 text-xs">
+              <SelectValue placeholder="All projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="flex items-center gap-2">
+                    <ProjectDot color={p.color} />
+                    {p.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <StatRow>
@@ -301,11 +376,11 @@ export default function DashboardPage() {
       </StatRow>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <OpenIssuesPanel />
-        <RecentEventsPanel />
-        <RecentUsersPanel mode="active" />
-        <RecentUsersPanel mode="new" />
-        {isAdmin && <RecentJobsPanel />}
+        <OpenIssuesPanel projectId={sparkProjectId} />
+        <RecentEventsPanel projectId={sparkProjectId} />
+        <RecentUsersPanel mode="active" projectId={sparkProjectId} />
+        <RecentUsersPanel mode="new" projectId={sparkProjectId} />
+        {isAdmin && <RecentJobsPanel projectId={sparkProjectId} />}
         {isAdmin && <RecentAuditPanel />}
       </div>
 

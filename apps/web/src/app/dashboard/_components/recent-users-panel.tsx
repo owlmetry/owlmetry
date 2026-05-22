@@ -21,12 +21,16 @@ import { timeAgo } from "./time-ago";
 
 type Mode = "active" | "new";
 
-export function RecentUsersPanel({ mode = "active" }: { mode?: Mode } = {}) {
+export function RecentUsersPanel({
+  mode = "active",
+  projectId,
+}: { mode?: Mode; projectId?: string } = {}) {
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
 
   const filters: TeamAppUsersQueryParams = {};
   if (teamId) filters.team_id = teamId;
+  if (projectId) filters.project_id = projectId;
   filters.limit = 5;
   if (mode === "new") filters.sort = "first_seen";
 

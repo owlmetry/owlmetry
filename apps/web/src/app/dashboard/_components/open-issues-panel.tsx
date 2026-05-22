@@ -24,7 +24,7 @@ const STATUS_EMOJI: Record<IssueStatus, string> = {
   snoozed: "💤",
 };
 
-export function OpenIssuesPanel() {
+export function OpenIssuesPanel({ projectId }: { projectId?: string } = {}) {
   const { currentTeam } = useTeam();
   const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
@@ -32,7 +32,12 @@ export function OpenIssuesPanel() {
   // One fetch per unresolved status — a single unfiltered limit would let
   // recently-touched resolved/silenced/snoozed issues fill the result before
   // the client-side filter ran, hiding older unresolved ones.
-  const baseFilters = { team_id: teamId, data_mode: dataMode, limit: String(PANEL_LIMIT) };
+  const baseFilters = {
+    team_id: teamId,
+    ...(projectId ? { project_id: projectId } : {}),
+    data_mode: dataMode,
+    limit: String(PANEL_LIMIT),
+  };
   const newIssues = useIssues({ ...baseFilters, status: "new" });
   const inProgressIssues = useIssues({ ...baseFilters, status: "in_progress" });
   const regressedIssues = useIssues({ ...baseFilters, status: "regressed" });

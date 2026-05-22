@@ -23,11 +23,12 @@ function durationOf(startedAt: string | null, completedAt: string | null): strin
   return formatMs(end - start);
 }
 
-export function RecentJobsPanel() {
+export function RecentJobsPanel({ projectId }: { projectId?: string } = {}) {
   const { currentTeam, currentRole } = useTeam();
   const teamId = currentTeam?.id;
 
   const filters: Partial<JobRunsQueryParams> = { limit: "5" };
+  if (projectId) filters.project_id = projectId;
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   const { jobRuns, isLoading } = useJobRuns(isAdmin ? teamId : undefined, filters);
 

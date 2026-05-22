@@ -17,13 +17,14 @@ import { DashboardSection } from "./dashboard-section";
 import { EmptyState } from "./empty-state";
 import { timeAgo } from "./time-ago";
 
-export function RecentEventsPanel() {
+export function RecentEventsPanel({ projectId }: { projectId?: string } = {}) {
   const { currentTeam } = useTeam();
   const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
 
   const { events, isLoading } = useEvents({
     team_id: teamId,
+    ...(projectId ? { project_id: projectId } : {}),
     data_mode: dataMode,
     level: "info,warn,error",
     limit: 20,
