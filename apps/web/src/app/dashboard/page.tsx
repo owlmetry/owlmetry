@@ -67,9 +67,6 @@ export default function DashboardPage() {
     teamId ? `/v1/projects?team_id=${teamId}` : null,
   );
   const projects = projectsData?.projects ?? [];
-  const selectedProject = selectedProjectId
-    ? projects.find((p) => p.id === selectedProjectId)
-    : null;
 
   const { data: appsData, isLoading: appsLoading } = useSWR<{ apps: AppResponse[] }>(
     teamId ? `/v1/apps?team_id=${teamId}` : null
@@ -261,15 +258,6 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">
               <span className="text-muted-foreground/60">Team ·</span>{" "}
               <span className="font-medium text-foreground">{currentTeam.name}</span>
-              {selectedProject && (
-                <>
-                  <span className="text-muted-foreground/60"> · Project ·</span>{" "}
-                  <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
-                    <ProjectDot color={selectedProject.color} />
-                    {selectedProject.name}
-                  </span>
-                </>
-              )}
             </p>
           )}
           <Select value={projectId} onValueChange={setProjectId}>
