@@ -1109,21 +1109,43 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
   // GET /v1/questionnaires/count — responses across accessible projects
   // (for dashboard stat cards). Counts both drafts and submitted rows.
   // Query params:
+  //   team_id    — optional team narrowing. Omitted ⇒ every accessible team.
+  //   project_id — optional project narrowing within the accessible scope.
   //   since      — ISO timestamp or relative shorthand (e.g. "24h"); filters
   //                by created_at.
   //   data_mode  — "production" | "development" | "all". Defaults to "all" to
   //                match the rest of the questionnaire surface.
-  app.get<{ Querystring: { since?: string; data_mode?: DataMode } }>(
+  app.get<{
+    Querystring: {
+      team_id?: string;
+      project_id?: string;
+      since?: string;
+      data_mode?: DataMode;
+    };
+  }>(
     "/questionnaires/count",
     { preHandler: requirePermission("questionnaires:read") },
     async (request, reply) => {
-      const teamIds = getAuthTeamIds(request.auth);
+      const allTeamIds = getAuthTeamIds(request.auth);
+      const { team_id, project_id, since, data_mode } = request.query;
+      const teamIds = team_id
+        ? allTeamIds.includes(team_id)
+          ? [team_id]
+          : []
+        : allTeamIds;
       if (teamIds.length === 0) return { count: 0 };
-      const { since, data_mode } = request.query;
-      const dataModeCondition = dataModeToDrizzle(
-        questionnaireResponses.is_dev,
-        data_mode ?? "all",
-      );
+
+      const projectConditions = [
+        inArray(projects.team_id, teamIds),
+        isNull(projects.deleted_at),
+      ];
+      if (project_id) projectConditions.push(eq(projects.id, project_id));
+      const accessibleProjects = await app.db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(...projectConditions));
+      if (accessibleProjects.length === 0) return { count: 0 };
+
       let sinceDate: Date | undefined;
       if (since) {
         try {
@@ -1132,14 +1154,20 @@ export async function teamQuestionnaireRoutes(app: FastifyInstance) {
           return reply.code(400).send({ error: "Invalid `since` parameter" });
         }
       }
+      const dataModeCondition = dataModeToDrizzle(
+        questionnaireResponses.is_dev,
+        data_mode ?? "all",
+      );
       const [{ total } = { total: 0 }] = await app.db
         .select({ total: countAll })
         .from(questionnaireResponses)
-        .innerJoin(apps, eq(apps.id, questionnaireResponses.app_id))
         .where(
           and(
             isNull(questionnaireResponses.deleted_at),
-            inArray(apps.team_id, teamIds),
+            inArray(
+              questionnaireResponses.project_id,
+              accessibleProjects.map((p) => p.id),
+            ),
             ...(dataModeCondition ? [dataModeCondition] : []),
             ...(sinceDate
               ? [gte(questionnaireResponses.created_at, sinceDate)]
