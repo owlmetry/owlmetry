@@ -1,6 +1,5 @@
-import { docs } from "@/.source";
+import { docs } from "@/.source/server";
 import { loader } from "fumadocs-core/source";
-import { createMDXSource } from "fumadocs-mdx";
 import {
   Rocket,
   Lightbulb,
@@ -26,6 +25,6 @@ const icons: Record<string, ReactNode> = {
 
 export const docsSource = loader({
   baseUrl: "/docs",
-  source: createMDXSource(docs.docs, docs.meta),
+  source: docs.toFumadocsSource(),
   icon: (name) => (name ? icons[name] : undefined),
 });

@@ -1,5 +1,5 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
-import { RootProvider } from "fumadocs-ui/provider";
+import { RootProvider } from "fumadocs-ui/provider/next";
 import { docsSource } from "@/lib/docs-source";
 import { OwlLogo } from "@/components/owl-logo";
 import { BookOpen, LayoutDashboard, Github } from "lucide-react";
