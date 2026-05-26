@@ -56,6 +56,7 @@ import { VersionBadge } from "@/components/version-badge";
 import { ProjectDot } from "@/lib/project-color";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
 import { KanbanSkeleton } from "@/components/ui/skeletons";
+import { Markdown } from "@/components/ui/markdown";
 
 // Off-ramp columns: capped at the hook's default page size with a Load all button.
 const MANUAL_LOAD_STATUSES = new Set<IssueStatus>(["resolved", "snoozed", "silenced"]);
@@ -314,7 +315,7 @@ function IssueDetailModal({
                       <span>·</span>
                       <span>{formatDateTime(c.created_at)}</span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{c.body}</p>
+                    <Markdown>{c.body}</Markdown>
                   </div>
                 ))}
               </div>
