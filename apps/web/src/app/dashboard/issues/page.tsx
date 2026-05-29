@@ -388,17 +388,19 @@ function IssueDetailModal({
                 <h4 className="text-sm font-semibold mb-2">📎 Attachments ({issue.attachments.length})</h4>
                 <AttachmentUntrustedNotice />
                 <div className="text-xs border rounded-md divide-y">
-                  <div className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 font-medium text-muted-foreground bg-muted/30">
+                  <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 p-2 font-medium text-muted-foreground bg-muted/30">
                     <span>Filename</span>
                     <span>Size</span>
                     <span>Type</span>
+                    <span>Added</span>
                     <span>Uploaded</span>
                   </div>
                   {issue.attachments.map((a) => (
-                    <div key={a.id} className="grid grid-cols-[2fr_1fr_1fr_auto] gap-2 p-2 items-center">
+                    <div key={a.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 p-2 items-center">
                       <span className="truncate" title={a.original_filename}>{a.original_filename}</span>
                       <span>{formatBytes(a.size_bytes)}</span>
                       <span className="truncate text-muted-foreground" title={a.content_type}>{a.content_type}</span>
+                      <span className="text-muted-foreground" title={a.created_at}>{formatDateTime(a.created_at)}</span>
                       <AttachmentDownloadButton attachmentId={a.id} uploadedAt={a.uploaded_at} />
                     </div>
                   ))}
