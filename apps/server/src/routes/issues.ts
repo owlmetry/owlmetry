@@ -118,7 +118,7 @@ export async function issuesRoutes(app: FastifyInstance) {
         const decoded = decodeKeysetCursor(cursor);
         if (decoded) {
           conditions.push(
-            sql`(${issues.last_seen_at} < ${decoded.timestamp}::timestamptz OR (${issues.last_seen_at} = ${decoded.timestamp}::timestamptz AND ${issues.id} < ${decoded.id}))`,
+            sql`(date_trunc('milliseconds', ${issues.updated_at}) < ${decoded.timestamp}::timestamptz OR (date_trunc('milliseconds', ${issues.updated_at}) = ${decoded.timestamp}::timestamptz AND ${issues.id} < ${decoded.id}))`,
           );
         } else {
           // Fallback for legacy plain-UUID cursors
@@ -130,7 +130,11 @@ export async function issuesRoutes(app: FastifyInstance) {
         .select()
         .from(issues)
         .where(and(...conditions))
-        .orderBy(desc(issues.last_seen_at), desc(issues.id))
+        // Sort by last activity. Truncate to milliseconds so the sort key matches
+        // the keyset cursor, which is built from a JS Date (ms precision) — updated_at
+        // is stored at Postgres microsecond precision, and comparing raw µs values
+        // against a truncated ms cursor would skip rows at a page boundary.
+        .orderBy(desc(sql`date_trunc('milliseconds', ${issues.updated_at})`), desc(issues.id))
         .limit(limit + 1);
 
       const hasMore = rows.length > limit;
@@ -161,7 +165,7 @@ export async function issuesRoutes(app: FastifyInstance) {
       const lastItem = page[page.length - 1];
       return {
         issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id))),
-        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.last_seen_at, lastItem.id) : null,
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.updated_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }
@@ -504,6 +508,14 @@ export async function issuesRoutes(app: FastifyInstance) {
         })
         .returning();
 
+      // Bump the issue's updated_at so a new comment floats it to the top of the
+      // list (sorted by updated_at). Status changes already bump updated_at via
+      // the issues UPDATE; comments otherwise never touch the issue row.
+      await app.db
+        .update(issues)
+        .set({ updated_at: new Date() })
+        .where(eq(issues.id, issueId));
+
       return reply.code(201).send(serializeComment(created));
     }
   );
@@ -654,7 +666,7 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
         const decoded = decodeKeysetCursor(cursor);
         if (decoded) {
           conditions.push(
-            sql`(${issues.last_seen_at} < ${decoded.timestamp}::timestamptz OR (${issues.last_seen_at} = ${decoded.timestamp}::timestamptz AND ${issues.id} < ${decoded.id}))`,
+            sql`(date_trunc('milliseconds', ${issues.updated_at}) < ${decoded.timestamp}::timestamptz OR (date_trunc('milliseconds', ${issues.updated_at}) = ${decoded.timestamp}::timestamptz AND ${issues.id} < ${decoded.id}))`,
           );
         } else {
           conditions.push(sql`${issues.id} < ${cursor}`);
@@ -665,7 +677,11 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
         .select()
         .from(issues)
         .where(and(...conditions))
-        .orderBy(desc(issues.last_seen_at), desc(issues.id))
+        // Sort by last activity. Truncate to milliseconds so the sort key matches
+        // the keyset cursor, which is built from a JS Date (ms precision) — updated_at
+        // is stored at Postgres microsecond precision, and comparing raw µs values
+        // against a truncated ms cursor would skip rows at a page boundary.
+        .orderBy(desc(sql`date_trunc('milliseconds', ${issues.updated_at})`), desc(issues.id))
         .limit(limit + 1);
 
       const hasMore = rows.length > limit;
@@ -696,7 +712,7 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
       const lastItem = page[page.length - 1];
       return {
         issues: page.map((i) => serializeIssue(i, fpMap.get(i.id) ?? [], appNameMap.get(i.app_id), projectNameMap.get(i.project_id))),
-        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.last_seen_at, lastItem.id) : null,
+        cursor: hasMore && lastItem ? encodeKeysetCursor(lastItem.updated_at, lastItem.id) : null,
         has_more: hasMore,
       };
     }

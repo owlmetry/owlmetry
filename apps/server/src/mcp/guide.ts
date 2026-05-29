@@ -171,7 +171,7 @@ Dev events (\`is_dev = true\`) create separate issues — they are tracked but n
 
 To fully investigate an issue, follow this workflow:
 
-1. **Find the issue**: \`list-issues\` with \`project_id\` to see open issues sorted by severity (unique users affected). Filter by \`status: "new"\` to focus on uninvestigated issues.
+1. **Find the issue**: \`list-issues\` with \`project_id\` to see open issues, most recently active first (a new occurrence, status change, or comment). Sort the results by \`unique_user_count\` to prioritise by severity (users affected). Filter by \`status: "new"\` to focus on uninvestigated issues.
 2. **Claim it**: \`claim-issue\` to set status to \`in_progress\`, signaling that you're investigating.
 3. **Read the detail**: \`get-issue\` returns the issue with its \`occurrences\` array. Each occurrence represents a unique session where the error happened and includes:
    - \`session_id\` — the session where the error occurred
@@ -411,7 +411,7 @@ If a tool returns a permissions error, the agent key is missing the required per
 4. \`query-funnel\` → conversion rates and drop-off analysis
 
 ### Investigating issues
-1. \`list-issues\` → find open issues sorted by severity
+1. \`list-issues\` → find open issues (most recently active first; sort by \`unique_user_count\` for severity)
 2. \`claim-issue\` → mark as in_progress
 3. \`get-issue\` → read occurrences (each has \`session_id\`, \`event_id\`, \`user_id\`, \`app_version\`)
 4. \`investigate-event\` with each occurrence's \`event_id\` (add \`compact: true\` for long timelines) → build the full breadcrumb (entire session + cross-app events for the same user). This is the standard issue-investigation move; do it for **every** occurrence, not just one.

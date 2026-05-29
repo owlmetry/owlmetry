@@ -6,7 +6,7 @@ import { callApi, buildQuery } from "../helpers.js";
 
 export function registerIssuesTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-issues", {
-    description: "List issues for a project. Issues are error events grouped by fingerprint. Sorted by severity (unique affected users).",
+    description: "List issues for a project. Issues are error events grouped by fingerprint. Sorted by most recent activity first — a new occurrence, status change, or comment. Each issue carries unique_user_count, so sort by that yourself to prioritise by severity.",
     inputSchema: {
       project_id: z.string().uuid().describe("The project ID"),
       status: z.enum(ISSUE_STATUSES).optional().describe("Filter by status"),

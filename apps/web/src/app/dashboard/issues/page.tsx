@@ -153,6 +153,10 @@ function IssueDetailModal({
       await issueActions.addComment(projectId, issueId, newComment.trim());
       setNewComment("");
       mutateIssue();
+      // Revalidate the kanban columns too — commenting bumps the issue's
+      // updated_at server-side, so it should jump to the top of its column now
+      // rather than waiting for the 30s SWR refresh.
+      onMutate();
     } finally {
       setActionLoading(false);
     }

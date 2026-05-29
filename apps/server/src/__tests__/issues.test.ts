@@ -230,6 +230,50 @@ describe("Issues API", () => {
       const body2 = JSON.parse(page2.body);
       expect(body2.issues.length).toBeGreaterThanOrEqual(1);
     });
+
+    it("orders by last activity: a comment, then a status change, floats the issue to the top", async () => {
+      const a = await createTestIssue({ title: "Activity A" });
+      const b = await createTestIssue({ title: "Activity B" });
+      await createTestIssue({ title: "Activity C" });
+
+      // Stamp a common past baseline so each action's NOW() is unambiguously later
+      // (raw SQL bypasses Drizzle's $onUpdate, so updated_at is set literally).
+      await dbClient`UPDATE issues SET updated_at = NOW() - INTERVAL '1 hour' WHERE project_id = ${projectId}`;
+
+      // Commenting on A bumps its updated_at → A rises to the top.
+      const commentRes = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/issues/${a}/comments`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { body: "looking into this" },
+      });
+      expect(commentRes.statusCode).toBe(201);
+
+      const afterComment = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(JSON.parse(afterComment.body).issues[0].title).toBe("Activity A");
+
+      // A status change on B bumps B's updated_at → B now leads, A second.
+      const patchRes = await app.inject({
+        method: "PATCH",
+        url: `/v1/projects/${projectId}/issues/${b}`,
+        headers: { Authorization: `Bearer ${token}` },
+        payload: { status: "in_progress" },
+      });
+      expect(patchRes.statusCode).toBe(200);
+
+      const afterPatch = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const titles = JSON.parse(afterPatch.body).issues.map((i: any) => i.title);
+      expect(titles[0]).toBe("Activity B");
+      expect(titles[1]).toBe("Activity A");
+    });
   });
 
   // ── Detail ────────────────────────────────────────────────────
