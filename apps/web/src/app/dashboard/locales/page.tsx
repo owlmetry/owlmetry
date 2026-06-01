@@ -292,7 +292,7 @@ export default function LocalesPage() {
                         return (
                           <TableRow key={r.country_code}>
                             <TableCell>
-                              <CountryCell code={r.country_code} />
+                              <CountryCell code={r.country_code} showName />
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
                               {r.user_count.toLocaleString()}

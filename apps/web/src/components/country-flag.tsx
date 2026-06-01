@@ -3,11 +3,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 interface Props {
   code: string | null | undefined;
+  // When true, show the full country name beside the flag instead of the
+  // 2-letter code-in-a-tooltip. For roomy layouts (e.g. the Locales country panel).
+  showName?: boolean;
 }
 
-export function CountryCell({ code }: Props) {
+export function CountryCell({ code, showName }: Props) {
   const f = countryFlag(code);
   if (!f.emoji) return <span className="text-muted-foreground">—</span>;
+  if (showName) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        {f.emoji}
+        <span>{f.name}</span>
+      </span>
+    );
+  }
   return (
     <Tooltip>
       <TooltipTrigger asChild>
