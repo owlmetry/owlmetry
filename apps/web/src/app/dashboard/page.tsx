@@ -18,7 +18,6 @@ import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
 import { computeRatingSummary } from "@/lib/rating-summary";
-import { cn } from "@/lib/utils";
 import {
   resolveSparklineWindowDays,
   resolveMagnitudeWindowHours,
@@ -32,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ProjectDot } from "@/lib/project-color";
 import { StatCard, StatRow } from "./_components/stat-card";
 import { OpenIssuesPanel } from "./_components/open-issues-panel";
@@ -285,33 +285,26 @@ export default function DashboardPage() {
               ))}
             </SelectContent>
           </Select>
-          <div
-            className="inline-flex h-8 items-center rounded-md border bg-background p-0.5"
-            role="group"
+          <ToggleGroup
+            type="single"
+            value={String(windowHours)}
+            onValueChange={(v) => {
+              if (!v) return;
+              updatePrefs({ ui: { dashboard: { magnitudeWindowHours: Number(v) as (typeof MAGNITUDE_WINDOW_HOURS)[number] } } });
+            }}
             aria-label="Stat window"
+            className="h-8 border bg-background p-0.5"
           >
-            {MAGNITUDE_WINDOW_HOURS.map((h) => {
-              const active = h === windowHours;
-              return (
-                <button
-                  key={h}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() =>
-                    updatePrefs({ ui: { dashboard: { magnitudeWindowHours: h } } })
-                  }
-                  className={cn(
-                    "px-2.5 py-1 text-xs font-medium tabular-nums rounded-[4px] transition-colors",
-                    active
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                  )}
-                >
-                  {formatMagnitudeWindowLabel(h)}
-                </button>
-              );
-            })}
-          </div>
+            {MAGNITUDE_WINDOW_HOURS.map((h) => (
+              <ToggleGroupItem
+                key={h}
+                value={String(h)}
+                className="h-7 px-2.5 text-xs font-medium tabular-nums data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+              >
+                {formatMagnitudeWindowLabel(h)}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
       </div>
 
