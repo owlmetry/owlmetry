@@ -29,6 +29,7 @@ export function GET() {
     "- **Time-series rollups**: Pre-aggregated daily and hourly counts of events, users, sessions, metric completions, funnel completions, and questionnaire responses — powering dashboard sparklines and trend queries that survive raw-event retention",
     "- **Attribution**: Auto-captured Apple Search Ads acquisition data per user",
     "- **Advertising insights**: Rank ad campaigns by lifetime revenue, spend, and ROAS from attributed users, drilled down through campaign → ad group → keyword/ad",
+    "- **Locale demand**: Rank users by the language they want (device preferred language) and by country, flagging languages with demand the app doesn't ship yet — to decide where to localize next",
     "- **Store reviews & ratings**: Per-country App Store ratings with daily snapshots (free, no setup) plus individual reviews via App Store Connect integration, filterable by rating/country/version and repliable from every surface",
     "- **Notifications**: Unified multi-channel inbox (in-app, email, mobile push) with per-user channel preferences",
     "- **SDKs**: Swift (iOS/macOS/watchOS) and Node.js — batching, compression, and retry built in; watch events relay through paired iPhone via WatchConnectivity when offline",
