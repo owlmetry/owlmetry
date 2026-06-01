@@ -26,7 +26,7 @@
  */
 import { createDatabaseConnection } from "./index.js";
 import { apps, appUsers, appUserApps } from "./schema.js";
-import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
+import { ANONYMOUS_ID_PREFIX, baseLanguage } from "@owlmetry/shared";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import "dotenv/config";
 
@@ -82,13 +82,9 @@ function pick(): [country: string, lang: string] {
   return [country, lang];
 }
 
-function baseLang(tag: string): string {
-  return tag.split(/[-_]/)[0].toLowerCase();
-}
-
 /** Shown locale = wanted language if shipped, else English, in the user's region. */
 function shownLocale(prefLang: string, country: string): string {
-  const base = baseLang(prefLang);
+  const base = baseLanguage(prefLang);
   const shown = SUPPORTED_LANGUAGES.includes(base) ? base : "en";
   return `${shown}_${country}`;
 }

@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CountryCell } from "@/components/country-flag";
+import { languageName } from "@/lib/country-flag";
 import {
   Select,
   SelectContent,
@@ -35,20 +36,6 @@ import {
 
 const ALL_PROJECTS = "__all__";
 const ALL_APPS = "__all_apps__";
-
-// Human-readable language/region name for a BCP-47 tag, e.g. "fr-CA" → "French (Canada)".
-const languageDisplay =
-  typeof Intl !== "undefined" && "DisplayNames" in Intl
-    ? new Intl.DisplayNames(["en"], { type: "language" })
-    : null;
-
-function localeName(tag: string): string {
-  try {
-    return languageDisplay?.of(tag.replace(/_/g, "-")) ?? tag;
-  } catch {
-    return tag;
-  }
-}
 
 export default function LocalesPage() {
   const router = useRouter();
@@ -241,7 +228,7 @@ export default function LocalesPage() {
                             <TableCell>
                               <span className="font-mono text-xs">{r.locale}</span>
                               <span className="ml-2 text-xs text-muted-foreground">
-                                {localeName(r.locale)}
+                                {languageName(r.locale)}
                               </span>
                             </TableCell>
                             <TableCell className="text-right tabular-nums">

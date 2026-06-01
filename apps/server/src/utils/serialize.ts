@@ -197,7 +197,7 @@ export function serializeApp(a: {
     ratings_synced_at: a.ratings_synced_at?.toISOString() ?? null,
     supported_languages: a.supported_languages ?? null,
     supported_languages_source: (a.supported_languages_source ?? null) as "sdk" | "manual" | null,
-    created_at: a.created_at.toISOString(),
     client_secret: a.client_secret ?? null,
+    created_at: a.created_at.toISOString(),
   };
 }

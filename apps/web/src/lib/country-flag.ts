@@ -6,6 +6,20 @@ const regionNames =
     ? new Intl.DisplayNames(["en"], { type: "region" })
     : null;
 
+const languageNames =
+  typeof Intl !== "undefined" && "DisplayNames" in Intl
+    ? new Intl.DisplayNames(["en"], { type: "language" })
+    : null;
+
+/** Human-readable name for a BCP-47 language tag, e.g. "fr-CA" → "French (Canada)". */
+export function languageName(tag: string): string {
+  try {
+    return languageNames?.of(tag.replace(/_/g, "-")) ?? tag;
+  } catch {
+    return tag;
+  }
+}
+
 export interface CountryFlag {
   emoji: string;
   code: string;

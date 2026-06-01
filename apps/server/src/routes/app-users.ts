@@ -140,13 +140,19 @@ async function resolveSupportedLanguages(
  * Aggregate app_users in scope by wanted language (preferred) and by country.
  * `projectIds` bounds the scope (one project, or every project for a team);
  * `appId` further narrows via the junction. `supportedLanguages` drives the
- * per-row `shipped` flag (null ⇒ no flag).
+ * per-row `shipped` flag (null ⇒ no flag) — accepts a promise so the caller's
+ * supported-languages lookup overlaps these aggregations instead of blocking
+ * them (it's only consumed after the queries return).
  */
 async function computeLocaleDemand(
   db: Db,
-  opts: { projectIds: string[]; appId?: string; supportedLanguages: string[] | null },
+  opts: {
+    projectIds: string[];
+    appId?: string;
+    supportedLanguages: (string[] | null) | Promise<string[] | null>;
+  },
 ): Promise<UserLocalesResponse> {
-  const { projectIds, appId, supportedLanguages } = opts;
+  const { projectIds, appId } = opts;
   const scope = appId
     ? and(inArray(appUsers.project_id, projectIds), eq(appUserApps.app_id, appId))
     : inArray(appUsers.project_id, projectIds);
@@ -184,11 +190,13 @@ async function computeLocaleDemand(
       : db.select(totalsSelect).from(appUsers)
   ).where(scope);
 
-  // Three aggregations over the same scope, run together.
-  const [localeRows, countryRows, totalsRows] = await Promise.all([
+  // Three aggregations over the same scope, run together — and resolve the
+  // (independent) supported-languages lookup in the same round-trip window.
+  const [localeRows, countryRows, totalsRows, supportedLanguages] = await Promise.all([
     groupedCount(appUsers.last_preferred_language),
     groupedCount(appUsers.last_country_code),
     totalsQuery,
+    Promise.resolve(opts.supportedLanguages),
   ]);
 
   const supportedBase =
@@ -500,14 +508,11 @@ export async function appUsersRoutes(app: FastifyInstance) {
         if (!appRow) return reply.code(404).send({ error: "App not found" });
       }
 
-      const supportedLanguages = await resolveSupportedLanguages(app.db, {
-        appId: app_id,
-        projectId,
-      });
       return computeLocaleDemand(app.db, {
         projectIds: [projectId],
         appId: app_id,
-        supportedLanguages,
+        // Passed un-awaited so the lookup overlaps the demand aggregations.
+        supportedLanguages: resolveSupportedLanguages(app.db, { appId: app_id, projectId }),
       });
     },
   );
@@ -563,11 +568,15 @@ export async function appUsersRoutes(app: FastifyInstance) {
         projectIds = teamProjects.map((p) => p.id);
       }
 
-      const supportedLanguages = await resolveSupportedLanguages(app.db, {
+      return computeLocaleDemand(app.db, {
+        projectIds,
         appId: app_id,
-        projectId: app_id ? undefined : project_id,
+        // Passed un-awaited so the lookup overlaps the demand aggregations.
+        supportedLanguages: resolveSupportedLanguages(app.db, {
+          appId: app_id,
+          projectId: app_id ? undefined : project_id,
+        }),
       });
-      return computeLocaleDemand(app.db, { projectIds, appId: app_id, supportedLanguages });
     },
   );
 
