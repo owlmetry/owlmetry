@@ -7,6 +7,10 @@ import {
   resolveSparklineWindowDays,
   DEFAULT_SPARKLINE_WINDOW_DAYS,
   SPARKLINE_WINDOW_DAYS,
+  resolveMagnitudeWindowHours,
+  formatMagnitudeWindowLabel,
+  DEFAULT_MAGNITUDE_WINDOW_HOURS,
+  MAGNITUDE_WINDOW_HOURS,
 } from "../preferences.js";
 
 describe("mergeUserPreferences", () => {
@@ -239,6 +243,46 @@ describe("ui.dashboard.sparklineWindowDays", () => {
       ui: { dashboard: { sparklineWindowDays: 999 as unknown as 7 } },
     };
     expect(resolveSparklineWindowDays(prefs)).toBe(DEFAULT_SPARKLINE_WINDOW_DAYS);
+  });
+});
+
+describe("ui.dashboard.magnitudeWindowHours", () => {
+  it("resolveMagnitudeWindowHours returns the default when prefs is null/undefined/empty", () => {
+    expect(resolveMagnitudeWindowHours(null)).toBe(DEFAULT_MAGNITUDE_WINDOW_HOURS);
+    expect(resolveMagnitudeWindowHours(undefined)).toBe(DEFAULT_MAGNITUDE_WINDOW_HOURS);
+    expect(resolveMagnitudeWindowHours({})).toBe(DEFAULT_MAGNITUDE_WINDOW_HOURS);
+  });
+
+  it("resolveMagnitudeWindowHours returns the stored value when valid", () => {
+    for (const window of MAGNITUDE_WINDOW_HOURS) {
+      const result = resolveMagnitudeWindowHours({ ui: { dashboard: { magnitudeWindowHours: window } } });
+      expect(result).toBe(window);
+    }
+  });
+
+  it("resolveMagnitudeWindowHours coerces an unknown stored value to the default", () => {
+    const prefs = {
+      ui: { dashboard: { magnitudeWindowHours: 999 as unknown as 24 } },
+    };
+    expect(resolveMagnitudeWindowHours(prefs)).toBe(DEFAULT_MAGNITUDE_WINDOW_HOURS);
+  });
+
+  it("mergeUserPreferences keeps magnitudeWindowHours and sparklineWindowDays side by side", () => {
+    const existing = {
+      ui: { dashboard: { sparklineWindowDays: 60 as const } },
+    };
+    const result = mergeUserPreferences(existing, {
+      ui: { dashboard: { magnitudeWindowHours: 1 } },
+    });
+    expect(result.ui?.dashboard?.sparklineWindowDays).toBe(60);
+    expect(result.ui?.dashboard?.magnitudeWindowHours).toBe(1);
+  });
+
+  it("formatMagnitudeWindowLabel renders hours and days compactly", () => {
+    expect(formatMagnitudeWindowLabel(1)).toBe("1h");
+    expect(formatMagnitudeWindowLabel(24)).toBe("24h");
+    expect(formatMagnitudeWindowLabel(168)).toBe("7d");
+    expect(formatMagnitudeWindowLabel(720)).toBe("30d");
   });
 });
 

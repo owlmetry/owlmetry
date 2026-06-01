@@ -75,6 +75,55 @@ describe("PATCH /v1/auth/me — preferences", () => {
     expect(prefs.ui.columns.users.order).toEqual(["user_id", "type"]);
   });
 
+  it("persists ui.dashboard window preferences and merges them", async () => {
+    const token = await getToken(app);
+
+    const first = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        preferences: { ui: { dashboard: { sparklineWindowDays: 7 } } },
+      },
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().user.preferences.ui.dashboard.sparklineWindowDays).toBe(7);
+
+    // Patching the magnitude window must not wipe the sparkline window.
+    const second = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        preferences: { ui: { dashboard: { magnitudeWindowHours: 168 } } },
+      },
+    });
+    expect(second.statusCode).toBe(200);
+    const dash = second.json().user.preferences.ui.dashboard;
+    expect(dash.sparklineWindowDays).toBe(7);
+    expect(dash.magnitudeWindowHours).toBe(168);
+  });
+
+  it("strips invalid ui.dashboard window values", async () => {
+    const token = await getToken(app);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/v1/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        preferences: {
+          ui: { dashboard: { magnitudeWindowHours: 999, sparklineWindowDays: 7 } },
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const dash = res.json().user.preferences.ui.dashboard ?? {};
+    expect(dash.magnitudeWindowHours).toBeUndefined();
+    expect(dash.sparklineWindowDays).toBe(7);
+  });
+
   it("PATCH name-only leaves preferences untouched", async () => {
     const token = await getToken(app);
 

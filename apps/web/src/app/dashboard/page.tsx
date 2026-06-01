@@ -12,13 +12,19 @@ import type {
   ProjectResponse,
 } from "@owlmetry/shared";
 import { useUser } from "@/hooks/use-user";
-import { useUserPreferences } from "@/hooks/use-user-preferences";
+import { useUserPreferences, useUpdateUserPreferences } from "@/hooks/use-user-preferences";
 import { useDailyStats } from "@/hooks/use-daily-stats";
 import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
 import { computeRatingSummary } from "@/lib/rating-summary";
-import { resolveSparklineWindowDays } from "@owlmetry/shared/preferences";
+import { cn } from "@/lib/utils";
+import {
+  resolveSparklineWindowDays,
+  resolveMagnitudeWindowHours,
+  formatMagnitudeWindowLabel,
+  MAGNITUDE_WINDOW_HOURS,
+} from "@owlmetry/shared/preferences";
 import {
   Select,
   SelectContent,
@@ -41,11 +47,14 @@ const ALL_PROJECTS = "__all__";
 export default function DashboardPage() {
   const { user } = useUser();
   const prefs = useUserPreferences();
+  const updatePrefs = useUpdateUserPreferences();
   const { currentTeam, currentRole } = useTeam();
   const { dataMode } = useDataMode();
   const teamId = currentTeam?.id;
   const isAdmin = currentRole === "owner" || currentRole === "admin";
   const sparklineDays = resolveSparklineWindowDays(prefs);
+  const windowHours = resolveMagnitudeWindowHours(prefs);
+  const windowLabel = formatMagnitudeWindowLabel(windowHours);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -78,8 +87,8 @@ export default function DashboardPage() {
 
   const hourBucket = Math.floor(Date.now() / 3_600_000);
   const eventsSince = useMemo(
-    () => new Date(hourBucket * 3_600_000 - 24 * 60 * 60 * 1000).toISOString(),
-    [hourBucket]
+    () => new Date(hourBucket * 3_600_000 - windowHours * 3_600_000).toISOString(),
+    [hourBucket, windowHours]
   );
 
   const { data: eventsCountData, isLoading: eventsCountLoading } =
@@ -276,6 +285,33 @@ export default function DashboardPage() {
               ))}
             </SelectContent>
           </Select>
+          <div
+            className="inline-flex h-8 items-center rounded-md border bg-background p-0.5"
+            role="group"
+            aria-label="Stat window"
+          >
+            {MAGNITUDE_WINDOW_HOURS.map((h) => {
+              const active = h === windowHours;
+              return (
+                <button
+                  key={h}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    updatePrefs({ ui: { dashboard: { magnitudeWindowHours: h } } })
+                  }
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-medium tabular-nums rounded-[4px] transition-colors",
+                    active
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  )}
+                >
+                  {formatMagnitudeWindowLabel(h)}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -288,7 +324,7 @@ export default function DashboardPage() {
           href="/dashboard/issues"
         />
         <StatCard
-          label="Events · 24h"
+          label={`Events · ${windowLabel}`}
           icon={ScrollText}
           value={eventCount}
           isLoading={eventsCountLoading}
@@ -296,7 +332,7 @@ export default function DashboardPage() {
           sparkline={{ values: eventsSpark.values, isLoading: eventsSpark.isLoading }}
         />
         <StatCard
-          label="Users · 24h"
+          label={`Users · ${windowLabel}`}
           icon={UserSearch}
           value={uniqueUsers}
           isLoading={eventsCountLoading}
@@ -304,7 +340,7 @@ export default function DashboardPage() {
           sparkline={{ values: usersSpark.values, isLoading: usersSpark.isLoading }}
         />
         <StatCard
-          label="Sessions · 24h"
+          label={`Sessions · ${windowLabel}`}
           icon={Waypoints}
           value={uniqueSessions}
           isLoading={eventsCountLoading}
@@ -312,7 +348,7 @@ export default function DashboardPage() {
           sparkline={{ values: sessionsSpark.values, isLoading: sessionsSpark.isLoading }}
         />
         <StatCard
-          label="Metrics · 24h"
+          label={`Metrics · ${windowLabel}`}
           icon={CheckCircle2}
           value={metricsValue}
           secondary={metricsPercent}
@@ -321,7 +357,7 @@ export default function DashboardPage() {
           sparkline={{ values: metricsSpark.values, isLoading: metricsSpark.isLoading }}
         />
         <StatCard
-          label="Funnels · 24h"
+          label={`Funnels · ${windowLabel}`}
           icon={Filter}
           value={funnelsValue}
           secondary={funnelsPercent}
@@ -337,7 +373,7 @@ export default function DashboardPage() {
           href="/dashboard/feedback"
         />
         <StatCard
-          label="Responses · 24h"
+          label={`Responses · ${windowLabel}`}
           icon={ClipboardList}
           value={questionnaireCountData?.count ?? 0}
           isLoading={questionnaireCountLoading}

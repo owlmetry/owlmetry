@@ -130,6 +130,16 @@ export const SPARKLINE_WINDOW_DAYS = [7, 14, 30, 60, 90] as const;
 export type SparklineWindowDays = (typeof SPARKLINE_WINDOW_DAYS)[number];
 export const DEFAULT_SPARKLINE_WINDOW_DAYS: SparklineWindowDays = 30;
 
+/**
+ * Trailing windows (in hours) the dashboard header toggle offers for the big
+ * magnitude stat tiles (Events / Users / Sessions / Metrics / Funnels /
+ * Responses). 1h, 24h, 7d, 30d. Distinct from SPARKLINE_WINDOW_DAYS — the
+ * sparklines plot a multi-day trend, these drive the headline counts.
+ */
+export const MAGNITUDE_WINDOW_HOURS = [1, 24, 168, 720] as const;
+export type MagnitudeWindowHours = (typeof MAGNITUDE_WINDOW_HOURS)[number];
+export const DEFAULT_MAGNITUDE_WINDOW_HOURS: MagnitudeWindowHours = 24;
+
 export interface UserPreferences {
   version?: 1;
   ui?: {
@@ -144,6 +154,12 @@ export interface UserPreferences {
        * as a dip. One of SPARKLINE_WINDOW_DAYS; absent => DEFAULT_SPARKLINE_WINDOW_DAYS.
        */
       sparklineWindowDays?: SparklineWindowDays;
+      /**
+       * Trailing-window length (hours) for the headline magnitude numbers on the
+       * dashboard stat tiles, chosen via the header toggle next to the project
+       * picker. One of MAGNITUDE_WINDOW_HOURS; absent => DEFAULT_MAGNITUDE_WINDOW_HOURS.
+       */
+      magnitudeWindowHours?: MagnitudeWindowHours;
     };
   };
   notifications?: {
@@ -211,6 +227,28 @@ export function resolveSparklineWindowDays(
     return stored;
   }
   return DEFAULT_SPARKLINE_WINDOW_DAYS;
+}
+
+/**
+ * Resolve the effective magnitude-tile window (hours) from a user's
+ * preferences, falling back to the default. Like resolveSparklineWindowDays, an
+ * invalid stored value is silently coerced to the default.
+ */
+export function resolveMagnitudeWindowHours(
+  prefs: UserPreferences | null | undefined,
+): MagnitudeWindowHours {
+  const stored = prefs?.ui?.dashboard?.magnitudeWindowHours;
+  if (stored !== undefined && (MAGNITUDE_WINDOW_HOURS as readonly number[]).includes(stored)) {
+    return stored;
+  }
+  return DEFAULT_MAGNITUDE_WINDOW_HOURS;
+}
+
+/** Compact label for a magnitude window: 1 -> "1h", 24 -> "24h", 168 -> "7d", 720 -> "30d". */
+export function formatMagnitudeWindowLabel(hours: MagnitudeWindowHours): string {
+  // Keep 24h as hours (it's the default and reads naturally); only collapse
+  // multi-day windows to a "Nd" form.
+  return hours > 24 && hours % 24 === 0 ? `${hours / 24}d` : `${hours}h`;
 }
 
 /** True iff `order` is element-by-element identical to `defaultOrder`. */

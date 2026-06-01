@@ -13,7 +13,7 @@ import type {
   Permission,
   UserPreferences,
 } from "@owlmetry/shared";
-import { mergeUserPreferences, NOTIFICATION_TYPES, NOTIFICATION_CHANNELS } from "@owlmetry/shared";
+import { mergeUserPreferences, NOTIFICATION_TYPES, NOTIFICATION_CHANNELS, SPARKLINE_WINDOW_DAYS, MAGNITUDE_WINDOW_HOURS } from "@owlmetry/shared";
 import type { NotificationChannel } from "@owlmetry/shared";
 import { requireAuth, hasTeamAccess, getAuthTeamIds, getUserTeamMemberships, assertTeamRole } from "../middleware/auth.js";
 import type { UserJwtPayload } from "../types.js";
@@ -72,6 +72,19 @@ function sanitizeUserPreferences(input: unknown): Partial<UserPreferences> {
         }
       }
       if (Object.keys(nextCols).length > 0) nextUi.columns = nextCols;
+    }
+    if (ui.dashboard && typeof ui.dashboard === "object") {
+      const dash = ui.dashboard as Record<string, unknown>;
+      const nextDash: NonNullable<NonNullable<UserPreferences["ui"]>["dashboard"]> = {};
+      const spark = dash.sparklineWindowDays;
+      if (typeof spark === "number" && (SPARKLINE_WINDOW_DAYS as readonly number[]).includes(spark)) {
+        nextDash.sparklineWindowDays = spark as (typeof SPARKLINE_WINDOW_DAYS)[number];
+      }
+      const mag = dash.magnitudeWindowHours;
+      if (typeof mag === "number" && (MAGNITUDE_WINDOW_HOURS as readonly number[]).includes(mag)) {
+        nextDash.magnitudeWindowHours = mag as (typeof MAGNITUDE_WINDOW_HOURS)[number];
+      }
+      if (Object.keys(nextDash).length > 0) nextUi.dashboard = nextDash;
     }
     if (Object.keys(nextUi).length > 0) out.ui = nextUi;
   }
