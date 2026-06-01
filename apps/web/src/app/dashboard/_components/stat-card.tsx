@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DeltaIndicator } from "@/components/delta-indicator";
 import { Sparkline } from "@/components/charts/sparkline";
+import { formatStatNumber } from "@/lib/format-number";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -69,7 +70,7 @@ export function StatCard({
             secondary ? "text-3xl" : "text-4xl"
           )}
         >
-          {value ?? "—"}
+          {(typeof value === "number" ? formatStatNumber(value) : value) ?? "—"}
           {secondary && (
             <span className="ml-2 text-sm font-medium text-muted-foreground">
               {secondary}

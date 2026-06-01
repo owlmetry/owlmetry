@@ -18,6 +18,7 @@ import { useTeam } from "@/contexts/team-context";
 import { useDataMode } from "@/contexts/data-mode-context";
 import { formatLongDate } from "@/lib/format-date";
 import { computeRatingSummary } from "@/lib/rating-summary";
+import { formatStatNumber } from "@/lib/format-number";
 import {
   resolveSparklineWindowDays,
   resolveMagnitudeWindowHours,
@@ -214,7 +215,7 @@ export default function DashboardPage() {
   const metricsValue =
     metricsCompleted === undefined || metricsTotal === undefined
       ? undefined
-      : `${metricsCompleted}/${metricsTotal}`;
+      : `${formatStatNumber(metricsCompleted)}/${formatStatNumber(metricsTotal)}`;
   const metricsPercent =
     metricsCompleted === undefined || metricsTotal === undefined || metricsTotal === 0
       ? undefined
@@ -224,7 +225,7 @@ export default function DashboardPage() {
   const funnelsValue =
     funnelsCompleted === undefined || funnelsStarted === undefined
       ? undefined
-      : `${funnelsCompleted}/${funnelsStarted}`;
+      : `${formatStatNumber(funnelsCompleted)}/${formatStatNumber(funnelsStarted)}`;
   const funnelsPercent =
     funnelsCompleted === undefined ||
     funnelsStarted === undefined ||
@@ -246,7 +247,7 @@ export default function DashboardPage() {
     return computeRatingSummary(scoped);
   }, [appsData, selectedProjectId]);
   const ratingValue = ratingSummary ? `★ ${ratingSummary.avg.toFixed(2)}` : "—";
-  const ratingSecondary = ratingSummary ? ratingSummary.total.toLocaleString() : undefined;
+  const ratingSecondary = ratingSummary ? formatStatNumber(ratingSummary.total) : undefined;
 
   const today = formatLongDate(new Date());
   const firstName = user?.name?.split(" ")[0];
