@@ -112,6 +112,7 @@ async function convertEventsTableToPartitioned(client: postgres.Sql) {
       device_model VARCHAR(100),
       build_number VARCHAR(50),
       locale VARCHAR(20),
+      preferred_language VARCHAR(35),
       country_code VARCHAR(2),
       is_dev BOOLEAN NOT NULL DEFAULT FALSE,
       "timestamp" TIMESTAMPTZ NOT NULL,
