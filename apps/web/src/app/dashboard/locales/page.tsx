@@ -116,6 +116,16 @@ export default function LocalesPage() {
   const coveragePct = totalUsers > 0 ? (demandTotal / totalUsers) * 100 : 0;
   const supported = data?.supported_languages ?? null;
 
+  // Country is only known for users who arrived via SDK ingest (CF-IPCountry);
+  // integration-synced users (e.g. RevenueCat) have none. Share % and the chart
+  // must divide by users-with-a-country, not the full population, or every slice
+  // reads as a misleadingly tiny fraction of the total. by_country is unlimited
+  // server-side, so summing it is the exact known-country count.
+  const usersWithCountry = useMemo(
+    () => (data?.by_country ?? []).reduce((sum, r) => sum + r.user_count, 0),
+    [data],
+  );
+
   return (
     <AnimatedPage className="space-y-4">
       <StaggerItem index={0}>
@@ -211,50 +221,59 @@ export default function LocalesPage() {
                   total={demandTotal}
                 />
                 {data && data.by_locale.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Locale</TableHead>
-                        <TableHead className="text-right">Users</TableHead>
-                        <TableHead className="text-right">Share</TableHead>
-                        <TableHead className="text-right">Gap</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.by_locale.map((r) => {
-                        const pct = demandTotal > 0 ? (r.user_count / demandTotal) * 100 : 0;
-                        return (
-                          <TableRow key={r.locale}>
-                            <TableCell>
-                              <span className="font-mono text-xs">{r.locale}</span>
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                {languageName(r.locale)}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {r.user_count.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {pct.toFixed(1)}%
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {r.shipped === false ? (
-                                <Badge variant="outline" tone="red" size="sm">
-                                  Not shipped
-                                </Badge>
-                              ) : r.shipped === true ? (
-                                <Badge variant="outline" tone="green" size="sm">
-                                  Shipped
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Locale</TableHead>
+                          <TableHead className="text-right">Users</TableHead>
+                          <TableHead className="text-right">Share</TableHead>
+                          <TableHead className="text-right">Gap</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.by_locale.map((r) => {
+                          const pct = demandTotal > 0 ? (r.user_count / demandTotal) * 100 : 0;
+                          return (
+                            <TableRow key={r.locale}>
+                              <TableCell>
+                                <span className="font-mono text-xs">{r.locale}</span>
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  {languageName(r.locale)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {r.user_count.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {pct.toFixed(1)}%
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {r.shipped === false ? (
+                                  <Badge variant="outline" tone="red" size="sm">
+                                    Not shipped
+                                  </Badge>
+                                ) : r.shipped === true ? (
+                                  <Badge variant="outline" tone="green" size="sm">
+                                    Shipped
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    <p className="text-xs text-muted-foreground">
+                      Share is of the{" "}
+                      <span className="font-medium tabular-nums">
+                        {demandTotal.toLocaleString()}
+                      </span>{" "}
+                      of {totalUsers.toLocaleString()} users who report a preferred language.
+                    </p>
+                  </>
                 ) : (
                   <p className="py-6 text-center text-sm text-muted-foreground">
                     No preferred-language data yet — users need the latest SDK. The country
@@ -275,36 +294,46 @@ export default function LocalesPage() {
                     label: r.country_code,
                     count: r.user_count,
                   }))}
-                  total={totalUsers}
+                  total={usersWithCountry}
                 />
                 {data && data.by_country.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Country</TableHead>
-                        <TableHead className="text-right">Users</TableHead>
-                        <TableHead className="text-right">Share</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.by_country.map((r) => {
-                        const pct = totalUsers > 0 ? (r.user_count / totalUsers) * 100 : 0;
-                        return (
-                          <TableRow key={r.country_code}>
-                            <TableCell>
-                              <CountryCell code={r.country_code} showName />
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {r.user_count.toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-muted-foreground">
-                              {pct.toFixed(1)}%
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Country</TableHead>
+                          <TableHead className="text-right">Users</TableHead>
+                          <TableHead className="text-right">Share</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.by_country.map((r) => {
+                          const pct =
+                            usersWithCountry > 0 ? (r.user_count / usersWithCountry) * 100 : 0;
+                          return (
+                            <TableRow key={r.country_code}>
+                              <TableCell>
+                                <CountryCell code={r.country_code} showName />
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {r.user_count.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {pct.toFixed(1)}%
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                    <p className="text-xs text-muted-foreground">
+                      Share is of the{" "}
+                      <span className="font-medium tabular-nums">
+                        {usersWithCountry.toLocaleString()}
+                      </span>{" "}
+                      of {totalUsers.toLocaleString()} users with a known country.
+                    </p>
+                  </>
                 ) : (
                   <p className="py-6 text-center text-sm text-muted-foreground">
                     No country data yet.
