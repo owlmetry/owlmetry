@@ -55,6 +55,12 @@ export interface IngestEventPayload {
   build_number?: string;
   device_model?: string;
   locale?: string;
+  // User's top wanted language (Locale.preferredLanguages.first), unconstrained
+  // by the app — the localization-demand signal.
+  preferred_language?: string;
+  // The languages this app ships (Bundle.main.localizations). App-level; the
+  // server writes it through to apps.supported_languages, not onto the event row.
+  supported_languages?: string[];
   is_dev?: boolean;
   timestamp?: string; // ISO 8601
 }
@@ -77,6 +83,7 @@ export interface StoredEvent {
   build_number: string | null;
   device_model: string | null;
   locale: string | null;
+  preferred_language: string | null;
   country_code: string | null;
   is_dev: boolean;
   timestamp: Date;

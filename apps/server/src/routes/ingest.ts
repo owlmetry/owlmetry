@@ -13,6 +13,7 @@ import {
   buildEventRow,
   dualWriteSpecializedEvents,
   upsertAppUsers,
+  updateAppSupportedLanguages,
   resolveIngestCountryCode,
 } from "../utils/event-processing.js";
 import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
@@ -146,6 +147,13 @@ export async function ingestRoutes(app: FastifyInstance) {
         await app.db.insert(events).values(valid);
         await dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
         await upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+
+        // Keep the app's shipped-languages list (drives the localization gap)
+        // current from what the SDK reports. No-ops when unchanged.
+        const supportedLanguages = payloads.find(
+          (p) => Array.isArray(p.supported_languages) && p.supported_languages.length > 0
+        )?.supported_languages;
+        await updateAppSupportedLanguages(app.db, app_id, supportedLanguages, request.log);
 
         // Sweep straggler events for any anon_id whose claimed_from mapping
         // we just resolved. Claim's UPDATE events catches only rows committed

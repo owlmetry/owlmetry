@@ -37,7 +37,7 @@ const MCP_HEADERS = {
 const EXPECTED_TOOLS_BY_DOMAIN = {
   auth: ["whoami", "create-import-key"],
   projects: ["list-projects", "get-project", "create-project", "update-project"],
-  apps: ["list-apps", "get-app", "create-app", "update-app", "list-app-users"],
+  apps: ["list-apps", "get-app", "create-app", "update-app", "list-app-users", "list-user-locales"],
   events: ["query-events", "get-event", "investigate-event"],
   metrics: [
     "list-metrics",
@@ -120,6 +120,7 @@ const EXPECTED_INSTRUCTION_KEYWORDS = [
   "Feedback",
   "Questionnaires",
   "Reviews & ratings",
+  "Locale demand",
   "Ads insights",
   "Time-series rollups",
   "Attachments",

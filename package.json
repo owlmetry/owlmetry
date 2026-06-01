@@ -11,6 +11,8 @@
     "dev:seed-events": "pnpm --filter @owlmetry/db dev:seed-events",
     "dev:seed-issues": "pnpm --filter @owlmetry/db dev:seed-issues",
     "dev:seed-aggregates": "pnpm --filter @owlmetry/db dev:seed-aggregates",
+    "dev:seed-locale-users": "pnpm --filter @owlmetry/db dev:seed-locale-users",
+    "dev:backfill-locale": "pnpm --filter @owlmetry/db dev:backfill-locale",
     "dev:unsafe-reset": "pnpm --filter @owlmetry/db dev:unsafe-reset",
     "db:cleanup": "pnpm --filter @owlmetry/db cleanup",
     "db:cleanup-stranded-anons": "pnpm --filter @owlmetry/db cleanup-stranded-anons",

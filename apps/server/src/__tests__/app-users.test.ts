@@ -15,6 +15,7 @@ import {
 
 let app: FastifyInstance;
 let appId: string;
+let projectId: string;
 
 beforeAll(async () => {
   app = await buildApp();
@@ -24,6 +25,7 @@ beforeEach(async () => {
   await truncateAll();
   const seed = await seedTestData();
   appId = seed.appId;
+  projectId = seed.projectId;
 });
 
 afterAll(async () => {
@@ -233,6 +235,117 @@ describe("GET /v1/apps/:id/users", () => {
     const keyWithoutAppsRead = await createAgentKey(app, token, teamId, ["events:read"]);
 
     const res = await getUsers(appId, {}, keyWithoutAppsRead);
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe("locale demand", () => {
+  // Ingest a skewed locale population: French + Japanese (not shipped) and
+  // English + German (shipped), with supported_languages reported by the SDK.
+  // One ingest per user — mirrors reality (a batch comes from a single device),
+  // since the denormalized last_* fields are resolved per batch.
+  async function seedLocaleEvents() {
+    const users: Array<[string, string | null, string | null]> = [
+      ["u-fr-1", "fr-FR", "en_FR"],
+      ["u-fr-2", "fr-FR", "en_FR"],
+      ["u-fr-3", "fr-CA", "en_CA"],
+      ["u-ja-1", "ja", "en_JP"],
+      ["u-en-1", "en-US", "en_US"],
+      ["u-de-1", "de-DE", "de_DE"],
+      // A user with no preferred language (pre-upgrade SDK) — country only.
+      ["u-none", null, null],
+    ];
+    for (const [user_id, preferred_language, locale] of users) {
+      await ingest([
+        {
+          level: "info",
+          message: "hi",
+          user_id,
+          session_id: TEST_SESSION_ID,
+          ...(locale ? { locale } : {}),
+          ...(preferred_language ? { preferred_language } : {}),
+          supported_languages: ["en", "de", "Base"],
+        },
+      ]);
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  function getLocales(path: string, params: Record<string, string> = {}, key = TEST_AGENT_KEY) {
+    const qs = new URLSearchParams(params).toString();
+    return app.inject({
+      method: "GET",
+      url: `${path}${qs ? `?${qs}` : ""}`,
+      headers: { authorization: `Bearer ${key}` },
+    });
+  }
+
+  it("ranks wanted languages and flags the localization gap (project-scoped)", async () => {
+    await seedLocaleEvents();
+
+    const res = await getLocales(`/v1/projects/${projectId}/users/locales`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    // supported_languages from the SDK report, with "Base" stripped.
+    expect(body.supported_languages).toEqual(["de", "en"]);
+
+    const frFR = body.by_locale.find((r: any) => r.locale === "fr-FR");
+    expect(frFR).toMatchObject({ base_language: "fr", user_count: 2, shipped: false });
+
+    // fr-CA is a separate full-locale row but still gaps on base language "fr".
+    const frCA = body.by_locale.find((r: any) => r.locale === "fr-CA");
+    expect(frCA).toMatchObject({ base_language: "fr", shipped: false });
+
+    const ja = body.by_locale.find((r: any) => r.locale === "ja");
+    expect(ja.shipped).toBe(false);
+
+    const enUS = body.by_locale.find((r: any) => r.locale === "en-US");
+    expect(enUS.shipped).toBe(true);
+
+    const deDE = body.by_locale.find((r: any) => r.locale === "de-DE");
+    expect(deDE.shipped).toBe(true);
+
+    // The no-preferred-language user is excluded from by_locale but counted in totals.
+    expect(body.users_with_preferred_language).toBe(6);
+    expect(body.total_users).toBe(7);
+    expect(body.by_locale.some((r: any) => r.locale === null)).toBe(false);
+  });
+
+  it("includes a country breakdown for every user", async () => {
+    await seedLocaleEvents();
+    // CF-IPCountry isn't set in tests, so country is null — assert the shape is
+    // present and the demand totals still hold even without country data.
+    const res = await getLocales(`/v1/projects/${projectId}/users/locales`);
+    const body = res.json();
+    expect(Array.isArray(body.by_country)).toBe(true);
+  });
+
+  it("aggregates across the team and omits gap flags with no project scope", async () => {
+    await seedLocaleEvents();
+
+    const res = await getLocales(`/v1/users/locales`);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // No project/app narrowing ⇒ shipped is null (no gap flags) across apps.
+    expect(body.supported_languages).toBeNull();
+    const frFR = body.by_locale.find((r: any) => r.locale === "fr-FR");
+    expect(frFR.shipped).toBeNull();
+    expect(body.total_users).toBe(7);
+  });
+
+  it("surfaces last_locale + last_preferred_language on the user listing", async () => {
+    await seedLocaleEvents();
+    const res = await getUsers(appId, { search: "u-fr-1" });
+    const user = res.json().users[0];
+    expect(user.last_preferred_language).toBe("fr-FR");
+    expect(user.last_locale).toBe("en_FR");
+  });
+
+  it("rejects agent key without apps:read permission", async () => {
+    const { token, teamId } = await getTokenAndTeamId(app);
+    const keyWithoutAppsRead = await createAgentKey(app, token, teamId, ["events:read"]);
+    const res = await getLocales(`/v1/projects/${projectId}/users/locales`, {}, keyWithoutAppsRead);
     expect(res.statusCode).toBe(403);
   });
 });

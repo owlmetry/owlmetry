@@ -154,6 +154,24 @@ const BUILTIN_COLUMNS: Record<string, UserColumnDef> = {
     cellClassName: "text-xs py-1.5",
     render: (user) => <CountryCell code={user.last_country_code} />,
   },
+  language: {
+    id: "language",
+    label: "Language",
+    headerClassName: "w-[90px]",
+    cellClassName: "font-mono text-xs py-1.5",
+    // Wanted language (Locale.preferredLanguages.first) — the localization-demand signal.
+    render: (user) =>
+      user.last_preferred_language || <span className="text-muted-foreground font-sans">—</span>,
+  },
+  locale: {
+    id: "locale",
+    label: "Locale",
+    headerClassName: "w-[90px]",
+    cellClassName: "font-mono text-xs py-1.5",
+    // Shown locale (Locale.current) — what the app is actually displaying.
+    render: (user) =>
+      user.last_locale || <span className="text-muted-foreground font-sans">—</span>,
+  },
   sdk: {
     id: "sdk",
     label: "SDK",

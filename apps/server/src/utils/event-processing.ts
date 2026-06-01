@@ -1,6 +1,6 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@owlmetry/db";
-import { events, appUsers, appUserApps, metricEvents, funnelEvents } from "@owlmetry/db";
+import { apps, events, appUsers, appUserApps, metricEvents, funnelEvents } from "@owlmetry/db";
 import { ANONYMOUS_ID_PREFIX, parseMetricMessage, parseFunnelStepMessage } from "@owlmetry/shared";
 import {
   MAX_CUSTOM_ATTRIBUTE_VALUE_LENGTH,
@@ -118,6 +118,7 @@ export function buildEventRow(
     device_model: e.device_model || null,
     build_number: e.build_number || null,
     locale: e.locale || null,
+    preferred_language: e.preferred_language || null,
     country_code,
     is_dev: e.is_dev ?? false,
     timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
@@ -247,6 +248,9 @@ export async function upsertAppUsers(
   const appVersion = validEvents.find((e) => e.app_version)?.app_version ?? null;
   const sdkName = validEvents.find((e) => e.sdk_name)?.sdk_name ?? null;
   const sdkVersion = validEvents.find((e) => e.sdk_version)?.sdk_version ?? null;
+  const locale = validEvents.find((e) => e.locale)?.locale ?? null;
+  const preferredLanguage =
+    validEvents.find((e) => e.preferred_language)?.preferred_language ?? null;
 
   const userRows = uniqueUserIds.map((uid) => ({
     project_id,
@@ -256,6 +260,8 @@ export async function upsertAppUsers(
     last_app_version: appVersion,
     last_sdk_name: sdkName,
     last_sdk_version: sdkVersion,
+    last_locale: locale,
+    last_preferred_language: preferredLanguage,
   }));
   try {
     // Don't wipe a previously-resolved country/version when this batch came without one.
@@ -270,6 +276,8 @@ export async function upsertAppUsers(
           ...(appVersion ? { last_app_version: appVersion } : {}),
           ...(sdkName ? { last_sdk_name: sdkName } : {}),
           ...(sdkVersion ? { last_sdk_version: sdkVersion } : {}),
+          ...(locale ? { last_locale: locale } : {}),
+          ...(preferredLanguage ? { last_preferred_language: preferredLanguage } : {}),
         },
       })
       .returning({ id: appUsers.id, user_id: appUsers.user_id });
@@ -291,5 +299,53 @@ export async function upsertAppUsers(
     // guarantee — events are already committed by the caller, this is
     // the denormalised view.
     log.warn({ err }, "Failed to upsert app_users");
+  }
+}
+
+/**
+ * Write the app's shipped languages (Bundle.main.localizations, reported by the
+ * SDK on the ingest payload) through to apps.supported_languages, but only when
+ * the set differs from what's stored. Powers the localization-gap signal. SDK
+ * reports are authoritative (source 'sdk') and override a prior 'manual' value.
+ * Best-effort — a failure here never fails ingest. App-level, so it's persisted
+ * on the apps row rather than per-event.
+ */
+export async function updateAppSupportedLanguages(
+  db: Db,
+  app_id: string,
+  supportedLanguages: string[] | null | undefined,
+  log: FastifyBaseLogger,
+): Promise<void> {
+  if (!supportedLanguages || supportedLanguages.length === 0) return;
+  // Normalize: drop "Base"/blanks, trim, dedupe, sort — so the comparison and
+  // the stored value are order-insensitive and stable.
+  const next = [
+    ...new Set(
+      supportedLanguages
+        .filter((l): l is string => typeof l === "string")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && l !== "Base")
+    ),
+  ].sort();
+  if (next.length === 0) return;
+  try {
+    const [row] = await db
+      .select({ supported_languages: apps.supported_languages })
+      .from(apps)
+      .where(eq(apps.id, app_id))
+      .limit(1);
+    const current = (row?.supported_languages ?? []).slice().sort();
+    if (
+      current.length === next.length &&
+      current.every((v, i) => v === next[i])
+    ) {
+      return; // unchanged — skip the write
+    }
+    await db
+      .update(apps)
+      .set({ supported_languages: next, supported_languages_source: "sdk" })
+      .where(eq(apps.id, app_id));
+  } catch (err) {
+    log.warn({ err }, "Failed to update app supported_languages");
   }
 }

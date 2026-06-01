@@ -34,6 +34,7 @@ Capabilities:
 - Feedback — free-text user feedback: list, status, comments
 - Questionnaires — structured in-app surveys (text / single & multi choice / 1–5 rating / 0–10 NPS) with per-question analytics
 - Reviews & ratings — App Store reviews + per-country rating snapshots; reply to reviews
+- Locale demand — rank users by wanted language + country, flag languages with demand the app doesn't ship yet (list-user-locales)
 - Ads insights — campaign / ad-group / leaf rankings by revenue + spend + ROAS (Apple Search Ads today)
 - Time-series rollups — daily + hourly aggregates for events / users / sessions / metric completions / funnel completions / questionnaire responses; retained indefinitely, powers sparklines and arbitrary-range trend pages (query-stats-bucketed)
 - Attachments — binary files attached to events; signed downloads

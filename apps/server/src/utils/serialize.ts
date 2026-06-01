@@ -51,6 +51,8 @@ export function serializeAppUser(u: {
   last_app_version?: string | null;
   last_sdk_name?: string | null;
   last_sdk_version?: string | null;
+  last_locale?: string | null;
+  last_preferred_language?: string | null;
   total_revenue_usd_cents?: number | null;
   revenue_synced_at?: Date | null;
 }) {
@@ -73,6 +75,8 @@ export function serializeAppUser(u: {
     last_app_version: u.last_app_version ?? null,
     last_sdk_name: u.last_sdk_name ?? null,
     last_sdk_version: u.last_sdk_version ?? null,
+    last_locale: u.last_locale ?? null,
+    last_preferred_language: u.last_preferred_language ?? null,
     total_revenue_usd_cents: u.total_revenue_usd_cents ?? null,
     revenue_synced_at: u.revenue_synced_at?.toISOString() ?? null,
   };
@@ -164,6 +168,8 @@ export function serializeApp(a: {
   worldwide_current_version_rating?: string | number | null;
   worldwide_current_version_rating_count?: number | null;
   ratings_synced_at?: Date | null;
+  supported_languages?: string[] | null;
+  supported_languages_source?: string | null;
   client_secret?: string | null;
   created_at: Date; deleted_at: Date | null;
 }) {
@@ -189,7 +195,9 @@ export function serializeApp(a: {
     worldwide_current_version_rating: toNum(a.worldwide_current_version_rating),
     worldwide_current_version_rating_count: a.worldwide_current_version_rating_count ?? null,
     ratings_synced_at: a.ratings_synced_at?.toISOString() ?? null,
-    client_secret: a.client_secret ?? null,
+    supported_languages: a.supported_languages ?? null,
+    supported_languages_source: (a.supported_languages_source ?? null) as "sdk" | "manual" | null,
     created_at: a.created_at.toISOString(),
+    client_secret: a.client_secret ?? null,
   };
 }

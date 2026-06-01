@@ -157,6 +157,12 @@ export const apps = pgTable(
     worldwide_current_version_rating: numeric("worldwide_current_version_rating", { precision: 3, scale: 2 }),
     worldwide_current_version_rating_count: integer("worldwide_current_version_rating_count"),
     ratings_synced_at: timestamp("ratings_synced_at", { withTimezone: true }),
+    // The languages this app ships, used to compute the localization gap
+    // (demand for a language the app doesn't ship). Auto-reported by the SDK
+    // from `Bundle.main.localizations` (source 'sdk', authoritative); 'manual'
+    // is an optional override for apps not yet reporting.
+    supported_languages: text("supported_languages").array(),
+    supported_languages_source: varchar("supported_languages_source", { length: 10 }),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -225,7 +231,12 @@ export const events = pgTable(
     sdk_version: varchar("sdk_version", { length: 50 }),
     device_model: varchar("device_model", { length: 100 }),
     build_number: varchar("build_number", { length: 50 }),
+    // `locale` is the *shown* locale (Locale.current on iOS) — its language
+    // component is constrained to what the app ships. `preferred_language` is
+    // the user's top *wanted* language (Locale.preferredLanguages.first),
+    // unconstrained by the app — the real localization-demand signal.
     locale: varchar("locale", { length: 20 }),
+    preferred_language: varchar("preferred_language", { length: 35 }),
     country_code: varchar("country_code", { length: 2 }),
     is_dev: boolean("is_dev").notNull().default(false),
     timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
@@ -280,6 +291,11 @@ export const appUsers = pgTable(
     last_app_version: varchar("last_app_version", { length: 50 }),
     last_sdk_name: varchar("last_sdk_name", { length: 50 }),
     last_sdk_version: varchar("last_sdk_version", { length: 50 }),
+    // Denormalized locale signals (see events.locale / events.preferred_language).
+    // `last_locale` (shown) is backfillable from historical events; `last_preferred_language`
+    // (wanted) only populates as users upgrade to the SDK that captures it.
+    last_locale: varchar("last_locale", { length: 20 }),
+    last_preferred_language: varchar("last_preferred_language", { length: 35 }),
     // Lifetime USD revenue (no `rc_` prefix — source-agnostic so future
     // providers like Superwall/Stripe can land without a column rename).
     // Today only the RevenueCat sync writes here, summing

@@ -76,3 +76,15 @@ List users for a specific app. Supports search, filtering, and pagination.
 | `billing_status` | string | No | Comma-separated billing tiers to include: `paid`, `trial`, `free`. Derived from RevenueCat-synced user properties. Omit or pass all three for no filter. |
 | `cursor` | string | No | Pagination cursor |
 | `limit` | number | No | Max results (default 50, max 200) |
+
+## list-user-locales
+
+Locale demand for deciding where to localize next. Returns `by_locale` (users grouped by their **wanted** language with a `shipped` flag), `by_country` (works for every user today), `supported_languages`, and totals.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `team_id` | UUID | No | Filter to a team you belong to |
+| `project_id` | UUID | No | Narrow to one project (enables the `shipped`/gap flags) |
+| `app_id` | UUID | No | Narrow to one app (enables the `shipped`/gap flags) |
+
+`team_id` ⊥ `project_id` ⊥ `app_id`. `shipped` is `false` for languages the app doesn't ship yet, `true` when shipped, and `null` (no flag) when more than one app is in scope. The language breakdown fills in as users upgrade to the SDK that reports preferred language — until then, lean on `by_country`.

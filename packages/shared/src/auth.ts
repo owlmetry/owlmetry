@@ -193,6 +193,9 @@ export interface App {
   worldwide_current_version_rating: number | null;
   worldwide_current_version_rating_count: number | null;
   ratings_synced_at: Date | null;
+  /** Languages this app ships (Bundle.main.localizations), drives the localization gap. */
+  supported_languages: string[] | null;
+  supported_languages_source: "sdk" | "manual" | null;
   created_at: Date;
   deleted_at: Date | null;
 }

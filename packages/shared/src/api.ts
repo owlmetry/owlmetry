@@ -499,6 +499,10 @@ export interface AppUserResponse {
   last_app_version: string | null;
   last_sdk_name: string | null;
   last_sdk_version: string | null;
+  /** Shown locale (Locale.current), e.g. "en_US". Backfilled from events. */
+  last_locale: string | null;
+  /** Wanted language (Locale.preferredLanguages.first), e.g. "fr-CA". Null until SDK upgrade. */
+  last_preferred_language: string | null;
   /** Lifetime USD revenue in cents (e.g. 4295 → $42.95). Null pre-RC-sync. */
   total_revenue_usd_cents: number | null;
   revenue_synced_at: string | null;
@@ -527,6 +531,41 @@ export interface TeamAppUsersQueryParams extends AppUsersQueryParams {
   app_id?: string;
   since?: string;
   until?: string;
+}
+
+// Locale demand / localization gap
+/** Base language for an app: shipping "fr" clears demand for "fr", "fr-FR", "fr-CA". */
+export function baseLanguage(tag: string): string {
+  return tag.split(/[-_]/)[0].toLowerCase();
+}
+
+export interface LocaleDemandRow {
+  /** Full preferred-language tag as reported, e.g. "fr-FR", "fr", "pt-BR". */
+  locale: string;
+  /** Lowercased base language, e.g. "fr". */
+  base_language: string;
+  user_count: number;
+  /**
+   * Whether the app already ships this base language. Null when not computable
+   * (multi-app/project scope, or no supported_languages configured) — render
+   * demand without a gap badge.
+   */
+  shipped: boolean | null;
+}
+
+export interface CountryDemandRow {
+  country_code: string;
+  user_count: number;
+}
+
+export interface UserLocalesResponse {
+  by_locale: LocaleDemandRow[];
+  by_country: CountryDemandRow[];
+  /** Union of supported languages across in-scope apps; null when unknown. */
+  supported_languages: string[] | null;
+  /** Users with a non-null preferred language (the demand-signal denominator). */
+  users_with_preferred_language: number;
+  total_users: number;
 }
 
 // User Properties

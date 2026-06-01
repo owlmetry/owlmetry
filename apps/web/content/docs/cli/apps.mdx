@@ -95,6 +95,24 @@ Only the app name can be updated. Bundle IDs are immutable after creation.
 
 The CLI does not expose an `apps delete` command. App deletion is user-only — agent API keys receive a `403` from the delete endpoint. To delete an app, use the web dashboard while signed in as a user.
 
+## Locale demand
+
+```bash
+owlmetry locales --project-id <id>
+owlmetry locales --app-id <id>
+owlmetry locales --team-id <id>
+```
+
+Shows where your localization demand is: users grouped by their **wanted** language (e.g. `fr-FR`, `pt-BR`) with a `NOT SHIPPED` flag for languages the app doesn't ship yet, plus a country breakdown that works for every user today.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--project-id <id>` | No | Narrow to a project (enables the shipped/gap flags) |
+| `--app-id <id>` | No | Narrow to an app (enables the shipped/gap flags) |
+| `--team-id <id>` | No | Filter to a team |
+
+The shipped/gap flags only appear when a single app or project is in scope. The language breakdown fills in as users upgrade to the SDK that reports preferred language; until then the country breakdown is your signal. Supports `--format json`.
+
 ## JSON output
 
 All app commands support `--format json` for machine-readable output:

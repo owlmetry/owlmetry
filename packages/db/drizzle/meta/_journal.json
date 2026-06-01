@@ -414,6 +414,13 @@
       "when": 1779349457029,
       "tag": "0058_quiet_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1780319548858,
+      "tag": "0059_fuzzy_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

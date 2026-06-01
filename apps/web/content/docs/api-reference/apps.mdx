@@ -214,4 +214,50 @@ List users across apps/projects/teams. Accepts the same filters as `/v1/apps/:id
 | `cursor` | string | Cursor from previous response. |
 | `limit` | number | Items per page (1-200, default 50). |
 
-Response shape is identical to `/v1/apps/:id/users`.
+Response shape is identical to `/v1/apps/:id/users`. Each user object also carries `last_locale` (the shown locale, e.g. `en_US`) and `last_preferred_language` (the wanted language, e.g. `fr-CA`, null until the user is on the SDK that reports it).
+
+## GET /v1/projects/:projectId/users/locales
+
+Locale demand for a single project — users grouped by wanted language and by country, with the localization gap flagged.
+
+**Auth required:** Yes (`apps:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `app_id` | string | Narrow to a single app within the project. |
+
+### Response
+
+```json
+{
+  "by_locale": [
+    { "locale": "fr-FR", "base_language": "fr", "user_count": 980, "shipped": false }
+  ],
+  "by_country": [
+    { "country_code": "FR", "user_count": 1240 }
+  ],
+  "supported_languages": ["en", "de"],
+  "users_with_preferred_language": 3400,
+  "total_users": 5000
+}
+```
+
+`by_locale` is sorted by `user_count` descending; `locale` is the device's preferred-language tag and `shipped` is `false` when the app doesn't ship that base language (`null` when no `supported_languages` are configured). `by_country` derives from `last_country_code` and is available for every user regardless of SDK version.
+
+## GET /v1/users/locales
+
+Team-scoped variant of the above. `team_id` ⊥ `project_id` ⊥ `app_id`; with no narrowing it aggregates across every project in the caller's teams (and returns `supported_languages: null`, so no gap flags).
+
+**Auth required:** Yes (`apps:read` permission or JWT)
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `team_id` | string | Filter to a specific team. |
+| `project_id` | string | Narrow to a single project (enables gap flags). |
+| `app_id` | string | Narrow to a single app (enables gap flags). |
+
+Response shape is identical to `/v1/projects/:projectId/users/locales`.

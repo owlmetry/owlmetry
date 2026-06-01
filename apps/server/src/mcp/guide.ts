@@ -275,6 +275,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
   - **Naming (strict)**: app names MUST always be \`<project name> <platform>\` — e.g. "Lofi iOS", "Lofi Android", "Lofi Web", "Lofi Backend". Never omit the platform suffix, even if the project name seems to imply a platform.
 - \`update-app\` — Update app name (needs \`apps:write\`)
 - \`list-app-users\` — List users for an app (search, anonymous filter, billing tier filter, pagination)
+- \`list-user-locales\` — Locale demand for deciding where to localize next. Returns \`by_locale\` (users grouped by their **wanted** language — device \`Locale.preferredLanguages.first\`, e.g. \`fr-FR\`, \`pt-BR\` — each with a \`shipped\` flag) and \`by_country\` (works for every user today, no SDK upgrade needed). Narrow with \`project_id\` and/or \`app_id\` to populate the \`shipped\`/gap flags (\`shipped: false\` = demand for a language the app doesn't ship yet); \`team_id\` ⊥ \`project_id\` ⊥ \`app_id\`. \`shipped\` is \`null\` (no flag) across multiple apps. The language signal fills in as users upgrade to the SDK that reports preferred language; until then lean on the country breakdown.
 
 #### Latest version detection
 Every app response includes \`latest_app_version\`, \`latest_app_version_updated_at\`, and \`latest_app_version_source\` (\`"app_store"\` for Apple apps resolved via the iTunes Lookup API; \`"computed"\` for everything else, derived from the highest \`app_version\` seen in production events). Refreshed hourly by the \`app_version_sync\` system job, and immediately on Apple app create. To compare a user/event/issue version against the latest, use string equality with the app's \`latest_app_version\` (semver-aware comparison only matters for ordering — equality is enough to flag "on latest"). Trigger \`app_version_sync\` with \`{ app_id }\` to refresh a single app on demand.
@@ -373,7 +374,7 @@ Your agent key has specific permissions. Common permission sets:
 | \`events:read\` | query-events, get-event, investigate-event |
 | \`projects:read\` | list-projects, get-project |
 | \`projects:write\` | create-project, update-project |
-| \`apps:read\` | list-apps, get-app, list-app-users |
+| \`apps:read\` | list-apps, get-app, list-app-users, list-user-locales |
 | \`apps:write\` | create-app, update-app |
 | \`metrics:read\` | list-metrics, get-metric, query-metric, list-metric-events |
 | \`metrics:write\` | create-metric, update-metric, delete-metric |

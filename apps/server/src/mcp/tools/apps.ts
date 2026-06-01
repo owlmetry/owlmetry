@@ -76,4 +76,24 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
       url: `/v1/apps/${app_id}/users${buildQuery({ search, is_anonymous, billing_status, cursor, limit })}`,
     });
   });
+
+  server.registerTool("list-user-locales", {
+    description:
+      "Locale demand for deciding where to localize next. Ranks users by their wanted language " +
+      "(device preferred language, e.g. fr-FR / pt-BR) and by country, and flags languages with " +
+      "demand the app does NOT ship yet (the localization gap). Narrow with project_id and/or " +
+      "app_id to enable the shipped/gap flags (team_id ⊥ project_id ⊥ app_id). The country " +
+      "breakdown works for every user today; the language breakdown fills in as users upgrade to " +
+      "the SDK that reports preferred language.",
+    inputSchema: {
+      team_id: z.string().uuid().optional().describe("Filter to a team you belong to"),
+      project_id: z.string().uuid().optional().describe("Narrow to one project (enables gap flags)"),
+      app_id: z.string().uuid().optional().describe("Narrow to one app (enables gap flags)"),
+    },
+  }, async ({ team_id, project_id, app_id }) => {
+    return callApi(app, agentKey, {
+      method: "GET",
+      url: `/v1/users/locales${buildQuery({ team_id, project_id, app_id })}`,
+    });
+  });
 }
