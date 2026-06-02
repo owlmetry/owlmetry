@@ -15,11 +15,13 @@ import type {
   TeamAppUsersQueryParams,
   UserLocalesResponse,
   LocaleDemandRow,
+  DataMode,
 } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { serializeAppUser } from "../utils/serialize.js";
 import { normalizeLimit } from "../utils/pagination.js";
 import { paidTierPredicate } from "../utils/billing-sql.js";
+import { dataModeToDrizzle } from "../utils/data-mode.js";
 
 /**
  * Build a SQL predicate that matches users in any of the requested billing tiers.
@@ -149,13 +151,15 @@ async function computeLocaleDemand(
   opts: {
     projectIds: string[];
     appId?: string;
+    dataMode?: DataMode;
     supportedLanguages: (string[] | null) | Promise<string[] | null>;
   },
 ): Promise<UserLocalesResponse> {
   const { projectIds, appId } = opts;
+  const devCondition = dataModeToDrizzle(appUsers.is_dev, opts.dataMode) ?? undefined;
   const scope = appId
-    ? and(inArray(appUsers.project_id, projectIds), eq(appUserApps.app_id, appId))
-    : inArray(appUsers.project_id, projectIds);
+    ? and(inArray(appUsers.project_id, projectIds), eq(appUserApps.app_id, appId), devCondition)
+    : and(inArray(appUsers.project_id, projectIds), devCondition);
 
   // A `GROUP BY <column>` count over the in-scope users. When an app filter is
   // active we join through the junction; otherwise project_id alone bounds it.
@@ -239,7 +243,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const auth = request.auth;
       const { id } = request.params;
-      const { search, is_anonymous, billing_status, sort, cursor, limit: rawLimit } = request.query;
+      const { search, is_anonymous, billing_status, data_mode, sort, cursor, limit: rawLimit } = request.query;
 
       const limit = normalizeLimit(rawLimit);
       const sortColumn = sort === "first_seen" ? appUsers.first_seen_at : appUsers.last_seen_at;
@@ -260,6 +264,9 @@ export async function appUsersRoutes(app: FastifyInstance) {
 
       // Query users via junction table
       const conditions = [];
+
+      const devCondition = dataModeToDrizzle(appUsers.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
 
       if (is_anonymous === "true") {
         conditions.push(eq(appUsers.is_anonymous, true));
@@ -299,6 +306,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
           last_preferred_language: appUsers.last_preferred_language,
           total_revenue_usd_cents: appUsers.total_revenue_usd_cents,
           revenue_synced_at: appUsers.revenue_synced_at,
+          is_dev: appUsers.is_dev,
         })
         .from(appUsers)
         .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))
@@ -341,6 +349,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
         search,
         is_anonymous,
         billing_status,
+        data_mode,
         since,
         until,
         sort,
@@ -360,6 +369,9 @@ export async function appUsersRoutes(app: FastifyInstance) {
       }
 
       const conditions = [];
+
+      const devCondition = dataModeToDrizzle(appUsers.is_dev, data_mode);
+      if (devCondition) conditions.push(devCondition);
 
       // Track whether we need to join through app_user_apps for app filtering
       let filterByAppId: string | null = null;
@@ -447,6 +459,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
               last_sdk_version: appUsers.last_sdk_version,
               total_revenue_usd_cents: appUsers.total_revenue_usd_cents,
               revenue_synced_at: appUsers.revenue_synced_at,
+              is_dev: appUsers.is_dev,
             })
             .from(appUsers)
             .innerJoin(appUserApps, eq(appUserApps.app_user_id, appUsers.id))
@@ -481,13 +494,13 @@ export async function appUsersRoutes(app: FastifyInstance) {
   );
 
   // Locale demand for a single project (optionally narrowed to one app).
-  app.get<{ Params: { projectId: string }; Querystring: { app_id?: string } }>(
+  app.get<{ Params: { projectId: string }; Querystring: { app_id?: string; data_mode?: DataMode } }>(
     "/projects/:projectId/users/locales",
     { preHandler: requirePermission("apps:read") },
     async (request, reply) => {
       const auth = request.auth;
       const { projectId } = request.params;
-      const { app_id } = request.query;
+      const { app_id, data_mode } = request.query;
       const teamIds = getAuthTeamIds(auth);
 
       const [proj] = await app.db
@@ -511,6 +524,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
       return computeLocaleDemand(app.db, {
         projectIds: [projectId],
         appId: app_id,
+        dataMode: data_mode,
         // Passed un-awaited so the lookup overlaps the demand aggregations.
         supportedLanguages: resolveSupportedLanguages(app.db, { appId: app_id, projectId }),
       });
@@ -519,13 +533,13 @@ export async function appUsersRoutes(app: FastifyInstance) {
 
   // Locale demand across a team (optionally narrowed to a project / app).
   // team_id ⊥ project_id ⊥ app_id; short-circuits to empty for inaccessible scope.
-  app.get<{ Querystring: { team_id?: string; project_id?: string; app_id?: string } }>(
+  app.get<{ Querystring: { team_id?: string; project_id?: string; app_id?: string; data_mode?: DataMode } }>(
     "/users/locales",
     { preHandler: requirePermission("apps:read") },
     async (request) => {
       const auth = request.auth;
       const allTeamIds = getAuthTeamIds(auth);
-      const { team_id, project_id, app_id } = request.query;
+      const { team_id, project_id, app_id, data_mode } = request.query;
 
       const teamIds = team_id
         ? (allTeamIds.includes(team_id) ? [team_id] : [])
@@ -571,6 +585,7 @@ export async function appUsersRoutes(app: FastifyInstance) {
       return computeLocaleDemand(app.db, {
         projectIds,
         appId: app_id,
+        dataMode: data_mode,
         // Passed un-awaited so the lookup overlaps the demand aggregations.
         supportedLanguages: resolveSupportedLanguages(app.db, {
           appId: app_id,

@@ -506,6 +506,8 @@ export interface AppUserResponse {
   /** Lifetime USD revenue in cents (e.g. 4295 → $42.95). Null pre-RC-sync. */
   total_revenue_usd_cents: number | null;
   revenue_synced_at: string | null;
+  /** Dev vs prod, derived from client events (last-write-wins). Backend events never set it. */
+  is_dev: boolean;
 }
 
 export interface AppUsersResponse {
@@ -519,6 +521,8 @@ export interface AppUsersQueryParams {
   is_anonymous?: string;
   /** Comma-separated list of billing tiers to include: "paid", "trial", "free". */
   billing_status?: string;
+  /** Filter by dev vs prod (default production). Filters on app_users.is_dev. */
+  data_mode?: DataMode;
   /** Sort order. "last_seen" (default) sorts by last_seen_at desc; "first_seen" sorts by first_seen_at desc. */
   sort?: "last_seen" | "first_seen";
   cursor?: string;

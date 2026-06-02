@@ -415,6 +415,49 @@ describe("POST /v1/ingest", () => {
     expect(events[0].is_dev).toBe(false);
   });
 
+  async function appUserIsDev(userId: string): Promise<boolean | undefined> {
+    const [row] = await app.db
+      .select({ is_dev: appUsers.is_dev })
+      .from(appUsers)
+      .where(eq(appUsers.user_id, userId))
+      .limit(1);
+    return row?.is_dev;
+  }
+
+  it("derives app_users.is_dev from a client dev event", async () => {
+    const res = await ingest([
+      { level: "info", message: "Dev event", session_id: TEST_SESSION_ID, user_id: "dev-client-user", is_dev: true },
+    ]);
+    expect(res.statusCode).toBe(200);
+    expect(await appUserIsDev("dev-client-user")).toBe(true);
+  });
+
+  it("is_dev is last-write-wins for client events (dev then prod flips to prod)", async () => {
+    await ingest([
+      { level: "info", message: "Dev event", session_id: TEST_SESSION_ID, user_id: "flip-user", is_dev: true },
+    ]);
+    expect(await appUserIsDev("flip-user")).toBe(true);
+
+    // A later production event from the shipped build re-classifies the user.
+    await ingest([
+      { level: "info", message: "Prod event", session_id: TEST_SESSION_ID, user_id: "flip-user", is_dev: false },
+    ]);
+    expect(await appUserIsDev("flip-user")).toBe(false);
+  });
+
+  it("does NOT set app_users.is_dev from backend events (dev/test clients hit prod backends)", async () => {
+    // Backend-platform apps are excluded: a backend's events are always
+    // "production" relative to the end user, so even is_dev:true must not flip
+    // the flag — otherwise a dev tester whose backend reports prod looks prod.
+    const res = await ingest(
+      [{ level: "info", message: "Backend dev event", session_id: TEST_SESSION_ID, user_id: "backend-user", is_dev: true }],
+      TEST_BACKEND_CLIENT_KEY,
+      undefined,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(await appUserIsDev("backend-user")).toBe(false);
+  });
+
   it("rejects invalid gzip data", async () => {
     const res = await app.inject({
       method: "POST",

@@ -150,6 +150,7 @@ List users seen by a specific app, ordered by most recently seen.
 | `search` | string | Filter by user_id substring (case-insensitive). |
 | `is_anonymous` | string | `"true"` for anonymous users only, `"false"` for identified users only. |
 | `billing_status` | string | Filter by billing tier (comma-separated). Values: `free`, `trial`, `paid`. Derived from RevenueCat integration properties. |
+| `data_mode` | string | `production` (default), `development`, or `all`. Filters on the user's `is_dev` flag. |
 | `cursor` | string | Cursor from previous response. |
 | `limit` | number | Items per page (1-200, default 50). |
 
@@ -193,6 +194,8 @@ App users are project-scoped: the `project_id` identifies the project, and the `
 
 `last_sdk_name` and `last_sdk_version` are the SDK identifier and version from the most recent event ingested for this user (e.g. `owlmetry-swift` / `0.1.0`). Auto-stamped by official SDKs and updated alongside `last_app_version`. Useful for spotting users on stale SDK versions.
 
+`is_dev` marks the user as a development (test) user vs a real production user. It is derived from the user's **client** events only (apple / android / web apps) on a last-write-wins basis — backend-platform events never set it, because dev/test clients routinely point at production backends. A user is either dev or prod, not both. Filter listings with `data_mode` (`production` is the default).
+
 ## GET /v1/app-users
 
 List users across apps/projects/teams. Accepts the same filters as `/v1/apps/:id/users` plus `team_id`, `project_id`, `app_id`, `since`, and `until` for cross-app queries.
@@ -209,6 +212,7 @@ List users across apps/projects/teams. Accepts the same filters as `/v1/apps/:id
 | `search` | string | Filter by user_id substring (case-insensitive). |
 | `is_anonymous` | string | `"true"` for anonymous users only, `"false"` for identified users only. |
 | `billing_status` | string | Comma-separated billing tiers: `free`, `trial`, `paid`. |
+| `data_mode` | string | `production` (default), `development`, or `all`. Filters on the user's `is_dev` flag. |
 | `since` | string | Filter by `last_seen_at >= since`. Relative or ISO 8601. |
 | `until` | string | Filter by `last_seen_at <= until`. Relative or ISO 8601. |
 | `cursor` | string | Cursor from previous response. |
@@ -227,6 +231,7 @@ Locale demand for a single project — users grouped by wanted language and by c
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `app_id` | string | Narrow to a single app within the project. |
+| `data_mode` | string | `production` (default), `development`, or `all`. Filters on the user's `is_dev` flag. |
 
 ### Response
 
@@ -259,5 +264,6 @@ Team-scoped variant of the above. `team_id` ⊥ `project_id` ⊥ `app_id`; with 
 | `team_id` | string | Filter to a specific team. |
 | `project_id` | string | Narrow to a single project (enables gap flags). |
 | `app_id` | string | Narrow to a single app (enables gap flags). |
+| `data_mode` | string | `production` (default), `development`, or `all`. Filters on the user's `is_dev` flag. |
 
 Response shape is identical to `/v1/projects/:projectId/users/locales`.

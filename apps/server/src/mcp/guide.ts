@@ -274,7 +274,7 @@ Every mutation (create, update, delete) on resources is recorded in audit logs w
   - Returns \`client_secret\` for SDK configuration
   - **Naming (strict)**: app names MUST always be \`<project name> <platform>\` — e.g. "Lofi iOS", "Lofi Android", "Lofi Web", "Lofi Backend". Never omit the platform suffix, even if the project name seems to imply a platform.
 - \`update-app\` — Update app name (needs \`apps:write\`)
-- \`list-app-users\` — List users for an app (search, anonymous filter, billing tier filter, pagination)
+- \`list-app-users\` — List users for an app (search, anonymous filter, billing tier filter, \`data_mode\` dev/prod filter, pagination). A user's dev/prod flag is derived from their client (non-backend) events, last-write-wins; \`data_mode\` defaults to \`production\`.
 - \`list-user-locales\` — Locale demand for deciding where to localize next. Returns \`by_locale\` (users grouped by their **wanted** language — device \`Locale.preferredLanguages.first\`, e.g. \`fr-FR\`, \`pt-BR\` — each with a \`shipped\` flag) and \`by_country\` (works for every user today, no SDK upgrade needed). Narrow with \`project_id\` and/or \`app_id\` to populate the \`shipped\`/gap flags (\`shipped: false\` = demand for a language the app doesn't ship yet); \`team_id\` ⊥ \`project_id\` ⊥ \`app_id\`. \`shipped\` is \`null\` (no flag) across multiple apps. The language signal fills in as users upgrade to the SDK that reports preferred language; until then lean on the country breakdown.
 
 #### Latest version detection

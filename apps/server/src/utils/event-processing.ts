@@ -237,6 +237,7 @@ export async function upsertAppUsers(
   validEvents: Array<typeof events.$inferInsert>,
   project_id: string,
   app_id: string,
+  platform: string,
   log: FastifyBaseLogger,
 ): Promise<void> {
   const uniqueUserIds = [...new Set(
@@ -252,6 +253,14 @@ export async function upsertAppUsers(
   const preferredLanguage =
     validEvents.find((e) => e.preferred_language)?.preferred_language ?? null;
 
+  // A user is dev or prod, last-write-wins — but ONLY client (apple/android/web)
+  // events drive it. Backend apps are excluded: dev/test clients routinely point
+  // at production backends, so a backend's events are always "production" and
+  // would mislabel a dev tester as prod. One ingest batch = one app = one device,
+  // so the batch carries a single is_dev — any true wins within the batch.
+  const isClientPlatform = platform !== "backend";
+  const batchIsDev = isClientPlatform && validEvents.some((e) => e.is_dev);
+
   const userRows = uniqueUserIds.map((uid) => ({
     project_id,
     user_id: uid,
@@ -262,6 +271,7 @@ export async function upsertAppUsers(
     last_sdk_version: sdkVersion,
     last_locale: locale,
     last_preferred_language: preferredLanguage,
+    is_dev: batchIsDev,
   }));
   try {
     // Don't wipe a previously-resolved country/version when this batch came without one.
@@ -278,6 +288,8 @@ export async function upsertAppUsers(
           ...(sdkVersion ? { last_sdk_version: sdkVersion } : {}),
           ...(locale ? { last_locale: locale } : {}),
           ...(preferredLanguage ? { last_preferred_language: preferredLanguage } : {}),
+          // Backend events never overwrite a client-derived dev/prod flag.
+          ...(isClientPlatform ? { is_dev: batchIsDev } : {}),
         },
       })
       .returning({ id: appUsers.id, user_id: appUsers.user_id });

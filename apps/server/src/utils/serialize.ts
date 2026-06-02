@@ -55,6 +55,7 @@ export function serializeAppUser(u: {
   last_preferred_language?: string | null;
   total_revenue_usd_cents?: number | null;
   revenue_synced_at?: Date | null;
+  is_dev?: boolean;
 }) {
   return {
     id: u.id,
@@ -79,6 +80,7 @@ export function serializeAppUser(u: {
     last_preferred_language: u.last_preferred_language ?? null,
     total_revenue_usd_cents: u.total_revenue_usd_cents ?? null,
     revenue_synced_at: u.revenue_synced_at?.toISOString() ?? null,
+    is_dev: u.is_dev ?? false,
   };
 }
 

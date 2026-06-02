@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { AppBadge } from "@/components/badges/app-badge";
 import { UserTypeBadge } from "@/components/badges/user-type-badge";
+import { Badge } from "@/components/ui/badge";
 import { DetailRow } from "@/components/detail-row";
 import { VersionRow, pickLatestForUser } from "@/components/version-badge";
 import { ArrowRight } from "lucide-react";
@@ -163,6 +164,11 @@ export function UserDetailSheet({ user, open, onOpenChange, onFilter, projectCol
           <div className="flex items-center gap-2">
             <ProjectDot color={projectColorMap?.get(user.project_id)} />
             <UserTypeBadge isAnonymous={user.is_anonymous} size="md" />
+            {user.is_dev && (
+              <Badge variant="outline" className="text-xs font-normal">
+                🛠️ Dev
+              </Badge>
+            )}
           </div>
           <SheetTitle className="text-base font-medium mt-1 break-words font-mono">
             {user.user_id}

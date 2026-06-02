@@ -74,6 +74,7 @@ List users for a specific app. Supports search, filtering, and pagination.
 | `search` | string | No | Search by user ID |
 | `is_anonymous` | string | No | `"true"` or `"false"` to filter by anonymous status |
 | `billing_status` | string | No | Comma-separated billing tiers to include: `paid`, `trial`, `free`. Derived from RevenueCat-synced user properties. Omit or pass all three for no filter. |
+| `data_mode` | string | No | `production` (default), `development`, or `all`. A user's dev/prod flag is derived from their client (non-backend) events. |
 | `cursor` | string | No | Pagination cursor |
 | `limit` | number | No | Max results (default 50, max 200) |
 
@@ -86,5 +87,6 @@ Locale demand for deciding where to localize next. Returns `by_locale` (users gr
 | `team_id` | UUID | No | Filter to a team you belong to |
 | `project_id` | UUID | No | Narrow to one project (enables the `shipped`/gap flags) |
 | `app_id` | UUID | No | Narrow to one app (enables the `shipped`/gap flags) |
+| `data_mode` | string | No | `production` (default), `development`, or `all` |
 
 `team_id` ⊥ `project_id` ⊥ `app_id`. `shipped` is `false` for languages the app doesn't ship yet, `true` when shipped, and `null` (no flag) when more than one app is in scope. The language breakdown fills in as users upgrade to the SDK that reports preferred language — until then, lean on `by_country`.

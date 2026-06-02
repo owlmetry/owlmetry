@@ -302,6 +302,12 @@ export const appUsers = pgTable(
     // `total_revenue_in_usd` across the V2 subscriptions response.
     total_revenue_usd_cents: bigint("total_revenue_usd_cents", { mode: "number" }),
     revenue_synced_at: timestamp("revenue_synced_at", { withTimezone: true }),
+    // Dev vs prod, mirroring events.is_dev so user listings/counts can filter by
+    // data_mode like every other surface. Derived from CLIENT events only
+    // (apple/android/web apps) via upsertAppUsers — backend-platform apps never
+    // drive it, because dev/test clients routinely hit production backends and
+    // would otherwise be mislabeled prod. Last-write-wins, like the last_* columns.
+    is_dev: boolean("is_dev").notNull().default(false),
   },
   (table) => [
     uniqueIndex("app_users_project_user_idx").on(table.project_id, table.user_id),
@@ -310,6 +316,7 @@ export const appUsers = pgTable(
     index("app_users_project_revenue_idx")
       .on(table.project_id, table.total_revenue_usd_cents)
       .where(sql`${table.total_revenue_usd_cents} IS NOT NULL`),
+    index("app_users_project_is_dev_idx").on(table.project_id, table.is_dev),
   ]
 );
 

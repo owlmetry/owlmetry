@@ -11,6 +11,7 @@ import type {
 } from "@owlmetry/shared";
 import { buildQueryString } from "@/lib/query";
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnimatedPage, StaggerItem } from "@/components/ui/animated-page";
@@ -42,6 +43,7 @@ export default function LocalesPage() {
   const searchParams = useSearchParams();
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
+  const { dataMode } = useDataMode();
 
   const { data: projectsData } = useSWR<{ projects: ProjectResponse[] }>(
     teamId ? `/v1/projects?team_id=${teamId}` : null,
@@ -102,12 +104,12 @@ export default function LocalesPage() {
   const key = useMemo(() => {
     if (!teamId) return null;
     if (isAllProjects) {
-      const qs = buildQueryString({ team_id: teamId, app_id: isAllApps ? undefined : appId });
+      const qs = buildQueryString({ team_id: teamId, app_id: isAllApps ? undefined : appId, data_mode: dataMode });
       return `/v1/users/locales?${qs}`;
     }
-    const qs = buildQueryString({ app_id: isAllApps ? undefined : appId });
+    const qs = buildQueryString({ app_id: isAllApps ? undefined : appId, data_mode: dataMode });
     return `/v1/projects/${projectId}/users/locales${qs ? `?${qs}` : ""}`;
-  }, [teamId, isAllProjects, projectId, isAllApps, appId]);
+  }, [teamId, isAllProjects, projectId, isAllApps, appId, dataMode]);
 
   const { data, isLoading } = useSWR<UserLocalesResponse>(key);
 

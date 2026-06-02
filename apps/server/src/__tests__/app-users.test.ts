@@ -209,6 +209,49 @@ describe("GET /v1/apps/:id/users", () => {
     });
   });
 
+  describe("data_mode filter", () => {
+    async function seedDevAndProdUsers() {
+      await ingest([
+        { level: "info", message: "prod", user_id: "prod-user", session_id: TEST_SESSION_ID, is_dev: false },
+      ]);
+      await ingest([
+        { level: "info", message: "dev", user_id: "dev-user", session_id: TEST_SESSION_ID, is_dev: true },
+      ]);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    function userIds(body: any): string[] {
+      return body.users.map((u: any) => u.user_id).sort();
+    }
+
+    it("defaults to production (excludes dev users)", async () => {
+      await seedDevAndProdUsers();
+      const res = await getUsers(appId);
+      expect(res.statusCode).toBe(200);
+      expect(userIds(res.json())).toEqual(["prod-user"]);
+    });
+
+    it("development returns only dev users", async () => {
+      await seedDevAndProdUsers();
+      const res = await getUsers(appId, { data_mode: "development" });
+      expect(userIds(res.json())).toEqual(["dev-user"]);
+    });
+
+    it("all returns both", async () => {
+      await seedDevAndProdUsers();
+      const res = await getUsers(appId, { data_mode: "all" });
+      expect(userIds(res.json())).toEqual(["dev-user", "prod-user"]);
+    });
+
+    it("serializes is_dev on each user", async () => {
+      await seedDevAndProdUsers();
+      const res = await getUsers(appId, { data_mode: "all" });
+      const dev = res.json().users.find((u: any) => u.user_id === "dev-user");
+      const prod = res.json().users.find((u: any) => u.user_id === "prod-user");
+      expect(dev.is_dev).toBe(true);
+      expect(prod.is_dev).toBe(false);
+    });
+  });
+
   it("returns 404 for non-existent app", async () => {
     const res = await getUsers("00000000-0000-0000-0000-000000000000");
     expect(res.statusCode).toBe(404);

@@ -110,6 +110,7 @@ Shows where your localization demand is: users grouped by their **wanted** langu
 | `--project-id <id>` | No | Narrow to a project (enables the shipped/gap flags) |
 | `--app-id <id>` | No | Narrow to an app (enables the shipped/gap flags) |
 | `--team-id <id>` | No | Filter to a team |
+| `--data-mode <mode>` | No | `production` (default), `development`, or `all` — filters users by their dev/prod flag |
 
 The shipped/gap flags only appear when a single app or project is in scope. The language breakdown fills in as users upgrade to the SDK that reports preferred language; until then the country breakdown is your signal. Supports `--format json`.
 

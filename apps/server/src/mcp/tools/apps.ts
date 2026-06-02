@@ -4,6 +4,8 @@ import { z } from "zod";
 import { APP_PLATFORMS } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
 
+const DATA_MODES = ["production", "development", "all"] as const;
+
 export function registerAppsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-apps", {
     description: "List all apps accessible to this agent. Optionally filter by team_id.",
@@ -58,7 +60,7 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
   });
 
   server.registerTool("list-app-users", {
-    description: "List users for a specific app. Supports search, anonymous/real filtering, billing-tier filtering, and pagination.",
+    description: "List users for a specific app. Supports search, anonymous/real filtering, billing-tier filtering, data-mode (dev/prod) filtering, and pagination.",
     inputSchema: {
       app_id: z.string().uuid().describe("The app ID"),
       search: z.string().optional().describe("Search by user ID"),
@@ -67,13 +69,16 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
         "Comma-separated billing tiers to include: paid, trial, free. " +
         "Derived from RevenueCat-synced user properties; omit or pass all three for no filter.",
       ),
+      data_mode: z.enum(DATA_MODES).optional().describe(
+        "Filter by data mode (default: production). A user's dev/prod flag is derived from their client (non-backend) events.",
+      ),
       cursor: z.string().optional().describe("Pagination cursor"),
       limit: z.number().optional().describe("Max results (default 50, max 1000)"),
     },
-  }, async ({ app_id, search, is_anonymous, billing_status, cursor, limit }) => {
+  }, async ({ app_id, search, is_anonymous, billing_status, data_mode, cursor, limit }) => {
     return callApi(app, agentKey, {
       method: "GET",
-      url: `/v1/apps/${app_id}/users${buildQuery({ search, is_anonymous, billing_status, cursor, limit })}`,
+      url: `/v1/apps/${app_id}/users${buildQuery({ search, is_anonymous, billing_status, data_mode, cursor, limit })}`,
     });
   });
 
@@ -89,11 +94,12 @@ export function registerAppsTools(server: McpServer, app: FastifyInstance, agent
       team_id: z.string().uuid().optional().describe("Filter to a team you belong to"),
       project_id: z.string().uuid().optional().describe("Narrow to one project (enables gap flags)"),
       app_id: z.string().uuid().optional().describe("Narrow to one app (enables gap flags)"),
+      data_mode: z.enum(DATA_MODES).optional().describe("Filter by data mode (default: production)"),
     },
-  }, async ({ team_id, project_id, app_id }) => {
+  }, async ({ team_id, project_id, app_id, data_mode }) => {
     return callApi(app, agentKey, {
       method: "GET",
-      url: `/v1/users/locales${buildQuery({ team_id, project_id, app_id })}`,
+      url: `/v1/users/locales${buildQuery({ team_id, project_id, app_id, data_mode })}`,
     });
   });
 }

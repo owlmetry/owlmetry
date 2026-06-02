@@ -20,6 +20,7 @@ import { TIME_RANGES } from "@/lib/time-ranges";
 import { FilterSheet, type FilterChip, resolveEntityName, truncateId } from "@/components/filter-sheet";
 import { formatTimeRangeChip } from "@/lib/time-ranges";
 import { useTeam } from "@/contexts/team-context";
+import { useDataMode } from "@/contexts/data-mode-context";
 import { useUrlFilters } from "@/hooks/use-url-filters";
 import { useTeamAppUsers } from "@/hooks/use-team-app-users";
 import { isDefaultColumnOrder } from "@owlmetry/shared/preferences";
@@ -55,6 +56,7 @@ const BILLING_TIER_LABELS: Record<BillingTier, string> = {
 export default function UsersPage() {
   const { currentTeam } = useTeam();
   const teamId = currentTeam?.id;
+  const { dataMode } = useDataMode();
 
   const filters = useUrlFilters({
     path: "/dashboard/users",
@@ -133,6 +135,7 @@ export default function UsersPage() {
   }
   if (filters.computedSince) filterParams.since = filters.computedSince;
   if (filters.computedUntil) filterParams.until = filters.computedUntil;
+  filterParams.data_mode = dataMode;
   const sort = filters.get("sort") === "last_seen" ? "last_seen" : "first_seen";
   filterParams.sort = sort;
 

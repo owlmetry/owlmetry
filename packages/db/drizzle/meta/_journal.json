@@ -421,6 +421,13 @@
       "when": 1780319548858,
       "tag": "0059_fuzzy_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1780387562966,
+      "tag": "0060_concerned_kingpin",
+      "breakpoints": true
     }
   ]
 }

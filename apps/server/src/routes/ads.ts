@@ -99,6 +99,16 @@ function windowFilter() {
   return sql`AND ${appUsers.first_seen_at} >= now() - (${ADS_INSIGHTS_WINDOW_DAYS} || ' days')::interval`;
 }
 
+/**
+ * Ads insights are always production-only: a developer's test install isn't a
+ * real ad conversion, so dev users must never contribute to revenue / ROAS /
+ * conversion counts regardless of any toggle. Sits alongside `windowFilter()`
+ * on every user-revenue aggregation.
+ */
+function prodFilter() {
+  return sql`AND ${appUsers.is_dev} = false`;
+}
+
 // Bare-column form of the `paid` billing tier — used inside the CTE
 // `COUNT(*) FILTER (WHERE …)` clauses below to populate `retained_user_count`.
 // Shares the predicate with `buildBillingStatusCondition` in
@@ -170,6 +180,7 @@ export async function adsRoutes(app: FastifyInstance) {
             AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
             AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
             ${windowFilter()}
+            ${prodFilter()}
             ${appFilter(appId)}
           GROUP BY 1
         ),
@@ -330,6 +341,7 @@ export async function adsRoutes(app: FastifyInstance) {
             AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
             AND (properties ? ${dims.adGroupNameKey} OR properties ? ${dims.adGroupIdKey})
             ${windowFilter()}
+            ${prodFilter()}
             ${appFilter(appId)}
           GROUP BY 1
         ),
@@ -473,6 +485,7 @@ export async function adsRoutes(app: FastifyInstance) {
           AND (properties->>${dims.campaignIdKey} = ${campaignId} OR properties->>${dims.campaignNameKey} = ${campaignId})
           AND (properties->>${dims.adGroupIdKey} = ${adGroupId} OR properties->>${dims.adGroupNameKey} = ${adGroupId})
           ${windowFilter()}
+          ${prodFilter()}
       `;
 
       // Each leaf row carries the parent campaign + ad-group names via MAX,
@@ -676,6 +689,7 @@ export async function teamAdsRoutes(app: FastifyInstance) {
             AND properties->>${ATTRIBUTION_SOURCE_PROPERTY} = ${source}
             AND (properties ? ${dims.campaignNameKey} OR properties ? ${dims.campaignIdKey})
             ${windowFilter()}
+            ${prodFilter()}
           GROUP BY 1, 2
         ),
         team_spend AS (

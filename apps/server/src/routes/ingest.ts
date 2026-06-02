@@ -146,7 +146,7 @@ export async function ingestRoutes(app: FastifyInstance) {
       if (valid.length > 0) {
         await app.db.insert(events).values(valid);
         await dualWriteSpecializedEvents(app.db, valid, api_key_id, request.log);
-        await upsertAppUsers(app.db, valid, appRow.project_id, app_id, request.log);
+        await upsertAppUsers(app.db, valid, appRow.project_id, app_id, appRow.platform, request.log);
 
         // Keep the app's shipped-languages list (drives the localization gap)
         // current from what the SDK reports. No-ops when unchanged.
