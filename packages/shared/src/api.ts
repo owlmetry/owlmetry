@@ -8,7 +8,8 @@ import type { PushChannel } from "./preferences.js";
 import type { DevicePlatform } from "./constants.js";
 
 // Data mode for global development/production filtering
-export type DataMode = "production" | "development" | "all";
+export const DATA_MODES = ["production", "development", "all"] as const;
+export type DataMode = (typeof DATA_MODES)[number];
 
 // Serialized response types (dates as ISO strings)
 export type UserResponse = Omit<User, "created_at" | "updated_at"> & { created_at: string; updated_at: string };

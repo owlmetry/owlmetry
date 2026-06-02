@@ -1,10 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { APP_PLATFORMS } from "@owlmetry/shared";
+import { APP_PLATFORMS, DATA_MODES } from "@owlmetry/shared";
 import { callApi, buildQuery } from "../helpers.js";
-
-const DATA_MODES = ["production", "development", "all"] as const;
 
 export function registerAppsTools(server: McpServer, app: FastifyInstance, agentKey: string): void {
   server.registerTool("list-apps", {
