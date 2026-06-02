@@ -16,6 +16,8 @@ The `is_dev` field is set by the SDK at event creation time:
 
 You can also override `is_dev` explicitly in the SDK configuration if the automatic detection does not match your needs.
 
+Each user (`app_users`) also carries an `is_dev` flag, derived from their incoming **client** events (apple / android / web) on a last-write-wins basis — a user is classified as either development or production. Backend-platform events never set it, because dev and test clients routinely point at production backends, so a backend event tells you nothing about whether the user is real.
+
 ## Data Modes
 
 When querying data, you choose one of three modes:
@@ -30,7 +32,9 @@ The default mode is **`production`**, so you see real user data by default.
 
 ## Dashboard Toggle
 
-The web dashboard has a data mode toggle in the sidebar. Switching between Production, Development, and All applies the filter globally to every page -- events, metrics, funnels, and all summary views.
+The web dashboard has a data mode toggle in the sidebar. Switching between Production, Development, and All applies the filter globally to every page -- events, metrics, funnels, user listings, locale demand, and all summary views.
+
+Advertising Insights (`/dashboard/ads`) is the one exception: it is **always production-only**, since development installs aren't real conversions and would distort ROAS.
 
 The selection is persisted to `localStorage`, so it survives page reloads and browser restarts.
 
@@ -67,6 +71,8 @@ The `is_dev` column exists on all three event tables:
 - **`funnel_events`** -- funnel step events
 
 Each table has a composite index on `(app_id, is_dev, timestamp)` to make filtered queries fast.
+
+It also exists on **`app_users`**, where it's derived from each user's incoming client events (see above). This is what lets user listings and locale demand be filtered by data mode -- a development install never inflates your real-user counts. Backfilled from historical events in migration `0060`.
 
 ## When to Use Each Mode
 
