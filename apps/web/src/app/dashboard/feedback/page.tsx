@@ -199,7 +199,19 @@ function FeedbackDetailModal({
                 <div className="font-mono"><span className="text-muted-foreground">SDK:</span> {formatSdkLabel(feedback.sdk_name, feedback.sdk_version)}</div>
               )}
               <div><span className="text-muted-foreground">Device:</span> {feedback.device_model ?? "—"}{feedback.os_version ? `  OS ${feedback.os_version}` : ""}</div>
-              <div><span className="text-muted-foreground">User ID:</span> {feedback.user_id ?? "anonymous"}</div>
+              <div>
+                <span className="text-muted-foreground">User ID:</span>{" "}
+                {feedback.user_id ? (
+                  <a
+                    href={`/dashboard/users?app_id=${feedback.app_id}&app_user_id=${feedback.user_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline break-all"
+                  >{feedback.user_id}</a>
+                ) : (
+                  "anonymous"
+                )}
+              </div>
               {feedback.session_id && (
                 <div>
                   <span className="text-muted-foreground">Session:</span>{" "}
