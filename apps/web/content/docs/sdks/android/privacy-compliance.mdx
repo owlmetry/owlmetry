@@ -1,0 +1,70 @@
+---
+title: Privacy & Play compliance
+description: What the Android SDK collects, and how to fill out Google Play's Data safety form for it.
+---
+
+Every app on Google Play must complete the **Data safety** form (Play Console → your app → **Policy → App content → Data safety**). The form describes what data your app collects, why, whether it's shared, and how it's protected. Google shows a summary of your answers on the store listing.
+
+The SDK collects analytics on your behalf, so its collection becomes *your* collection in the form. This page tells you exactly which Data safety entries to tick — it is the Android analog of the Swift SDK's [privacy compliance guide](/docs/sdks/swift/privacy-compliance) and the iOS Privacy Nutrition Label. It is guidance, not legal advice — you remain the data controller and are responsible for the final declaration (your own app may collect more than the SDK does).
+
+## TL;DR
+
+- The SDK collects **analytics events, diagnostics/crash data, and product interaction** — and, only if you opt in, a **user id** (`Owl.setUser`) and **feedback name/email** (the `OwlFeedbackView` contact fields).
+- It is **not** used for tracking or advertising. No Advertising ID, no `AD_ID` permission, no cross-app/cross-site tracking, no ad SDKs.
+- Data is **not shared** with third parties — it goes only to *your* Owlmetry ingest endpoint (your own server, or owlmetry.com if you use the hosted plan).
+- All transport is **encrypted in transit** over HTTPS.
+
+## What the SDK collects
+
+Map each row below to a **Data type** in the Play Data safety form. For every type you declare, Google asks: *collected or shared?*, *required or optional?*, *processed ephemerally?*, and *purposes?*. The SDK answers are the same across the board: **collected** (not shared), and the purposes are **App functionality** and **Analytics**.
+
+| What the SDK sends | Play "Data type" category | When | Purpose |
+|---|---|---|---|
+| Analytics events — `Owl.info/debug/warn/error`, funnel steps, metrics, screen views, session start | **App activity → App interactions / Other actions** | Always (after `Owl.configure`) | App functionality, Analytics |
+| Diagnostics & crash reports — `Owl.error(throwable)`, error type / stack trace, network status, launch timing, OS/device model | **App info and performance → Crash logs**, **Diagnostics** | On errors + lifecycle | App functionality, Analytics |
+| Product interaction — which features/screens are used, in what order | **App activity → App interactions** | Always | Analytics, App functionality |
+| **User id** (your own id for the signed-in user) | **App activity → Other user-generated content** *(or a User ids entry if your form version exposes one)* | **Only if** you call `Owl.setUser(id)` | App functionality, Analytics |
+| **Feedback name & email** (free-text the user types into the feedback form) | **Personal info → Name**, **Personal info → Email address** | **Only if** you render `OwlFeedbackView` with `showsContactFields = true` and the user fills them in | App functionality |
+| Free-text feedback / questionnaire answers the user submits | **App activity → Other user-generated content** | When the user submits feedback or a questionnaire | App functionality, Analytics |
+
+### Conditional declarations
+
+- **User id is opt-in.** Out of the box the SDK stamps events with an *anonymous* device id (`owl_anon_*`), not a personal identifier. It only attaches a real user id after you call `Owl.setUser`. If your app never calls `setUser`, omit the user-id row. (This mirrors the Swift manifest, which marks **User ID** as *Linked* only when `Owl.setUser` is used.)
+- **Feedback name/email is opt-in and user-typed.** It is collected only if you show the optional contact fields in `OwlFeedbackView` (`showsContactFields = true`, the default) *and* the user chooses to fill them in. If you never show contact fields (or build your own form without them, or call `Owl.sendFeedback` programmatically without forwarding contact info), omit the Name/Email rows.
+
+## What the SDK does NOT do
+
+- **Not used for tracking.** No advertising/marketing across apps or sites, no data brokering. In the form, do **not** check "Used for advertising or marketing" for any SDK-collected type. (Android analog of the Swift manifest's `NSPrivacyTracking = false`.)
+- **No Advertising ID.** The SDK does not request, read, or transmit the Google Advertising ID (GAID). It declares no `AD_ID` permission and links no ad SDKs.
+- **Not shared with third parties.** "Sharing" in Play's sense means transfer to a *separate* company. The SDK transmits only to **your** Owlmetry ingest endpoint — the URL you pass to `Owl.configure(endpoint = …)`. That's a first-party destination you control (self-hosted, or the owlmetry.com hosted plan acting as your processor), so declare collection as **"Collected,"** not **"Shared."**
+- **No location, contacts, photos, files, messages, or audio** are collected by the SDK. (Your app may attach files to events via the [attachments](/docs/concepts/attachments) API — those are content *you* choose to upload, not anything the SDK harvests.)
+
+## Security & deletion answers
+
+The Data safety form has a **Security practices** section. For the SDK's data:
+
+- **Encrypted in transit: Yes.** All requests to the ingest endpoint go over HTTPS (TLS). Use an `https://` endpoint in `Owl.configure` — the SDK does not send analytics over cleartext.
+- **You can request that data be deleted: Yes (best-effort).** Because the backend is yours (self-hosted or hosted Owlmetry), you can honor user deletion requests server-side — purge a user's events and `app_users` row by their id. Provide a deletion request path (an in-app control or a documented contact) and point Google's "users can request deletion" answer at it. Note this is best-effort: events already aggregated into anonymous time-series rollups are not personally identifiable and may be retained.
+
+## Permissions the SDK adds
+
+The SDK's manifest merges two **install-time, no-prompt** permissions into your app — neither is a "dangerous"/runtime permission and neither needs a Data safety declaration of its own:
+
+- `android.permission.INTERNET` — to ship events to your ingest endpoint.
+- `android.permission.ACCESS_NETWORK_STATE` — so the SDK can detect online/offline and queue events while offline.
+
+Notably, the SDK declares **no** `com.google.android.gms.permission.AD_ID` permission — confirming the "no Advertising ID" answers above.
+
+## Anonymous id storage
+
+The SDK stores a stable anonymous id (`owl_anon_*`) in a private `SharedPreferences` file (`com.owlmetry.sdk`). It never leaves the device except as the id stamped on events sent to your endpoint. If you opt your app into Auto Backup for that file (see [Identity → reinstall persistence](/docs/sdks/android/identity#reinstall-persistence)), the id may roam to a reinstall via the user's own Google backup — that is the user's backup, governed by Google's backup terms, and is not a separate collection or sharing event for Data safety purposes.
+
+## Privacy policy template
+
+Google Play requires a privacy policy URL. If your current policy does not already mention third-party analytics, paste a paragraph like this:
+
+> We use Owlmetry, a self-hosted analytics service, to understand how users interact with our app and to diagnose errors. Owlmetry collects diagnostic data (including crash reports and event logs), product interaction data (such as screen views), and any feedback you choose to submit. If you sign in, your user identifier is linked to this data so we can support you and improve the product. Owlmetry does not use the data for cross-app tracking or advertising and does not access your device's advertising identifier.
+
+Adjust to match your app's voice and the specific Owlmetry features you use.
+
+> When in doubt, declare more rather than less. Revisit the Data safety form only when you start using a new Owlmetry feature that introduces a category you have not yet declared (for example, enabling `OwlFeedbackView` contact fields for the first time).

@@ -1,0 +1,66 @@
+---
+title: Android SDK
+description: Integrate Owlmetry into Android apps with the Kotlin SDK and optional Jetpack Compose UI.
+---
+
+The Owlmetry Android SDK captures events from Android apps and delivers them to your Owlmetry server. It mirrors the [Swift SDK](/docs/sdks/swift) feature-for-feature with Android-native idioms — an `Application` subclass instead of an iOS `@main App`, Compose modifiers instead of SwiftUI view modifiers. The core module has a single runtime dependency (`kotlinx-coroutines`, the Kotlin analog of Swift Concurrency) and handles buffering, delivery, and retry automatically.
+
+The SDK is a static `Owl` object (`com.owlmetry.android.Owl`). All calls are non-blocking — events are buffered in memory and flushed in batches. A single `Owl.configure()` call initializes everything.
+
+## Modules
+
+The SDK ships as two Maven artifacts. Add the core module always; add the Compose module only if you want the drop-in UI.
+
+| Artifact | Purpose |
+|----------|---------|
+| `com.owlmetry:owlmetry-android` | Core SDK — analytics, metrics, funnels, identity, plus the programmatic feedback and questionnaire APIs. Framework-only + coroutines, no Compose. |
+| `com.owlmetry:owlmetry-android-compose` | Optional Jetpack Compose UI — `OwlFeedbackView`, `OwlQuestionnaireGate` / `OwlQuestionnaireView`, and the `Modifier.owlScreen` screen-tracking modifier. |
+
+## Platform Support
+
+| Requirement | Minimum |
+|-------------|---------|
+| Android | 7.0 (API 24) |
+| Kotlin | 2.0+ |
+| AGP | 8.7+ |
+| JDK | 17+ |
+
+## Features
+
+- **[Event logging](/docs/sdks/android/events)** — four log levels (info, debug, warn, error) with optional screen name and custom attributes. `Owl.error` is overloaded — pass a `String` (logger-style) or pass any `Throwable` (exception-style; the SDK extracts the runtime type, the JVM stack trace, and the `Throwable.cause` chain into reserved `_error_*` attributes). Source file, function, and line are best-effort captured from the call stack.
+- **[Structured metrics](/docs/sdks/android/metrics)** — lifecycle operations (`startOperation` / `complete` / `fail` / `cancel`) with automatic duration tracking, and single-shot measurements via `recordMetric`.
+- **[Funnel tracking](/docs/sdks/android/funnels)** — track user progression through multi-step flows with `Owl.step()`.
+- **[Screen tracking](/docs/sdks/android/screen-tracking)** — `Modifier.owlScreen()` Compose modifier for automatic screen view and time-on-screen tracking.
+- **[Identity management](/docs/sdks/android/identity)** — anonymous IDs generated and persisted in private `SharedPreferences`, with server-side claim to link anonymous events to real users after login.
+- **[User properties](/docs/sdks/android/user-properties)** — attach custom key-value metadata to the current user with `Owl.setUserProperties()`.
+- **File attachments** — attach files (logs, failed inputs, binaries) to `Owl.error()` events via `OwlAttachment`. See [Attachments](/docs/concepts/attachments).
+- **Offline queue** — events are persisted to disk when the network is unavailable and retried automatically when connectivity returns.
+- **Gzip compression** — request bodies are compressed before sending to reduce bandwidth usage.
+- **Automatic lifecycle events** — `session_started`, `app_foregrounded`, and `app_backgrounded` are emitted without any manual calls.
+
+## Auto-Captured Data
+
+Every event automatically includes:
+
+- `session_id` — fresh UUID generated on each `configure()` call
+- Device model, OS version, and locale
+- `app_version` from the host app's package info
+- `is_dev` — `true` when the host app is debuggable (debug builds), `false` for release
+- `_connection` — current network type (wifi, cellular, offline)
+- `environment` — `android`
+- `sdk_name` (`owlmetry-android`) and `sdk_version` — auto-stamped on every event
+
+## Not yet on Android
+
+A few Swift SDK features have no Android analog yet:
+
+- **Install attribution.** The Swift SDK auto-captures Apple Search Ads attribution; on Android, install attribution comes from Google Play / the Play Install Referrer and is out of scope for v1. The `attributionEnabled` configuration flag is reserved.
+- **Automatic network-request instrumentation.** There is no automatic `URLSession`-equivalent HTTP tracking yet; the `networkTrackingEnabled` flag is reserved.
+- **Push registration.** Push on Android is Firebase Cloud Messaging (FCM), not APNs; the SDK does not register FCM tokens for you.
+
+## Getting Started
+
+Add the SDK via Gradle, then call `Owl.configure()` in your `Application.onCreate()`.
+
+- [Installation](/docs/sdks/android/installation)
+- [Configuration](/docs/sdks/android/configuration)

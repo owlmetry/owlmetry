@@ -1,0 +1,109 @@
+---
+title: User Feedback
+description: Collect free-text feedback from your users with OwlFeedbackView and Owl.sendFeedback.
+---
+
+The Android SDK ships a reusable Jetpack Compose view (`OwlFeedbackView`, in the `owlmetry-android-compose` artifact) plus a programmatic API (`Owl.sendFeedback`, in the core module) for gathering free-text feedback from inside your app. Submissions are linked automatically to the current session, user id, app version, device, and environment.
+
+See the [Feedback concept page](/docs/concepts/feedback) for what happens after a submission lands.
+
+## Programmatic API
+
+`Owl.sendFeedback` is a **suspend** function and **not** offline-queued — it returns a receipt on success and throws on failure so you can surface a retry to the user. Call it from a coroutine:
+
+```kotlin
+import com.owlmetry.android.Owl
+import com.owlmetry.android.OwlFeedbackError
+
+try {
+    val receipt = Owl.sendFeedback(
+        message = "Love the new import flow!",
+        name = currentUser?.displayName,   // optional
+        email = currentUser?.email,        // optional
+    )
+    Log.d("Owlmetry", "Feedback stored: ${receipt.id}")
+} catch (e: OwlFeedbackError) {
+    // NotConfigured, EmptyMessage, ServerError, TransportFailure
+    showSnackbar(e.message)
+}
+```
+
+The receipt carries `id: String` and `createdAt: Date`. An empty/whitespace-only message throws `OwlFeedbackError.EmptyMessage` before any network call; `name` and `email` are trimmed and dropped when blank.
+
+## Compose View
+
+`OwlFeedbackView` is a plain `@Composable` — you pick the presentation. It does **not** own a `TopAppBar` or navigation; the host decides how to present it. Unlike SwiftUI's `@Environment(\.dismiss)`, Compose has no built-in auto-dismiss, so the host closes the surface — wire it from `onSubmitted` / `onCancel`.
+
+### In a modal bottom sheet
+
+```kotlin
+import androidx.compose.material3.ModalBottomSheet
+import com.owlmetry.android.compose.OwlFeedbackView
+
+if (showFeedback) {
+    ModalBottomSheet(onDismissRequest = { showFeedback = false }) {
+        OwlFeedbackView(
+            name = user?.displayName,
+            email = user?.email,
+            onSubmitted = { showFeedback = false },
+            onCancel = { showFeedback = false },
+        )
+    }
+}
+```
+
+### Embedded inline
+
+When the view sits inside a parent screen with no app bar to attach its actions to, pass `actionsPlacement = OwlFeedbackActionsPlacement.INLINE` so Submit (and optional Cancel) render as buttons at the bottom of the form:
+
+```kotlin
+import com.owlmetry.android.compose.OwlFeedbackActionsPlacement
+
+Column {
+    Text("Tell us what you think")
+    OwlFeedbackView(
+        showsContactFields = false,
+        actionsPlacement = OwlFeedbackActionsPlacement.INLINE,
+        onSubmitted = { /* ... */ },
+    )
+}
+```
+
+`actionsPlacement` controls where Submit / Cancel render:
+
+- `TOOLBAR` (default) — a top action row. Use in a sheet/dialog with no app bar of its own.
+- `INLINE` — buttons at the bottom of the form. Use when embedding in a parent screen.
+
+After a successful submission a "Thanks!" dialog is shown; tapping its confirm button invokes `onSubmitted` with the receipt.
+
+## Theming
+
+The view reads your `MaterialTheme` — the Submit button and accents inherit your app's `colorScheme` automatically, so it matches your brand without extra code.
+
+## Customizing strings
+
+Every user-facing string is overridable via `OwlFeedbackStrings`. Use `OwlFeedbackStrings.DEFAULT.with(...)` for a partial override:
+
+```kotlin
+OwlFeedbackView(
+    strings = OwlFeedbackStrings.DEFAULT.with(header = "How are we doing?"),
+)
+```
+
+The overridable set includes `header`, `footer`, `messagePlaceholder`, `contactSectionTitle`, `namePlaceholder`, `emailPlaceholder`, `submitButton`, `cancelButton`, `successTitle`, `successBody`, and every error / no-contact-dialog string.
+
+## Init parameters
+
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `name` | `null` | Prefill the Name field (user can still edit). |
+| `email` | `null` | Prefill the Email field (user can still edit). |
+| `showsContactFields` | `true` | Set `false` to hide Name + Email entirely. |
+| `actionsPlacement` | `TOOLBAR` | `TOOLBAR` (top action row) or `INLINE` (bottom buttons). |
+| `strings` | `.DEFAULT` | `OwlFeedbackStrings` — every label/placeholder/error is overridable. |
+| `onSubmitted` | `null` | Called with the `OwlFeedbackReceipt` after the success dialog is confirmed (use it to dismiss). |
+| `onCancel` | `null` | Called when the user taps Cancel. When `null`, no Cancel button is shown. |
+
+## Where feedback lands
+
+Submissions show up on **Dashboard → Feedback** as a kanban with four statuses (`new → in_review → addressed → dismissed`). The CLI (`owlmetry feedback`) and MCP agents can also read and triage it.

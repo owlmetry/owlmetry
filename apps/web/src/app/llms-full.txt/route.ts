@@ -32,7 +32,7 @@ export function GET() {
     "- **Locale demand**: Rank users by the language they want (device preferred language) and by country, flagging languages with demand the app doesn't ship yet — to decide where to localize next",
     "- **Store reviews & ratings**: Per-country App Store ratings with daily snapshots (free, no setup) plus individual reviews via App Store Connect integration, filterable by rating/country/version and repliable from every surface",
     "- **Notifications**: Unified multi-channel inbox (in-app, email, mobile push) with per-user channel preferences",
-    "- **SDKs**: Swift (iOS/macOS/watchOS) and Node.js — batching, compression, and retry built in; watch events relay through paired iPhone via WatchConnectivity when offline",
+    "- **SDKs**: Swift (iOS/macOS/watchOS), Android (Kotlin / Jetpack Compose), and Node.js — batching, compression, and retry built in; watch events relay through paired iPhone via WatchConnectivity when offline",
     "- **CLI**: Agent-native CLI for setup, querying, and management (`npm i -g @owlmetry/cli`)",
     "- **Self-hosted**: Single Postgres database, deploy on your own infrastructure",
     "",

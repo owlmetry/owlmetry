@@ -1,0 +1,17 @@
+{
+  "title": "Android SDK",
+  "pages": [
+    "index",
+    "installation",
+    "configuration",
+    "privacy-compliance",
+    "events",
+    "metrics",
+    "funnels",
+    "screen-tracking",
+    "identity",
+    "user-properties",
+    "feedback",
+    "questionnaires"
+  ]
+}

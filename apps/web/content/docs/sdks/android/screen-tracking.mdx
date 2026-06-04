@@ -1,0 +1,85 @@
+---
+title: Screen Tracking
+description: Automatically track screen views with the Modifier.owlScreen() Compose modifier.
+---
+
+The `Modifier.owlScreen()` Compose modifier automatically tracks screen appearances and time-on-screen with no manual event calls needed. It is the Android analog of SwiftUI's `.owlScreen(_:)` view modifier and lives in the `owlmetry-android-compose` artifact.
+
+## Usage
+
+Attach `Modifier.owlScreen()` to the outermost composable of each screen:
+
+```kotlin
+import com.owlmetry.android.compose.owlScreen
+
+@Composable
+fun HomeScreen() {
+    Column(modifier = Modifier.owlScreen("Home")) {
+        // ...
+    }
+}
+
+@Composable
+fun SettingsScreen() {
+    LazyColumn(modifier = Modifier.owlScreen("Settings")) {
+        // ...
+    }
+}
+```
+
+## What It Emits
+
+| Event | Level | When | Attributes |
+|-------|-------|------|------------|
+| `sdk:screen_appeared` | debug | The decorated composable enters the composition | `screenName` set to the provided name |
+| `sdk:screen_disappeared` | debug | It leaves the composition | `screenName` set, `_duration_ms` with time the screen was visible |
+
+Both screen events are debug-level, so they're filtered out of the default production view. Switch to development data (or filter by level) to see screen flow when you need it. The `screen_disappeared` event carries `_duration_ms` and is the more useful signal for analytics; `screen_appeared` is retained so you can detect screens that were opened but never closed (e.g. a crash mid-screen).
+
+The appear/disappear pair is bound to the composition lifetime of the node the modifier decorates (via `DisposableEffect`, keyed on the name) — the closest Compose analog of SwiftUI's view-lifecycle `onAppear`/`onDisappear`. The visible-duration clock uses `SystemClock.uptimeMillis()` (monotonic, immune to wall-clock changes).
+
+## Placement Guidelines
+
+Apply `Modifier.owlScreen()` to the outermost container of each distinct screen — typically the root `Column`, `Scaffold` content, `LazyColumn`, or `Box`:
+
+```kotlin
+@Composable
+fun ProfileScreen() {
+    Column(modifier = Modifier.owlScreen("Profile")) {
+        ProfileHeader()
+        PostList()
+    }
+}
+```
+
+Use it on every distinct screen. Each navigation destination tracks its own screen view and duration independently.
+
+## Naming Conventions
+
+Choose screen names that are short, readable, and consistent across the app:
+
+- `"Home"`, `"Profile"`, `"Settings"`, `"Checkout"`
+- For detail screens: `"Product Detail"`, `"Order Detail"`
+- For flows: `"Signup Step 1"`, `"Signup Step 2"`
+
+The `screenName` value is also available as a filter in the [events](/docs/concepts/events) dashboard, so consistent naming makes filtering straightforward.
+
+## Screen Tracking vs Manual Events
+
+Use `Modifier.owlScreen()` for tracking when a screen is viewed and how long a user stays. Use manual `Owl.info()` with the `screenName` parameter for events that happen *within* a screen (button taps, state changes, errors):
+
+```kotlin
+@Composable
+fun CartScreen(cart: Cart) {
+    Column(modifier = Modifier.owlScreen("Cart")) {
+        // ...
+        Button(onClick = {
+            Owl.info("Order placed", screenName = "Cart", attributes = mapOf("items" to "${cart.count}"))
+        }) {
+            Text("Place Order")
+        }
+    }
+}
+```
+
+The `Modifier.owlScreen()` modifier handles the screen view tracking, while `Owl.info()` with `screenName = "Cart"` ties the button-tap event to the same screen context. **Prefer `Modifier.owlScreen()` over a manual `Owl.info("Screen viewed")`** — it covers appear, disappear, and duration in one modifier per screen, and don't supplement it with extra `Owl.info("Screen appeared")` calls.

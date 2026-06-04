@@ -1,0 +1,94 @@
+---
+title: Funnels
+description: Record funnel step completions with Owl.step() in the Android SDK.
+---
+
+Funnels measure how users progress through a multi-step flow and where they drop off. The SDK side of funnel tracking is a single method call per step. For a broader overview of funnel concepts, analysis modes, and grouping options, see [Funnels](/docs/concepts/funnels).
+
+## Tracking Steps
+
+Call `Owl.step()` when a user completes a funnel step. The step name you pass must match the `step_name` in your funnel definition's `event_filter`.
+
+```kotlin
+Owl.step("welcome-screen")
+Owl.step("create-account", attributes = mapOf("method" to "email"))
+Owl.step("complete-profile")
+Owl.step("first-post")
+```
+
+### Method Signature
+
+```kotlin
+public fun step(
+    stepName: String,
+    attributes: Map<String, String?> = emptyMap(),
+)
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `stepName` | The name of the funnel step. Must match the `step_name` in your funnel definition's `event_filter`. |
+| `attributes` | Optional key-value pairs for segmenting funnel analytics later (e.g. signup method, referral source). Values are `String?` — `null`-valued keys are silently dropped, so optional values from your domain code can flow through directly. |
+
+## How It Works
+
+`Owl.step("welcome-screen")` emits an info-level event with the message `step:welcome-screen` that the server matches against funnel definitions by the step name.
+
+Step names must match exactly between your SDK calls and your funnel definition's `event_filter.step_name` values.
+
+## Example: Onboarding Funnel
+
+Define the funnel on the server with steps that match your `step()` calls:
+
+| Step | Event Filter | SDK Call |
+|------|-------------|----------|
+| Welcome | `{"step_name": "welcome-screen"}` | `Owl.step("welcome-screen")` |
+| Account Created | `{"step_name": "create-account"}` | `Owl.step("create-account")` |
+| Profile Complete | `{"step_name": "complete-profile"}` | `Owl.step("complete-profile")` |
+| First Post | `{"step_name": "first-post"}` | `Owl.step("first-post")` |
+
+In your Compose UI:
+
+```kotlin
+@Composable
+fun WelcomeScreen(onContinue: () -> Unit) {
+    Column(modifier = Modifier.owlScreen("Welcome")) {
+        Text("Welcome to the app")
+        Button(onClick = {
+            Owl.step("welcome-screen")
+            onContinue()
+        }) {
+            Text("Get Started")
+        }
+    }
+}
+
+suspend fun handleSignup(email: String, password: String) {
+    try {
+        createAccount(email, password)
+        Owl.step("create-account", attributes = mapOf("method" to "email"))
+    } catch (e: Throwable) {
+        Owl.error(e, "Signup failed", screenName = "Signup")
+    }
+}
+```
+
+## Funnel Definitions
+
+Funnel definitions are created through the CLI or the dashboard, not through the SDK. The SDK only emits the step events. Define matching definitions via the CLI:
+
+```bash
+cat > /tmp/funnel-steps.json << 'EOF'
+[
+  {"name": "Welcome", "event_filter": {"step_name": "welcome-screen"}},
+  {"name": "Account", "event_filter": {"step_name": "create-account"}},
+  {"name": "Profile", "event_filter": {"step_name": "complete-profile"}},
+  {"name": "First Post", "event_filter": {"step_name": "first-post"}}
+]
+EOF
+
+owlmetry funnels create --project-id <id> --name "Onboarding" --slug onboarding \
+  --steps-file /tmp/funnel-steps.json --format json
+```
+
+See [Funnels](/docs/concepts/funnels) for details on creating definitions, analysis modes (open vs closed), and query options.

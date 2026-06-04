@@ -1,0 +1,113 @@
+---
+title: Metrics
+description: Track performance with startOperation() and recordMetric() in the Android SDK.
+---
+
+Structured metrics give you aggregated statistics — p50, p95, p99 latencies, success/failure rates, and trends over time. Use them when you need more than a list of individual events. For a broader overview, see [Metrics](/docs/concepts/metrics).
+
+The SDK supports two patterns: **lifecycle operations** for things with a duration, and **single-shot measurements** for point-in-time values.
+
+## Lifecycle Operations
+
+Use `Owl.startOperation()` when you are measuring something that has a start and an end, such as a network request, file upload, or data processing task. The SDK tracks duration automatically.
+
+```kotlin
+val op = Owl.startOperation("photo-upload", attributes = mapOf("format" to "heic"))
+
+try {
+    val result = uploadPhoto(image)
+    op.complete(attributes = mapOf("size_bytes" to "${result.byteCount}"))
+} catch (e: Throwable) {
+    op.fail(error = e.message ?: "unknown")
+}
+```
+
+### Starting an Operation
+
+`Owl.startOperation()` returns an `OwlOperation` and immediately emits a `metric:<slug>:start` event. The operation records its start time (a monotonic `System.nanoTime()` clock, immune to wall-clock changes) and a unique `tracking_id` (UUID) that correlates all phases together.
+
+```kotlin
+public fun startOperation(
+    metric: String,
+    attributes: Map<String, String?> = emptyMap(),
+): OwlOperation
+```
+
+Optional values are accepted directly — `null`-valued keys are dropped before the event ships, so you can pass `String?` from your domain code without unwrapping first.
+
+### Completing an Operation
+
+Call exactly one of three methods on the `OwlOperation` to finish it:
+
+```kotlin
+// Success — emits metric:<slug>:complete (info level)
+op.complete(attributes = mapOf("output_format" to "jpeg"))
+
+// Failure — emits metric:<slug>:fail (error level)
+op.fail(error = "timeout", attributes = mapOf("retry_count" to "3"))
+
+// Cancellation — emits metric:<slug>:cancel (info level)
+op.cancel(attributes = mapOf("reason" to "user_cancelled"))
+```
+
+Each completion method automatically includes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `tracking_id` | UUID linking this phase to the corresponding start event. |
+| `duration_ms` | Milliseconds elapsed since `startOperation()` was called. |
+| `error` | Error description (only on `fail()`). |
+
+### Rules
+
+- **Every `startOperation()` must end** with exactly one `complete()`, `fail()`, or `cancel()`. A start that never ends creates orphaned metric data with no duration.
+- **`complete()`** — succeeded and produced its intended result. **`fail(error)`** — attempted work but hit an error. **`cancel()`** — intentionally stopped (user cancelled, screen left, became irrelevant).
+- **Don't start for no-ops** — if the operation is skipped entirely (cache hit, dedup, precondition not met), don't call `startOperation()`.
+- **Don't track duration manually** — `duration_ms` is auto-calculated. Never pass a manual duration attribute.
+- **Long-lived operations** — if the operation outlives the scope where it started, hold the `OwlOperation` handle as state and end it on cleanup (`DisposableEffect` `onDispose`, `ViewModel.onCleared`) if it hasn't ended yet.
+
+## Single-Shot Measurements
+
+Use `Owl.recordMetric()` for values that do not have a duration — a point-in-time measurement or a count.
+
+```kotlin
+Owl.recordMetric("items-in-cart", attributes = mapOf("count" to "${cart.items.size}"))
+Owl.recordMetric("app-cold-start", attributes = mapOf("screen" to "home"))
+```
+
+This emits a single `metric:<slug>:record` event at info level.
+
+```kotlin
+public fun recordMetric(
+    metric: String,
+    attributes: Map<String, String?> = emptyMap(),
+)
+```
+
+## Slug Rules
+
+Metric slugs must contain only lowercase letters, numbers, and hyphens (matching the pattern `^[a-z0-9-]+$`). Examples: `photo-upload`, `data-sync`, `api-request`.
+
+If you pass an invalid slug, the SDK auto-corrects it by lowercasing, replacing invalid characters with hyphens, and collapsing consecutive hyphens. A warning is logged to Logcat when this happens.
+
+```kotlin
+// "Photo Upload" is auto-corrected to "photo-upload" with a Logcat warning
+val op = Owl.startOperation("Photo Upload")
+```
+
+## Server-Side Metric Definitions
+
+The metric definition must exist on the server before the SDK emits events for that slug if you want it to appear in metric queries with a human-readable name. Create it via the CLI or dashboard first:
+
+```bash
+owlmetry metrics create --project-id <id> --name "Photo Upload" --slug photo-upload --lifecycle --format json
+```
+
+## When to Use Metrics vs Events
+
+| Use case | Approach |
+|----------|----------|
+| You want aggregated stats (p50, p95, error rates) | Structured metrics |
+| You want a timeline of individual occurrences | Plain events (`Owl.info()`, `Owl.error()`) |
+| You need to measure how long something takes | Lifecycle operation (`startOperation`) |
+| You want to record a single value at a point in time | Single-shot (`recordMetric`) |

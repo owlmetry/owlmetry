@@ -1,0 +1,143 @@
+---
+title: Identity
+description: Manage anonymous and known user identities, and claim anonymous events after login.
+---
+
+The Android SDK manages user identity automatically. Every device starts with an anonymous ID and can be upgraded to a known user identity after login. When a user is identified, all their previous anonymous events are retroactively linked to the real user ID on the server.
+
+## Anonymous Identity
+
+On first launch, the SDK generates a unique anonymous ID with the prefix `owl_anon_` followed by a UUID:
+
+```
+owl_anon_a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+This ID is stored in a private `SharedPreferences` file named `com.owlmetry.sdk`, so it persists across app restarts. All events are tagged with this ID until a real user is identified.
+
+You do not need to generate or manage this ID — the SDK handles it automatically on `Owl.configure()`.
+
+### Reinstall persistence
+
+Unlike iOS — where the Swift SDK stores the anonymous ID in the Keychain, which survives an app delete + reinstall — Android wipes a package's `SharedPreferences` on uninstall, and there is no framework-only way to replicate Keychain's reinstall persistence. **By default a returning user is minted a fresh anonymous ID after a reinstall.**
+
+If you want best-effort reinstall persistence, opt the SDK's prefs file into Android's Auto Backup. The SDK ships two ready-made rule files (`@xml/owlmetry_backup_rules` for Android 6–11 and `@xml/owlmetry_data_extraction_rules` for Android 12+) — reference them from your app's `<application>` tag:
+
+```xml
+<application
+    android:fullBackupContent="@xml/owlmetry_backup_rules"
+    android:dataExtractionRules="@xml/owlmetry_data_extraction_rules"
+    ... >
+```
+
+Both include only the `com.owlmetry.sdk` prefs file, so the anonymous ID can roam to a reinstall via the user's own Google backup. This is **best-effort** (Auto Backup is opportunistic and user-disablable) and **opt-in** — the SDK cannot force the host app's backup config. If your app already defines its own backup rules, merge the SDK's `<include domain="sharedpref" path="com.owlmetry.sdk.xml" />` lines into them rather than overwriting.
+
+## Setting a User
+
+After your app authenticates a user, call `Owl.setUser()` with their identifier:
+
+```kotlin
+fun handleLoginSuccess(user: User) {
+    Owl.setUser(user.id)
+    // All future events are tagged with user.id
+}
+```
+
+This does two things:
+
+1. **Future events** are tagged with the real user ID instead of the anonymous ID.
+2. **Previous events** emitted with the anonymous ID are retroactively claimed for this user on the server. The SDK automatically flushes all buffered events before sending the claim request, so no in-flight events are missed.
+
+The user ID is persisted in `SharedPreferences`, so it survives app restarts. On the next launch, `Owl.configure()` will use the saved user ID automatically — you do not need to call `setUser()` again unless the user has logged out.
+
+If you need to read the active identifier (anonymous or real) at any point, use `Owl.currentUserId` (a `String?`, `null` before `configure()`).
+
+`setUser` is safe to call **before** `configure()` too: the op is stashed and persisted at the next `configure()` so that session resolves to the real user.
+
+On launch, `Owl.configure()` also fires an idempotent claim in the background if a saved user ID is present. This closes the gap where a previous session's claim never reached the server (e.g. the app was killed before it flushed). Any late-arriving events still tagged with the old anonymous ID are re-attributed server-side on ingest, so you don't need to handle this case yourself.
+
+## Clearing a User
+
+On logout, call `Owl.clearUser()` to revert to anonymous tracking:
+
+```kotlin
+fun handleLogout() {
+    Owl.clearUser()
+    // Future events use the original anonymous ID
+}
+```
+
+By default, `clearUser()` reverts to the same anonymous ID that was generated before login. This links pre-login and post-logout events to the same anonymous identity.
+
+### Shared Devices
+
+If the device may be used by different people (e.g. a shared tablet), pass `newAnonymousId = true` to generate a fresh anonymous ID on logout:
+
+```kotlin
+fun handleLogout() {
+    Owl.clearUser(newAnonymousId = true)
+    // Future events use a brand-new anonymous ID
+}
+```
+
+This prevents the next user's anonymous events from being grouped with the previous user's.
+
+## Complete Example
+
+```kotlin
+class AuthManager {
+    suspend fun login(email: String, password: String): User {
+        val user = authService.login(email, password)
+
+        // Link all previous anonymous events to this user
+        Owl.setUser(user.id)
+        Owl.info("User logged in", screenName = "Login")
+        return user
+    }
+
+    fun logout() {
+        Owl.info("User logged out")
+        authService.logout()
+
+        // Revert to anonymous tracking
+        Owl.clearUser()
+    }
+
+    fun logoutSharedDevice() {
+        Owl.info("User logged out (shared device)")
+        authService.logout()
+
+        // Generate a new anonymous ID for the next user
+        Owl.clearUser(newAnonymousId = true)
+    }
+}
+```
+
+## Identity Flow
+
+```
+App Launch
+  -> Owl.configure()
+  -> Events tagged with owl_anon_XXXX
+
+User Logs In
+  -> Owl.setUser("user_123")
+  -> Buffered events flushed
+  -> Server claims all owl_anon_XXXX events for user_123
+  -> Future events tagged with user_123
+
+User Logs Out
+  -> Owl.clearUser()
+  -> Future events tagged with owl_anon_XXXX again
+
+  OR (shared device)
+  -> Owl.clearUser(newAnonymousId = true)
+  -> Future events tagged with owl_anon_YYYY (new ID)
+```
+
+## Persistence Summary
+
+| Data | Storage | Survives Reinstall |
+|------|---------|--------------------|
+| Anonymous ID | `SharedPreferences` (`com.owlmetry.sdk`) | Only with Auto Backup opted in (best-effort) |
+| Real User ID | `SharedPreferences` | No |

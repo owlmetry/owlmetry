@@ -92,6 +92,29 @@ jobs:
             -f event_type=monorepo-updated \
             -f client_payload[sha]=${{ github.sha }}
 
+  notify-android-sdk:
+    name: Trigger owlmetry-android CI
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch monorepo-updated event
+        env:
+          GH_TOKEN: ${{ secrets.ANDROID_REPO_DISPATCH_TOKEN }}
+        run: |
+          # ANDROID_REPO_DISPATCH_TOKEN is a one-time human setup (fine-grained
+          # PAT with Contents:R+W on owlmetry/owlmetry-android). Until it's set,
+          # skip cleanly rather than fail the workflow; once present this fires
+          # exactly like the swift/node/cli notifies.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "ANDROID_REPO_DISPATCH_TOKEN not set — skipping android dispatch (pending one-time setup)."
+            exit 0
+          fi
+          gh api /repos/owlmetry/owlmetry-android/dispatches \
+            -X POST \
+            -f event_type=monorepo-updated \
+            -f client_payload[sha]=${{ github.sha }}
+
   notify-node-sdk:
     name: Trigger owlmetry-node CI
     needs: test

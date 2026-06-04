@@ -1,0 +1,243 @@
+---
+title: Questionnaires
+description: Render in-app surveys with OwlQuestionnaireGate, OwlQuestionnaireView, and Owl.saveQuestionnaireResponse.
+---
+
+Questionnaires are structured multi-question surveys (text, single/multi choice, 1–5 rating, 0–10 NPS) shown in-app. Each questionnaire has an immutable slug, a versioned schema of up to 30 questions, and a one-and-done global dismiss path. Responses store a snapshot of the schema they were submitted against, so historical answers always render correctly even after the parent definition has been edited. For the full concept overview, see [Questionnaires](/docs/concepts/questionnaires).
+
+The Compose UI (`OwlQuestionnaireGate` / `OwlQuestionnaireView`) lives in the `owlmetry-android-compose` artifact; the programmatic APIs (`Owl.fetchQuestionnaire`, `Owl.saveQuestionnaireResponse`, `Owl.dismissQuestionnaires`) live in the core module.
+
+## Prerequisite
+
+Create a questionnaire with a slug first — via the [dashboard](/dashboard/questionnaires), [CLI](/docs/cli/questionnaires) (`owlmetry questionnaires create`), or [MCP](/docs/mcp/questionnaires). The SDK only reads and saves — it doesn't define questionnaires. The slug is immutable after creation.
+
+## How the sheet behaves
+
+When the trigger fires AND the user is eligible (not already responded, not globally dismissed), the gate opens a `ModalBottomSheet` showing a **consent prompt** ("Quick favor?" + body + three buttons):
+
+- **Sure, happy to help** → starts the step flow
+- **Maybe later** → closes the sheet, no server write; the trigger re-evaluates on the next foreground
+- **Don't ask again** → confirmation dialog, then writes the global-dismiss flag (`Owl.dismissQuestionnaires()`); never asked again
+
+Once accepted, questions render **one per page** with a top progress bar and Back / Next / Submit buttons. **Every Next tap saves the current answer set as a draft** (`isComplete = false`); the final Submit sends `isComplete = true` and flips the server-side `submitted_at`. On successful submit, an in-sheet success page (checkmark + "Thanks!" + Done) replaces the questions.
+
+### Resuming an unsubmitted draft
+
+The SDK saves the current answer set on every Next tap, so a user who quits halfway leaves a draft response (`submitted_at` still null). The next eligible launch's gate picks it up automatically: it fetches the spec, sees the saved draft, **skips the consent prompt**, and lands the user at the first unanswered question with prior answers pre-filled. No extra code on your side. Abandoned drafts untouched for 90 days are soft-deleted by the daily `questionnaire_draft_cleanup` job.
+
+## Auto-trigger gate (primary path)
+
+Compose has no modifier-driven presentation, so the gate is a **wrapper composable** (`OwlQuestionnaireGate`) — the analog of Swift's `.owlQuestionnaire(...)` modifier. Render your screen as its `content` and the gate overlays the questionnaire once the trigger fires and the server returns an eligible spec.
+
+```kotlin
+import com.owlmetry.android.compose.OwlQuestionnaireGate
+import com.owlmetry.android.OwlQuestionnaireTrigger
+
+@Composable
+fun RootScreen() {
+    OwlQuestionnaireGate(
+        slug = "post-onboarding",
+        trigger = OwlQuestionnaireTrigger.afterLaunches(3),
+    ) {
+        // Your normal screen content goes here
+        AppNavHost()
+    }
+}
+```
+
+### Parameters
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `slug` | required | Looks up the server-side spec. Must match the slug you created. |
+| `trigger` | `.afterLaunch` | When to evaluate. ANDed conditions — see below. |
+| `showsConsent` | `true` | When `true`, opens with the "Quick favor?" consent prompt. When `false`, jumps straight to question 1. Auto-skipped when resuming a draft. |
+| `isEligible` | `null` | Sync closure; return `false` to skip. App-side gating (paid status, feature flags). Re-evaluates on every foreground (`ON_RESUME`). |
+| `forceShow` | `false` | Debug-only override that bypasses every local gate and most server gates (still respects `inactive`). Wire to a debug-menu toggle or `BuildConfig.DEBUG`. |
+| `strings` | `.DEFAULT` | Override consent + flow copy via `OwlQuestionnaireStrings.DEFAULT.with(...)`. The spec's `description` wins over `strings.consentBody` when present. |
+| `onSubmitted` | `null` | Fires once on the call that flips the response to submitted. Receives `OwlQuestionnaireReceipt`. |
+| `onCancel` | `null` | Fires on Maybe later / Cancel / swipe-dismiss without submitting. |
+| `onDismissed` | `null` | Fires on Don't ask again (global opt-out, confirmed). |
+
+The gate evaluates once per composition entry and again on each foreground (`ON_RESUME`) — the Android analog of iOS re-evaluating on `willEnterForeground`. Per-process dedup prevents re-presenting the same slug within a launch; cross-launch dedup is the server's job. The team `questionnaire.response_new` notification only fires on the final Submit, never on partial saves.
+
+### Composable triggers (ANDed conditions)
+
+```kotlin
+import com.owlmetry.android.OwlQuestionnaireTrigger
+import com.owlmetry.android.OwlQuestionnaireCondition
+
+OwlQuestionnaireGate(
+    slug = "weekly-checkin",
+    trigger = OwlQuestionnaireTrigger.whenAll(
+        OwlQuestionnaireCondition.Launches(atLeast = 3),
+        OwlQuestionnaireCondition.DaysSinceFirstLaunch(atLeast = 7),
+    ),
+) { content() }
+```
+
+Available conditions:
+
+- `OwlQuestionnaireCondition.Launches(atLeast)` — total `Owl.configure(...)` calls since install (one bump per process)
+- `OwlQuestionnaireCondition.Foregrounds(atLeast)` — total foreground transitions since install
+- `OwlQuestionnaireCondition.DaysSinceFirstLaunch(atLeast)`
+- `OwlQuestionnaireCondition.HoursSinceFirstLaunch(atLeast)`
+
+Shortcuts on `OwlQuestionnaireTrigger`:
+
+- `.afterLaunch` — equivalent to `Launches(atLeast = 1)`
+- `.afterLaunches(n)` — equivalent to `Launches(atLeast = n)`
+- `.whenAll(vararg conditions)` — all conditions ANDed
+- `.manual` — never auto-trigger; present `OwlQuestionnaireView` directly
+
+All conditions in `whenAll` are ANDed. For OR logic, use the `isEligible` closure or attach two gates with different slugs.
+
+### Gating with `isEligible`
+
+```kotlin
+OwlQuestionnaireGate(
+    slug = "free-user-survey",
+    trigger = OwlQuestionnaireTrigger.afterLaunch,
+    isEligible = { !user.isPaid },
+) { content() }
+```
+
+`isEligible` runs synchronously before the SDK fetches the spec. Return `false` to suppress this evaluation; the gate re-evaluates on the next foreground.
+
+### Previewing in debug
+
+Set `forceShow = true` to bypass every local gate (trigger conditions, `isEligible`, per-process dedup) and ask the server to also ignore `alreadyResponded` and `globallyDismissed`. The server still respects `inactive`. Gate it yourself behind a debug flag (`BuildConfig.DEBUG` or a debug-menu toggle) so production users never trip it.
+
+### Trigger state accessors
+
+`Owl` exposes the persistent counters that drive the trigger evaluator — useful for debugging or building your own gates:
+
+```kotlin
+val launches = Owl.launchCount        // total Owl.configure(...) calls
+val foregrounds = Owl.foregroundCount // total foreground transitions
+val installedAt = Owl.firstLaunchAt   // Long? — epoch millis of the first configure()
+```
+
+## Manual presentation
+
+For ad-hoc triggers ("show after the user finishes the import wizard"), call `Owl.fetchQuestionnaire` and present `OwlQuestionnaireView` yourself. `fetchQuestionnaire` returns a result whose `.questionnaire` is null when the user is ineligible (`.ineligibleReason` carries `alreadyResponded`, `globallyDismissed`, or `inactive`) and whose `.inProgress` carries any unsubmitted draft to resume.
+
+```kotlin
+import com.owlmetry.android.Owl
+import com.owlmetry.android.OwlQuestionnaire
+import com.owlmetry.android.OwlQuestionnaireDraft
+import com.owlmetry.android.compose.OwlQuestionnaireView
+
+var spec by remember { mutableStateOf<OwlQuestionnaire?>(null) }
+var inProgress by remember { mutableStateOf<OwlQuestionnaireDraft?>(null) }
+var show by remember { mutableStateOf(false) }
+val scope = rememberCoroutineScope()
+
+Button(onClick = {
+    scope.launch {
+        val result = runCatching { Owl.fetchQuestionnaire("post-import") }.getOrNull()
+        val q = result?.questionnaire   // null ⇒ ineligible; result.ineligibleReason carries why
+        if (q != null) { spec = q; inProgress = result.inProgress; show = true }
+    }
+}) { Text("Take the post-import survey") }
+
+if (show) {
+    val q = spec
+    if (q != null) {
+        ModalBottomSheet(onDismissRequest = { show = false }) {
+            OwlQuestionnaireView(
+                questionnaire = q,
+                inProgress = inProgress,             // resume mid-flow
+                showsConsent = inProgress == null,   // skip consent on resume
+                onSubmitted = { show = false },
+                onCancel = { show = false },
+            )
+        }
+    }
+}
+```
+
+`OwlQuestionnaireView`'s public `showsConsent` defaults to `false` — the consumer is already deciding to show it, so the step flow opens directly. Pass `showsConsent = true` if you want the consent prompt in front.
+
+## Programmatic dismissal
+
+To opt the user out of all future questionnaires from code (e.g. a settings toggle), call `Owl.dismissQuestionnaires()`:
+
+```kotlin
+scope.launch {
+    runCatching { Owl.dismissQuestionnaires() }
+}
+```
+
+It's idempotent and survives reinstall server-side (stored in `app_users.properties`). Returns the server's `dismissed_at`.
+
+## Localization
+
+`OwlQuestionnaireView` and `OwlQuestionnaireGate` both accept an `OwlQuestionnaireStrings` parameter. Override individual strings with `OwlQuestionnaireStrings.DEFAULT.with(...)`:
+
+```kotlin
+OwlQuestionnaireGate(
+    slug = "post-onboarding",
+    trigger = OwlQuestionnaireTrigger.afterLaunch,
+    strings = OwlQuestionnaireStrings.DEFAULT.with(
+        submitButton = "Send",
+        consentTitle = "Got a minute?",
+        consentBody = "Your feedback shapes the roadmap.",
+        consentAccept = "I'm in",
+        consentLater = "Not right now",
+        consentNever = "Stop asking me",
+    ),
+)
+```
+
+Every consent button and step-flow button label is independently overridable (`title`, `submitButton`, `nextButton`, `backButton`, `doneButton`, `cancelButton`, `consentTitle`, `consentBody`, `consentAccept`, `consentLater`, `consentNever`, `successTitle`, `successBody`, `npsLowLabel`, `npsHighLabel`, and the error strings). If the questionnaire's server-side `description` field is non-empty, it overrides `consentBody` so different surveys carry their own context without per-call overrides.
+
+## Saving and submitting from custom UI
+
+If you're rendering your own survey UI instead of `OwlQuestionnaireView`, call `Owl.saveQuestionnaireResponse(slug, answers, isComplete)` to persist progress. Pass `isComplete = false` after each answer to save a draft (idempotent — the server upserts by `(project, slug, user_id)`, so the SDK doesn't track a response id across calls); pass `isComplete = true` on the final submit to flip `submitted_at` and fire the team notification:
+
+```kotlin
+import com.owlmetry.android.OwlQuestionnaireAnswerValue
+
+// Save a draft after the user answers Q2
+Owl.saveQuestionnaireResponse(
+    slug = "post-import",
+    answers = mapOf(
+        "q1" to OwlQuestionnaireAnswerValue.RatingValue(5),
+        "q2" to OwlQuestionnaireAnswerValue.TextValue("Nice!"),
+    ),
+    isComplete = false,
+)
+
+// Final submit — accumulate everything and flip submitted_at
+val receipt = Owl.saveQuestionnaireResponse(
+    slug = "post-import",
+    answers = allAnswers,
+    isComplete = true,
+)
+if (receipt.wasSubmitted) { /* show a thank-you state */ }
+```
+
+Answer value types (all sealed subclasses of `OwlQuestionnaireAnswerValue`):
+
+- `TextValue(String)`
+- `ChoiceValue(String)` — single choice
+- `ChoicesValue(List<String>)` — multi choice
+- `RatingValue(Int)` — 1–5
+- `NpsValue(Int)` — 0–10
+
+Every save sends the full accumulated answer set; the server merges, so going Back and re-answering an earlier question just overwrites that key. `OwlQuestionnaireReceipt.wasSubmitted` is true exactly once per response — on the call that flipped `submitted_at` — making it safe to gate success-state UI on without separate bookkeeping.
+
+## Errors
+
+`Owl.fetchQuestionnaire` and `Owl.saveQuestionnaireResponse` throw `OwlQuestionnaireError`:
+
+- `OwlQuestionnaireError.NotConfigured` — `Owl.configure(...)` hasn't been called yet
+- `OwlQuestionnaireError.SlugNotFound` — the slug doesn't exist in the project (developer error — check spelling)
+- `OwlQuestionnaireError.ServerError` / `OwlQuestionnaireError.TransportFailure` — network / 5xx
+
+`fetchQuestionnaire` doesn't throw for ineligible users — it returns a result whose `.questionnaire` is null and whose `.ineligibleReason` (`alreadyResponded` / `globallyDismissed` / `inactive`) explains why.
+
+## Where responses land
+
+Responses show up on **Dashboard → Questionnaires → &lt;questionnaire&gt;** with pre-aggregated per-question analytics (bar charts for choices, average for ratings, NPS score for NPS). Drafts are first-class responses and appear by default so abandonment shows as a drop-off curve. CLI: `owlmetry questionnaires …`. MCP: `list-questionnaires` / `list-questionnaire-responses` / `get-questionnaire-analytics`.

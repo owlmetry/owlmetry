@@ -1,0 +1,178 @@
+---
+title: Events
+description: Log events at different levels (info, debug, warn, error) with custom attributes and screen context.
+---
+
+Events are the core unit of data in Owlmetry. The Android SDK provides four log levels, each designed for a different class of information. For a broader overview of the event model, see [Events](/docs/concepts/events).
+
+## Log Levels
+
+### Info
+
+Normal operations worth recording: user actions, feature usage, successful completions. This is the default level for most instrumentation.
+
+```kotlin
+Owl.info("User tapped checkout", screenName = "Cart")
+```
+
+### Debug
+
+Verbose detail useful only during development: cache hits, state transitions, intermediate values. Debug events are filtered out when viewing production data.
+
+```kotlin
+Owl.debug("Cache hit for user preferences", screenName = "Home", attributes = mapOf("key" to "user_prefs"))
+```
+
+### Warn
+
+Something unexpected that the app recovered from: slow responses, fallback paths, retries needed.
+
+```kotlin
+Owl.warn("Slow network response", attributes = mapOf("latency_ms" to "1200", "endpoint" to "/api/feed"))
+```
+
+### Error
+
+Something failed: network errors, parse failures, missing data, caught exceptions.
+
+```kotlin
+Owl.error("Failed to load profile image", screenName = "Profile", attributes = mapOf("reason" to "timeout"))
+```
+
+### Error from a caught `Throwable`
+
+If you have a `Throwable` from a `try`/`catch` (or any other source), pass it directly. The SDK extracts the runtime type, the JVM stack trace, and the `Throwable.cause` chain (up to 5 levels deep) into reserved `_error_*` attributes — and the server's issue tracker uses `_error_type` as a fingerprint discriminator so different error classes with the same wording stay on separate issues.
+
+```kotlin
+try {
+    upload()
+} catch (e: Exception) {
+    Owl.error(e, message = "while uploading photos", screenName = "PhotoConverterScreen")
+}
+```
+
+The `message` argument is an optional caller-supplied string that overrides the auto-derived one. Omit it to use the throwable's own message. SDK-owned `_error_*` keys take precedence over any caller-provided values of the same name, to keep fingerprinting and dashboard rendering consistent.
+
+The SDK auto-attaches these reserved attributes (all underscore-prefixed):
+
+| Attribute | Description |
+|-----------|-------------|
+| `_error_type` | Fully-qualified throwable class name (e.g. `java.io.IOException`). Drives issue grouping. |
+| `_error_stack` | The JVM stack trace at the failure site. |
+| `_error_cause_<n>_type`, `_error_cause_<n>_message` | The `Throwable.cause` chain, up to 5 levels deep. |
+
+When you have a `Throwable` from a `catch`, prefer the `Throwable` form over the string form — you get a richer, queryable issue and per-type fingerprinting. Reserve the string form for precondition failures and manual checks where there's no exception object.
+
+## Method Signature
+
+All four methods share the same shape:
+
+```kotlin
+Owl.info(
+    message: String,
+    screenName: String? = null,
+    attributes: Map<String, String?> = emptyMap(),
+    attachments: List<OwlAttachment>? = null,
+)
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `message` | A descriptive string for the event. Choose messages that are specific and searchable. Long content belongs in `attributes`, not `message`. |
+| `screenName` | The screen where the event occurred. Ties the event to a location in the UI. Pass it only for events that originate from a specific screen — omit it in repositories, services, `ViewModel`s decoupled from a screen, and background work. |
+| `attributes` | Key-value pairs of additional structured data. Values are `String?` so optional values pass through directly — `null`-valued keys are silently dropped before the event ships. |
+| `attachments` | Optional file attachments (logs, screenshots, etc.). Most useful on `Owl.error()`. See [File Attachments](#file-attachments). |
+
+### Optional attribute values
+
+Because `attributes` accepts nullable values, a `String?` from your domain code can flow into the map without unwrapping. Anything that resolves to `null` is omitted from the event:
+
+```kotlin
+val contractId: String? = session.draftId  // may be null
+Owl.info("Draft created", attributes = mapOf(
+    "context" to "createDraft",
+    "contractId" to contractId,
+))
+```
+
+If `contractId` is `null`, only `context` reaches the dashboard. The same applies to every `Owl` / `OwlOperation` method that takes `attributes`.
+
+## Auto-Captured Source Info
+
+The SDK best-effort captures the source file, function name, and line number of every log call by walking the call stack to the first frame outside the SDK package. Kotlin has no compile-time `#file`/`#line` literals like Swift, so this is derived at runtime rather than at the call site. The metadata is included on the event and visible in the dashboard, making it straightforward to trace an event back to the code that emitted it.
+
+## Country Is Server-Derived
+
+Each event's `country_code` is resolved server-side from the Cloudflare `CF-IPCountry` header on the ingest request. The SDK never sends it, and raw IP addresses are not stored. If the server is self-hosted without Cloudflare (or the request didn't pass through it), `country_code` is `null`. See [Events › Country](/docs/concepts/events#country-server-derived).
+
+## File Attachments
+
+You can attach files to any event via the `attachments` parameter, but in practice this is almost always used with `Owl.error()` to capture the exact input bytes that triggered a failure (a media file that failed to decode, a document that failed to parse, etc.).
+
+`OwlAttachment` has two factory entry points:
+
+```kotlin
+import com.owlmetry.android.OwlAttachment
+import java.io.File
+
+// From a file on disk (name defaults to the file's own name)
+OwlAttachment.file(inputFile, name = "input.heic", contentType = "image/heic")
+
+// From in-memory bytes (name is required)
+OwlAttachment.bytes(debugJson, name = "debug.json", contentType = "application/json")
+```
+
+`contentType` is optional — when null, the uploader infers a MIME type from the file extension, falling back to `application/octet-stream`.
+
+```kotlin
+try {
+    PhotoConverter.convert(inputFile)
+} catch (e: Throwable) {
+    Owl.error(
+        e,
+        message = "image conversion failed",
+        screenName = "PhotoConverterScreen",
+        attributes = mapOf("stage" to "decode"),
+        attachments = listOf(OwlAttachment.file(inputFile)),
+    )
+}
+```
+
+Uploads run on a separate coroutine so a large file never blocks event batching. Upload behaviour is strictly non-fatal: if the device is offline, the per-user bucket (default 250 MB per user) or project quota (default 5 GB) is exhausted, or the server otherwise rejects the file, the event itself still posts and the attachment is dropped silently (with a warning logged to Logcat). There is no offline queue for attachments — if the device is offline when the error fires, the attachment is discarded but the event queues normally.
+
+The SDK automatically tags each attachment with the currently identified user (`Owl.setUser()`) so per-user quotas apply correctly. See [Attachments](/docs/concepts/attachments) for a deeper overview.
+
+## Automatic Lifecycle Events
+
+The SDK emits several events automatically without any manual calls:
+
+| Event | Level | When |
+|-------|-------|------|
+| `sdk:session_started` | info | On `Owl.configure()`. Includes `_launch_ms` (process start → configure). |
+| `sdk:app_foregrounded` | info | When the app enters the foreground. |
+| `sdk:app_backgrounded` | info | When the app enters the background. |
+| `sdk:screen_appeared` | debug | When a composable with `Modifier.owlScreen()` enters the composition. See [Screen Tracking](/docs/sdks/android/screen-tracking). |
+| `sdk:screen_disappeared` | debug | When it leaves the composition. Includes `_duration_ms`. |
+
+You do **not** need to manually track app launch, foreground/background, session start, network type, or device info — these are already covered.
+
+## Linking Client and Backend Events
+
+Every event the Android SDK emits is stamped with a session ID generated on `Owl.configure()` and accessible via `Owl.sessionId`. When the app calls your backend, forward this value as a request header so events logged by the backend can be tagged with the same session ID:
+
+```kotlin
+val sessionId = Owl.sessionId
+if (sessionId != null) {
+    requestBuilder.addHeader("X-Owl-Session-Id", sessionId)
+}
+```
+
+On a Node.js backend using `@owlmetry/node`, read the header and scope the handler with [`Owl.withSession()`](/docs/sdks/node/identity#withsession). Events from both sides of the request then share the same `session_id` and line up in the dashboard's session view.
+
+## Best Practices
+
+- **Be specific with messages.** Prefer `"Failed to load profile image"` over `"error"`. Specific messages are easier to search and filter.
+- **Use `screenName` for UI events.** It ties events to where they happened — but never fabricate one from a repository or service.
+- **Use `attributes` for structured data.** Anything you might want to filter, group, or search on later should be an attribute rather than embedded in the message string.
+- **Avoid logging PII.** Do not include emails, phone numbers, passwords, or authentication tokens in events.
+- **Avoid high-frequency events.** Do not log on every frame, scroll position change, or `Flow` emission. Focus on meaningful actions and outcomes.

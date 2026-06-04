@@ -1,0 +1,117 @@
+---
+title: Configuration
+description: Configure the Android SDK with Owl.configure() — context, endpoint, API key, and options.
+---
+
+Call `Owl.configure()` once, as early as possible — in your `Application` subclass's `onCreate()`. This initializes the SDK, starts a new session, and begins capturing events.
+
+## Basic Setup
+
+Create (or extend) an `Application` subclass and call `configure()` in `onCreate()`:
+
+```kotlin
+import android.app.Application
+import com.owlmetry.android.Owl
+import com.owlmetry.android.OwlConfigurationError
+
+class MyApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        try {
+            Owl.configure(
+                context = this,
+                endpoint = "https://ingest.owlmetry.com",
+                apiKey = "owl_client_...",
+            )
+        } catch (e: OwlConfigurationError) {
+            android.util.Log.e("Owlmetry", "configuration failed", e)
+        }
+        Owl.info("app_launched")
+    }
+}
+```
+
+Register the `Application` subclass in your manifest:
+
+```xml
+<application
+    android:name=".MyApp"
+    ... >
+```
+
+> **Do not defer configuration** to a later point (the first `Activity`, after async setup, or after user consent). The SDK measures app launch time (`_launch_ms`) from process start to the `configure()` call, so placing it early gives an accurate cold-start metric — and ensures no events are dropped before configuration.
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `context` | `Context` | required | An Android `Context`. `configure()` uses `applicationContext` internally, so passing `this` from `Application` is correct. |
+| `endpoint` | `String` | required | Your Owlmetry ingest server URL. |
+| `apiKey` | `String` | required | Client API key. Must start with `owl_client_`. |
+| `flushOnBackground` | `Boolean` | `true` | Automatically flush buffered events when the app enters the background. |
+| `compressionEnabled` | `Boolean` | `true` | Gzip-compress request bodies before sending. |
+| `networkTrackingEnabled` | `Boolean` | `true` | Reserved for automatic HTTP request tracking (not yet implemented on Android). |
+| `consoleLogging` | `Boolean` | `true` | Echo events to Logcat. Set to `false` to suppress. |
+| `attributionEnabled` | `Boolean` | `true` | Reserved for install-attribution capture (no Android analog yet — see [below](#no-apple-search-ads-on-android)). |
+
+## Full Example with All Options
+
+```kotlin
+Owl.configure(
+    context = this,
+    endpoint = "https://ingest.owlmetry.com",
+    apiKey = "owl_client_...",
+    flushOnBackground = true,
+    compressionEnabled = true,
+    networkTrackingEnabled = true,
+    consoleLogging = true,
+    attributionEnabled = true,
+)
+```
+
+## What Happens on Configure
+
+1. **Session ID** — a fresh UUID is generated to group all events from this launch. Readable at runtime via `Owl.sessionId`.
+2. **Package ID** — automatically read from `context.packageName` (e.g. `com.example.app`).
+3. **Debug mode** — `is_dev` is set to `true` when the host app is debuggable (the `FLAG_DEBUGGABLE` manifest flag — true for debug builds, false for release).
+4. **Launch time** — the SDK measures the time from process start (`Process.getStartUptimeMillis()`) to the `configure()` call and includes it as `_launch_ms` on the `session_started` event. Place `configure()` as early as possible for an accurate cold-start measurement.
+5. **Session event** — a `sdk:session_started` event is emitted immediately with the `_launch_ms` attribute.
+6. **Lifecycle observer** — if `flushOnBackground` is `true`, the SDK registers a process-`LifecycleObserver` to flush on background.
+7. **Network monitor** — starts tracking connection type (wifi, cellular, offline).
+8. **Startup identity claim** — if a real user ID was saved on a previous launch and differs from the anonymous ID, the SDK fires an idempotent claim so anonymous events sent before the user was known attribute to the real user.
+
+## Configuration Errors
+
+`Owl.configure()` throws `OwlConfigurationError` — a sealed exception hierarchy with three cases:
+
+| Error | When it occurs |
+|-------|---------------|
+| `OwlConfigurationError.InvalidEndpoint` | The endpoint string is not a valid absolute http(s) URL with a host. |
+| `OwlConfigurationError.InvalidApiKey` | The API key does not start with `owl_client_`. |
+| `OwlConfigurationError.MissingBundleId` | The package name could not be determined (rare — empty `context.packageName`). |
+
+Wrap the call in `try`/`catch` as shown above.
+
+## No Apple Search Ads on Android
+
+The Swift SDK auto-captures Apple Search Ads attribution on configure. The Android SDK has **no ASA equivalent**. Install attribution on Android comes from Google Play / the Play Install Referrer and is out of scope for v1 — the `attributionEnabled` flag is reserved and currently a no-op. Likewise, **automatic network-request instrumentation** (`networkTrackingEnabled`) and **push registration** (FCM, not APNs) are not yet provided by the SDK.
+
+## Calling Configure More Than Once
+
+Calling `configure()` again is safe. The SDK shuts down the previous transport, stops the old lifecycle observer, and starts fresh with a new session ID — emitting a new `sdk:session_started` event.
+
+## Shutdown
+
+In most cases the SDK handles cleanup automatically via background-flush on app background. If you need to guarantee delivery at a specific point (e.g. before a deliberate teardown in a test harness), call `shutdown()`:
+
+```kotlin
+Owl.shutdown()  // suspend — flushes buffered events and stops the background-flush observer
+```
+
+`shutdown()` is a suspend function; call it from a coroutine. The SDK can be `configure()`d again afterward.
+
+## Next Steps
+
+- [Events](/docs/sdks/android/events) — start logging events
+- [Identity](/docs/sdks/android/identity) — connect events to real users
+- [Screen Tracking](/docs/sdks/android/screen-tracking) — add automatic screen view tracking

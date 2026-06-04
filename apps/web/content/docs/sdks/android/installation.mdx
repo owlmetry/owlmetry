@@ -1,0 +1,88 @@
+---
+title: Installation
+description: Add the Owlmetry Android SDK to your project via Gradle and Maven Central.
+---
+
+The Owlmetry Android SDK is published to Maven Central as two artifacts. The core module has a single runtime dependency (`kotlinx-coroutines`); add the optional Compose module only if you want the drop-in UI.
+
+| Artifact | When to add |
+|----------|-------------|
+| `com.owlmetry:owlmetry-android` | Always — the core SDK. |
+| `com.owlmetry:owlmetry-android-compose` | Only if you use `OwlFeedbackView`, `OwlQuestionnaireGate` / `OwlQuestionnaireView`, or the `Modifier.owlScreen()` modifier. |
+
+## Version catalog (recommended)
+
+If your project uses a version catalog (`gradle/libs.versions.toml`), add the version and library entries there:
+
+```toml
+[versions]
+owlmetry = "0.1.0"
+
+[libraries]
+owlmetry-android = { module = "com.owlmetry:owlmetry-android", version.ref = "owlmetry" }
+owlmetry-android-compose = { module = "com.owlmetry:owlmetry-android-compose", version.ref = "owlmetry" }
+```
+
+Then in your app module's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation(libs.owlmetry.android)
+    // Optional — only for the drop-in Compose UI and the owlScreen() modifier:
+    implementation(libs.owlmetry.android.compose)
+}
+```
+
+## Direct coordinates
+
+If the project declares dependencies directly (no catalog), add to the app module's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("com.owlmetry:owlmetry-android:0.1.0")
+    // Optional Compose UI:
+    implementation("com.owlmetry:owlmetry-android-compose:0.1.0")
+}
+```
+
+The Groovy `build.gradle` equivalent:
+
+```groovy
+dependencies {
+    implementation 'com.owlmetry:owlmetry-android:0.1.0'
+    implementation 'com.owlmetry:owlmetry-android-compose:0.1.0'
+}
+```
+
+> For the latest version, see [releases](https://github.com/owlmetry/owlmetry-android/releases/latest). Pin a version for reproducible builds.
+
+Make sure Maven Central is a configured repository — it almost always already is, in `settings.gradle.kts` under `dependencyResolutionManagement { repositories { mavenCentral() } }`.
+
+## Permissions
+
+The core module merges two install-time, no-prompt permissions into your app's manifest: `INTERNET` and `ACCESS_NETWORK_STATE`. No runtime permission request is needed.
+
+## Verify the Installation
+
+After editing the Gradle files, sync and build:
+
+```bash
+./gradlew :app:assembleDebug --quiet
+# or, to just resolve dependencies without a full build:
+./gradlew :app:dependencies --configuration debugRuntimeClasspath | grep owlmetry
+```
+
+Adjust `:app` to the actual application module name if it differs. Unresolved-import warnings in the editor before the first Gradle sync are expected.
+
+## Requirements
+
+| Requirement | Minimum |
+|-------------|---------|
+| Android | 7.0 (API 24) |
+| Kotlin | 2.0+ |
+| AGP | 8.7+ |
+| JDK | 17+ |
+
+## Next Steps
+
+Once the dependency resolves and your project builds, proceed to [Configuration](/docs/sdks/android/configuration) to initialize the SDK.
