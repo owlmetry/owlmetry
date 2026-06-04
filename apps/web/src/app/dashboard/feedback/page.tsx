@@ -100,20 +100,29 @@ function FeedbackDetailModal({
   projectId,
   projectColor,
   feedbackId,
-  open,
   onClose,
   onMutate,
 }: {
   projectId: string;
   projectColor: string | undefined;
   feedbackId: string;
-  open: boolean;
   onClose: () => void;
   onMutate: () => void;
 }) {
   const { feedback, isLoading, mutate: mutateDetail } = useFeedbackDetail(projectId, feedbackId);
+  // Drive the dialog's open state locally so the visual close is instant.
+  // If close only stripped the URL param, a slow App Router transition (e.g.
+  // contending with an SWR revalidation) could leave the dialog frozen open
+  // until the search params re-rendered — exactly the "X does nothing" bug.
+  const [open, setOpen] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Close the dialog immediately, then sync the URL as a side-effect.
+  const handleClose = () => {
+    setOpen(false);
+    onClose();
+  };
 
   const handleStatusChange = async (status: FeedbackStatus) => {
     setActionLoading(true);
@@ -132,7 +141,7 @@ function FeedbackDetailModal({
     try {
       await feedbackActions.remove(projectId, feedbackId);
       onMutate();
-      onClose();
+      handleClose();
     } finally {
       setActionLoading(false);
     }
@@ -150,10 +159,8 @@ function FeedbackDetailModal({
     }
   };
 
-  if (!open) return null;
-
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         {isLoading || !feedback ? (
           <div className="py-8 text-center text-muted-foreground">
@@ -435,10 +442,10 @@ export default function FeedbackPage() {
 
       {selectedFeedbackId && selectedFeedback && (
         <FeedbackDetailModal
+          key={selectedFeedbackId}
           projectId={selectedFeedback.project_id}
           projectColor={projectColorMap.get(selectedFeedback.project_id)}
           feedbackId={selectedFeedbackId}
-          open={!!selectedFeedbackId}
           onClose={closeFeedback}
           onMutate={() => mutate()}
         />
