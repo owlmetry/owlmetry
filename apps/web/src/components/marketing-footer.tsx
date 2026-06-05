@@ -16,6 +16,7 @@ const columns = [
     links: [
       { label: "Documentation", href: "/docs" },
       { label: "Swift SDK", href: "/docs/sdks/swift" },
+      { label: "Android SDK", href: "/docs/sdks/android" },
       { label: "Node.js SDK", href: "/docs/sdks/node" },
       { label: "CLI", href: "/docs/cli" },
       { label: "API Reference", href: "/docs/api-reference" },

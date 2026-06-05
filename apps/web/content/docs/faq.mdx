@@ -18,12 +18,13 @@ Owlmetry uses a single PostgreSQL 16 database with no additional infrastructure.
 
 ## Which platforms are supported?
 
-Owlmetry has SDKs for two platforms:
+Owlmetry has SDKs for three platforms:
 
 - **Swift SDK** — iOS, iPadOS, and macOS (distributed as a Swift Package)
+- **Android SDK** — Kotlin apps, with optional Jetpack Compose UI (published to Maven Central as `com.owlmetry:owlmetry-android`)
 - **Node.js SDK** — Express, Fastify, serverless functions, and any Node.js backend
 
-Both SDKs have zero runtime dependencies and handle batching, compression, and retry automatically. Events from all platforms appear in the same dashboard.
+The Swift and Node.js SDKs have zero runtime dependencies; the Android core module depends only on `kotlinx-coroutines`. All three handle batching, compression, and retry automatically. Events from all platforms appear in the same dashboard.
 
 ## Can I self-host Owlmetry?
 
@@ -35,7 +36,7 @@ Owlmetry is purpose-built for the agent-first development workflow. Where other 
 
 ## What does "agent-first" mean?
 
-Agent-first means Owlmetry is designed so that AI coding agents (Claude Code, Codex, Cursor, etc.) can handle the entire observability workflow — from installing SDKs and configuring API keys to querying events and diagnosing production issues. Dedicated skill files for the CLI, Swift SDK, and Node SDK are distributed as a [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills) so agents know the correct command syntax and SDK APIs. You still get a full web dashboard, but the API is the primary interface.
+Agent-first means Owlmetry is designed so that AI coding agents (Claude Code, Codex, Cursor, etc.) can handle the entire observability workflow — from installing SDKs and configuring API keys to querying events and diagnosing production issues. Dedicated skill files for the CLI, Swift SDK, Android SDK, and Node SDK are distributed as a [Claude Code plugin marketplace](https://github.com/owlmetry/owlmetry-skills) so agents know the correct command syntax and SDK APIs. You still get a full web dashboard, but the API is the primary interface.
 
 ## Is Owlmetry open source?
 
@@ -43,6 +44,7 @@ Yes. The entire codebase is open source and spread across a few repos under the 
 
 - [owlmetry/owlmetry](https://github.com/owlmetry/owlmetry) — server, web dashboard, CLI, and deploy scripts
 - [owlmetry/owlmetry-swift](https://github.com/owlmetry/owlmetry-swift) — Swift SDK for iOS, iPadOS, and macOS
+- [owlmetry/owlmetry-android](https://github.com/owlmetry/owlmetry-android) — Android SDK (Kotlin / Jetpack Compose)
 - [owlmetry/owlmetry-node](https://github.com/owlmetry/owlmetry-node) — Node.js Server SDK
 - [owlmetry/owlmetry-skills](https://github.com/owlmetry/owlmetry-skills) — Claude Code plugin marketplace with agent skills
 

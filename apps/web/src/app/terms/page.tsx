@@ -36,7 +36,8 @@ export default function TermsPage() {
             <p>
               Owlmetry is an analytics platform for mobile and backend
               applications. It includes a hosted service at owlmetry.com,
-              self-hosted open-source software, client SDKs (Swift, Node.js), a
+              self-hosted open-source software, client SDKs (Swift, Android,
+              Node.js), a
               command-line interface (CLI), and an API. These terms govern your
               use of all Owlmetry products and services.
             </p>

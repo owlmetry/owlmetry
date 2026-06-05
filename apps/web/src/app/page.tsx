@@ -74,7 +74,7 @@ const features = [
   {
     icon: Smartphone,
     title: "Multi-Platform SDKs",
-    description: "Drop in a Swift or Node.js SDK and start collecting data in minutes. Batching, compression, and retry happen automatically.",
+    description: "Drop in a Swift, Android, or Node.js SDK and start collecting data in minutes. Batching, compression, and retry happen automatically.",
   },
   {
     icon: Shield,
@@ -710,7 +710,7 @@ export default function LandingPage() {
               "@type": "SoftwareApplication",
               name: "Owlmetry",
               applicationCategory: "DeveloperApplication",
-              operatingSystem: "iOS, iPadOS, macOS, Node.js",
+              operatingSystem: "iOS, iPadOS, macOS, Android, Node.js",
               description:
                 "Agent-first observability platform. Events, metrics, funnels, in-app questionnaires, error tracking, and App Store reviews — for mobile and backend apps.",
               url: "https://owlmetry.com",
@@ -763,6 +763,7 @@ export default function LandingPage() {
                 "Audit trail across every resource",
                 "Per-project event, metric, and funnel retention",
                 "Swift SDK for iOS/iPadOS/macOS",
+                "Android SDK for Kotlin / Jetpack Compose",
                 "Node.js SDK for backends",
                 "CLI for agents and humans",
                 "Self-hosted with single PostgreSQL",
