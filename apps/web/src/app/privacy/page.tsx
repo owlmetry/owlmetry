@@ -91,8 +91,9 @@ export default function PrivacyPolicyPage() {
                 explicitly send
               </li>
               <li>
-                <strong>Network connection type</strong> (Swift SDK only,
-                opt-in)
+                <strong>Network connection type</strong> (wifi, cellular,
+                ethernet, or offline — attached to every event by the mobile
+                SDKs)
               </li>
             </ul>
 
