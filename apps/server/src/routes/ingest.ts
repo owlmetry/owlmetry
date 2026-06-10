@@ -16,7 +16,10 @@ import {
   updateAppSupportedLanguages,
   resolveIngestCountryCode,
 } from "../utils/event-processing.js";
-import { resolveClaimedUserIds } from "../utils/claimed-identity.js";
+import {
+  resolveClaimedUserIds,
+  mergeStragglerAnonAppUserRows,
+} from "../utils/claimed-identity.js";
 
 export async function ingestRoutes(app: FastifyInstance) {
   app.post<{ Body: IngestRequest }>(
@@ -192,6 +195,19 @@ export async function ingestRoutes(app: FastifyInstance) {
                 eq(metricEvents.user_id, anonId),
               ));
           }
+
+          // Same race, app_users flavour: an ingest whose
+          // resolveClaimedUserIds ran before the claim committed re-INSERTs
+          // the anon app_users row (via its awaited upsertAppUsers) right
+          // after the claim renamed/deleted it — an orphan with
+          // claimed_from = null. Fold it back into the real row here, the
+          // same way the event sweep above handles the orphaned events.
+          await mergeStragglerAnonAppUserRows(
+            app.db,
+            appRow.project_id,
+            claimedMap,
+            request.log,
+          );
         }
 
         const insertedClientIds = valid

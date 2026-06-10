@@ -858,6 +858,56 @@ describe("POST /v1/identity/claim — robustness against zero-event races", () =
     const underAnon = await queryEvents({ user_id: anonId });
     expect(underAnon.json().events.length).toBe(0);
   });
+
+  it("sweeps an orphaned anon app_users row re-created by a racing upsert (deterministic)", async () => {
+    // Deterministic replay of the interleaving the concurrent test above can
+    // only hit probabilistically: an ingest's resolveClaimedUserIds runs
+    // before the claim commits (no mapping → batch stays anon), the claim
+    // then renames/deletes the anon app_users row, and the ingest's awaited
+    // upsertAppUsers re-INSERTs the anon row afterwards — an orphan with
+    // claimed_from = null that nothing rewrote before the straggler sweep
+    // learned to merge app_users too.
+    const projectId = await getProjectIdForBundle(TEST_BUNDLE_ID);
+    const anonId = "owl_anon_test-E-orphan-replay";
+    const realId = "real-test-E";
+
+    // 1. Anchor ingest creates the anon row the claim will rename in place.
+    await ingest([
+      { level: "info", message: "anchor", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+    await waitForAppUser(projectId, anonId);
+
+    // 2. Claim renames the anon row to the real id + registers claimed_from.
+    const claimRes = await claim({ anonymous_id: anonId, user_id: realId });
+    expect(claimRes.statusCode).toBe(200);
+
+    // 3. Simulate the racing ingest's stale upsertAppUsers landing after the
+    //    claim: re-insert the anon row (claimed_from null), with a property
+    //    so the sweep's merge semantics are observable.
+    await insertAppUser(projectId, anonId, {
+      isAnonymous: true,
+      properties: { straggler_prop: "from-anon" },
+    });
+
+    // 4. The SDK's next straggler ingest with the same anon id triggers the
+    //    sweep, which must fold the orphan back into the real row.
+    await ingest([
+      { level: "info", message: "straggler", user_id: anonId, session_id: TEST_SESSION_ID },
+    ]);
+
+    const users = await getProjectUsers(projectId);
+    expect(users.find((u: any) => u.user_id === anonId)).toBeUndefined();
+    const realRow = users.find((u: any) => u.user_id === realId);
+    expect(realRow).toBeDefined();
+    expect(realRow!.claimed_from).toEqual([anonId]);
+    // Orphan's properties carried over (real-row keys would win on conflict).
+    expect(realRow!.properties).toMatchObject({ straggler_prop: "from-anon" });
+
+    const underAnon = await queryEvents({ user_id: anonId });
+    expect(underAnon.json().events.length).toBe(0);
+    const underReal = await queryEvents({ user_id: realId });
+    expect(underReal.json().events.length).toBe(2);
+  });
 });
 
 describe("POST /v1/identity/claim — questionnaire response migration", () => {
