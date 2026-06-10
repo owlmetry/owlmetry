@@ -47,6 +47,7 @@
 import { and, eq, isNull, like } from "drizzle-orm";
 import { createDatabaseConnection, appUsers, appUserApps, projectIntegrations } from "@owlmetry/db";
 import type { Db } from "@owlmetry/db";
+import { PG_UNIQUE_VIOLATION } from "@owlmetry/shared";
 import { config } from "../config.js";
 import {
   type RevenueCatConfig,
@@ -166,7 +167,7 @@ function isUniqueViolation(err: unknown): boolean {
   // postgres-js throws PostgresError with `code`; depending on the drizzle
   // call path it may arrive wrapped, so walk the `cause` chain too.
   for (let e: unknown = err; e instanceof Error; e = e.cause) {
-    if ((e as { code?: unknown }).code === "23505") return true;
+    if ((e as { code?: unknown }).code === PG_UNIQUE_VIOLATION) return true;
   }
   return false;
 }
@@ -480,20 +481,18 @@ for (const [projectId, rows] of [...byProject.entries()].sort(([a], [b]) => a.lo
   }
 }
 
+const formatCounters = (c: Counters): string =>
+  `merged=${c.merged} renamed=${c.renamed} ` +
+  `skipped_not_found=${c.skipped_not_found} skipped_never_aliased=${c.skipped_never_aliased} ` +
+  `skipped_no_integration=${c.skipped_no_integration} skipped_has_activity=${c.skipped_has_activity} ` +
+  `errors=${c.errors}`;
+
 console.log("\n=== Summary ===");
 for (const [projectId, counters] of [...perProject.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-  console.log(
-    `  project ${projectId}: merged=${counters.merged} renamed=${counters.renamed} ` +
-      `skipped_not_found=${counters.skipped_not_found} skipped_never_aliased=${counters.skipped_never_aliased} ` +
-      `skipped_no_integration=${counters.skipped_no_integration} skipped_has_activity=${counters.skipped_has_activity} ` +
-      `errors=${counters.errors}`,
-  );
+  console.log(`  project ${projectId}: ${formatCounters(counters)}`);
 }
 console.log(
-  `  TOTAL: merged=${totals.merged} renamed=${totals.renamed} ` +
-    `skipped_not_found=${totals.skipped_not_found} skipped_never_aliased=${totals.skipped_never_aliased} ` +
-    `skipped_no_integration=${totals.skipped_no_integration} skipped_has_activity=${totals.skipped_has_activity} ` +
-    `errors=${totals.errors}` +
+  `  TOTAL: ${formatCounters(totals)}` +
     (projectsFailed > 0 ? ` (${projectsFailed} project(s) skipped entirely)` : ""),
 );
 if (dryRun) console.log("  Dry run — nothing was written.");

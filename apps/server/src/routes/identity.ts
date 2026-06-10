@@ -4,7 +4,6 @@ import {
   events,
   apps,
   appUsers,
-  appUserApps,
   funnelEvents,
   metricEvents,
   questionnaireResponses,
@@ -17,6 +16,7 @@ import { ANONYMOUS_ID_PREFIX } from "@owlmetry/shared";
 import type { IdentityClaimRequest, IdentityClaimResponse } from "@owlmetry/shared";
 import { requirePermission } from "../middleware/auth.js";
 import { resolveProjectIdFromApp } from "../utils/project.js";
+import { mergeAnonAppUserRowIntoReal } from "../utils/claimed-identity.js";
 
 export async function identityRoutes(app: FastifyInstance) {
   app.post<{ Body: IdentityClaimRequest }>(
@@ -247,54 +247,18 @@ export async function identityRoutes(app: FastifyInstance) {
           .limit(1);
 
         if (realUserRow) {
-          // Real user exists — merge: append anonymous_id to claimed_from, take earliest first_seen_at
+          // Real user exists — merge: append anonymous_id to claimed_from,
+          // fold the anon row in via the shared merge primitive.
           const newClaimedFrom = [...(realUserRow.claimed_from ?? []), anonymous_id];
-          const updates: Record<string, unknown> = {
-            claimed_from: newClaimedFrom,
-          };
-          if (anonRow && anonRow.first_seen_at < realUserRow.first_seen_at) {
-            updates.first_seen_at = anonRow.first_seen_at;
-          }
-          // Merge properties: anonymous props as base, real user props win on conflict
-          if (anonRow?.properties) {
-            const anonProps = (anonRow.properties as Record<string, string>) ?? {};
-            const realProps = (realUserRow.properties as Record<string, string>) ?? {};
-            updates.properties = { ...anonProps, ...realProps };
-          }
-          await tx
-            .update(appUsers)
-            .set(updates)
-            .where(eq(appUsers.id, realUserRow.id));
-
-          // Merge junction entries from anonymous user to real user
           if (anonRow) {
-            const anonJunctions = await tx
-              .select()
-              .from(appUserApps)
-              .where(eq(appUserApps.app_user_id, anonRow.id));
-
-            for (const j of anonJunctions) {
-              await tx
-                .insert(appUserApps)
-                .values({
-                  app_user_id: realUserRow.id,
-                  app_id: j.app_id,
-                  first_seen_at: j.first_seen_at,
-                  last_seen_at: j.last_seen_at,
-                })
-                .onConflictDoUpdate({
-                  target: [appUserApps.app_user_id, appUserApps.app_id],
-                  set: {
-                    first_seen_at: sql`LEAST(${appUserApps.first_seen_at}, EXCLUDED.first_seen_at)`,
-                    last_seen_at: sql`GREATEST(${appUserApps.last_seen_at}, EXCLUDED.last_seen_at)`,
-                  },
-                });
-            }
-
-            // Delete the anonymous row (cascades junction entries)
+            await mergeAnonAppUserRowIntoReal(tx, anonRow, realUserRow, {
+              claimed_from: newClaimedFrom,
+            });
+          } else {
             await tx
-              .delete(appUsers)
-              .where(eq(appUsers.id, anonRow.id));
+              .update(appUsers)
+              .set({ claimed_from: newClaimedFrom })
+              .where(eq(appUsers.id, realUserRow.id));
           }
         } else if (anonRow) {
           // No real user row — update anonymous row in-place

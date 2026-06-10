@@ -237,14 +237,27 @@ export async function revenuecatRoutes(app: FastifyInstance) {
       // canonical id and fall through to the unchanged downstream flow.
       // Non-anonymous events skip this entirely (zero added RC calls).
       if (userId.startsWith(RC_ANONYMOUS_PREFIX)) {
-        const rcProjectId = await resolveRevenueCatProjectId(config.api_key, request.log);
-        if (rcProjectId === null) {
+        const projectIdResult = await resolveRevenueCatProjectId(config.api_key);
+        if (projectIdResult.status !== "found") {
           // 503 so RC retries — webhook-only props (e.g. cancellation state)
           // would otherwise be lost, and the handler is idempotent so retries
           // are safe.
+          request.log.warn(
+            {
+              projectId,
+              eventId: event.id,
+              status: projectIdResult.status,
+              statusCode: projectIdResult.status === "error" ? projectIdResult.statusCode : undefined,
+            },
+            "RC webhook: could not resolve RevenueCat project for anonymous ID (503 so RC retries)",
+          );
           return reply.code(503).send({ error: "Could not resolve RevenueCat project" });
         }
-        const customerResult = await fetchRevenueCatCustomer(config.api_key, rcProjectId, userId);
+        const customerResult = await fetchRevenueCatCustomer(
+          config.api_key,
+          projectIdResult.projectId,
+          userId,
+        );
         if (customerResult.status === "not_found") {
           request.log.info(
             { projectId, userId, eventId: event.id },

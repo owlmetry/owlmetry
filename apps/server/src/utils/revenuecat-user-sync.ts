@@ -7,6 +7,7 @@ import { mapRevenueCatAttributesToAttributionProperties } from "./attribution/re
 import {
   type RevenueCatConfig,
   type RevenueCatLookupMaps,
+  type FetchProjectIdResult,
   RC_ANONYMOUS_PREFIX,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
@@ -56,6 +57,18 @@ export async function syncRevenueCatUserProperties(args: {
   lookups?: RevenueCatLookupMaps;
 }): Promise<SyncRevenueCatUserResult> {
   const { db, log, projectId, rcProjectId, config, userId, lookups } = args;
+
+  // Chokepoint guard: every RC sync path funnels through here, and RC's V2
+  // endpoints resolve aliases — a `$RCAnonymousID:*` id would "succeed" and
+  // upsert the canonical customer's props + revenue under a phantom
+  // app_users row. Callers pre-filter/translate, so hitting this means a
+  // forgotten guard upstream; surface as a loud error rather than sync.
+  if (userId.startsWith(RC_ANONYMOUS_PREFIX)) {
+    return {
+      status: "error",
+      message: "Refusing to sync a RevenueCat anonymous ID — its data belongs to the canonical (aliased) user",
+    };
+  }
 
   const subscriberResult = await fetchRevenueCatSubscriber(config.api_key, rcProjectId, userId);
   if (subscriberResult.status === "not_found") return { status: "not_found" };
@@ -257,33 +270,25 @@ export function clearRevenueCatProjectIdCache(): void {
 
 /**
  * Resolve the RevenueCat project ID for a V2 secret API key, cached
- * in-process per key for 1 hour. Returns null when resolution fails (RC
- * error or key with no accessible projects) after logging a warning.
- * Failures are NOT cached so a transient outage doesn't poison subsequent
- * lookups for the full TTL.
+ * in-process per key for 1 hour. Pure cache wrapper around
+ * `fetchRevenueCatProjectId` — returns its result union so each caller logs
+ * the failure once with its own context. Failures are NOT cached so a
+ * transient outage doesn't poison subsequent lookups for the full TTL.
  */
 export async function resolveRevenueCatProjectId(
   apiKey: string,
-  log: SyncLog,
-): Promise<string | null> {
+): Promise<FetchProjectIdResult> {
   const now = Date.now();
   const cached = projectIdCache.get(apiKey);
-  if (cached && cached.expiresAt > now) return cached.projectId;
+  if (cached && cached.expiresAt > now) {
+    return { status: "found", projectId: cached.projectId };
+  }
 
   const result = await fetchRevenueCatProjectId(apiKey);
-  if (result.status !== "found") {
-    log.warn(
-      {
-        status: result.status,
-        statusCode: result.status === "error" ? result.statusCode : undefined,
-        message: result.status === "error" ? result.message : undefined,
-      },
-      "Could not resolve RevenueCat project ID",
-    );
-    return null;
+  if (result.status === "found") {
+    projectIdCache.set(apiKey, { projectId: result.projectId, expiresAt: now + PROJECT_ID_CACHE_TTL_MS });
   }
-  projectIdCache.set(apiKey, { projectId: result.projectId, expiresAt: now + PROJECT_ID_CACHE_TTL_MS });
-  return result.projectId;
+  return result;
 }
 
 /**
@@ -311,14 +316,21 @@ export function resyncRevenueCatUsersInBackground(args: {
   if (userIds.length === 0) return;
   void (async () => {
     try {
-      const rcProjectId = await resolveRevenueCatProjectId(config.api_key, log);
-      if (rcProjectId === null) {
+      const projectIdResult = await resolveRevenueCatProjectId(config.api_key);
+      if (projectIdResult.status !== "found") {
         log.warn(
-          { projectId, eventId, context },
+          {
+            projectId,
+            eventId,
+            context,
+            status: projectIdResult.status,
+            statusCode: projectIdResult.status === "error" ? projectIdResult.statusCode : undefined,
+          },
           "RC user resync aborted — could not resolve RevenueCat project",
         );
         return;
       }
+      const rcProjectId = projectIdResult.projectId;
       // Build the entitlement_id → lookup_key + product_id → store_identifier
       // maps once before fan-out so each per-user sync gets the same
       // translation table without re-fetching.
