@@ -79,12 +79,16 @@ RevenueCat Purchase/Renewal/Cancellation
   -> Visible in Users list with Paid/Cancelled badges
 ```
 
+RevenueCat fires webhooks under whatever `app_user_id` was current at purchase time, so a purchase completed before your app identified the RC SDK arrives keyed by an anonymous `$RCAnonymousID:*` ID. Owlmetry resolves these to the canonical (aliased) customer via RevenueCat's API before writing, so the subscription properties and revenue land on the real user rather than a phantom user row keyed by the anonymous ID. Anonymous customers that were never aliased to a real user are acknowledged and skipped, and transient RevenueCat API failures during resolution are answered with a retryable error so RevenueCat redelivers the webhook.
+
 ### Sync
 
 Webhooks capture future events, but users who subscribed before the integration was set up need a backfill. The sync endpoints call RevenueCat's REST API to fetch subscriber data:
 
 - **Bulk sync** — syncs all non-anonymous users in the project (rate-limited to ~180 req/min)
 - **Single-user sync** — fetches one subscriber's data immediately
+
+`$RCAnonymousID:*` IDs are excluded from both: their data belongs to the canonical (aliased) user. The daily sync job skips any such rows (reported as `skipped_anonymous` in job results), and the single-user sync rejects them with a 400.
 
 Sync and webhooks also backfill **Apple Search Ads attribution** from RevenueCat's subscriber attributes (`$mediaSource`, `$campaign`, `$adGroup`, `$ad`, `$keyword`). RC populates these attributes server-side on AdServices token receipt for *every* attributed user — subscribers and free users alike — so a bulk sync enriches your whole attributed population, not just paying users. Only the webhook *delivery* path is subscriber-gated: RC fires webhooks on subscription events (INITIAL_PURCHASE, RENEWAL, CANCELLATION, etc.) but never for free users, so non-subscribers only get name enrichment via a bulk sync run. If you'd rather not depend on RC having the Advanced ASA integration configured, the **Apple Search Ads integration** below resolves the same names directly from Apple for every attributed user. Existing attribution data written by either path is never overwritten (per-field merge). Fixture installs (`attribution_source = "apple_test_install"` — TestFlight, Xcode dev builds, simulator) carry no `asa_*` IDs, so neither this RC backfill nor the ASA integration enriches them — there's nothing to resolve.
 
