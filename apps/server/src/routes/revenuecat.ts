@@ -14,12 +14,14 @@ import {
   type RevenueCatConfig,
   RC_ANONYMOUS_PREFIX,
   fetchRevenueCatProjectId,
+  fetchRevenueCatCustomer,
   computeBillingPeriod,
 } from "../utils/revenuecat.js";
 import {
   fetchRevenueCatLookupMaps,
   syncRevenueCatUserProperties,
   resyncRevenueCatUsersInBackground,
+  resolveRevenueCatProjectId,
 } from "../utils/revenuecat-user-sync.js";
 
 interface RevenueCatWebhookEvent {
@@ -220,9 +222,59 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       // Standard subscription events use `app_user_id`, falling back to
       // `original_app_user_id` if the SDK aliased the user (e.g. anon → real).
-      const userId = event.app_user_id || event.original_app_user_id;
+      let userId = event.app_user_id || event.original_app_user_id;
       if (!userId) {
         return reply.code(400).send({ error: "Invalid webhook payload: no user ID" });
+      }
+
+      // RC fires webhooks under whatever app_user_id was current at purchase
+      // time — a purchase made while the SDK was still anonymous arrives as
+      // `$RCAnonymousID:*`, which doesn't map to an Owlmetry user_id. Writing
+      // under it would create a phantom app_users row that hoards the
+      // subscription props (and revenue, via the resync below) instead of the
+      // real user. RC's V2 customers endpoint resolves aliases — GET on the
+      // anonymous id returns the canonical customer — so translate to the
+      // canonical id and fall through to the unchanged downstream flow.
+      // Non-anonymous events skip this entirely (zero added RC calls).
+      if (userId.startsWith(RC_ANONYMOUS_PREFIX)) {
+        const rcProjectId = await resolveRevenueCatProjectId(config.api_key, request.log);
+        if (rcProjectId === null) {
+          // 503 so RC retries — webhook-only props (e.g. cancellation state)
+          // would otherwise be lost, and the handler is idempotent so retries
+          // are safe.
+          return reply.code(503).send({ error: "Could not resolve RevenueCat project" });
+        }
+        const customerResult = await fetchRevenueCatCustomer(config.api_key, rcProjectId, userId);
+        if (customerResult.status === "not_found") {
+          request.log.info(
+            { projectId, userId, eventId: event.id },
+            "RC webhook: anonymous customer not found in RC (acked — nothing to attach to)",
+          );
+          return { received: true };
+        }
+        if (customerResult.status === "error") {
+          request.log.warn(
+            {
+              projectId,
+              userId,
+              eventId: event.id,
+              statusCode: customerResult.statusCode,
+              message: customerResult.message,
+            },
+            "RC webhook: customer lookup failed for anonymous ID (503 so RC retries)",
+          );
+          return reply.code(503).send({ error: "RevenueCat API error" });
+        }
+        if (customerResult.customer.id.startsWith(RC_ANONYMOUS_PREFIX)) {
+          // Customer was never aliased to a real user ID — skip rather than
+          // create a phantom row.
+          request.log.info(
+            { projectId, userId, eventId: event.id },
+            "RC webhook: anonymous customer has no canonical alias (skipped)",
+          );
+          return { received: true };
+        }
+        userId = customerResult.customer.id;
       }
 
       const subscriberProps = mapWebhookEventToProperties(event);
@@ -337,6 +389,18 @@ export async function revenuecatRoutes(app: FastifyInstance) {
 
       const roleError = assertTeamRole(request.auth, project.team_id, "admin");
       if (roleError) return reply.code(403).send({ error: roleError });
+
+      // RC anonymous IDs never map to an Owlmetry user_id. RC's V2 customer
+      // endpoints resolve aliases, so a sync on `$RCAnonymousID:*` would
+      // "succeed" and upsert the canonical customer's props + revenue under
+      // a phantom app_users row (mergeUserProperties creates the row if
+      // missing) — recreating exactly what the webhook's anonymous-id
+      // translation exists to prevent. Reject before burning RC round-trips.
+      if (userId.startsWith(RC_ANONYMOUS_PREFIX)) {
+        return reply.code(400).send({
+          error: "Cannot sync a RevenueCat anonymous ID — its data belongs to the canonical (aliased) user",
+        });
+      }
 
       const integration = await findActiveRevenueCatIntegration(app.db, projectId);
       if (!integration) {

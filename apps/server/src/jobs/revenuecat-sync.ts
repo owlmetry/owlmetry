@@ -3,6 +3,7 @@ import { projectIntegrations, appUsers } from "@owlmetry/db";
 import type { JobContext, JobHandler } from "../services/job-runner.js";
 import {
   type RevenueCatConfig,
+  RC_ANONYMOUS_PREFIX,
   fetchRevenueCatProjectId,
 } from "../utils/revenuecat.js";
 import {
@@ -16,6 +17,7 @@ type ProjectSyncResult = {
   total: number;
   synced: number;
   skipped: number;
+  skipped_anonymous: number;
   active: number;
   inactive: number;
   not_found: number;
@@ -70,7 +72,7 @@ async function syncProject(
 
   // `properties` is pulled in the same select so the per-field merge for
   // RC-backfilled attribution doesn't need a second roundtrip.
-  const users = await ctx.db
+  const userRows = await ctx.db
     .select({
       id: appUsers.id,
       user_id: appUsers.user_id,
@@ -84,11 +86,21 @@ async function syncProject(
       ),
     );
 
+  // Phantom `$RCAnonymousID:*` rows (created by the pre-fix webhook bug)
+  // carry is_anonymous=false — mergeUserProperties only flags the `owl_anon_`
+  // prefix — so the filter above doesn't exclude them. Skip them here: RC's
+  // V2 endpoints resolve aliases, so syncing one would re-stamp the canonical
+  // customer's props + revenue onto the phantom every day, double-counting
+  // against the real user. Mirrors revenuecat-user-backfill.ts.
+  const users = userRows.filter((u) => !u.user_id.startsWith(RC_ANONYMOUS_PREFIX));
+  const skippedAnonymous = userRows.length - users.length;
+
   if (users.length === 0) {
     return {
       total: 0,
       synced: 0,
       skipped: 0,
+      skipped_anonymous: skippedAnonymous,
       active: 0,
       inactive: 0,
       not_found: 0,
@@ -119,6 +131,7 @@ async function syncProject(
       total: users.length,
       synced: 0,
       skipped: 0,
+      skipped_anonymous: skippedAnonymous,
       errors: 0,
       not_found: 0,
       active: 0,
@@ -173,6 +186,7 @@ async function syncProject(
       total,
       synced,
       skipped: notFound + errors,
+      skipped_anonymous: skippedAnonymous,
       active,
       inactive,
       not_found: notFound,
@@ -276,7 +290,7 @@ async function syncProject(
 
   ctx.log.info(
     `RC sync project ${projectId} complete: ${synced}/${total} synced (${active} active, ${inactive} inactive), ` +
-    `${notFound} not found, ${errors} errors. Attribution: ${attributionSynced} filled, ` +
+    `${notFound} not found, ${errors} errors, ${skippedAnonymous} skipped (anon). Attribution: ${attributionSynced} filled, ` +
     `${attributionEnrichedExisting} enriched, ${attributionMarkedOrganic} marked organic, ` +
     `${attributionSkippedNoAsa} non-ASA. Revenue: ${revenueFilled} filled, ${revenueSkipped} skipped.`,
   );
@@ -287,6 +301,7 @@ const AGGREGATE_FIELDS = [
   "total",
   "synced",
   "skipped",
+  "skipped_anonymous",
   "active",
   "inactive",
   "not_found",

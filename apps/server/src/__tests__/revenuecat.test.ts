@@ -12,7 +12,10 @@ import {
   TEST_DB_URL,
   getTokenAndTeamId,
 } from "./setup.js";
-import { clearRevenueCatLookupMapsCache } from "../utils/revenuecat-user-sync.js";
+import {
+  clearRevenueCatLookupMapsCache,
+  clearRevenueCatProjectIdCache,
+} from "../utils/revenuecat-user-sync.js";
 
 let app: FastifyInstance;
 let projectId: string;
@@ -30,6 +33,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await truncateAll();
   clearRevenueCatLookupMapsCache();
+  clearRevenueCatProjectIdCache();
   const seed = await seedTestData();
   projectId = seed.projectId;
   appId = seed.appId;
@@ -87,6 +91,17 @@ async function getUserProperties(userId: string): Promise<Record<string, string>
   `;
   await client.end();
   return (row?.properties as Record<string, string>) ?? null;
+}
+
+// --- Helper: check whether an app_users row exists at all (getUserProperties
+// can't distinguish "no row" from "row with null properties") ---
+async function appUserRowExists(userId: string): Promise<boolean> {
+  const client = postgres(TEST_DB_URL, { max: 1 });
+  const rows = await client`
+    SELECT 1 FROM app_users WHERE project_id = ${projectId} AND user_id = ${userId}
+  `;
+  await client.end();
+  return rows.length > 0;
 }
 
 // --- Exact RevenueCat webhook payload builders ---
@@ -294,11 +309,29 @@ function buildCustomerAttributesResponse(
   };
 }
 
+// Builds a bare /v2/projects/{id}/customers/{id} response (no expand) — the
+// shape of buildCustomerAttributesResponse minus `attributes`. RC resolves
+// aliases on this endpoint: requesting an anonymous `$RCAnonymousID:*` ID
+// returns the canonical customer, so `id` here is the canonical app_user_id.
+function buildCustomerResponse(id: string) {
+  return {
+    object: "customer" as const,
+    id,
+    project_id: TEST_RC_PROJECT_ID,
+    first_seen_at: Date.now() - 86400000,
+    last_seen_at: Date.now(),
+    last_seen_country: "US",
+    last_seen_platform: "iOS",
+    last_seen_platform_version: "17.0",
+    last_seen_app_version: "1.0.0",
+  };
+}
+
 /**
  * Install a fetch mock that handles the V2 /projects lookup, the
  * /customers/{id}/active_entitlements call, the /customers/{id}/subscriptions
- * call, and the /customers/{id}?expand=attributes call. Returns a cleanup
- * function.
+ * call, the /customers/{id}?expand=attributes call, and the bare
+ * /customers/{id} call. Returns a cleanup function.
  */
 function mockRevenueCatV2(options: {
   entitlementsResponse?: unknown;
@@ -313,6 +346,8 @@ function mockRevenueCatV2(options: {
   projectEntitlementsStatus?: number;
   projectProductsResponse?: unknown;
   projectProductsStatus?: number;
+  customerResponse?: unknown;
+  customerStatus?: number;
   captureAuthHeader?: (header: string | null) => void;
   capturedUrl?: (url: string) => void;
 }) {
@@ -381,6 +416,21 @@ function mockRevenueCatV2(options: {
       const body = status === 404
         ? { code: 7259, message: "Customer not found." }
         : options.attributesResponse ?? buildCustomerAttributesResponse();
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    // Bare /customers/{id} GET (no sub-resource, no expand) — used by the
+    // webhook's anonymous-ID alias resolution. MUST stay last: routing is
+    // substring-based, so this catch-all would shadow the /active_entitlements,
+    // /subscriptions, /purchases, and expand=attributes branches above if it
+    // were checked first.
+    if (url.includes("api.revenuecat.com/v2/projects") && url.includes("/customers/")) {
+      const status = options.customerStatus ?? 200;
+      const body = status === 404
+        ? { code: 7259, message: "Customer not found." }
+        : options.customerResponse ?? buildCustomerResponse("rc_user_123");
       return new Response(JSON.stringify(body), {
         status,
         headers: { "Content-Type": "application/json" },
@@ -988,6 +1038,187 @@ describe("POST /v1/webhooks/revenuecat/:projectId", () => {
       cleanup();
     }
   });
+
+  // Standard events under a `$RCAnonymousID:*` app_user_id (purchase made
+  // before the SDK aliased the user) are translated to the canonical customer
+  // via RC's V2 customers endpoint — writing under the anonymous id would
+  // create a phantom app_users row that hoards the subscription props and
+  // revenue instead of the real user.
+
+  it("resolves anonymous app_user_id to the canonical customer and writes properties there", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("canonical_user");
+
+    const anonId = "$RCAnonymousID:abc123def456";
+    const calledUrls: string[] = [];
+    const cleanup = mockRevenueCatV2({
+      customerResponse: buildCustomerResponse("canonical_user"),
+      capturedUrl: (url) => calledUrls.push(url),
+    });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("INITIAL_PURCHASE", {
+          app_user_id: anonId,
+          original_app_user_id: anonId,
+          aliases: [anonId],
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ received: true });
+
+      // Fire-and-forget resync runs after the webhook acks
+      await new Promise((r) => setTimeout(r, 300));
+
+      // Properties landed on the canonical user…
+      const props = await getUserProperties("canonical_user");
+      expect(props).toMatchObject({
+        rc_subscriber: "true",
+        rc_status: "active",
+        rc_product: "premium_monthly",
+      });
+      // …and NO phantom row was created for the anonymous id.
+      expect(await appUserRowExists(anonId)).toBe(false);
+
+      // The alias lookup hit the bare customers endpoint with the anonymous id…
+      const bareCustomerCalls = calledUrls.filter((u) => /\/customers\/[^/?]+$/.test(u));
+      expect(bareCustomerCalls.some((u) => u.includes(encodeURIComponent(anonId)))).toBe(true);
+      // …and the background resync targeted the canonical id, never the anonymous one.
+      const resyncCalls = calledUrls.filter((u) => u.includes("/active_entitlements"));
+      expect(resyncCalls.some((u) => u.includes("canonical_user"))).toBe(true);
+      expect(calledUrls.filter((u) => u.includes("/active_entitlements") || u.includes("/subscriptions") || u.includes("/purchases")).some((u) => u.includes("RCAnonymousID"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("acks without writing when the canonical customer id is still anonymous (never aliased)", async () => {
+    await createRevenueCatIntegration();
+
+    const anonId = "$RCAnonymousID:neveraliased01";
+    const calledUrls: string[] = [];
+    const cleanup = mockRevenueCatV2({
+      customerResponse: buildCustomerResponse(anonId),
+      capturedUrl: (url) => calledUrls.push(url),
+    });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("INITIAL_PURCHASE", {
+          app_user_id: anonId,
+          original_app_user_id: anonId,
+          aliases: [anonId],
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ received: true });
+
+      // Allow time for any (unwanted) fire-and-forget resync calls to land
+      await new Promise((r) => setTimeout(r, 200));
+
+      // No row for the anonymous id, and no resync fetches were issued.
+      expect(await appUserRowExists(anonId)).toBe(false);
+      const resyncCalls = calledUrls.filter(
+        (u) => u.includes("/active_entitlements") || u.includes("/subscriptions") || u.includes("/purchases") || u.includes("expand=attributes"),
+      );
+      expect(resyncCalls).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("acks 200 without writing when RC reports the anonymous customer as not found", async () => {
+    await createRevenueCatIntegration();
+
+    const anonId = "$RCAnonymousID:gone404";
+    const cleanup = mockRevenueCatV2({ customerStatus: 404 });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("INITIAL_PURCHASE", {
+          app_user_id: anonId,
+          original_app_user_id: anonId,
+          aliases: [anonId],
+        }),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ received: true });
+      expect(await appUserRowExists(anonId)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("returns 503 (so RC retries) when the customer lookup for an anonymous id fails", async () => {
+    await createRevenueCatIntegration();
+
+    const anonId = "$RCAnonymousID:lookup500";
+    const cleanup = mockRevenueCatV2({ customerStatus: 500 });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("INITIAL_PURCHASE", {
+          app_user_id: anonId,
+          original_app_user_id: anonId,
+          aliases: [anonId],
+        }),
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(await appUserRowExists(anonId)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does not call RC's bare customers endpoint for non-anonymous webhook events", async () => {
+    await createRevenueCatIntegration();
+    await ingestEvent("rc_user_123");
+
+    const calledUrls: string[] = [];
+    const cleanup = mockRevenueCatV2({
+      capturedUrl: (url) => calledUrls.push(url),
+    });
+
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/webhooks/revenuecat/${projectId}`,
+        headers: { authorization: `Bearer ${WEBHOOK_SECRET}` },
+        payload: buildWebhookPayload("INITIAL_PURCHASE"),
+      });
+
+      expect(res.statusCode).toBe(200);
+      const props = await getUserProperties("rc_user_123");
+      expect(props?.rc_subscriber).toBe("true");
+
+      // Let the fire-and-forget resync land its (expected) sub-resource calls
+      await new Promise((r) => setTimeout(r, 300));
+
+      // The resync hits /customers/{id}/active_entitlements etc. and
+      // /customers/{id}?expand=attributes — but the alias-resolution bare GET
+      // (/customers/{id}, no sub-resource, no query) must never be issued.
+      const bareCustomerCalls = calledUrls.filter((u) => /\/customers\/[^/?]+$/.test(u));
+      expect(bareCustomerCalls).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ==========================================================================
@@ -1586,6 +1817,33 @@ describe("POST /v1/projects/:projectId/integrations/revenuecat/sync/:userId", ()
 
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toMatch(/not found/);
+  });
+
+  it("returns 400 for a RevenueCat anonymous ID without creating a phantom row", async () => {
+    await createRevenueCatIntegration();
+
+    const anonId = "$RCAnonymousID:singleusersync01";
+    const calledUrls: string[] = [];
+    const cleanup = mockRevenueCatV2({
+      capturedUrl: (url) => calledUrls.push(url),
+    });
+    try {
+      const res = await app.inject({
+        method: "POST",
+        url: `/v1/projects/${projectId}/integrations/revenuecat/sync/${encodeURIComponent(anonId)}`,
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toMatch(/anonymous/i);
+      // RC's alias resolution would happily return the canonical customer's
+      // data for this id — the route must reject before any RC call so no
+      // phantom app_users row is created (or a deleted one resurrected).
+      expect(calledUrls).toHaveLength(0);
+      expect(await appUserRowExists(anonId)).toBe(false);
+    } finally {
+      cleanup();
+    }
   });
 
   it("backfills ASA attribution from RC subscriber attributes on sync", async () => {

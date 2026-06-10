@@ -519,6 +519,40 @@ export function fetchRevenueCatProjectProducts(
   );
 }
 
+export type FetchCustomerResult =
+  | { status: "found"; customer: RevenueCatV2Customer }
+  | { status: "not_found" }
+  | { status: "error"; statusCode?: number; message?: string };
+
+/**
+ * Fetch a RevenueCat customer object via the V2 API (no expand — the bare
+ * customer object carries the canonical `id`). RC resolves aliases on this
+ * endpoint: requesting an anonymous `$RCAnonymousID:*` ID returns the
+ * canonical customer whose `id` is the real app_user_id (verified against a
+ * live response). Used by the webhook handler to translate anonymous webhook
+ * events to the canonical user before writing properties.
+ */
+export async function fetchRevenueCatCustomer(
+  apiKey: string,
+  rcProjectId: string,
+  userId: string,
+): Promise<FetchCustomerResult> {
+  try {
+    const url = `${RC_V2_BASE}/projects/${encodeURIComponent(rcProjectId)}/customers/${encodeURIComponent(userId)}`;
+    const res = await fetch(url, {
+      headers: rcHeaders(apiKey),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (res.ok) {
+      return { status: "found", customer: (await res.json()) as RevenueCatV2Customer };
+    }
+    if (res.status === 404) return { status: "not_found" };
+    return { status: "error", statusCode: res.status, message: await readBodyPreview(res) };
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export type FetchCustomerAttributesResult =
   | { status: "found"; attributes: RevenueCatV2Attribute[] }
   | { status: "not_found" }

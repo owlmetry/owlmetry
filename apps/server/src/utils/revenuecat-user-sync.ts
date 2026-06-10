@@ -7,6 +7,7 @@ import { mapRevenueCatAttributesToAttributionProperties } from "./attribution/re
 import {
   type RevenueCatConfig,
   type RevenueCatLookupMaps,
+  RC_ANONYMOUS_PREFIX,
   mapSubscriberToProperties,
   fetchRevenueCatSubscriber,
   fetchRevenueCatSubscriptions,
@@ -240,6 +241,51 @@ export async function fetchRevenueCatLookupMaps(args: {
   return maps;
 }
 
+// A V2 secret API key is project-scoped and its project ID never changes, so
+// caching the key → project-id resolution in-process saves one RC round-trip
+// per background resync and per anonymous-id webhook event. 1-hour TTL is
+// generous given the value is effectively immutable. Mirrors lookupMapsCache.
+const PROJECT_ID_CACHE_TTL_MS = 60 * 60 * 1000;
+const projectIdCache = new Map<string, { projectId: string; expiresAt: number }>();
+
+// Exported for tests — between tests, fetch-mock targets change but the
+// cache key (`api_key`) is constant, so without clearing the cache a later
+// test would see an earlier test's resolved project ID.
+export function clearRevenueCatProjectIdCache(): void {
+  projectIdCache.clear();
+}
+
+/**
+ * Resolve the RevenueCat project ID for a V2 secret API key, cached
+ * in-process per key for 1 hour. Returns null when resolution fails (RC
+ * error or key with no accessible projects) after logging a warning.
+ * Failures are NOT cached so a transient outage doesn't poison subsequent
+ * lookups for the full TTL.
+ */
+export async function resolveRevenueCatProjectId(
+  apiKey: string,
+  log: SyncLog,
+): Promise<string | null> {
+  const now = Date.now();
+  const cached = projectIdCache.get(apiKey);
+  if (cached && cached.expiresAt > now) return cached.projectId;
+
+  const result = await fetchRevenueCatProjectId(apiKey);
+  if (result.status !== "found") {
+    log.warn(
+      {
+        status: result.status,
+        statusCode: result.status === "error" ? result.statusCode : undefined,
+        message: result.status === "error" ? result.message : undefined,
+      },
+      "Could not resolve RevenueCat project ID",
+    );
+    return null;
+  }
+  projectIdCache.set(apiKey, { projectId: result.projectId, expiresAt: now + PROJECT_ID_CACHE_TTL_MS });
+  return result.projectId;
+}
+
 /**
  * Fire-and-forget per-user resync against RC's V2 API. Used by webhook
  * handlers to refresh property + revenue state for affected users without
@@ -257,14 +303,18 @@ export function resyncRevenueCatUsersInBackground(args: {
   context: string;
   eventId?: string;
 }): void {
-  const { db, log, projectId, config, userIds, context, eventId } = args;
+  const { db, log, projectId, config, context, eventId } = args;
+  // Defensive: RC anonymous IDs must never reach the sync path — it upserts
+  // on (project_id, user_id), so a stray `$RCAnonymousID:*` from any caller
+  // would resurrect a deleted phantom app_users row.
+  const userIds = args.userIds.filter((id) => !id.startsWith(RC_ANONYMOUS_PREFIX));
   if (userIds.length === 0) return;
   void (async () => {
     try {
-      const projectIdResult = await fetchRevenueCatProjectId(config.api_key);
-      if (projectIdResult.status !== "found") {
+      const rcProjectId = await resolveRevenueCatProjectId(config.api_key, log);
+      if (rcProjectId === null) {
         log.warn(
-          { projectId, eventId, status: projectIdResult.status, context },
+          { projectId, eventId, context },
           "RC user resync aborted — could not resolve RevenueCat project",
         );
         return;
@@ -274,7 +324,7 @@ export function resyncRevenueCatUsersInBackground(args: {
       // translation table without re-fetching.
       const lookups = await fetchRevenueCatLookupMaps({
         apiKey: config.api_key,
-        rcProjectId: projectIdResult.projectId,
+        rcProjectId,
         log,
       });
       await Promise.all(
@@ -284,7 +334,7 @@ export function resyncRevenueCatUsersInBackground(args: {
               db,
               log,
               projectId,
-              rcProjectId: projectIdResult.projectId,
+              rcProjectId,
               config,
               userId,
               lookups,
