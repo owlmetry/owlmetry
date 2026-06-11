@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, and, inArray, isNull, sql, desc } from "drizzle-orm";
 import { issues, issueFingerprints, issueOccurrences, issueComments, apps, projects, eventAttachments, appUsers } from "@owlmetry/db";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, ISSUE_STATUSES, ATTACHMENT_ISSUE_DETAIL_PAGE_SIZE } from "@owlmetry/shared";
-import type { IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
+import type { DataMode, IssueStatus, IssuesQueryParams, UpdateIssueRequest, MergeIssuesRequest, CreateIssueCommentRequest, UpdateIssueCommentRequest } from "@owlmetry/shared";
 import type { IssueAlertFrequency } from "@owlmetry/shared";
 import { requirePermission, getAuthTeamIds } from "../middleware/auth.js";
 import { logAuditEvent } from "../utils/audit.js";
@@ -99,7 +99,7 @@ export async function issuesRoutes(app: FastifyInstance) {
       const project = await resolveProject(app, projectId, request.auth, reply);
       if (!project) return;
 
-      const { status, app_id, is_dev, cursor, limit: limitStr } = request.query;
+      const { status, app_id, is_dev, data_mode, cursor, limit: limitStr } = request.query;
       const limit = Math.min(Math.max(parseInt(limitStr || "", 10) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
 
       // Build conditions
@@ -112,6 +112,11 @@ export async function issuesRoutes(app: FastifyInstance) {
       }
       if (is_dev !== undefined) {
         conditions.push(eq(issues.is_dev, is_dev === "true"));
+      } else if (data_mode !== undefined) {
+        // Only filter when data_mode is explicitly sent — absent means "all" here
+        // (MCP/CLI callers rely on that), unlike the team route's production default.
+        const devCondition = dataModeToDrizzle(issues.is_dev, data_mode as DataMode);
+        if (devCondition) conditions.push(devCondition);
       }
 
       if (cursor) {
@@ -659,7 +664,7 @@ export async function teamIssuesRoutes(app: FastifyInstance) {
       if (app_id) {
         conditions.push(eq(issues.app_id, app_id));
       }
-      const devCondition = dataModeToDrizzle(issues.is_dev, data_mode as any);
+      const devCondition = dataModeToDrizzle(issues.is_dev, data_mode as DataMode);
       if (devCondition) conditions.push(devCondition);
 
       if (cursor) {

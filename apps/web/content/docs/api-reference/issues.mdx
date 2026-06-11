@@ -17,7 +17,8 @@ List issues for a project. Results are ordered by most recently seen.
 |-----------|------|-------------|
 | `status` | string | Filter by status: `new`, `in_progress`, `resolved`, `silenced`, `regressed`, `snoozed`. |
 | `app_id` | string | Filter to a specific app. |
-| `is_dev` | string | Filter by dev mode: `true` or `false`. |
+| `is_dev` | string | Filter by dev mode: `true` or `false`. Takes precedence over `data_mode`. |
+| `data_mode` | string | `production`, `development`, or `all` (default when omitted). |
 | `cursor` | string | Cursor from previous response for pagination. |
 | `limit` | number | Items per page (1-200, default 50). |
 

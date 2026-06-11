@@ -193,6 +193,51 @@ describe("Issues API", () => {
       expect(JSON.parse(devRes.body).issues[0].is_dev).toBe(true);
     });
 
+    it("filters by data_mode, defaulting to all when absent", async () => {
+      await createTestIssue({ is_dev: false });
+      await createTestIssue({ is_dev: true });
+
+      const prodRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues?data_mode=production`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(JSON.parse(prodRes.body).issues).toHaveLength(1);
+      expect(JSON.parse(prodRes.body).issues[0].is_dev).toBe(false);
+
+      const devRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues?data_mode=development`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(JSON.parse(devRes.body).issues).toHaveLength(1);
+      expect(JSON.parse(devRes.body).issues[0].is_dev).toBe(true);
+
+      const allRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues?data_mode=all`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(JSON.parse(allRes.body).issues).toHaveLength(2);
+
+      // Absent data_mode keeps the legacy "all" behavior (MCP/CLI rely on it)
+      const noParamRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(JSON.parse(noParamRes.body).issues).toHaveLength(2);
+
+      // Explicit is_dev takes precedence over data_mode
+      const overrideRes = await app.inject({
+        method: "GET",
+        url: `/v1/projects/${projectId}/issues?is_dev=true&data_mode=production`,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(JSON.parse(overrideRes.body).issues).toHaveLength(1);
+      expect(JSON.parse(overrideRes.body).issues[0].is_dev).toBe(true);
+    });
+
     it("includes fingerprints and app_name", async () => {
       await createTestIssue();
 
