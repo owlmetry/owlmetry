@@ -483,4 +483,44 @@ describe("attachment_cleanup job", () => {
       await client2.end();
     }
   });
+
+  it("sweeps attachments whose event was pruned and keeps the rest", async () => {
+    // Several candidates are needed: the bound event-id list must round-trip
+    // as an array, not as a single scalar.
+    const prunedClientId = randomUUID();
+    const keptClientIds = [randomUUID(), randomUUID()];
+    const ids: Record<string, string> = {};
+    for (const clientEventId of [prunedClientId, ...keptClientIds]) {
+      const { buf, response } = await reserveAttachment({ client_event_id: clientEventId });
+      const { attachment_id } = response.json();
+      await uploadBytes(attachment_id, buf);
+      await ingestEvent(clientEventId, "info");
+      ids[clientEventId] = attachment_id;
+    }
+
+    const client = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      await client`
+        UPDATE event_attachments
+        SET created_at = NOW() - INTERVAL '48 hours'
+        WHERE id = ANY(${Object.values(ids)}::uuid[])
+      `;
+      await client`DELETE FROM events WHERE client_event_id = ${prunedClientId}`;
+    } finally {
+      await client.end();
+    }
+
+    const result = await attachmentCleanupHandler(buildJobContext(), {});
+    expect(result.pruned_event_attachments_removed).toBe(1);
+
+    const client2 = postgres(TEST_DB_URL, { max: 1 });
+    try {
+      const rows = await client2<{ id: string }[]>`
+        SELECT id FROM event_attachments WHERE id = ANY(${Object.values(ids)}::uuid[])
+      `;
+      expect(rows.map((r) => r.id).sort()).toEqual(keptClientIds.map((c) => ids[c]).sort());
+    } finally {
+      await client2.end();
+    }
+  });
 });

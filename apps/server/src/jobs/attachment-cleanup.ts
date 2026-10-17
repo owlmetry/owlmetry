@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { eventAttachments, events } from "@owlmetry/db";
 import {
   ATTACHMENT_ORPHAN_GRACE_HOURS,
@@ -90,7 +90,7 @@ export const attachmentCleanupHandler: JobHandler = async (ctx) => {
     const stillPresent = await ctx.db
       .select({ id: events.id })
       .from(events)
-      .where(sql`${events.id} = ANY(${orphanEventIds}::uuid[])`);
+      .where(inArray(events.id, orphanEventIds));
     for (const row of stillPresent) {
       if (row.id) prunedEventIds.delete(row.id);
     }
